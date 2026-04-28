@@ -1,0 +1,332 @@
+---
+module: S11
+title: Web3 / Blockchain — EVM, Smart Contracts, Wallets, L2s
+stage: senior
+prereqs: [S01]
+gates:
+  conceitual: { status: pending, date: null, attempts: 0, notes: null }
+  pratico: { status: pending, date: null, attempts: 0, notes: null }
+  conexoes: { status: pending, date: null, attempts: 0, notes: null }
+status: locked
+---
+
+# S11 — Web3 / Blockchain
+
+## 1. Problema de Engenharia
+
+Engenheiros full-stack frequentemente caem em dois extremos com web3: ignoram completamente ("hype, scam, fim") ou viram crypto-bro acrítico ("descentralizar tudo"). Nenhum dos dois é técnico. A realidade: blockchains são **distributed systems com restrições específicas (Byzantine fault tolerance, total ordering, immutability) e custos próprios (gas, finality, UX wallets)**. Há use cases legítimos (settlement, supply chain auditável, cross-border payments, identity, NFT como bilhete digital) e ilegítimos (cargo cult em domínio que não precisa).
+
+Este módulo é web3 com olho de engenheiro: como blockchains funcionam (em particular EVM), wallets, smart contracts, dev workflow, oracle pattern, layer 2s, custódia, segurança, e quando vale incluir blockchain num sistema. Sem hype, sem desdém.
+
+---
+
+## 2. Teoria Hard
+
+### 2.1 O que é blockchain
+
+Distributed ledger replicado em nodes, com:
+- **Append-only log** com cryptographic linking.
+- **Consensus** Byzantine-tolerant.
+- **Smart contracts** (em alguns) — código executando determinístico.
+- **Public** verificability (qualquer node pode validar history).
+- **Tokens nativos** pra incentivar nodes.
+
+Categorias:
+- **Public permissionless** (Bitcoin, Ethereum): qualquer node entra; consenso PoW/PoS.
+- **Permissioned** (Hyperledger Fabric, Quorum): nodes whitelisted; faster, mais centralizado.
+- **L1**: chain principal.
+- **L2**: built on top de L1, hereda security.
+
+### 2.2 Bitcoin vs Ethereum
+
+- **Bitcoin**: focused em valor monetário. Script limited (sem Turing-complete contracts). Lightning Network como L2.
+- **Ethereum**: VM Turing-complete (EVM). Smart contracts arbitrários. DeFi, NFTs, tokens.
+
+Em 2026, Ethereum dominante em smart contracts. Solana, Avalanche, Cosmos, etc. competem.
+
+### 2.3 Consensus
+
+- **PoW** (Bitcoin, Ethereum legado): nodes resolvem hash puzzles. Energia caro.
+- **PoS** (Ethereum desde 2022, "The Merge"): validators staking ETH; chosen randomly to propose. Eficiente.
+- **dPoS / BFT variants**: Solana, Cosmos.
+- **Byzantine FT**: tolera N/3 malicious nodes (2/3+ honest assumption).
+
+Finality: tempo até bloco "irrevogável". Bitcoin ~6 confirmations (~1h). Ethereum L1 ~13 min finality. L2s segundos.
+
+### 2.4 EVM e gas
+
+EVM (Ethereum Virtual Machine) executa bytecode determinístico em todos nodes. Cada operação custa **gas** — input importa, output importa, storage caro.
+
+Smart contract deploy: bytecode + constructor args.
+
+Gas model:
+- `gasPrice` (Gwei).
+- `gasLimit`.
+- Cada opcode tem custo. Storage write ~20k gas; calculation ~3 gas; SLOAD ~2.1k.
+- Sender paga em ETH.
+
+Em 2026, ETH transactions L1 custam $0.50-5 dependendo. L2 custam fracções.
+
+### 2.5 Smart contracts
+
+Languages:
+- **Solidity**: dominant. Sintaxe similar JS, types fortes.
+- **Vyper**: Python-ish, mais segura.
+- **Move** (Aptos, Sui): outro paradigma.
+- **Cairo** (Starknet): provable.
+
+Tools:
+- **Foundry**: build, test, fuzz em Solidity. Padrão atual.
+- **Hardhat**: alternativa em JS/TS.
+- **Remix**: IDE web pra prototipagem.
+
+Padrões:
+- **OpenZeppelin contracts**: lib auditada.
+- Padrões de tokens: ERC-20 (fungible), ERC-721 (NFT), ERC-1155 (multi).
+- **EIP-2535 Diamond**: contratos modulares com proxy.
+
+### 2.6 Storage e estado
+
+State on-chain é caro. Padrões:
+- **Off-chain compute, on-chain settlement**: DEX matches off-chain, settle on-chain.
+- **Merkle proofs**: prove inclusão sem trazer dados.
+- **IPFS / Arweave**: storage descentralizado pra blobs (NFT metadata, etc.).
+- **The Graph**: indexação queryável dos events on-chain.
+
+Em sistema híbrido: blockchain pra eventos críticos (settlement, ownership transfer), DBs comuns pra resto.
+
+### 2.7 Wallets
+
+Addresses derivam de chaves privadas. Wallet = secret key + UI.
+
+Tipos:
+- **EOA (Externally Owned Account)**: chave privada controlada pelo user. MetaMask.
+- **Smart contract wallet** (ERC-4337 / Account Abstraction): wallet é smart contract com regras (multi-sig, social recovery, gas sponsoring).
+- **Custodial**: provider segura key (Coinbase). UX simples, vendor risk.
+- **Hardware wallets**: Ledger, Trezor.
+
+Em 2026, **passkeys + smart wallets** está ganhando UX (sem seed phrase pra usuário comum).
+
+### 2.8 Web3 stack frontend
+
+- **wagmi**: React hooks pra interação (account, balance, contract reads/writes).
+- **viem**: TS interface low-level pra EVM. Substituiu ethers em muitos projects.
+- **WalletConnect**: protocolo wallet ↔ dapp.
+- **RainbowKit / ConnectKit**: connect button bem feito.
+
+Front conecta wallet → user assina transactions → broadcast.
+
+### 2.9 RPC providers
+
+Node próprio caro. Use providers:
+- **Infura, Alchemy, QuickNode, Ankr**.
+- Free tiers limitados.
+
+WebSocket subscriptions pra events.
+
+### 2.10 Oracles
+
+Smart contracts são determinísticos; não chamam HTTP. Pra ler "preço de ETH", "resultado de jogo", "shipment chegou": **oracles** trazem off-chain → on-chain.
+
+- **Chainlink**: dominante. Decentralized, signed by N nodes.
+- **Pyth, RedStone**: alternatives.
+
+Pattern: oracle pushes data; smart contract reads.
+
+### 2.11 L2s (Layer 2s)
+
+Reduce custo + latency mantendo Ethereum security:
+- **Optimistic Rollups** (Optimism, Arbitrum): batch transactions off-chain; settle on Ethereum; challenge window pra fraud proof.
+- **ZK Rollups** (zkSync, Starknet, Polygon zkEVM): cryptographic proof de validade. Final faster.
+- **Validiums, Plasma**: variantes.
+
+Em 2026, L2s dominam custo. L1 settlement layer.
+
+### 2.12 Bridges
+
+Move tokens cross-chain:
+- Lock-and-mint.
+- Burn-and-mint.
+- Atomic swaps.
+
+Bridges são frequentemente exploitados (bilhões em hacks). Use bem auditadas (Wormhole, LayerZero, Across).
+
+### 2.13 Smart contract security
+
+Bugs em contratos podem queimar fundos. Categorias:
+- **Reentrancy**: A chama B; B chama back A antes de A finalizar. Drained funds (DAO hack 2016).
+- **Integer overflow**: pre-Solidity 0.8 era issue; agora compiler checks.
+- **Access control**: missing onlyOwner, missing role check.
+- **Front-running / MEV**: bots see pending tx, send same with higher gas.
+- **Logic bugs**: subtle math errors.
+
+Practice:
+- **OpenZeppelin contracts** sempre que aplicável.
+- **Foundry fuzzing + invariants**.
+- **Slither**: static analyzer.
+- **Echidna**: fuzzer.
+- **Auditorias** profissionais antes de mainnet $$.
+
+### 2.14 DeFi primitives
+
+- **AMM** (Automated Market Maker): Uniswap v3/4. Pools liquidity, constant product/concentrated.
+- **Lending**: Aave, Compound. Collateralized loans.
+- **Stablecoins**: USDC (centralized), DAI (overcollateralized), algorithmic.
+- **Yield aggregators, perpetuals, options**.
+
+Sem entrar em finance: como engenheiro, entender pra ler integrações.
+
+### 2.15 NFTs além de JPEGs
+
+- **Tickets digitais** (Eventos, transporte).
+- **Comprovante de ownership** (domain names, music rights).
+- **Soulbound tokens**: identity, credentials, badges. Não-transferível.
+- **Digital twins**: representação on-chain de asset físico.
+
+ERC-721, ERC-1155.
+
+### 2.16 Identity descentralizada
+
+- **DIDs (Decentralized Identifiers)**: W3C spec. User controla.
+- **Verifiable Credentials**: signed claims.
+- **ENS** (Ethereum Name Service): nicholas.eth resolve a address.
+
+Crescente em SSO sem provider central.
+
+### 2.17 Quando blockchain VALE
+
+- Settlement multi-party sem trusted party (cross-border, supply chain auditável).
+- Ownership/identidade portável e resistant.
+- Tokens com utility econômica (fundraise via DAO, royalty distribution).
+- Imutable audit log onde immutability legal/contractual matter.
+- Gaming/digital goods cross-app.
+
+### 2.18 Quando NÃO vale
+
+- "Database descentralizado" pra app interno.
+- Privacy strict (blockchains são publicos, com exceções como Zcash).
+- Latency-sensitive (TPS limitado, finality).
+- Time sem expertise — bugs custam dinheiro real.
+
+Default: ignore blockchain a menos que forte motivação domain-driven.
+
+### 2.19 Logística + blockchain — viável?
+
+Casos plausíveis:
+- **Settlement entre lojista, courier, plataforma**: smart contract distribui pagamento automatically em delivery confirmed (oracle + multisig).
+- **Audit imutável** de delivery chain pra compliance (medicamentos, alimentos perecíveis).
+- **Tokens de fidelidade** transferíveis entre lojistas.
+
+Mas: complexity adds non-trivial. Comece simples, agregue blockchain só com demand clara.
+
+---
+
+## 3. Threshold de Maestria
+
+Você precisa, sem consultar:
+
+- Distinguir public, permissioned blockchains.
+- PoW vs PoS trade-offs.
+- EVM gas model com 3 implicações.
+- Smart contract languages: Solidity, Vyper, Move.
+- Oracle pattern e por que necessário.
+- L2s: optimistic vs ZK rollups.
+- Bridges e os hacks recorrentes.
+- 4 categorias de smart contract bugs.
+- ERC-20, ERC-721, ERC-1155 diferenças.
+- Quando blockchain NÃO vale.
+
+---
+
+## 4. Desafio de Engenharia
+
+**Settlement contract** simples integrado com Logística — proof-of-concept.
+
+### Especificação
+
+1. **Stack**:
+   - Foundry pra Solidity dev.
+   - Local node (Anvil) pra testes.
+   - L2 testnet (Base Sepolia, Optimism Sepolia) pra deploy demo.
+   - viem + wagmi no front.
+   - Hot wallet de teste (não mainnet $$).
+2. **Smart contract**:
+   - `LogisticaEscrow.sol`:
+     - Lojista deposita pagamento de entrega (mock token ERC-20 ou ETH).
+     - Courier accept job → status "active".
+     - Quando entrega marked "delivered" + signed por trusted oracle → contract releases:
+       - 90% pra courier.
+       - 10% pra plataforma.
+     - Disputed window: timeout pra rollback se nada confirmar.
+   - Use OpenZeppelin (`Ownable`, `ReentrancyGuard`).
+3. **Off-chain integration**:
+   - Backend Logística após confirmar delivery, signs message + sends ao oracle (mock, controlled by you).
+   - Oracle calls contract.release(orderId).
+4. **Tests**:
+   - Foundry tests cobrindo: happy path, courier não confirmado, dispute, reentrancy attempt (fuzz com adversarial).
+   - Coverage > 95%.
+   - 1 invariant: total balance contract == sum(escrows ativos).
+5. **Front integration**:
+   - Login com wallet (RainbowKit) opt-in pra lojistas que querem.
+   - UI de "deposit escrow" assina transaction.
+   - View "pending escrows" mostra status from contract.
+6. **Security**:
+   - Slither rodado; findings tratados.
+   - Audit checklist pessoal: reentrancy, access control, oracle trust assumptions documentadas.
+7. **Deploy demo**:
+   - L2 testnet (Base Sepolia).
+   - Documente address, ABI, transaction example.
+8. **Honest assessment**:
+   - `BLOCKCHAIN-DECISION.md`: vale incluir blockchain em produção real do Logística? Em que cenário sim, em que cenário não. Cost estimate (gas) por transação realista.
+
+### Restrições
+
+- Sem deploy em mainnet (cost real).
+- Sem implementar exchange/AMM — só escrow simples.
+- Sem assumir oracle confiável sem documentar threat model.
+- Sem chainlink em testnet sem necessidade — mock oracle local.
+
+### Threshold
+
+- README documenta:
+  - Fluxo escrow com diagrama.
+  - Foundry test report.
+  - Deploy address em L2 testnet com tx history.
+  - Demo UX: lojista deposita, courier delivers, payment liberada.
+  - Decision document com honest take.
+  - 1 vulnerabilidade encontrada e corrigida (mesmo que didática).
+
+### Stretch
+
+- Account Abstraction wallet (ERC-4337): courier "wallet" é smart wallet com social recovery.
+- Token de fidelidade ERC-20 distribuído por entrega.
+- ZK proof toy: provar entrega aconteceu sem revelar detalhes.
+- Subgraph (The Graph) indexando eventos do contract pra query.
+- Multi-chain: deploy mesmo contract em 2 L2s, demonstrar bridging básico.
+
+---
+
+## 5. Extensões e Conexões
+
+- Liga com **N03** (network): RPC HTTP/WS pra blockchain nodes.
+- Liga com **A13** (auth): wallet auth como SSO alternativo.
+- Liga com **P08** (security): smart contract audits, supply chain.
+- Liga com **S01** (theory): Byzantine consensus.
+- Liga com **S05** (API): wallets como auth, contract events como events.
+- Liga com **S03** (event-driven): subscribe a contract events.
+- Liga com **S08** (services): blockchain como service externo.
+
+---
+
+## 6. Referências
+
+- **Ethereum docs** ([ethereum.org/developers](https://ethereum.org/developers/)).
+- **Solidity docs** ([docs.soliditylang.org](https://docs.soliditylang.org/)).
+- **Foundry book** ([book.getfoundry.sh](https://book.getfoundry.sh/)).
+- **OpenZeppelin contracts** ([docs.openzeppelin.com](https://docs.openzeppelin.com/contracts)).
+- **wagmi docs** ([wagmi.sh](https://wagmi.sh/)) e **viem** ([viem.sh](https://viem.sh/)).
+- **"Mastering Ethereum"** — Andreas Antonopoulos, Gavin Wood.
+- **smart contract security**: ConsenSys best practices, Trail of Bits guides, secureum bootcamps.
+- **rekt.news** — case studies de hacks (didático).
+- **L2Beat** ([l2beat.com](https://l2beat.com/)) — comparison de L2s.
+- **Vitalik's blog** ([vitalik.eth.limo](https://vitalik.eth.limo/)).

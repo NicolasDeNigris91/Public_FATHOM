@@ -1,0 +1,25 @@
+# Resultados pessoais (não pertencem ao framework)
+assessment-result.md
+notes/
+journal.md
+failures-log.md
+open-questions.md
+papers/
+anki-decks/
+code/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Secrets / env (precaução; framework não tem deps mas previne acidente)
+.env
+.env.*
+*.pem
+*.key
