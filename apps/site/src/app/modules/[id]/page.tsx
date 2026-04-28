@@ -16,6 +16,8 @@ import {
   buildBreadcrumbLd,
   buildTechArticleLd,
 } from '@/components/StructuredData';
+import { TableOfContents } from '@/components/TableOfContents';
+import { extractToc } from '@/lib/toc';
 
 export async function generateStaticParams() {
   const all = await getAllModules();
@@ -56,6 +58,7 @@ export default async function ModulePage({ params }: { params: Promise<{ id: str
   const stageNumber = String(stage.number).padStart(2, '0');
   const { prev, next } = await getNeighborModules(mod.rawId);
   const meta = readingMetadata(mod.content);
+  const toc = extractToc(mod.content);
 
   // Quick description from first non-trivial paragraph (mirrors generateMetadata).
   const desc = mod.content
@@ -83,7 +86,7 @@ export default async function ModulePage({ params }: { params: Promise<{ id: str
   return (
     <article className="px-8 md:px-16 lg:px-24 pt-32 pb-24">
       <StructuredData data={[breadcrumbLd, articleLd]} />
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl xl:max-w-6xl mx-auto">
         <Breadcrumb
           items={[
             { label: 'Home', href: '/' },
@@ -136,8 +139,13 @@ export default async function ModulePage({ params }: { params: Promise<{ id: str
           </div>
         )}
 
-        <MarkdownContent source={mod.content} />
-        <ModuleNav prev={prev} next={next} />
+        <div className="xl:grid xl:grid-cols-[1fr_16rem] xl:gap-12">
+          <div className="min-w-0">
+            <MarkdownContent source={mod.content} />
+            <ModuleNav prev={prev} next={next} />
+          </div>
+          <TableOfContents items={toc} />
+        </div>
       </div>
     </article>
   );
