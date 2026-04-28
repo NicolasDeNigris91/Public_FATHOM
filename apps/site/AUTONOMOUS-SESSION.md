@@ -8,7 +8,7 @@ Branch: `main` · Repo: `https://github.com/NicolasDeNigris91/FATHOM`
 
 ## Resumo executivo
 
-29 commits de melhorias foram feitos no site (`apps/site/`) sem tocar no protocolo, conteúdo de módulos, ou estrutura do framework. Foco: type safety, UX, a11y, SEO, e features que aumentam valor sem expandir scope.
+33 commits de melhorias foram feitos no site (`apps/site/`) sem tocar no protocolo, conteúdo de módulos, ou estrutura do framework. Foco: type safety, UX, a11y, SEO, e features que aumentam valor sem expandir scope.
 
 **Nada quebrou conteúdo existente.** O site continua sendo render do Markdown — single source of truth preservado.
 
@@ -17,6 +17,13 @@ Branch: `main` · Repo: `https://github.com/NicolasDeNigris91/FATHOM`
 ---
 
 ## Commits (ordem reversa, mais recente primeiro)
+
+### Onda 3
+
+- **`dfe9773`** — feat: "Destrava" section em /modules/[id] mostrando módulos dependentes (reverse prereqs).
+- **`8bbea85`** — feat: search highlight em /glossary (matched text com bg gold-leaf/20).
+- **`a9415cd`** — feat: /docs index page (16 docs agrupados por categoria) + back-to-top button.
+- **`77e3756`** — docs: AUTONOMOUS-SESSION.md update onda 2.
 
 ### Onda 2 (depois do log inicial)
 
