@@ -1,4 +1,5 @@
 import { EyebrowHeading } from '@/components/EyebrowHeading';
+import { Breadcrumb } from '@/components/Breadcrumb';
 import Link from 'next/link';
 
 export const metadata = { title: 'About' };
@@ -7,6 +8,12 @@ export default function AboutPage() {
   return (
     <section className="px-8 md:px-16 lg:px-24 pt-32 pb-24">
       <div className="max-w-3xl mx-auto">
+        <Breadcrumb
+          items={[
+            { label: 'Home', href: '/' },
+            { label: 'About' },
+          ]}
+        />
         <EyebrowHeading
           eyebrow="Sobre"
           title="O que é o Fathom"

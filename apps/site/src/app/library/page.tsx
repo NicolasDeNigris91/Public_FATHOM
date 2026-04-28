@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ExternalLink, Lock } from 'lucide-react';
 import { EyebrowHeading } from '@/components/EyebrowHeading';
+import { Breadcrumb } from '@/components/Breadcrumb';
 import { LIBRARY } from '@/lib/library';
 import { STAGES, type StageId } from '@/lib/stages';
 
@@ -12,6 +13,12 @@ export default function LibraryPage() {
   return (
     <section className="px-8 md:px-16 lg:px-24 pt-32 pb-24">
       <div className="max-w-5xl mx-auto">
+        <Breadcrumb
+          items={[
+            { label: 'Home', href: '/' },
+            { label: 'Library' },
+          ]}
+        />
         <EyebrowHeading
           eyebrow="Curadoria"
           title="Library"

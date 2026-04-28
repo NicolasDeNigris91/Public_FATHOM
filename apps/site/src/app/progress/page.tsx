@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Check, Circle, Lock, RotateCw, Clock } from 'lucide-react';
 import { EyebrowHeading } from '@/components/EyebrowHeading';
+import { Breadcrumb } from '@/components/Breadcrumb';
 import { loadProgress, summarize, type GateMark } from '@/lib/progress';
 import { STAGES } from '@/lib/stages';
 
@@ -34,6 +35,12 @@ export default async function ProgressPage() {
   return (
     <section className="px-8 md:px-16 lg:px-24 pt-32 pb-24">
       <div className="max-w-6xl mx-auto">
+        <Breadcrumb
+          items={[
+            { label: 'Home', href: '/' },
+            { label: 'Progress' },
+          ]}
+        />
         <EyebrowHeading
           eyebrow="Estado atual"
           title="Progress"

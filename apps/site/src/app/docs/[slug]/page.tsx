@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { EyebrowHeading } from '@/components/EyebrowHeading';
 import { MarkdownContent } from '@/components/MarkdownContent';
+import { Breadcrumb } from '@/components/Breadcrumb';
 import { getMetaDoc, getRootDoc, stripFrontmatter } from '@/lib/content';
 
 interface DocConfig {
@@ -58,6 +59,13 @@ export default async function DocPage({ params }: { params: Promise<{ slug: stri
   return (
     <article className="px-8 md:px-16 lg:px-24 pt-32 pb-24">
       <div className="max-w-4xl mx-auto">
+        <Breadcrumb
+          items={[
+            { label: 'Home', href: '/' },
+            { label: 'Docs' },
+            { label: doc.title },
+          ]}
+        />
         <EyebrowHeading eyebrow={doc.eyebrow} title={doc.title} />
         <div className="mt-16">
           <MarkdownContent source={stripFrontmatter(raw)} />

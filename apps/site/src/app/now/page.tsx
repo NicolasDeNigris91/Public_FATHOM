@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ArrowRight, BookOpen, Activity, Compass } from 'lucide-react';
 import { EyebrowHeading } from '@/components/EyebrowHeading';
+import { Breadcrumb } from '@/components/Breadcrumb';
 import { loadProgress, summarize } from '@/lib/progress';
 import { getModuleByRawId, getAllModules } from '@/lib/content';
 import { STAGES } from '@/lib/stages';
@@ -33,6 +34,12 @@ export default async function NowPage() {
   return (
     <section className="px-8 md:px-16 lg:px-24 pt-32 pb-24">
       <div className="max-w-4xl mx-auto">
+        <Breadcrumb
+          items={[
+            { label: 'Home', href: '/' },
+            { label: 'Now' },
+          ]}
+        />
         <EyebrowHeading
           eyebrow={`Atualizado em ${snap?.updatedAt ?? 'TBD'}`}
           title="Now"
