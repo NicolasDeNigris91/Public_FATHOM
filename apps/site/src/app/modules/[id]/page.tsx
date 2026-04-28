@@ -19,6 +19,7 @@ import {
 } from '@/components/StructuredData';
 import { TableOfContents } from '@/components/TableOfContents';
 import { StatusBadge } from '@/components/StatusBadge';
+import { ReadingProgressBar } from '@/components/ReadingProgressBar';
 import { extractToc } from '@/lib/toc';
 
 export async function generateStaticParams() {
@@ -103,6 +104,7 @@ export default async function ModulePage({ params }: { params: Promise<{ id: str
 
   return (
     <article className="px-8 md:px-16 lg:px-24 pt-32 pb-24">
+      <ReadingProgressBar />
       <StructuredData data={[breadcrumbLd, articleLd]} />
       <div className="max-w-4xl xl:max-w-6xl mx-auto">
         <Breadcrumb
