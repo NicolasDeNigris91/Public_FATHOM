@@ -108,6 +108,7 @@
     margin-bottom: 1rem;
     padding-bottom: 0.5rem;
     border-bottom: 1px solid color-mix(in srgb, var(--color-mist) 60%, transparent);
+    scroll-margin-top: 5rem;
   }
   .prose-fathom h3 {
     font-family: var(--font-display);
@@ -117,6 +118,7 @@
     color: var(--color-pearl);
     margin-top: 2.25rem;
     margin-bottom: 0.75rem;
+    scroll-margin-top: 5rem;
   }
   .prose-fathom h4 {
     font-family: var(--font-sans);
@@ -127,6 +129,17 @@
     font-size: 0.875rem;
     margin-top: 2rem;
     margin-bottom: 0.5rem;
+    scroll-margin-top: 5rem;
+  }
+  .prose-fathom h5, .prose-fathom h6 {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--color-chrome);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+    scroll-margin-top: 5rem;
   }
   .prose-fathom p {
     margin-top: 0;
@@ -216,6 +229,15 @@
     font-family: var(--font-mono);
     font-size: 0.85em;
   }
+  /* Nested lists: tighter spacing + secondary marker color */
+  .prose-fathom li ul, .prose-fathom li ol {
+    margin-top: 0.4rem;
+    margin-bottom: 0.4rem;
+    margin-left: 1rem;
+  }
+  .prose-fathom li ul li::before {
+    background-color: color-mix(in srgb, var(--color-gold-leaf) 50%, transparent);
+  }
   .prose-fathom hr {
     border: 0;
     border-top: 1px solid var(--color-mist);
@@ -247,5 +269,62 @@
   }
   .prose-fathom tr:hover td {
     background-color: color-mix(in srgb, var(--color-carbon) 50%, transparent);
+  }
+  .prose-fathom td code, .prose-fathom th code {
+    font-size: 0.8em;
+  }
+
+  /* Image and figure handling */
+  .prose-fathom img {
+    max-width: 100%;
+    height: auto;
+    border: 1px solid var(--color-mist);
+    margin: 1.5rem 0;
+  }
+  .prose-fathom figure {
+    margin: 1.5rem 0;
+  }
+  .prose-fathom figcaption {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--color-chrome);
+    text-align: center;
+    margin-top: 0.5rem;
+    letter-spacing: 0.05em;
+  }
+
+  /* Inline kbd styling for the keyboard hints used across the site */
+  .prose-fathom kbd, kbd {
+    font-family: var(--font-mono);
+    font-size: 0.78em;
+    color: var(--color-chrome);
+    background-color: color-mix(in srgb, var(--color-mist) 30%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-mist) 70%, transparent);
+    padding: 0.1rem 0.4rem;
+    border-radius: 2px;
+  }
+
+  /* Detail/summary toggles in markdown */
+  .prose-fathom details {
+    border: 1px solid color-mix(in srgb, var(--color-mist) 60%, transparent);
+    background-color: var(--color-graphite);
+    padding: 1rem 1.25rem;
+    margin: 1.25rem 0;
+  }
+  .prose-fathom summary {
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--color-chrome);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    transition: color 200ms ease;
+  }
+  .prose-fathom summary:hover {
+    color: var(--color-pearl);
+  }
+  .prose-fathom details[open] summary {
+    color: var(--color-gold-leaf);
+    margin-bottom: 0.75rem;
   }
 }
