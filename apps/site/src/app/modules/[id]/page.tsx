@@ -70,6 +70,14 @@ export default async function ModulePage({ params }: { params: Promise<{ id: str
     .find((s) => s.length > 80 && !s.startsWith('|') && !s.startsWith('-'))
     ?.slice(0, 160);
 
+  // Resolve status of each prereq so the chip can reflect it visually.
+  const prereqStatus = await Promise.all(
+    mod.prereqs.map(async (p) => {
+      const target = await getModuleByRawId(p);
+      return { rawId: p, status: target?.frontmatter.status ?? 'pending' };
+    }),
+  );
+
   const breadcrumbLd = buildBreadcrumbLd([
     { name: 'Home', href: '/' },
     { name: stage.title, href: `/stages/${stage.id}` },
@@ -129,17 +137,24 @@ export default async function ModulePage({ params }: { params: Promise<{ id: str
             <span className="font-mono text-caption text-chrome tracking-luxury uppercase">
               Prereqs
             </span>
-            {mod.prereqs.map((p) => (
-              <Link
-                key={p}
-                href={`/modules/${p.toLowerCase()}`}
-                className="font-mono text-caption tracking-wide text-racing-green-lit
-                           border border-mist/60 px-3 py-1
-                           hover:border-gold-leaf hover:text-gold-leaf transition-colors duration-200"
-              >
-                {p}
-              </Link>
-            ))}
+            {prereqStatus.map(({ rawId, status }) => {
+              const s = (status ?? '').toLowerCase();
+              const tone = s.startsWith('done')
+                ? 'text-racing-green-lit border-racing-green-lit/40 hover:border-racing-green-lit'
+                : s.includes('progress')
+                  ? 'text-gold-leaf border-gold-leaf/40 hover:border-gold-leaf'
+                  : 'text-chrome border-mist/60 hover:border-platinum hover:text-platinum';
+              return (
+                <Link
+                  key={rawId}
+                  href={`/modules/${rawId.toLowerCase()}`}
+                  title={`Status: ${status}`}
+                  className={`font-mono text-caption tracking-wide px-3 py-1 border transition-colors duration-200 ${tone}`}
+                >
+                  {rawId}
+                </Link>
+              );
+            })}
           </div>
         )}
 
