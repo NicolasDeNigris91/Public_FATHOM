@@ -15,9 +15,10 @@ const subtleFadeIn: Variants = {
 
 interface HeroProps {
   totalModules: number;
+  activeModule?: { id: string; rawId: string; title: string } | null;
 }
 
-export function Hero({ totalModules }: HeroProps) {
+export function Hero({ totalModules, activeModule }: HeroProps) {
   const reduced = useReducedMotion();
   const slideVariant = reduced ? fadeOnly : fadeSlideUp;
   const lineVariant = reduced ? fadeOnly : lineReveal;
@@ -66,14 +67,25 @@ export function Hero({ totalModules }: HeroProps) {
         </motion.p>
 
         <motion.div variants={slideVariant} className="flex flex-wrap items-center gap-6 sm:gap-8 mb-16">
-          <Link
-            href="/modules/n01"
-            className="font-sans text-caption tracking-luxury uppercase border border-platinum text-platinum
-                       px-6 sm:px-8 py-3 hover:bg-platinum hover:text-obsidian transition-colors duration-300
-                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-platinum"
-          >
-            Begin → N01
-          </Link>
+          {activeModule ? (
+            <Link
+              href={`/modules/${activeModule.id}`}
+              className="font-sans text-caption tracking-luxury uppercase border border-platinum text-platinum
+                         px-6 sm:px-8 py-3 hover:bg-platinum hover:text-obsidian transition-colors duration-300
+                         focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-platinum"
+            >
+              Continue → {activeModule.rawId}
+            </Link>
+          ) : (
+            <Link
+              href="/modules/n01"
+              className="font-sans text-caption tracking-luxury uppercase border border-platinum text-platinum
+                         px-6 sm:px-8 py-3 hover:bg-platinum hover:text-obsidian transition-colors duration-300
+                         focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-platinum"
+            >
+              Begin → N01
+            </Link>
+          )}
           <Link
             href="/stages"
             className="font-sans text-caption tracking-luxury uppercase text-chrome hover:text-pearl
@@ -81,6 +93,15 @@ export function Hero({ totalModules }: HeroProps) {
           >
             Browse Stages
           </Link>
+          {activeModule && (
+            <Link
+              href="/now"
+              className="font-sans text-caption tracking-luxury uppercase text-chrome hover:text-pearl
+                         transition-colors duration-300"
+            >
+              Now →
+            </Link>
+          )}
         </motion.div>
 
         <motion.div variants={slideVariant} className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 max-w-4xl">

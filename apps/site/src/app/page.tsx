@@ -3,16 +3,25 @@ import { Hero } from '@/components/Hero';
 import { StageCard } from '@/components/StageCard';
 import { EyebrowHeading } from '@/components/EyebrowHeading';
 import { STAGES } from '@/lib/stages';
-import { getAllModules } from '@/lib/content';
+import { getAllModules, getModuleByRawId } from '@/lib/content';
+import { loadProgress } from '@/lib/progress';
 
 export default async function HomePage() {
   const allModules = await getAllModules();
   // Filter out capstones from module count to match framework's 78
   const moduleCount = allModules.filter((m) => !m.rawId.startsWith('CAPSTONE')).length;
 
+  // Resolve "active module" from PROGRESS.md so Hero CTA can be context-aware.
+  const snap = await loadProgress();
+  const activeRawId = snap?.activeModule.match(/^([A-Z]+\d+|CAPSTONE-[a-z]+)/)?.[1];
+  const activeMod = activeRawId ? await getModuleByRawId(activeRawId) : null;
+  const heroActive = activeMod
+    ? { id: activeMod.id, rawId: activeMod.rawId, title: activeMod.title }
+    : null;
+
   return (
     <>
-      <Hero totalModules={moduleCount} />
+      <Hero totalModules={moduleCount} activeModule={heroActive} />
 
       <section className="px-8 md:px-16 lg:px-24 py-24 bg-graphite">
         <div className="max-w-7xl mx-auto">
