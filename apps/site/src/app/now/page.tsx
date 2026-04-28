@@ -155,6 +155,38 @@ export default async function NowPage() {
           </div>
         )}
 
+        {snap && snap.rows.length > 0 && (
+          <div className="border-t border-mist/40 pt-16 mb-16">
+            <p className="font-mono text-caption text-racing-green-lit tracking-luxury uppercase mb-8">
+              Por estágio
+            </p>
+            <div className="space-y-4">
+              {STAGES.map((s) => {
+                const rows = snap.rows.filter((r) => r.stageNumber === s.number);
+                const done = rows.filter((r) => r.status === 'DONE').length;
+                const total = rows.length;
+                const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                return (
+                  <div key={s.id} className="grid grid-cols-[140px_1fr_60px] items-center gap-4">
+                    <span className="font-mono text-caption text-chrome tracking-luxury uppercase truncate">
+                      {s.title}
+                    </span>
+                    <div className="h-px bg-mist/40 relative">
+                      <div
+                        className="absolute top-0 left-0 h-px bg-gold-leaf transition-all duration-500"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <span className="font-mono text-caption text-chrome tracking-wide text-right">
+                      {done}/{total}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <div className="border-t border-mist/40 pt-16 grid gap-8 md:grid-cols-3 font-mono text-caption text-chrome tracking-wide">
           <div>
             <p className="text-racing-green-lit tracking-luxury uppercase mb-2">
