@@ -5,6 +5,7 @@ import { ModuleRow, ModuleRowHeader } from '@/components/ModuleRow';
 import { MarkdownContent } from '@/components/MarkdownContent';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { StructuredData, buildBreadcrumbLd } from '@/components/StructuredData';
+import { loadProgress } from '@/lib/progress';
 
 export async function generateStaticParams() {
   return STAGES.map((s) => ({ stage: s.id }));
@@ -35,6 +36,13 @@ export default async function StagePage({ params }: { params: Promise<{ stage: s
   const readme = await getStageReadme(stage);
   const number = String(stage.number).padStart(2, '0');
 
+  // Per-stage progress aggregate from PROGRESS.md
+  const snap = await loadProgress();
+  const stageRows = snap?.rows.filter((r) => r.stageNumber === stage.number) ?? [];
+  const done = stageRows.filter((r) => r.status === 'DONE').length;
+  const total = stageRows.length;
+  const percent = total > 0 ? Math.round((done / total) * 100) : null;
+
   const breadcrumbLd = buildBreadcrumbLd([
     { name: 'Home', href: '/' },
     { name: 'Stages', href: '/stages' },
@@ -63,9 +71,28 @@ export default async function StagePage({ params }: { params: Promise<{ stage: s
           {stage.subtitle}
         </p>
         <div className="h-px bg-gold-leaf w-32 mb-10" />
-        <p className="font-sans text-body-lg text-chrome leading-relaxed max-w-3xl mb-16">
+        <p className="font-sans text-body-lg text-chrome leading-relaxed max-w-3xl mb-10">
           {stage.tagline}
         </p>
+
+        {percent !== null && (
+          <div className="mb-16 max-w-md">
+            <div className="flex items-end justify-between mb-2">
+              <span className="font-mono text-caption text-chrome tracking-luxury uppercase">
+                Progresso
+              </span>
+              <span className="font-mono text-caption text-chrome tracking-wide">
+                {done}/{total} · {percent}%
+              </span>
+            </div>
+            <div className="h-px bg-mist/40 relative">
+              <div
+                className="absolute top-0 left-0 h-px bg-gold-leaf transition-all duration-500"
+                style={{ width: `${percent}%` }}
+              />
+            </div>
+          </div>
+        )}
 
         <div className="mb-20">
           <p className="font-mono text-caption text-racing-green-lit tracking-luxury uppercase mb-6">
