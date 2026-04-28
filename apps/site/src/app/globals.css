@@ -328,3 +328,93 @@
     margin-bottom: 0.75rem;
   }
 }
+
+/* Print stylesheet — when user prints a module page or saves to PDF.
+   Hide chrome (nav, footer, palette, breadcrumb), restore high-contrast
+   colors, expand details, and ensure code blocks page-break correctly. */
+@media print {
+  html {
+    background-color: white !important;
+    color-scheme: light !important;
+  }
+  body {
+    background-color: white !important;
+    color: #111 !important;
+    font-size: 11pt;
+  }
+  nav, footer, .skip-to-content,
+  [aria-label="Breadcrumb"],
+  [aria-label="Navegação entre módulos"],
+  [role="dialog"][aria-label="Command palette"] {
+    display: none !important;
+  }
+  .prose-fathom {
+    color: #111 !important;
+    max-width: 100% !important;
+  }
+  .prose-fathom h1,
+  .prose-fathom h2,
+  .prose-fathom h3,
+  .prose-fathom h4,
+  .prose-fathom h5,
+  .prose-fathom h6 {
+    color: #000 !important;
+    border-color: #ccc !important;
+    page-break-after: avoid;
+  }
+  .prose-fathom p, .prose-fathom li {
+    color: #111 !important;
+    orphans: 3;
+    widows: 3;
+  }
+  .prose-fathom a {
+    color: #06c !important;
+    text-decoration: underline !important;
+  }
+  /* Print full URL after external links so PDF reader knows the target */
+  .prose-fathom a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.85em;
+    color: #555;
+    word-break: break-all;
+  }
+  .prose-fathom code {
+    color: #06343a !important;
+    background-color: #f0f8f6 !important;
+    border: 1px solid #ddd;
+  }
+  .prose-fathom pre {
+    background-color: #f5f5f5 !important;
+    color: #111 !important;
+    border: 1px solid #ccc !important;
+    page-break-inside: avoid;
+  }
+  .prose-fathom pre code {
+    background-color: transparent !important;
+    border: 0 !important;
+  }
+  .prose-fathom blockquote {
+    border-left: 3px solid #888 !important;
+    color: #444 !important;
+  }
+  .prose-fathom table {
+    page-break-inside: avoid;
+  }
+  .prose-fathom th, .prose-fathom td {
+    color: #111 !important;
+    border-color: #ccc !important;
+  }
+  .prose-fathom details {
+    background-color: white !important;
+    border-color: #ccc !important;
+  }
+  /* Force-open details so printed copy isn't missing collapsed content */
+  .prose-fathom details:not([open]) > *:not(summary) {
+    display: block !important;
+  }
+  .prose-fathom details > summary::after {
+    content: ' (expanded)';
+    color: #888;
+    font-size: 0.8em;
+  }
+}
