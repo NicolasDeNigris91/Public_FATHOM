@@ -14,15 +14,29 @@ Páginas:
 - `/` — Landing com Hero, 5 estágios, método em 4 pilares
 - `/stages` — Grid dos 5 estágios
 - `/stages/[stage]` — Lista de módulos do estágio + README do estágio renderizado
-- `/modules/[id]` — Renderização do módulo Markdown completo (frontmatter parseado pra prereqs/title)
+- `/modules/[id]` — Render do módulo (frontmatter, prereqs, reading time, prev/next nav)
 - `/progress` — Dashboard de portões (parsea PROGRESS.md)
-- `/index` — INDEX.md global (DAG mermaid + tabela)
+- `/now` — "Em que estou estudando agora" (segue /now convention de nownownow.com)
+- `/index` — INDEX.md global (DAG mermaid renderizado + tabela)
+- `/library` — Livros canônicos curados por estágio
+- `/glossary` — 210 termos canônicos com client-side search + filtro por seção
 - `/docs/[slug]` — MENTOR, STUDY-PROTOCOL, RELEASE-NOTES, CHANGELOG, DECISION-LOG, etc.
 - `/about` — Sobre o framework
 - `/api/health` — Healthcheck JSON pra Railway
 
 **Atalhos:**
-- `Cmd+K` / `Ctrl+K` — abre command palette com fuzzy search em todos os 78 módulos, 5 estágios, 17 docs.
+- `Cmd+K` / `Ctrl+K` — command palette com fuzzy search em 78 módulos, 5 estágios, 17 docs, todas as páginas.
+
+**Navegação:**
+- Breadcrumbs em todas as rotas internas.
+- Prev/Next module nav no fim de cada `/modules/[id]`.
+- Mobile hamburger menu com nav primário (Stages, Library, Progress, Now).
+- Active route indicator no Navbar (border gold-leaf na rota atual).
+
+**A11y:**
+- `prefers-reduced-motion` honrado em todos os components Framer Motion + media query CSS global.
+- `aria-current`, `aria-label`, `aria-modal`, focus-visible rings consistentes (platinum 2px).
+- Skip-to-content link no layout root.
 
 ---
 
@@ -113,10 +127,13 @@ Não há frontmatter especial. Edite os `.md` no framework como sempre:
 ## Decisões técnicas
 
 - **Stack idêntico ao portfolio principal**: mesmo `package.json` deps, mesmas fonts via `next/font`, mesmos tokens em `globals.css`. Quando integrar como rota `/fathom` no portfolio, é drop-in.
-- **Markdown rendering**: `react-markdown` + `remark-gfm` + `rehype-slug`. Custom `<a>` component reescreve links relativos do framework (`../01-novice/N01-foo.md`) pra rotas do site (`/modules/n01`).
+- **Markdown rendering**: `react-markdown` + `remark-gfm` + `rehype-slug`. Custom `<a>` component reescreve links relativos do framework (`../01-novice/N01-foo.md`) pra rotas do site (`/modules/n01`). Custom `pre` detecta blocos `language-mermaid` e renderiza via `MermaidDiagram` client component.
+- **Mermaid**: dynamic import client-side (~500KB lazy). Tema dark customizado com tokens do framework. DAG do `/index` agora renderiza visualmente.
 - **Static gen onde possível**: `generateStaticParams` em `[stage]`, `[id]`, `[slug]`. Build pre-renderiza tudo.
-- **No mermaid**: por enquanto o DAG do INDEX.md aparece como bloco de código. Item futuro: client-side mermaid render. Custo: lib pesada (~500KB) por uma página. Decidi pular no MVP.
-- **No search full-text**: navegação por estrutura é suficiente. Adicionar Pagefind ou Algolia seria scope creep.
+- **CMD+K**: `cmdk` lib + global keyboard listener. Substitui necessidade de search full-text — 100+ entries indexadas com fuzzy match.
+- **Validation script** (`scripts/validate-content.mjs`): hookado como `prebuild`. Checa frontmatter, prereqs, links internos. Flags `--strict`/`--quiet`/`--json`. Build do Railway falha cedo se houver regressão estrutural.
+- **Reading time** estimada em 220 WPM (technical pace), strip de code blocks pra contar palavras úteis.
+- **Library curada**: hand-curated TS data em `lib/library.ts` em vez de parsear o `reading-list.md` heterogêneo. Reading-list completo continua em `/docs/reading-list`.
 
 ---
 
