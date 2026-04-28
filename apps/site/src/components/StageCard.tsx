@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { motion, type Variants } from 'framer-motion';
+import { motion, useReducedMotion, type Variants } from 'framer-motion';
 import { ArrowUpRight } from 'lucide-react';
 import { EASE_STANDARD } from '@/lib/motion';
 import type { StageMeta } from '@/lib/stages';
@@ -15,10 +15,16 @@ const cardVariants: Variants = {
   },
 };
 
+const cardVariantsReduced: Variants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.01 } },
+};
+
 export function StageCard({ stage }: { stage: StageMeta }) {
+  const reduced = useReducedMotion();
   const number = String(stage.number).padStart(2, '0');
   return (
-    <motion.div variants={cardVariants}>
+    <motion.div variants={reduced ? cardVariantsReduced : cardVariants}>
       <Link
         href={`/stages/${stage.id}`}
         className="group relative block bg-graphite border border-mist/50

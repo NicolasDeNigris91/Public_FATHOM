@@ -1,9 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { motion, type Variants } from 'framer-motion';
+import { motion, useReducedMotion, type Variants } from 'framer-motion';
 import { ArrowDown } from 'lucide-react';
-import { EASE_STANDARD, fadeSlideUp, lineReveal, staggerContainer } from '@/lib/motion';
+import { EASE_STANDARD, fadeOnly, fadeSlideUp, lineReveal, staggerContainer } from '@/lib/motion';
 
 const subtleFadeIn: Variants = {
   hidden: { opacity: 0 },
@@ -18,44 +18,48 @@ interface HeroProps {
 }
 
 export function Hero({ totalModules }: HeroProps) {
+  const reduced = useReducedMotion();
+  const slideVariant = reduced ? fadeOnly : fadeSlideUp;
+  const lineVariant = reduced ? fadeOnly : lineReveal;
   return (
     <section className="relative min-h-screen flex flex-col justify-center px-8 md:px-16 lg:px-24 py-32">
-      <div className="absolute inset-y-0 left-8 md:left-16 lg:left-24 w-px bg-mist opacity-40" />
+      <div className="absolute inset-y-0 left-8 md:left-16 lg:left-24 w-px bg-mist opacity-40" aria-hidden="true" />
 
       <motion.div
         className="max-w-7xl w-full mx-auto"
-        variants={staggerContainer(0.15, 0.3)}
+        variants={staggerContainer(reduced ? 0 : 0.15, reduced ? 0 : 0.3)}
         initial="hidden"
         animate="visible"
       >
         <motion.p
-          variants={fadeSlideUp}
+          variants={slideVariant}
           className="font-mono text-caption text-racing-green-lit tracking-luxury uppercase mb-8"
         >
           Framework de Maestria · {new Date().getFullYear()}
         </motion.p>
 
         <motion.h1
-          variants={fadeSlideUp}
+          variants={slideVariant}
           className="font-display text-display-xl text-pearl tracking-tight leading-none mb-4 max-w-4xl"
         >
           Fathom
         </motion.h1>
 
         <motion.div
-          variants={lineReveal}
+          variants={lineVariant}
           className="h-px bg-gold-leaf w-32 mb-10"
+          aria-hidden="true"
         />
 
         <motion.p
-          variants={fadeSlideUp}
+          variants={slideVariant}
           className="font-sans text-body-lg text-chrome leading-relaxed mb-6 max-w-3xl"
         >
           Trilha estruturada de iniciante real até Staff/Principal Software Engineer. Mastery-based, sem prazos, conduzida pelo mentor (você, peer, ou suplemento opcional) sob protocolo rígido.
         </motion.p>
 
         <motion.p
-          variants={fadeSlideUp}
+          variants={slideVariant}
           className="font-sans text-body text-chrome/80 leading-relaxed mb-12 max-w-3xl italic"
         >
           Não é curso. Não é bootcamp. Não é leitura passiva. É disciplina de longo prazo com módulos densos, portões de avaliação, e um produto encadeado (Logística) que evolui ao longo dos 5 estágios.
@@ -96,8 +100,8 @@ export function Hero({ totalModules }: HeroProps) {
       >
         <span className="font-mono text-caption text-mist tracking-luxury uppercase">Scroll</span>
         <motion.div
-          animate={{ y: [0, 8, 0] }}
-          transition={{ duration: 2, repeat: Infinity, ease: EASE_STANDARD }}
+          animate={reduced ? undefined : { y: [0, 8, 0] }}
+          transition={reduced ? undefined : { duration: 2, repeat: Infinity, ease: EASE_STANDARD }}
         >
           <ArrowDown size={16} strokeWidth={1} className="text-mist" />
         </motion.div>

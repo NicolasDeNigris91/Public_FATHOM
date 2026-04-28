@@ -30,3 +30,16 @@ export function staggerContainer(stagger = 0.08, delay = 0): Variants {
     },
   };
 }
+
+/**
+ * Reduced-motion-aware variant pair. When user has prefers-reduced-motion,
+ * collapses any motion to a near-instant opacity-only transition. Use with
+ * framer-motion's `useReducedMotion()` hook to choose at render time.
+ */
+export const fadeOnly: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { duration: 0.01 },
+  },
+};

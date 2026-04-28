@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { motion, type Variants } from 'framer-motion';
+import { motion, useReducedMotion, type Variants } from 'framer-motion';
 import { ArrowUpRight, Lock } from 'lucide-react';
 import { EASE_STANDARD } from '@/lib/motion';
 import type { ModuleSummary } from '@/lib/content';
@@ -15,13 +15,19 @@ const rowVariants: Variants = {
   },
 };
 
+const rowVariantsReduced: Variants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.01 } },
+};
+
 export function ModuleRow({ module: mod }: { module: ModuleSummary }) {
+  const reduced = useReducedMotion();
   const isCapstone = mod.rawId.startsWith('CAPSTONE');
   const isLocked = mod.frontmatter?.status === 'locked';
 
   return (
     <motion.div
-      variants={rowVariants}
+      variants={reduced ? rowVariantsReduced : rowVariants}
       className="group grid grid-cols-[80px_1fr_auto] md:grid-cols-[100px_1fr_180px_60px] items-center
                  gap-4 md:gap-8 py-5 border-b border-mist/40
                  hover:bg-carbon/50 transition-colors duration-200 px-4 -mx-4"

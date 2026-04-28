@@ -59,6 +59,24 @@
     background-color: var(--color-obsidian);
     color-scheme: dark;
   }
+
+  /* Honor prefers-reduced-motion for any CSS-driven animation/transition.
+     framer-motion components handle this via useReducedMotion(). */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Consistent focus ring for keyboard users.
+     Tailwind's focus-visible: utilities cover most cases; this is the fallback. */
+  :focus-visible {
+    outline: 2px solid var(--color-platinum);
+    outline-offset: 2px;
+  }
 }
 
 /* Markdown rendered content */

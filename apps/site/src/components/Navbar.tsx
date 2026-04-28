@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { motion, type Variants } from 'framer-motion';
 import { Search } from 'lucide-react';
 import { EASE_STANDARD } from '@/lib/motion';
@@ -25,6 +26,7 @@ const navLinks = [
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [isMac, setIsMac] = useState(true);
+  const pathname = usePathname();
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 60);
@@ -32,6 +34,11 @@ export function Navbar() {
     setIsMac(/mac/i.test(navigator.platform));
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  function isActive(href: string): boolean {
+    if (href === '/') return pathname === '/';
+    return pathname === href || pathname.startsWith(`${href}/`);
+  }
 
   function openPalette() {
     const evt = new KeyboardEvent('keydown', {
@@ -63,16 +70,24 @@ export function Navbar() {
         </Link>
 
         <div className="hidden md:flex items-center gap-10">
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="font-sans text-caption tracking-luxury uppercase text-chrome
-                         hover:text-pearl transition-colors duration-300"
-            >
-              {link.label}
-            </Link>
-          ))}
+          {navLinks.map((link) => {
+            const active = isActive(link.href);
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                aria-current={active ? 'page' : undefined}
+                className={`font-sans text-caption tracking-luxury uppercase
+                           transition-colors duration-300
+                           focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-platinum
+                           ${active
+                             ? 'text-pearl border-b border-gold-leaf pb-1'
+                             : 'text-chrome hover:text-pearl'}`}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
         </div>
 
         <div className="flex items-center gap-3">
