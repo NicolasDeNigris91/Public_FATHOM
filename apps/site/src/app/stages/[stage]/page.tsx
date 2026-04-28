@@ -13,7 +13,17 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: { params: Promise<{ stage: string }> }) {
   const { stage: stageId } = await params;
   const stage = getStage(stageId);
-  return { title: stage ? `${stage.title} — ${stage.subtitle}` : 'Stage' };
+  if (!stage) return { title: 'Stage' };
+  return {
+    title: `${stage.title} — ${stage.subtitle}`,
+    description: stage.tagline,
+    alternates: { canonical: `/stages/${stage.id}` },
+    openGraph: {
+      title: `${stage.title} — Estágio ${String(stage.number).padStart(2, '0')}`,
+      description: stage.tagline,
+      url: `/stages/${stage.id}`,
+    },
+  };
 }
 
 export default async function StagePage({ params }: { params: Promise<{ stage: string }> }) {

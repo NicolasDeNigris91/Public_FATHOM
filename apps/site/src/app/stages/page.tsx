@@ -5,6 +5,8 @@ import { Breadcrumb } from '@/components/Breadcrumb';
 
 export const metadata = {
   title: 'Stages',
+  description: 'Os 5 estágios do Fathom — Novice, Apprentice, Professional, Senior, Staff/Principal.',
+  alternates: { canonical: '/stages' },
 };
 
 export default function StagesPage() {

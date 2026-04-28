@@ -41,7 +41,17 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const doc = DOCS.find((d) => d.slug === slug);
-  return { title: doc?.title ?? 'Doc' };
+  if (!doc) return { title: 'Doc' };
+  return {
+    title: doc.title,
+    description: doc.eyebrow,
+    alternates: { canonical: `/docs/${doc.slug}` },
+    openGraph: {
+      title: `${doc.title} — Fathom`,
+      description: doc.eyebrow,
+      url: `/docs/${doc.slug}`,
+    },
+  };
 }
 
 export default async function DocPage({ params }: { params: Promise<{ slug: string }> }) {

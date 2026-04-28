@@ -3,7 +3,11 @@ import { MarkdownContent } from '@/components/MarkdownContent';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { getMetaDoc, stripFrontmatter } from '@/lib/content';
 
-export const metadata = { title: 'Module Index' };
+export const metadata = {
+  title: 'Module Index',
+  description: 'Mapa global do framework com DAG mermaid + tabela completa de prereqs.',
+  alternates: { canonical: '/index' },
+};
 
 export default async function IndexPage() {
   const raw = await getMetaDoc('INDEX.md');

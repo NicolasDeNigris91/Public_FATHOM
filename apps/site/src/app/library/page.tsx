@@ -5,7 +5,12 @@ import { Breadcrumb } from '@/components/Breadcrumb';
 import { LIBRARY } from '@/lib/library';
 import { STAGES, type StageId } from '@/lib/stages';
 
-export const metadata = { title: 'Library' };
+export const metadata = {
+  title: 'Library',
+  description:
+    'Estante de fontes canônicas curadas por estágio. Não duplica reading-list.md — é o subset de máxima carga.',
+  alternates: { canonical: '/library' },
+};
 
 const STAGE_ORDER: StageId[] = ['novice', 'apprentice', 'professional', 'senior', 'staff'];
 

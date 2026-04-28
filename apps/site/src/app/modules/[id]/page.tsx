@@ -43,9 +43,14 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     title: `${mod.rawId} — ${mod.title}`,
     description: desc ?? `Módulo ${mod.rawId} do Fathom — ${mod.title}.`,
     keywords: [mod.rawId, mod.title, ...(mod.prereqs ?? [])],
+    alternates: {
+      canonical: `/modules/${mod.id}`,
+    },
     openGraph: {
       title: `${mod.rawId} — ${mod.title}`,
       description: desc,
+      type: 'article',
+      url: `/modules/${mod.id}`,
     },
   };
 }

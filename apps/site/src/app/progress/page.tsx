@@ -5,7 +5,11 @@ import { Breadcrumb } from '@/components/Breadcrumb';
 import { loadProgress, summarize, type GateMark } from '@/lib/progress';
 import { STAGES } from '@/lib/stages';
 
-export const metadata = { title: 'Progress' };
+export const metadata = {
+  title: 'Progress',
+  description: 'Dashboard de portões — estado atual de cada módulo do framework.',
+  alternates: { canonical: '/progress' },
+};
 
 function GateIcon({ mark }: { mark: GateMark }) {
   if (mark === 'passed') return <Check size={14} strokeWidth={1.5} className="text-racing-green-lit" />;

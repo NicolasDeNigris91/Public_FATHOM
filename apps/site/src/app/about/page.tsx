@@ -2,7 +2,11 @@ import { EyebrowHeading } from '@/components/EyebrowHeading';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import Link from 'next/link';
 
-export const metadata = { title: 'About' };
+export const metadata = {
+  title: 'About',
+  description: 'O que é o Fathom, autoria, status atual.',
+  alternates: { canonical: '/about' },
+};
 
 export default function AboutPage() {
   return (

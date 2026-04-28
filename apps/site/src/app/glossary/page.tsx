@@ -3,7 +3,11 @@ import { GlossaryClient } from '@/components/GlossaryClient';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { loadGlossary } from '@/lib/content';
 
-export const metadata = { title: 'Glossary' };
+export const metadata = {
+  title: 'Glossary',
+  description: '210 termos canônicos do framework com busca client-side e filtro por seção.',
+  alternates: { canonical: '/glossary' },
+};
 
 export default async function GlossaryPage() {
   const { sections, terms } = await loadGlossary();

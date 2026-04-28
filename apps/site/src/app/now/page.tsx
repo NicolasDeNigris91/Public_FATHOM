@@ -10,6 +10,7 @@ export const metadata = {
   title: 'Now',
   description:
     'Em que estou trabalhando agora — estágio ativo, módulo ativo, próximo passo. /now convention.',
+  alternates: { canonical: '/now' },
 };
 
 export default async function NowPage() {
