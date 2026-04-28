@@ -27,6 +27,7 @@ export async function CommandPaletteMount() {
 
   const entries: PaletteEntry[] = [
     { type: 'home', id: 'home', title: 'Home', subtitle: 'Overview', href: '/' },
+    { type: 'progress', id: 'now', title: 'Now', subtitle: 'Em que estou estudando agora', href: '/now' },
     { type: 'progress', id: 'progress', title: 'Progress', subtitle: 'Dashboard de portões', href: '/progress' },
     { type: 'index', id: 'index', title: 'Module Index', subtitle: 'Mapa global + DAG', href: '/index' },
     { type: 'index', id: 'glossary', title: 'Glossary', subtitle: '210 termos canônicos', href: '/glossary' },

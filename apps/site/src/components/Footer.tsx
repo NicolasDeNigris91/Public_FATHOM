@@ -21,6 +21,7 @@ export function Footer() {
           <ul className="space-y-2 font-sans text-body text-chrome">
             <li><Link href="/" className="hover:text-pearl transition-colors duration-200">Overview</Link></li>
             <li><Link href="/stages" className="hover:text-pearl transition-colors duration-200">Stages</Link></li>
+            <li><Link href="/now" className="hover:text-pearl transition-colors duration-200">Now</Link></li>
             <li><Link href="/progress" className="hover:text-pearl transition-colors duration-200">Progress</Link></li>
             <li><Link href="/index" className="hover:text-pearl transition-colors duration-200">Module Index + DAG</Link></li>
             <li><Link href="/library" className="hover:text-pearl transition-colors duration-200">Library (curated)</Link></li>

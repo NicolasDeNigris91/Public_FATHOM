@@ -18,9 +18,9 @@ const navVariants: Variants = {
 
 const navLinks = [
   { label: 'Stages', href: '/stages' },
+  { label: 'Library', href: '/library' },
   { label: 'Progress', href: '/progress' },
-  { label: 'Index', href: '/index' },
-  { label: 'About', href: '/about' },
+  { label: 'Now', href: '/now' },
 ];
 
 export function Navbar() {
