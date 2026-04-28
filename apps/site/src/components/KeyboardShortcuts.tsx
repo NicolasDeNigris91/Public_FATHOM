@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { X } from 'lucide-react';
 
 interface Shortcut {
@@ -26,6 +27,14 @@ const SHORTCUTS: { section: string; items: Shortcut[] }[] = [
       { keys: ['g', 'p'], description: 'Progress' },
       { keys: ['g', 'n'], description: 'Now' },
       { keys: ['g', 'l'], description: 'Library' },
+      { keys: ['g', 'd'], description: 'Docs' },
+    ],
+  },
+  {
+    section: 'Em módulo',
+    items: [
+      { keys: ['j'], description: 'Próximo módulo (em /modules/...)' },
+      { keys: ['k'], description: 'Módulo anterior' },
     ],
   },
 ];
@@ -33,12 +42,13 @@ const SHORTCUTS: { section: string; items: Shortcut[] }[] = [
 export function KeyboardShortcuts() {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
+  const pathname = usePathname();
+  const inModule = pathname.startsWith('/modules/');
 
   useEffect(() => {
     let timer: number | null = null;
 
     const handler = (e: KeyboardEvent) => {
-      // Don't trigger when typing in form fields
       const tag = (e.target as HTMLElement)?.tagName;
       const editable = (e.target as HTMLElement)?.isContentEditable;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || editable) return;
@@ -54,7 +64,21 @@ export function KeyboardShortcuts() {
         setPending(null);
         return;
       }
-      // "g" prefix navigation: g+letter shortcut to common pages
+
+      // j / k for prev/next module navigation (only on /modules/...)
+      if (inModule && (e.key === 'j' || e.key === 'k')) {
+        const selector =
+          e.key === 'j'
+            ? 'nav[aria-label="Navegação entre módulos"] a:nth-of-type(2)'
+            : 'nav[aria-label="Navegação entre módulos"] a:nth-of-type(1)';
+        const target = document.querySelector<HTMLAnchorElement>(selector);
+        if (target) {
+          e.preventDefault();
+          target.click();
+          return;
+        }
+      }
+
       if (pending === 'g') {
         const map: Record<string, string> = {
           h: '/',
@@ -62,6 +86,7 @@ export function KeyboardShortcuts() {
           p: '/progress',
           n: '/now',
           l: '/library',
+          d: '/docs',
         };
         const target = map[e.key.toLowerCase()];
         if (target) {
@@ -84,7 +109,7 @@ export function KeyboardShortcuts() {
       window.removeEventListener('keydown', handler);
       if (timer !== null) window.clearTimeout(timer);
     };
-  }, [pending]);
+  }, [pending, inModule]);
 
   if (!open) {
     return pending === 'g' ? (
