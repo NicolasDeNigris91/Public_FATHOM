@@ -20,7 +20,26 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const mod = await getModuleByRawId(id);
-  return { title: mod ? `${mod.rawId} — ${mod.title}` : 'Módulo' };
+  if (!mod) return { title: 'Módulo' };
+
+  // Pull a brief description from the first non-trivial paragraph after frontmatter
+  const desc = mod.content
+    .replace(/^#+\s+.*$/gm, '')
+    .replace(/```[\s\S]*?```/g, '')
+    .split('\n')
+    .map((s) => s.trim())
+    .find((s) => s.length > 80 && !s.startsWith('|') && !s.startsWith('-'))
+    ?.slice(0, 160);
+
+  return {
+    title: `${mod.rawId} — ${mod.title}`,
+    description: desc ?? `Módulo ${mod.rawId} do Fathom — ${mod.title}.`,
+    keywords: [mod.rawId, mod.title, ...(mod.prereqs ?? [])],
+    openGraph: {
+      title: `${mod.rawId} — ${mod.title}`,
+      description: desc,
+    },
+  };
 }
 
 export default async function ModulePage({ params }: { params: Promise<{ id: string }> }) {
