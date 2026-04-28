@@ -8,7 +8,7 @@ Branch: `main` · Repo: `https://github.com/NicolasDeNigris91/FATHOM`
 
 ## Resumo executivo
 
-37+ commits de melhorias foram feitos no site (`apps/site/`) sem tocar no protocolo, conteúdo de módulos, ou estrutura do framework. Foco: type safety, UX, a11y, SEO, e features que aumentam valor sem expandir scope.
+41+ commits de melhorias foram feitos no site (`apps/site/`) sem tocar no protocolo, conteúdo de módulos, ou estrutura do framework. Foco: type safety, UX, a11y, SEO, e features que aumentam valor sem expandir scope.
 
 **Nada quebrou conteúdo existente.** O site continua sendo render do Markdown — single source of truth preservado.
 
@@ -17,6 +17,12 @@ Branch: `main` · Repo: `https://github.com/NicolasDeNigris91/FATHOM`
 ---
 
 ## Commits (ordem reversa, mais recente primeiro)
+
+### Onda 5
+
+- **`87be95d`** — feat: Schema.org ItemList + Book em /library (rich results pra reading list).
+- **`2dc83a1`** — feat: /api/version endpoint pra debug de deploy.
+- **`d5c4975`** — feat: reading progress bar fina (1px gold-leaf) em /modules + /docs.
 
 ### Onda 4
 
