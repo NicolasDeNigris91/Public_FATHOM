@@ -8,7 +8,7 @@ Branch: `main` · Repo: `https://github.com/NicolasDeNigris91/FATHOM`
 
 ## Resumo executivo
 
-22 commits de melhorias foram feitos no site (`apps/site/`) sem tocar no protocolo, conteúdo de módulos, ou estrutura do framework. Foco: type safety, UX, a11y, SEO, e features que aumentam valor sem expandir scope.
+29 commits de melhorias foram feitos no site (`apps/site/`) sem tocar no protocolo, conteúdo de módulos, ou estrutura do framework. Foco: type safety, UX, a11y, SEO, e features que aumentam valor sem expandir scope.
 
 **Nada quebrou conteúdo existente.** O site continua sendo render do Markdown — single source of truth preservado.
 
@@ -18,7 +18,16 @@ Branch: `main` · Repo: `https://github.com/NicolasDeNigris91/FATHOM`
 
 ## Commits (ordem reversa, mais recente primeiro)
 
-### Polish + UX
+### Onda 2 (depois do log inicial)
+
+- **`51e8915`** — feat: canonical URLs + per-route description em todas as páginas (SEO).
+- **`41e864b`** — feat: keyboard shortcuts overlay (?) + g-prefix navigation (g+h/s/p/n/l).
+- **`cceef15`** — feat: page-specific loading skeletons em /modules/[id] e /stages/[stage].
+- **`f2dbe24`** — feat: prereqs chips colorizados por status do módulo de origem.
+- **`3a35224`** — feat: per-stage dynamic OG images via next/og.
+- **`aa7c383`** — feat: module status badge no header de /modules/[id] + ícone em ModuleRow.
+
+### Polish + UX (onda 1)
 
 - **`1be6796`** — feat: TableOfContents sticky em `/modules/[id]` (xl breakpoint), só visível pra módulos com 4+ headings.
 - **`7c8cfda`** — feat: copy-to-clipboard em code blocks + lang label discreto. Hover-revealed.
