@@ -23,3 +23,11 @@ desktop.ini
 .env.*
 *.pem
 *.key
+
+# Site app build artifacts
+apps/site/node_modules/
+apps/site/.next/
+apps/site/out/
+apps/site/dist/
+apps/site/next-env.d.ts
+apps/site/*.tsbuildinfo
