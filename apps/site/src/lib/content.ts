@@ -108,13 +108,23 @@ function moduleOrder(rawId: string): number {
   return parseInt(m[2], 10);
 }
 
+// Per-process memoization. Build runs are short-lived so a permanent
+// cache is fine — server stays warm between requests in production
+// (Railway standalone Node), so subsequent /modules and /stages reads
+// reuse the parsed list.
+let _allModulesCache: Promise<ModuleSummary[]> | null = null;
+
 export async function getAllModules(): Promise<ModuleSummary[]> {
-  const all: ModuleSummary[] = [];
-  for (const stage of STAGES) {
-    const mods = await getStageModules(stage);
-    all.push(...mods);
-  }
-  return all;
+  if (_allModulesCache) return _allModulesCache;
+  _allModulesCache = (async () => {
+    const all: ModuleSummary[] = [];
+    for (const stage of STAGES) {
+      const mods = await getStageModules(stage);
+      all.push(...mods);
+    }
+    return all;
+  })();
+  return _allModulesCache;
 }
 
 export async function getModuleByRawId(rawId: string): Promise<ModuleFull | null> {
