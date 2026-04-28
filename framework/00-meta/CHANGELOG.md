@@ -20,6 +20,18 @@ Tipos:
 
 ## 2026
 
+### 2026-04-28 — Site público em apps/site/
+
+- **add**: `apps/site/` — Next.js 16 + React 19 + Tailwind 4 + Framer Motion. Mesma stack/visual do `MyPersonalWebSite`.
+- **add**: 12 rotas (`/`, `/stages`, `/stages/[stage]`, `/modules/[id]`, `/progress`, `/now`, `/index`, `/library`, `/glossary`, `/docs/[slug]`, `/about`, `/api/health`).
+- **add**: `Dockerfile` multi-stage standalone + `railway.json` apontando pro app. Healthcheck em `/api/health`.
+- **add**: `LICENSE` CC BY-NC 4.0.
+- **add**: `scripts/validate-content.mjs` — pre-build validation hook (frontmatter + prereqs + links + line count). Flags `--strict`/`--quiet`/`--json`.
+- **add**: DECISION-LOG DL-018 documentando decisão de monorepo (site dentro do `FATHOM`).
+- **add**: SPRINT-NEXT entry SN-053 done.
+- **edit**: site lê `framework/*.md` + raiz `.md` via `fs/promises`. Single source of truth: edição segue sendo `git commit` no Markdown.
+- Features: CMD+K palette, mermaid render do DAG, library curada, glossary com search, prev/next nav, reading time, breadcrumbs, mobile menu, prefers-reduced-motion, OG images via next/og.
+
 ### 2026-04-28 — Refactor: protocolo agnóstico de mentor + atribuição autoral única
 
 - **remove**: `CLAUDE.md` raiz (versão dependente de ferramenta específica). Conteúdo migrado/generalizado em `MENTOR.md`.

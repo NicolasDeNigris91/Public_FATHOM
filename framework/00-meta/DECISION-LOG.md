@@ -433,3 +433,30 @@ Framework é artefato pessoal. Versão anterior tinha attribuição compartilhad
 **Status**: ativo.
 
 ---
+
+## DL-018: Site público em monorepo (apps/site/), não repo separado
+
+**Contexto** (2026-04-28):
+Framework precisa de surface pública pra ser consumido fora do GitHub raw — recruiters, peers, leitores casuais, futuro promo case (CAPSTONE-staff §2.12). Decisão: criar repo dedicado pro site, ou manter dentro do `FATHOM` em `apps/site/`?
+
+**Alternativas consideradas**:
+- A. Repo separado `FATHOM-site`. Pros: clean boundary, deploy independente. Cons: duplicação cross-repo de conteúdo (ou pull via submodule), dois lugares pra atualizar, divergência risk.
+- B. Monorepo com `apps/site/` lendo `framework/` por path relativo. Pros: single source of truth, cada `git push` atualiza site, zero duplicação. Cons: site code fica versionado junto com framework content (mas isso é OK — vivem na mesma estória).
+- C. Markdown estático servido por GitHub Pages. Pros: zero infra. Cons: sem custom layout/UI, sem search, sem mermaid render, sem CMD+K.
+
+**Escolha**: B. Monorepo, `apps/site/` lê `../../framework/*.md` em build/runtime via `fs/promises`. Railway aponta Dockerfile path pra `apps/site/Dockerfile`, build context é repo root pra ter acesso ao framework.
+
+**Por quê**:
+- Single source of truth alinha com princípio do framework (DL-002 capstone único, DL-007 mastery-based — nada de cópia).
+- Edição preserva fluxo "vim/VS Code → git commit" — não muda workflow do autor.
+- Stack idêntica ao `MyPersonalWebSite` (Next.js 16 + React 19 + Tailwind 4) facilita migração futura caso queiramos integrar como rota `/fathom` no portfolio principal.
+- Deploy independente preservado: Railway service dedicado, subdomínio `fathom.nicolaspilegidenigris.dev` (mesmo padrão dos outros projetos pessoais).
+
+**Trade-offs**:
+- Aceita: push pra `main` redeploya tanto framework quanto site. Mitigado pelo validation script no `prebuild` que falha cedo em regressão estrutural.
+- Aceita: `apps/site/node_modules/` poluiria o repo. Mitigado por `.gitignore`.
+- Pago em: Dockerfile multi-stage + `railway.json` documentam deploy explicitamente, sem mágica.
+
+**Status**: ativo. Site em `apps/site/`, Railway deploy pendente (autor faz manualmente).
+
+---

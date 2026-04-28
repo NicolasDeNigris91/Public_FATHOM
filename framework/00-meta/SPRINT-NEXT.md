@@ -240,6 +240,18 @@ Ordem sugerida (alta → baixa prioridade):
 
 ## Done log (mover items aqui ao concluir)
 
+### 2026-04-28 — Sprint 2 batch 1 (Site público)
+
+- **SN-053 done**: Site público em `apps/site/` (Next.js 16 + React 19 + Tailwind 4). Render do framework Markdown como artefato navegável em `fathom.nicolaspilegidenigris.dev`.
+  - 12 rotas: `/`, `/stages`, `/stages/[stage]`, `/modules/[id]`, `/progress`, `/now`, `/index`, `/library`, `/glossary`, `/docs/[slug]` (17 docs), `/about`, `/api/health`.
+  - Stack idêntica ao `MyPersonalWebSite` — mesmas fonts, paleta, tokens. Drop-in se quiser integrar como rota futura.
+  - CMD+K palette com fuzzy search em 100+ entries. Mobile responsive com hamburger menu.
+  - A11y: `prefers-reduced-motion`, `aria-current`, focus rings, breadcrumbs.
+  - Features: prev/next module nav, reading time estimation, mermaid render do DAG, glossary com client-side filter.
+  - **Deploy**: Dockerfile multi-stage standalone + `railway.json` + healthcheck `/api/health`. Pronto pra Railway.
+  - **Validation**: `scripts/validate-content.mjs` hookado como `prebuild`. Falha cedo em regressão estrutural (frontmatter, prereqs, links).
+  - Single source of truth preservado: edição segue sendo `git commit` em `.md`.
+
 ### 2026-04-28 — Sprint 1 batch 1 (depth leveling)
 
 - **SN-001 done**: N04 Data Structures aprofundado. Adicionadas subseções 2.9 B-Tree variants, 2.10 Persistent data structures, 2.11 Cache-oblivious, 2.12 Skip list deep, 2.13 HAMT concreto, 2.14 LSM-Tree internals, 2.15 Bloom filter math, 2.16 Adjacency list/matrix/CSR, 2.17 Trie e variantes, 2.18 Disjoint Set Union. Threshold expandido com 6 itens novos. Total: ~+200 linhas.
