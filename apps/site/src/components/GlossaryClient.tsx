@@ -1,12 +1,35 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Search, X } from 'lucide-react';
 import type { GlossaryTerm } from '@/lib/content';
 
 interface Props {
   terms: GlossaryTerm[];
   sections: string[];
+}
+
+/**
+ * Splits text into parts with the matched query wrapped in <mark>.
+ * Case-insensitive. Handles regex special chars by escaping the query.
+ */
+function highlight(text: string, query: string): ReactNode {
+  if (!query) return text;
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Split with capture group → odd indices are matches.
+  const parts = text.split(new RegExp(`(${escaped})`, 'i'));
+  return parts.map((part, idx) =>
+    idx % 2 === 1 ? (
+      <mark
+        key={idx}
+        className="bg-gold-leaf/20 text-pearl rounded-[1px] px-0.5"
+      >
+        {part}
+      </mark>
+    ) : (
+      <span key={idx}>{part}</span>
+    ),
+  );
 }
 
 export function GlossaryClient({ terms, sections }: Props) {
@@ -113,16 +136,16 @@ export function GlossaryClient({ terms, sections }: Props) {
                 >
                   <dt>
                     <span className="font-display text-xl text-pearl group-hover:text-gold-leaf transition-colors duration-200">
-                      {t.term}
+                      {highlight(t.term, normalized)}
                     </span>
                     {t.expansion && (
                       <span className="block font-mono text-caption text-racing-green-lit tracking-wide mt-1">
-                        {t.expansion}
+                        {highlight(t.expansion, normalized)}
                       </span>
                     )}
                   </dt>
                   <dd className="font-sans text-body text-platinum leading-relaxed">
-                    {t.definition}
+                    {highlight(t.definition, normalized)}
                   </dd>
                 </div>
               ))}
