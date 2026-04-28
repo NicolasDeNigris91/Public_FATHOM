@@ -26,6 +26,7 @@ export function Footer() {
             <li><Link href="/index" className="hover:text-pearl transition-colors duration-200">Module Index + DAG</Link></li>
             <li><Link href="/library" className="hover:text-pearl transition-colors duration-200">Library (curated)</Link></li>
             <li><Link href="/glossary" className="hover:text-pearl transition-colors duration-200">Glossary</Link></li>
+            <li><Link href="/docs" className="hover:text-pearl transition-colors duration-200">All Docs</Link></li>
             <li><Link href="/docs/study-protocol" className="hover:text-pearl transition-colors duration-200">Study Protocol</Link></li>
             <li><Link href="/docs/mentor" className="hover:text-pearl transition-colors duration-200">Mentor Protocol</Link></li>
           </ul>

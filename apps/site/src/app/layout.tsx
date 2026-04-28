@@ -4,6 +4,7 @@ import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { CommandPaletteMount } from '@/components/CommandPaletteMount';
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
+import { BackToTop } from '@/components/BackToTop';
 import './globals.css';
 
 const cormorant = Cormorant_Garamond({
@@ -102,6 +103,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <Footer />
         <CommandPaletteMount />
         <KeyboardShortcuts />
+        <BackToTop />
       </body>
     </html>
   );

@@ -32,6 +32,7 @@ export async function CommandPaletteMount() {
     { type: 'index', id: 'index', title: 'Module Index', subtitle: 'Mapa global + DAG', href: '/index' },
     { type: 'index', id: 'glossary', title: 'Glossary', subtitle: '210 termos canônicos', href: '/glossary' },
     { type: 'index', id: 'library', title: 'Library', subtitle: 'Livros canônicos curados', href: '/library' },
+    { type: 'doc', id: 'docs', title: 'All Docs', subtitle: 'Protocolos, decisões, references', href: '/docs' },
     { type: 'home', id: 'about', title: 'About', subtitle: 'Sobre o framework', href: '/about' },
 
     ...STAGES.map((s): PaletteEntry => ({
