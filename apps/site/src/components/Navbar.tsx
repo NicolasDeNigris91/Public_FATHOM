@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { motion, type Variants } from 'framer-motion';
+import { Search } from 'lucide-react';
 import { EASE_STANDARD } from '@/lib/motion';
 
 const navVariants: Variants = {
@@ -23,12 +24,24 @@ const navLinks = [
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
+  const [isMac, setIsMac] = useState(true);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 60);
     window.addEventListener('scroll', handleScroll, { passive: true });
+    setIsMac(/mac/i.test(navigator.platform));
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  function openPalette() {
+    const evt = new KeyboardEvent('keydown', {
+      key: 'k',
+      metaKey: isMac,
+      ctrlKey: !isMac,
+      bubbles: true,
+    });
+    window.dispatchEvent(evt);
+  }
 
   return (
     <motion.nav
@@ -62,14 +75,29 @@ export function Navbar() {
           ))}
         </div>
 
-        <Link
-          href="/modules/n01"
-          className="font-sans text-caption tracking-luxury uppercase border border-mist text-chrome
-                     px-5 py-2 hover:border-platinum hover:text-platinum transition-colors duration-300
-                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-platinum"
-        >
-          Begin
-        </Link>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={openPalette}
+            aria-label="Open command palette"
+            className="hidden md:inline-flex items-center gap-2 font-mono text-caption tracking-wide
+                       border border-mist/60 text-chrome px-3 py-2
+                       hover:border-platinum hover:text-platinum transition-colors duration-300
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-platinum"
+          >
+            <Search size={12} strokeWidth={1} />
+            <span className="opacity-80">{isMac ? '⌘' : 'Ctrl'}</span>
+            <span className="opacity-80">K</span>
+          </button>
+          <Link
+            href="/modules/n01"
+            className="font-sans text-caption tracking-luxury uppercase border border-mist text-chrome
+                       px-5 py-2 hover:border-platinum hover:text-platinum transition-colors duration-300
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-platinum"
+          >
+            Begin
+          </Link>
+        </div>
       </div>
     </motion.nav>
   );

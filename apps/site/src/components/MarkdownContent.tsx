@@ -2,7 +2,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSlug from 'rehype-slug';
 import Link from 'next/link';
-import type { ComponentProps } from 'react';
+import { Children, isValidElement, type ComponentProps, type ReactElement } from 'react';
+import { MermaidDiagram } from './MermaidDiagram';
 
 interface Props {
   source: string;
@@ -77,6 +78,17 @@ export function MarkdownContent({ source }: Props) {
                 {children}
               </a>
             );
+          },
+          pre({ children, ...rest }: ComponentProps<'pre'>) {
+            const child = Children.toArray(children).find(isValidElement) as
+              | ReactElement<{ className?: string; children?: unknown }>
+              | undefined;
+            const lang = child?.props?.className?.match(/language-([\w-]+)/)?.[1];
+            if (lang === 'mermaid') {
+              const source = String(child?.props?.children ?? '').trim();
+              return <MermaidDiagram source={source} />;
+            }
+            return <pre {...rest}>{children}</pre>;
           },
         }}
       >

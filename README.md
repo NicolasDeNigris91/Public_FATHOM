@@ -148,7 +148,7 @@ Esse é o estado que justifica título Staff em empresa séria. Não garante hir
 
 Framework escrito por Nicolas De Nigris. Síntese pedagógica baseada em fontes canônicas listadas em `framework/00-meta/reading-list.md` e `framework/00-meta/elite-references.md`.
 
-Sem licença explícita ainda. Pra uso pessoal. Se for adaptar pra terceiros, abra issue ou comunique antes.
+Licenciado sob **[Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)](LICENSE)**. Você pode compartilhar e adaptar, desde que dê crédito e não use comercialmente. Detalhes legais em [LICENSE](LICENSE).
 
 ---
 

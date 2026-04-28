@@ -19,6 +19,10 @@ Páginas:
 - `/index` — INDEX.md global (DAG mermaid + tabela)
 - `/docs/[slug]` — MENTOR, STUDY-PROTOCOL, RELEASE-NOTES, CHANGELOG, DECISION-LOG, etc.
 - `/about` — Sobre o framework
+- `/api/health` — Healthcheck JSON pra Railway
+
+**Atalhos:**
+- `Cmd+K` / `Ctrl+K` — abre command palette com fuzzy search em todos os 78 módulos, 5 estágios, 17 docs.
 
 ---
 
