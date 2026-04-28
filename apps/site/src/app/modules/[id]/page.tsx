@@ -17,6 +17,7 @@ import {
   buildTechArticleLd,
 } from '@/components/StructuredData';
 import { TableOfContents } from '@/components/TableOfContents';
+import { StatusBadge } from '@/components/StatusBadge';
 import { extractToc } from '@/lib/toc';
 
 export async function generateStaticParams() {
@@ -95,13 +96,16 @@ export default async function ModulePage({ params }: { params: Promise<{ id: str
           ]}
         />
 
-        <p className="font-mono text-caption text-racing-green-lit tracking-luxury uppercase mb-3">
-          Estágio {stageNumber} · {mod.rawId}
-        </p>
+        <div className="flex items-center justify-between flex-wrap gap-4 mb-3">
+          <p className="font-mono text-caption text-racing-green-lit tracking-luxury uppercase">
+            Estágio {stageNumber} · {mod.rawId}
+          </p>
+          <StatusBadge status={mod.frontmatter.status} />
+        </div>
         <h1 className="font-display text-display-xl text-pearl tracking-tight leading-tight mb-4">
           {mod.title}
         </h1>
-        <div className="h-px bg-gold-leaf w-32 mb-8" />
+        <div className="h-px bg-gold-leaf w-32 mb-8" aria-hidden="true" />
 
         <div className="mb-12 flex flex-wrap items-center gap-x-6 gap-y-3 font-mono text-caption text-chrome tracking-wide">
           <span className="inline-flex items-center gap-2">

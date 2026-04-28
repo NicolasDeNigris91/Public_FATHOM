@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { motion, useReducedMotion, type Variants } from 'framer-motion';
-import { ArrowUpRight, Lock } from 'lucide-react';
+import { ArrowUpRight, Lock, Check, Clock as ClockIcon, RotateCw } from 'lucide-react';
 import { EASE_STANDARD } from '@/lib/motion';
 import type { ModuleSummary } from '@/lib/content';
 
@@ -19,6 +19,15 @@ const rowVariantsReduced: Variants = {
   hidden: { opacity: 0 },
   visible: { opacity: 1, transition: { duration: 0.01 } },
 };
+
+function StatusIcon({ status }: { status: string | undefined }) {
+  const s = (status ?? '').toLowerCase();
+  if (s.startsWith('done')) return <Check size={14} strokeWidth={1.5} className="text-racing-green-lit" />;
+  if (s.includes('progress')) return <ClockIcon size={14} strokeWidth={1.5} className="text-gold-leaf" />;
+  if (s.includes('refresh')) return <RotateCw size={14} strokeWidth={1.5} className="text-chrome" />;
+  if (s.includes('lock')) return <Lock size={14} strokeWidth={1} className="text-mist" />;
+  return null;
+}
 
 export function ModuleRow({ module: mod }: { module: ModuleSummary }) {
   const reduced = useReducedMotion();
@@ -38,9 +47,10 @@ export function ModuleRow({ module: mod }: { module: ModuleSummary }) {
 
       <Link
         href={`/modules/${mod.id}`}
-        className="font-sans text-body text-pearl group-hover:text-gold-leaf transition-colors duration-300 truncate"
+        className="font-sans text-body text-pearl group-hover:text-gold-leaf transition-colors duration-300 truncate inline-flex items-center gap-3"
       >
-        {mod.title}
+        <span className="truncate">{mod.title}</span>
+        <StatusIcon status={mod.frontmatter.status} />
       </Link>
 
       <span className="hidden md:block font-mono text-caption text-chrome tracking-wide text-right truncate">
