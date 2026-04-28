@@ -5,6 +5,7 @@ import {
   getAllModules,
   getModuleByRawId,
   getNeighborModules,
+  getDependents,
   readingMetadata,
 } from '@/lib/content';
 import { getStage } from '@/lib/stages';
@@ -82,6 +83,9 @@ export default async function ModulePage({ params }: { params: Promise<{ id: str
       return { rawId: p, status: target?.frontmatter.status ?? 'pending' };
     }),
   );
+
+  // Modules that gate behind this one — useful pra "destrava: …"
+  const dependents = await getDependents(mod.rawId);
 
   const breadcrumbLd = buildBreadcrumbLd([
     { name: 'Home', href: '/' },
@@ -166,6 +170,36 @@ export default async function ModulePage({ params }: { params: Promise<{ id: str
         <div className="xl:grid xl:grid-cols-[1fr_16rem] xl:gap-12">
           <div className="min-w-0">
             <MarkdownContent source={mod.content} />
+
+            {dependents.length > 0 && (
+              <section
+                aria-label="Módulos que dependem deste"
+                className="mt-16 pt-12 border-t border-mist/40"
+              >
+                <p className="font-mono text-caption text-racing-green-lit tracking-luxury uppercase mb-4">
+                  Destrava
+                </p>
+                <p className="font-sans text-body text-chrome leading-relaxed mb-6 max-w-3xl">
+                  {mod.rawId} é prereq dos seguintes módulos:
+                </p>
+                <ul className="flex flex-wrap gap-2">
+                  {dependents.map((d) => (
+                    <li key={d.rawId}>
+                      <Link
+                        href={`/modules/${d.id}`}
+                        className="inline-flex items-center gap-2 font-mono text-caption tracking-wide
+                                   text-chrome border border-mist/50 px-3 py-1.5
+                                   hover:border-gold-leaf hover:text-gold-leaf transition-colors duration-200"
+                      >
+                        <span className="text-racing-green-lit">{d.rawId}</span>
+                        <span className="text-chrome/80">{d.title}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
             <ModuleNav prev={prev} next={next} />
           </div>
           <TableOfContents items={toc} />

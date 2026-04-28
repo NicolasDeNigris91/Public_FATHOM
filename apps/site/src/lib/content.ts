@@ -177,6 +177,17 @@ export interface NeighborModules {
   next: ModuleSummary | null;
 }
 
+/**
+ * Modules that declare `rawId` in their prereqs frontmatter.
+ * Useful pra UI "este módulo destrava: A, B, C".
+ */
+export async function getDependents(rawId: string): Promise<ModuleSummary[]> {
+  const all = await getAllModules();
+  return all.filter((m) =>
+    m.prereqs.some((p) => p.toLowerCase() === rawId.toLowerCase()),
+  );
+}
+
 export interface ReadingMetadata {
   words: number;
   minutes: number;
