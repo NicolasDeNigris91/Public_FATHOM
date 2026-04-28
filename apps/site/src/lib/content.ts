@@ -171,3 +171,22 @@ function extractFirstHeading(md: string): string | null {
 export function stripFrontmatter(md: string): string {
   return md.replace(/^---\n[\s\S]*?\n---\n?/, '').trimStart();
 }
+
+export interface NeighborModules {
+  prev: ModuleSummary | null;
+  next: ModuleSummary | null;
+}
+
+/**
+ * Returns the prev/next modules around `rawId` in the global ordering
+ * (stage order from STAGES, then numeric order within stage).
+ */
+export async function getNeighborModules(rawId: string): Promise<NeighborModules> {
+  const all = await getAllModules();
+  const idx = all.findIndex((m) => m.rawId.toLowerCase() === rawId.toLowerCase());
+  if (idx < 0) return { prev: null, next: null };
+  return {
+    prev: idx > 0 ? all[idx - 1] : null,
+    next: idx < all.length - 1 ? all[idx + 1] : null,
+  };
+}

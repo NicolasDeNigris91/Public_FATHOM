@@ -1,9 +1,10 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
-import { getAllModules, getModuleByRawId } from '@/lib/content';
+import { getAllModules, getModuleByRawId, getNeighborModules } from '@/lib/content';
 import { getStage } from '@/lib/stages';
 import { MarkdownContent } from '@/components/MarkdownContent';
+import { ModuleNav } from '@/components/ModuleNav';
 
 export async function generateStaticParams() {
   const all = await getAllModules();
@@ -23,6 +24,7 @@ export default async function ModulePage({ params }: { params: Promise<{ id: str
 
   const stage = getStage(mod.stageId)!;
   const stageNumber = String(stage.number).padStart(2, '0');
+  const { prev, next } = await getNeighborModules(mod.rawId);
 
   return (
     <article className="px-8 md:px-16 lg:px-24 pt-32 pb-24">
@@ -63,6 +65,7 @@ export default async function ModulePage({ params }: { params: Promise<{ id: str
         )}
 
         <MarkdownContent source={mod.content} />
+        <ModuleNav prev={prev} next={next} />
       </div>
     </article>
   );
