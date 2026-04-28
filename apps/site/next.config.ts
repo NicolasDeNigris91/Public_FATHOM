@@ -13,9 +13,7 @@ const config: NextConfig = {
       '../../PROGRESS.md',
     ],
   },
-  experimental: {
-    typedRoutes: false,
-  },
+  poweredByHeader: false,
 };
 
 export default config;

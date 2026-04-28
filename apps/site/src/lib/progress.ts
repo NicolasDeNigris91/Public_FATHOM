@@ -78,8 +78,8 @@ export async function loadProgress(): Promise<ProgressSnapshot | null> {
       continue;
     }
 
-    let rawId = cells[0].replace(/\*\*/g, '').trim();
-    let moduleName = cells[1].replace(/\*\*/g, '').trim();
+    const rawId = cells[0].replace(/\*\*/g, '').trim();
+    const moduleName = cells[1].replace(/\*\*/g, '').trim();
     if (!rawId) continue;
 
     snapshot.rows.push({
