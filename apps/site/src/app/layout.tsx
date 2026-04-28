@@ -3,6 +3,7 @@ import { Cormorant_Garamond, Inter, JetBrains_Mono } from 'next/font/google';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { CommandPaletteMount } from '@/components/CommandPaletteMount';
+import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import './globals.css';
 
 const cormorant = Cormorant_Garamond({
@@ -100,6 +101,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <main id="main-content">{children}</main>
         <Footer />
         <CommandPaletteMount />
+        <KeyboardShortcuts />
       </body>
     </html>
   );
