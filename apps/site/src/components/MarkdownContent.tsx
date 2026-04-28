@@ -4,6 +4,7 @@ import rehypeSlug from 'rehype-slug';
 import Link from 'next/link';
 import { Children, isValidElement, type ReactElement } from 'react';
 import { MermaidDiagram } from './MermaidDiagram';
+import { CodeBlock } from './CodeBlock';
 
 interface Props {
   source: string;
@@ -78,7 +79,12 @@ const components: Components = {
       const mermaidSource = String(child?.props?.children ?? '').trim();
       return <MermaidDiagram source={mermaidSource} />;
     }
-    return <pre {...rest}>{children}</pre>;
+    const rawText = String(child?.props?.children ?? '').replace(/\n$/, '');
+    return (
+      <CodeBlock rawText={rawText} lang={lang} {...rest}>
+        {children}
+      </CodeBlock>
+    );
   },
 };
 
