@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ExternalLink, Lock } from 'lucide-react';
 import { EyebrowHeading } from '@/components/EyebrowHeading';
 import { Breadcrumb } from '@/components/Breadcrumb';
+import { StructuredData, buildBookListLd } from '@/components/StructuredData';
 import { LIBRARY } from '@/lib/library';
 import { STAGES, type StageId } from '@/lib/stages';
 
@@ -15,8 +16,19 @@ export const metadata = {
 const STAGE_ORDER: StageId[] = ['novice', 'apprentice', 'professional', 'senior', 'staff'];
 
 export default function LibraryPage() {
+  const bookListLd = buildBookListLd({
+    url: '/library',
+    books: LIBRARY.map((b) => ({
+      title: b.title,
+      author: b.author,
+      year: b.year,
+      url: b.url,
+    })),
+  });
+
   return (
     <section className="px-8 md:px-16 lg:px-24 pt-32 pb-24">
+      <StructuredData data={bookListLd} />
       <div className="max-w-5xl mx-auto">
         <Breadcrumb
           items={[

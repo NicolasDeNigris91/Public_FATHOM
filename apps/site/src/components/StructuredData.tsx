@@ -84,3 +84,27 @@ export function buildWebSiteLd() {
     },
   };
 }
+
+export function buildBookListLd(args: {
+  url: string;
+  books: Array<{ title: string; author: string; year?: string; url?: string }>;
+}) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    url: `${SITE_URL}${args.url}`,
+    itemListOrder: 'ItemListOrderAscending',
+    numberOfItems: args.books.length,
+    itemListElement: args.books.map((b, idx) => ({
+      '@type': 'ListItem',
+      position: idx + 1,
+      item: {
+        '@type': 'Book',
+        name: b.title,
+        author: { '@type': 'Person', name: b.author },
+        ...(b.year ? { datePublished: b.year } : {}),
+        ...(b.url ? { url: b.url } : {}),
+      },
+    })),
+  };
+}
