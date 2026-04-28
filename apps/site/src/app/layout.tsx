@@ -71,7 +71,7 @@ export const metadata: Metadata = {
     follow: true,
     googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1 },
   },
-  icons: { icon: '/favicon.ico' },
+  // icon.tsx and apple-icon.tsx in app/ auto-generate via next/og.
 };
 
 export const viewport: Viewport = {
