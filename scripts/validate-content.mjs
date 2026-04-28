@@ -3,13 +3,20 @@
 // Runs as `prebuild` hook in apps/site/package.json.
 //
 // Checks:
-//   1. Frontmatter required fields on each module .md (module/title/stage/status)
-//   2. prereqs declared exist as real module files
+//   1. Frontmatter required fields on each module .md
+//      (module/title/stage/status; CAPSTONE files: title/stage/status)
+//   2. prereqs declared exist as real module files (skips soft prereqs
+//      in parens or free-text labels like "qualquer", "senior-complete")
 //   3. Internal Markdown links [text](path.md) point to existing files
 //   4. Line count within sane bounds (warning, not failure)
 //
+// Flags:
+//   --strict   promotes warnings to errors (CI-style enforcement)
+//   --quiet    suppresses success summary
+//   --json     outputs machine-readable JSON
+//
 // Exit codes:
-//   0 = ok or warnings only
+//   0 = ok or warnings only (without --strict)
 //   1 = at least one error (build should fail)
 
 import fs from 'node:fs/promises';
@@ -20,6 +27,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..');
 const FRAMEWORK = path.join(REPO_ROOT, 'framework');
 
+const argv = new Set(process.argv.slice(2));
+const STRICT = argv.has('--strict');
+const QUIET = argv.has('--quiet');
+const JSON_OUT = argv.has('--json');
+
 const STAGES = [
   { dir: '01-novice', prefix: 'N' },
   { dir: '02-apprentice', prefix: 'A' },
@@ -28,14 +40,28 @@ const STAGES = [
   { dir: '05-staff', prefix: 'ST' },
 ];
 
-const errors = [];
-const warnings = [];
+// Issue tracking — collected per source so we can group by file in output.
+/** @type {Array<{kind: 'error'|'warn', file: string, msg: string}>} */
+const issues = [];
 
-function err(msg) {
-  errors.push(msg);
+function recordError(file, msg) {
+  issues.push({ kind: 'error', file, msg });
 }
-function warn(msg) {
-  warnings.push(msg);
+function recordWarn(file, msg) {
+  issues.push({ kind: STRICT ? 'error' : 'warn', file, msg });
+}
+
+const ANSI = {
+  red: (s) => `\x1b[31m${s}\x1b[0m`,
+  yellow: (s) => `\x1b[33m${s}\x1b[0m`,
+  green: (s) => `\x1b[32m${s}\x1b[0m`,
+  dim: (s) => `\x1b[2m${s}\x1b[0m`,
+  bold: (s) => `\x1b[1m${s}\x1b[0m`,
+  cyan: (s) => `\x1b[36m${s}\x1b[0m`,
+};
+const COLOR = process.stdout.isTTY && !JSON_OUT;
+function paint(fn, s) {
+  return COLOR ? fn(s) : s;
 }
 
 function parseFrontmatter(raw) {
@@ -86,44 +112,36 @@ async function listModuleIds() {
   return ids;
 }
 
-// Matches real module IDs (N01, A09, ST10) — not free-text soft prereqs
-// like "(Senior completo)", "qualquer", "senior-complete".
 const MODULE_ID_RE = /^[A-Z]+\d+$/;
 
 async function checkModule(filePath, fileName, knownIds) {
   const raw = await fs.readFile(filePath, 'utf8');
   const { fm } = parseFrontmatter(raw);
-
   const idMatch = fileName.match(/^([A-Z]+\d+|CAPSTONE-[a-z]+)/);
   const id = idMatch ? idMatch[1] : fileName;
   const isCapstone = id.startsWith('CAPSTONE');
+  const rel = path.relative(REPO_ROOT, filePath).replaceAll('\\', '/');
 
-  // Required fields. Capstone files use slightly different shape
-  // (some omit the redundant `module` field since filename is the id).
-  const required = isCapstone ? ['title', 'stage', 'status'] : ['module', 'title', 'stage', 'status'];
+  const required = isCapstone
+    ? ['title', 'stage', 'status']
+    : ['module', 'title', 'stage', 'status'];
   for (const field of required) {
-    if (!fm[field]) {
-      err(`[${id}] missing frontmatter field: ${field}`);
-    }
+    if (!fm[field]) recordError(rel, `missing frontmatter field: ${field}`);
   }
 
-  // Prereqs: only validate strict ID-shaped entries against known modules.
-  // Soft prereqs in parens (e.g. "(Senior completo)") are intentional
-  // free-text gates and not validated here.
   const prereqs = fm.prereqs ?? [];
   for (const p of prereqs) {
     const cleaned = p.trim();
     if (!cleaned) continue;
     if (!MODULE_ID_RE.test(cleaned)) continue;
     if (!knownIds.has(cleaned)) {
-      err(`[${id}] prereq references unknown module: ${cleaned}`);
+      recordError(rel, `prereq references unknown module: ${cleaned}`);
     }
   }
 
-  // Line count
   const lineCount = raw.split(/\r?\n/).length;
   if (lineCount < 100 && !fileName.startsWith('README')) {
-    warn(`[${id}] very short module (${lineCount} lines)`);
+    recordWarn(rel, `very short module (${lineCount} lines)`);
   }
 }
 
@@ -147,7 +165,12 @@ async function* walkMd(dir) {
 async function checkInternalLinks() {
   const linkRe = /\[([^\]]+)\]\(([^)]+)\)/g;
   for await (const filePath of walkMd(REPO_ROOT)) {
-    if (filePath.includes('node_modules') || filePath.includes('.next') || filePath.includes('apps/site')) {
+    const rel = path.relative(REPO_ROOT, filePath).replaceAll('\\', '/');
+    if (
+      rel.startsWith('node_modules/') ||
+      rel.startsWith('.next/') ||
+      rel.startsWith('apps/site/')
+    ) {
       continue;
     }
     const raw = await fs.readFile(filePath, 'utf8');
@@ -160,11 +183,94 @@ async function checkInternalLinks() {
       try {
         await fs.access(resolved);
       } catch {
-        const rel = path.relative(REPO_ROOT, filePath).replaceAll('\\', '/');
-        warn(`broken link in ${rel}: -> ${target}`);
+        recordWarn(rel, `broken link → ${target}`);
       }
     }
   }
+}
+
+function summarize() {
+  const errors = issues.filter((i) => i.kind === 'error');
+  const warnings = issues.filter((i) => i.kind === 'warn');
+  return { errors, warnings, byFile: groupBy(issues, (i) => i.file) };
+}
+
+function groupBy(arr, key) {
+  const map = new Map();
+  for (const item of arr) {
+    const k = key(item);
+    const list = map.get(k) ?? [];
+    list.push(item);
+    map.set(k, list);
+  }
+  return map;
+}
+
+function report() {
+  const { errors, warnings, byFile } = summarize();
+
+  if (JSON_OUT) {
+    process.stdout.write(
+      JSON.stringify(
+        {
+          ok: errors.length === 0,
+          strict: STRICT,
+          totals: { errors: errors.length, warnings: warnings.length },
+          issues,
+        },
+        null,
+        2,
+      ) + '\n',
+    );
+    return errors.length === 0;
+  }
+
+  if (errors.length === 0 && warnings.length === 0) {
+    if (!QUIET) {
+      console.log(paint(ANSI.green, '[validate] ok — 0 issues\n'));
+    }
+    return true;
+  }
+
+  console.log('');
+  console.log(
+    paint(
+      ANSI.bold,
+      `[validate] ${errors.length} error${errors.length === 1 ? '' : 's'}, ` +
+        `${warnings.length} warning${warnings.length === 1 ? '' : 's'}`,
+    ),
+  );
+  console.log('');
+
+  // Sort files: ones with errors first, then by file name.
+  const fileEntries = [...byFile.entries()].sort((a, b) => {
+    const aErr = a[1].some((i) => i.kind === 'error');
+    const bErr = b[1].some((i) => i.kind === 'error');
+    if (aErr !== bErr) return aErr ? -1 : 1;
+    return a[0].localeCompare(b[0]);
+  });
+
+  for (const [file, items] of fileEntries) {
+    console.log(paint(ANSI.cyan, file));
+    for (const item of items) {
+      const tag =
+        item.kind === 'error'
+          ? paint(ANSI.red, '  error')
+          : paint(ANSI.yellow, '  warn ');
+      console.log(`${tag}  ${item.msg}`);
+    }
+    console.log('');
+  }
+
+  console.log(
+    paint(
+      ANSI.dim,
+      `summary: ${errors.length} error(s), ${warnings.length} warning(s)` +
+        (STRICT ? ' [strict]' : ''),
+    ),
+  );
+
+  return errors.length === 0;
 }
 
 async function main() {
@@ -176,7 +282,7 @@ async function main() {
     try {
       entries = await fs.readdir(dir);
     } catch {
-      err(`stage dir missing: ${stage.dir}`);
+      recordError(`framework/${stage.dir}`, 'stage directory missing');
       continue;
     }
     for (const f of entries) {
@@ -188,26 +294,8 @@ async function main() {
 
   await checkInternalLinks();
 
-  console.log('');
-  console.log(`[validate] modules scanned: ${knownIds.size}`);
-  console.log(`[validate] errors:   ${errors.length}`);
-  console.log(`[validate] warnings: ${warnings.length}`);
-
-  if (warnings.length > 0) {
-    console.log('');
-    console.log('Warnings:');
-    for (const w of warnings.slice(0, 30)) console.log(`  - ${w}`);
-    if (warnings.length > 30) console.log(`  ... +${warnings.length - 30} more`);
-  }
-
-  if (errors.length > 0) {
-    console.error('');
-    console.error('Errors:');
-    for (const e of errors) console.error(`  ! ${e}`);
-    process.exit(1);
-  }
-
-  console.log('[validate] ok\n');
+  const ok = report();
+  process.exit(ok ? 0 : 1);
 }
 
 main().catch((e) => {
