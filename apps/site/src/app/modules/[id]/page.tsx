@@ -1,7 +1,12 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
-import { getAllModules, getModuleByRawId, getNeighborModules } from '@/lib/content';
+import { ArrowLeft, Clock, Code2, FileText } from 'lucide-react';
+import {
+  getAllModules,
+  getModuleByRawId,
+  getNeighborModules,
+  readingMetadata,
+} from '@/lib/content';
 import { getStage } from '@/lib/stages';
 import { MarkdownContent } from '@/components/MarkdownContent';
 import { ModuleNav } from '@/components/ModuleNav';
@@ -25,6 +30,7 @@ export default async function ModulePage({ params }: { params: Promise<{ id: str
   const stage = getStage(mod.stageId)!;
   const stageNumber = String(stage.number).padStart(2, '0');
   const { prev, next } = await getNeighborModules(mod.rawId);
+  const meta = readingMetadata(mod.content);
 
   return (
     <article className="px-8 md:px-16 lg:px-24 pt-32 pb-24">
@@ -44,6 +50,23 @@ export default async function ModulePage({ params }: { params: Promise<{ id: str
           {mod.title}
         </h1>
         <div className="h-px bg-gold-leaf w-32 mb-8" />
+
+        <div className="mb-12 flex flex-wrap items-center gap-x-6 gap-y-3 font-mono text-caption text-chrome tracking-wide">
+          <span className="inline-flex items-center gap-2">
+            <Clock size={12} strokeWidth={1} />
+            <span>~{meta.minutes} min read</span>
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <FileText size={12} strokeWidth={1} />
+            <span>{meta.words.toLocaleString('pt-BR')} palavras</span>
+          </span>
+          {meta.codeBlocks > 0 && (
+            <span className="inline-flex items-center gap-2">
+              <Code2 size={12} strokeWidth={1} />
+              <span>{meta.codeBlocks} code blocks</span>
+            </span>
+          )}
+        </div>
 
         {mod.prereqs.length > 0 && (
           <div className="mb-12 flex flex-wrap items-center gap-3">
