@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, type Variants } from 'framer-motion';
-import { Search } from 'lucide-react';
+import { Menu, Search, X } from 'lucide-react';
 import { EASE_STANDARD } from '@/lib/motion';
 
 const navVariants: Variants = {
@@ -26,6 +26,7 @@ const navLinks = [
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [isMac, setIsMac] = useState(true);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -34,6 +35,11 @@ export function Navbar() {
     setIsMac(/mac/i.test(navigator.platform));
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   function isActive(href: string): boolean {
     if (href === '/') return pathname === '/';
@@ -61,10 +67,11 @@ export function Navbar() {
           : 'bg-transparent'
       }`}
     >
-      <div className="max-w-7xl mx-auto flex items-center justify-between px-8 md:px-16 lg:px-24 py-5">
+      <div className="max-w-7xl mx-auto flex items-center justify-between px-6 sm:px-8 md:px-16 lg:px-24 py-5">
         <Link
           href="/"
-          className="font-display text-lg text-pearl tracking-wide hover:text-gold-leaf transition-colors duration-300"
+          className="font-display text-lg text-pearl tracking-wide hover:text-gold-leaf transition-colors duration-300
+                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-platinum"
         >
           Fathom
         </Link>
@@ -90,30 +97,75 @@ export function Navbar() {
           })}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             type="button"
             onClick={openPalette}
-            aria-label="Open command palette"
-            className="hidden md:inline-flex items-center gap-2 font-mono text-caption tracking-wide
+            aria-label="Abrir command palette"
+            className="inline-flex items-center gap-2 font-mono text-caption tracking-wide
                        border border-mist/60 text-chrome px-3 py-2
                        hover:border-platinum hover:text-platinum transition-colors duration-300
                        focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-platinum"
           >
             <Search size={12} strokeWidth={1} />
-            <span className="opacity-80">{isMac ? '⌘' : 'Ctrl'}</span>
-            <span className="opacity-80">K</span>
+            <span className="hidden sm:inline opacity-80">{isMac ? '⌘' : 'Ctrl'}</span>
+            <span className="hidden sm:inline opacity-80">K</span>
           </button>
           <Link
             href="/modules/n01"
-            className="font-sans text-caption tracking-luxury uppercase border border-mist text-chrome
+            className="hidden sm:inline-block font-sans text-caption tracking-luxury uppercase border border-mist text-chrome
                        px-5 py-2 hover:border-platinum hover:text-platinum transition-colors duration-300
                        focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-platinum"
           >
             Begin
           </Link>
+          <button
+            type="button"
+            onClick={() => setMobileOpen((v) => !v)}
+            aria-label={mobileOpen ? 'Fechar menu' : 'Abrir menu'}
+            aria-expanded={mobileOpen}
+            className="md:hidden inline-flex items-center justify-center w-10 h-10 border border-mist/60 text-chrome
+                       hover:border-platinum hover:text-platinum transition-colors duration-300
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-platinum"
+          >
+            {mobileOpen ? <X size={16} strokeWidth={1} /> : <Menu size={16} strokeWidth={1} />}
+          </button>
         </div>
       </div>
+
+      {/* Mobile menu */}
+      {mobileOpen && (
+        <div className="md:hidden border-t border-mist/30 bg-obsidian/95 backdrop-blur-md">
+          <ul className="px-6 sm:px-8 py-6 space-y-4">
+            {navLinks.map((link) => {
+              const active = isActive(link.href);
+              return (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    aria-current={active ? 'page' : undefined}
+                    className={`block font-sans text-caption tracking-luxury uppercase py-2
+                               transition-colors duration-200
+                               ${active ? 'text-pearl border-l-2 border-gold-leaf pl-4' : 'text-chrome pl-0'}`}
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              );
+            })}
+            <li className="pt-2 border-t border-mist/30">
+              <Link
+                href="/modules/n01"
+                className="block font-sans text-caption tracking-luxury uppercase
+                           border border-mist text-chrome px-5 py-3 mt-3
+                           text-center hover:border-platinum hover:text-platinum transition-colors duration-200"
+              >
+                Begin → N01
+              </Link>
+            </li>
+          </ul>
+        </div>
+      )}
     </motion.nav>
   );
 }

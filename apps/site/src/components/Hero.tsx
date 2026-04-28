@@ -22,8 +22,8 @@ export function Hero({ totalModules }: HeroProps) {
   const slideVariant = reduced ? fadeOnly : fadeSlideUp;
   const lineVariant = reduced ? fadeOnly : lineReveal;
   return (
-    <section className="relative min-h-screen flex flex-col justify-center px-8 md:px-16 lg:px-24 py-32">
-      <div className="absolute inset-y-0 left-8 md:left-16 lg:left-24 w-px bg-mist opacity-40" aria-hidden="true" />
+    <section className="relative min-h-screen flex flex-col justify-center px-6 sm:px-8 md:px-16 lg:px-24 py-24 md:py-32">
+      <div className="absolute inset-y-0 left-6 sm:left-8 md:left-16 lg:left-24 w-px bg-mist opacity-40" aria-hidden="true" />
 
       <motion.div
         className="max-w-7xl w-full mx-auto"
@@ -40,7 +40,7 @@ export function Hero({ totalModules }: HeroProps) {
 
         <motion.h1
           variants={slideVariant}
-          className="font-display text-display-xl text-pearl tracking-tight leading-none mb-4 max-w-4xl"
+          className="font-display text-6xl sm:text-7xl md:text-display-xl text-pearl tracking-tight leading-none mb-4 max-w-4xl"
         >
           Fathom
         </motion.h1>
@@ -65,11 +65,11 @@ export function Hero({ totalModules }: HeroProps) {
           Não é curso. Não é bootcamp. Não é leitura passiva. É disciplina de longo prazo com módulos densos, portões de avaliação, e um produto encadeado (Logística) que evolui ao longo dos 5 estágios.
         </motion.p>
 
-        <motion.div variants={fadeSlideUp} className="flex flex-wrap items-center gap-8 mb-16">
+        <motion.div variants={slideVariant} className="flex flex-wrap items-center gap-6 sm:gap-8 mb-16">
           <Link
             href="/modules/n01"
             className="font-sans text-caption tracking-luxury uppercase border border-platinum text-platinum
-                       px-8 py-3 hover:bg-platinum hover:text-obsidian transition-colors duration-300
+                       px-6 sm:px-8 py-3 hover:bg-platinum hover:text-obsidian transition-colors duration-300
                        focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-platinum"
           >
             Begin → N01
@@ -83,7 +83,7 @@ export function Hero({ totalModules }: HeroProps) {
           </Link>
         </motion.div>
 
-        <motion.div variants={fadeSlideUp} className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl">
+        <motion.div variants={slideVariant} className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 max-w-4xl">
           <Stat number="5" label="Estágios" />
           <Stat number={`${totalModules}`} label="Módulos" />
           <Stat number="5" label="Capstones" />

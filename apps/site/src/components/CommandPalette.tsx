@@ -63,8 +63,11 @@ export function CommandPalette({ entries }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] px-4 backdrop-blur-md bg-obsidian/85"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-[8vh] sm:pt-[15vh] px-3 sm:px-4 backdrop-blur-md bg-obsidian/85"
       onClick={() => setOpen(false)}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Command palette"
     >
       <div
         onClick={(e) => e.stopPropagation()}
