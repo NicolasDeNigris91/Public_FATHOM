@@ -189,6 +189,51 @@ export interface ReadingMetadata {
  * Code blocks are counted but not subtracted — they slow reading;
  * we intentionally don't compensate, since "denser per minute" is fine.
  */
+export interface GlossaryTerm {
+  term: string;
+  expansion: string | null;
+  definition: string;
+  section: string;
+}
+
+/**
+ * Parses framework/00-meta/GLOSSARY.md into structured terms.
+ * Format expected per term:
+ *   - **TERM** (optional expansion) — definition text.
+ * Sections delimited by `## Section heading`.
+ */
+export async function loadGlossary(): Promise<{ sections: string[]; terms: GlossaryTerm[] }> {
+  const raw = await getMetaDoc('GLOSSARY.md');
+  if (!raw) return { sections: [], terms: [] };
+
+  const lines = raw.split(/\r?\n/);
+  const terms: GlossaryTerm[] = [];
+  const sections: string[] = [];
+  let currentSection = '';
+
+  const TERM_RE = /^-\s+\*\*([^*]+?)\*\*(?:\s*\(([^)]+)\))?\s*[—-]\s+(.+)$/;
+
+  for (const line of lines) {
+    const sectionMatch = line.match(/^##\s+(.+?)\s*$/);
+    if (sectionMatch) {
+      currentSection = sectionMatch[1].trim();
+      if (!sections.includes(currentSection)) sections.push(currentSection);
+      continue;
+    }
+    const termMatch = line.match(TERM_RE);
+    if (termMatch && currentSection) {
+      terms.push({
+        term: termMatch[1].trim(),
+        expansion: termMatch[2]?.trim() ?? null,
+        definition: termMatch[3].trim(),
+        section: currentSection,
+      });
+    }
+  }
+
+  return { sections, terms };
+}
+
 export function readingMetadata(markdown: string): ReadingMetadata {
   const stripped = markdown
     .replace(/```[\s\S]*?```/g, ' ')

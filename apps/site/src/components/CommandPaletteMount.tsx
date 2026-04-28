@@ -29,6 +29,7 @@ export async function CommandPaletteMount() {
     { type: 'home', id: 'home', title: 'Home', subtitle: 'Overview', href: '/' },
     { type: 'progress', id: 'progress', title: 'Progress', subtitle: 'Dashboard de portões', href: '/progress' },
     { type: 'index', id: 'index', title: 'Module Index', subtitle: 'Mapa global + DAG', href: '/index' },
+    { type: 'index', id: 'glossary', title: 'Glossary', subtitle: '210 termos canônicos', href: '/glossary' },
     { type: 'home', id: 'about', title: 'About', subtitle: 'Sobre o framework', href: '/about' },
 
     ...STAGES.map((s): PaletteEntry => ({
