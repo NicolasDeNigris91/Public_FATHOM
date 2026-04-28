@@ -67,11 +67,10 @@ export function KeyboardShortcuts() {
 
       // j / k for prev/next module navigation (only on /modules/...)
       if (inModule && (e.key === 'j' || e.key === 'k')) {
-        const selector =
-          e.key === 'j'
-            ? 'nav[aria-label="Navegação entre módulos"] a:nth-of-type(2)'
-            : 'nav[aria-label="Navegação entre módulos"] a:nth-of-type(1)';
-        const target = document.querySelector<HTMLAnchorElement>(selector);
+        const direction = e.key === 'j' ? 'next' : 'prev';
+        const target = document.querySelector<HTMLAnchorElement>(
+          `a[data-direction="${direction}"]`,
+        );
         if (target) {
           e.preventDefault();
           target.click();

@@ -18,6 +18,7 @@ export function ModuleNav({ prev, next }: Props) {
       {prev ? (
         <Link
           href={`/modules/${prev.id}`}
+          data-direction="prev"
           className="group block border border-mist/50 bg-graphite p-6
                      hover:border-gold-leaf transition-colors duration-300
                      focus-visible:outline-none focus-visible:border-gold-leaf"
@@ -40,6 +41,7 @@ export function ModuleNav({ prev, next }: Props) {
       {next ? (
         <Link
           href={`/modules/${next.id}`}
+          data-direction="next"
           className="group block border border-mist/50 bg-graphite p-6 md:text-right
                      hover:border-gold-leaf transition-colors duration-300
                      focus-visible:outline-none focus-visible:border-gold-leaf"
