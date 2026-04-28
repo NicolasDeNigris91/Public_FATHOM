@@ -20,6 +20,17 @@ export default async function HomePage() {
     ? { id: activeMod.id, rawId: activeMod.rawId, title: activeMod.title }
     : null;
 
+  // Per-stage progress for the StageCard grid.
+  const progressByStage = new Map<number, { done: number; total: number }>();
+  if (snap) {
+    for (const row of snap.rows) {
+      const cur = progressByStage.get(row.stageNumber) ?? { done: 0, total: 0 };
+      cur.total += 1;
+      if (row.status === 'DONE') cur.done += 1;
+      progressByStage.set(row.stageNumber, cur);
+    }
+  }
+
   return (
     <>
       <StructuredData data={buildWebSiteLd()} />
@@ -35,7 +46,11 @@ export default async function HomePage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-16">
             {STAGES.map((stage) => (
-              <StageCard key={stage.id} stage={stage} />
+              <StageCard
+                key={stage.id}
+                stage={stage}
+                progress={progressByStage.get(stage.number)}
+              />
             ))}
           </div>
         </div>

@@ -20,8 +20,17 @@ const cardVariantsReduced: Variants = {
   visible: { opacity: 1, transition: { duration: 0.01 } },
 };
 
-export function StageCard({ stage }: { stage: StageMeta }) {
+interface StageCardProps {
+  stage: StageMeta;
+  progress?: { done: number; total: number };
+}
+
+export function StageCard({ stage, progress }: StageCardProps) {
   const reduced = useReducedMotion();
+  const percent =
+    progress && progress.total > 0
+      ? Math.round((progress.done / progress.total) * 100)
+      : null;
   const number = String(stage.number).padStart(2, '0');
   return (
     <motion.div variants={reduced ? cardVariantsReduced : cardVariants}>
@@ -60,8 +69,27 @@ export function StageCard({ stage }: { stage: StageMeta }) {
           {stage.moduleCount} módulos · 1 capstone
         </p>
 
-        <div className="absolute -bottom-px -left-px w-12 h-px bg-gold-leaf opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-        <div className="absolute -bottom-px -left-px w-px h-12 bg-gold-leaf opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+        {progress && (
+          <div className="mt-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-mono text-caption text-chrome tracking-wide">
+                {progress.done} / {progress.total}
+              </span>
+              <span className="font-mono text-caption text-racing-green-lit tracking-wide">
+                {percent}%
+              </span>
+            </div>
+            <div className="h-px bg-mist/40 relative">
+              <div
+                className="absolute top-0 left-0 h-px bg-gold-leaf transition-all duration-500"
+                style={{ width: `${percent}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="absolute -bottom-px -left-px w-12 h-px bg-gold-leaf opacity-0 group-hover:opacity-100 transition-opacity duration-500" aria-hidden="true" />
+        <div className="absolute -bottom-px -left-px w-px h-12 bg-gold-leaf opacity-0 group-hover:opacity-100 transition-opacity duration-500" aria-hidden="true" />
       </Link>
     </motion.div>
   );

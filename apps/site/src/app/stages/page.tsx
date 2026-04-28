@@ -2,6 +2,7 @@ import { STAGES } from '@/lib/stages';
 import { StageCard } from '@/components/StageCard';
 import { EyebrowHeading } from '@/components/EyebrowHeading';
 import { Breadcrumb } from '@/components/Breadcrumb';
+import { loadProgress } from '@/lib/progress';
 
 export const metadata = {
   title: 'Stages',
@@ -9,7 +10,19 @@ export const metadata = {
   alternates: { canonical: '/stages' },
 };
 
-export default function StagesPage() {
+export default async function StagesPage() {
+  const snap = await loadProgress();
+  // Build per-stage progress map: count rows where status === 'DONE' divided by total rows.
+  const progressByStage = new Map<number, { done: number; total: number }>();
+  if (snap) {
+    for (const row of snap.rows) {
+      const cur = progressByStage.get(row.stageNumber) ?? { done: 0, total: 0 };
+      cur.total += 1;
+      if (row.status === 'DONE') cur.done += 1;
+      progressByStage.set(row.stageNumber, cur);
+    }
+  }
+
   return (
     <section className="px-8 md:px-16 lg:px-24 pt-32 pb-24">
       <div className="max-w-7xl mx-auto">
@@ -27,7 +40,11 @@ export default function StagesPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-16">
           {STAGES.map((stage) => (
-            <StageCard key={stage.id} stage={stage} />
+            <StageCard
+              key={stage.id}
+              stage={stage}
+              progress={progressByStage.get(stage.number)}
+            />
           ))}
         </div>
       </div>
