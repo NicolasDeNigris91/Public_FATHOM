@@ -8,7 +8,7 @@ Branch: `main` · Repo: `https://github.com/NicolasDeNigris91/FATHOM`
 
 ## Resumo executivo
 
-41+ commits de melhorias foram feitos no site (`apps/site/`) sem tocar no protocolo, conteúdo de módulos, ou estrutura do framework. Foco: type safety, UX, a11y, SEO, e features que aumentam valor sem expandir scope.
+46 commits de melhorias foram feitos no site (`apps/site/`) sem tocar no protocolo, conteúdo de módulos, ou estrutura do framework. Foco: type safety, UX, a11y, SEO, e features que aumentam valor sem expandir scope.
 
 **Nada quebrou conteúdo existente.** O site continua sendo render do Markdown — single source of truth preservado.
 
@@ -17,6 +17,13 @@ Branch: `main` · Repo: `https://github.com/NicolasDeNigris91/FATHOM`
 ---
 
 ## Commits (ordem reversa, mais recente primeiro)
+
+### Onda 6 (final)
+
+- **`1fb6472`** — feat: progress bar no header de /stages/[stage].
+- **`388ba7e`** — feat: /now per-stage completion bar graph.
+- **`210e694`** — perf: memoize getAllModules per-process.
+- **`5e7a897`** — feat: summary stats no header de /index.
 
 ### Onda 5
 
