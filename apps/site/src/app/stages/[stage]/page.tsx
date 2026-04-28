@@ -1,10 +1,9 @@
 import { notFound } from 'next/navigation';
-import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
 import { STAGES, getStage } from '@/lib/stages';
 import { getStageModules, getStageReadme, stripFrontmatter } from '@/lib/content';
 import { ModuleRow, ModuleRowHeader } from '@/components/ModuleRow';
 import { MarkdownContent } from '@/components/MarkdownContent';
+import { Breadcrumb } from '@/components/Breadcrumb';
 
 export async function generateStaticParams() {
   return STAGES.map((s) => ({ stage: s.id }));
@@ -28,13 +27,13 @@ export default async function StagePage({ params }: { params: Promise<{ stage: s
   return (
     <article className="px-8 md:px-16 lg:px-24 pt-32 pb-24">
       <div className="max-w-5xl mx-auto">
-        <Link
-          href="/stages"
-          className="inline-flex items-center gap-2 font-mono text-caption text-chrome
-                     tracking-luxury uppercase mb-12 hover:text-pearl transition-colors duration-200"
-        >
-          <ArrowLeft size={14} strokeWidth={1} /> All Stages
-        </Link>
+        <Breadcrumb
+          items={[
+            { label: 'Home', href: '/' },
+            { label: 'Stages', href: '/stages' },
+            { label: stage.title },
+          ]}
+        />
 
         <p className="font-mono text-caption text-racing-green-lit tracking-luxury uppercase mb-3">
           Estágio {number}

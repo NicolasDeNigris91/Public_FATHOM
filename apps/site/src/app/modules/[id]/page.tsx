@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Clock, Code2, FileText } from 'lucide-react';
+import { Clock, Code2, FileText } from 'lucide-react';
 import {
   getAllModules,
   getModuleByRawId,
@@ -10,6 +10,7 @@ import {
 import { getStage } from '@/lib/stages';
 import { MarkdownContent } from '@/components/MarkdownContent';
 import { ModuleNav } from '@/components/ModuleNav';
+import { Breadcrumb } from '@/components/Breadcrumb';
 
 export async function generateStaticParams() {
   const all = await getAllModules();
@@ -35,16 +36,16 @@ export default async function ModulePage({ params }: { params: Promise<{ id: str
   return (
     <article className="px-8 md:px-16 lg:px-24 pt-32 pb-24">
       <div className="max-w-4xl mx-auto">
-        <Link
-          href={`/stages/${stage.id}`}
-          className="inline-flex items-center gap-2 font-mono text-caption text-chrome
-                     tracking-luxury uppercase mb-12 hover:text-pearl transition-colors duration-200"
-        >
-          <ArrowLeft size={14} strokeWidth={1} /> {stage.title}
-        </Link>
+        <Breadcrumb
+          items={[
+            { label: 'Home', href: '/' },
+            { label: stage.title, href: `/stages/${stage.id}` },
+            { label: mod.rawId },
+          ]}
+        />
 
         <p className="font-mono text-caption text-racing-green-lit tracking-luxury uppercase mb-3">
-          Estágio {stageNumber} · {stage.title} · {mod.rawId}
+          Estágio {stageNumber} · {mod.rawId}
         </p>
         <h1 className="font-display text-display-xl text-pearl tracking-tight leading-tight mb-4">
           {mod.title}
