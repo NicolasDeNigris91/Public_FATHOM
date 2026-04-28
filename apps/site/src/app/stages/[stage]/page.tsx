@@ -4,6 +4,7 @@ import { getStageModules, getStageReadme, stripFrontmatter } from '@/lib/content
 import { ModuleRow, ModuleRowHeader } from '@/components/ModuleRow';
 import { MarkdownContent } from '@/components/MarkdownContent';
 import { Breadcrumb } from '@/components/Breadcrumb';
+import { StructuredData, buildBreadcrumbLd } from '@/components/StructuredData';
 
 export async function generateStaticParams() {
   return STAGES.map((s) => ({ stage: s.id }));
@@ -24,8 +25,15 @@ export default async function StagePage({ params }: { params: Promise<{ stage: s
   const readme = await getStageReadme(stage);
   const number = String(stage.number).padStart(2, '0');
 
+  const breadcrumbLd = buildBreadcrumbLd([
+    { name: 'Home', href: '/' },
+    { name: 'Stages', href: '/stages' },
+    { name: stage.title },
+  ]);
+
   return (
     <article className="px-8 md:px-16 lg:px-24 pt-32 pb-24">
+      <StructuredData data={breadcrumbLd} />
       <div className="max-w-5xl mx-auto">
         <Breadcrumb
           items={[

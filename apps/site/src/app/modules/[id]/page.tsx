@@ -11,6 +11,11 @@ import { getStage } from '@/lib/stages';
 import { MarkdownContent } from '@/components/MarkdownContent';
 import { ModuleNav } from '@/components/ModuleNav';
 import { Breadcrumb } from '@/components/Breadcrumb';
+import {
+  StructuredData,
+  buildBreadcrumbLd,
+  buildTechArticleLd,
+} from '@/components/StructuredData';
 
 export async function generateStaticParams() {
   const all = await getAllModules();
@@ -52,8 +57,32 @@ export default async function ModulePage({ params }: { params: Promise<{ id: str
   const { prev, next } = await getNeighborModules(mod.rawId);
   const meta = readingMetadata(mod.content);
 
+  // Quick description from first non-trivial paragraph (mirrors generateMetadata).
+  const desc = mod.content
+    .replace(/^#+\s+.*$/gm, '')
+    .replace(/```[\s\S]*?```/g, '')
+    .split('\n')
+    .map((s) => s.trim())
+    .find((s) => s.length > 80 && !s.startsWith('|') && !s.startsWith('-'))
+    ?.slice(0, 160);
+
+  const breadcrumbLd = buildBreadcrumbLd([
+    { name: 'Home', href: '/' },
+    { name: stage.title, href: `/stages/${stage.id}` },
+    { name: mod.rawId },
+  ]);
+
+  const articleLd = buildTechArticleLd({
+    title: mod.title,
+    rawId: mod.rawId,
+    description: desc,
+    url: `/modules/${mod.id}`,
+    prereqs: mod.prereqs,
+  });
+
   return (
     <article className="px-8 md:px-16 lg:px-24 pt-32 pb-24">
+      <StructuredData data={[breadcrumbLd, articleLd]} />
       <div className="max-w-4xl mx-auto">
         <Breadcrumb
           items={[

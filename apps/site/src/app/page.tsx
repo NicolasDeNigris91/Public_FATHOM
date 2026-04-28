@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Hero } from '@/components/Hero';
 import { StageCard } from '@/components/StageCard';
 import { EyebrowHeading } from '@/components/EyebrowHeading';
+import { StructuredData, buildWebSiteLd } from '@/components/StructuredData';
 import { STAGES } from '@/lib/stages';
 import { getAllModules, getModuleByRawId } from '@/lib/content';
 import { loadProgress } from '@/lib/progress';
@@ -21,6 +22,7 @@ export default async function HomePage() {
 
   return (
     <>
+      <StructuredData data={buildWebSiteLd()} />
       <Hero totalModules={moduleCount} activeModule={heroActive} />
 
       <section className="px-8 md:px-16 lg:px-24 py-24 bg-graphite">
