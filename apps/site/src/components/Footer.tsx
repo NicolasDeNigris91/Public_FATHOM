@@ -40,7 +40,7 @@ export function Footer() {
           <p className="font-sans text-caption text-chrome mb-4">
             São Paulo · {new Date().getFullYear()}
           </p>
-          <div className="flex gap-6">
+          <div className="flex flex-wrap gap-6">
             <a
               href="https://github.com/NicolasDeNigris91/FATHOM"
               target="_blank"
@@ -57,6 +57,12 @@ export function Footer() {
             >
               Portfolio
             </a>
+            <Link
+              href="/feed.xml"
+              className="font-mono text-caption tracking-luxury uppercase text-chrome hover:text-gold-leaf transition-colors duration-200"
+            >
+              RSS
+            </Link>
           </div>
         </div>
       </div>

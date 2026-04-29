@@ -104,6 +104,45 @@ export default async function NowPage() {
           </div>
         </div>
 
+        {!activeMod && !nextMod && (
+          <div className="mb-16 border border-mist/50 bg-graphite p-10">
+            <p className="font-mono text-caption text-racing-green-lit tracking-luxury uppercase mb-3">
+              Calibrando
+            </p>
+            <h3 className="font-display text-display-md text-pearl mb-4">
+              Antes de começar, calibre
+            </h3>
+            <p className="font-sans text-body text-chrome leading-relaxed mb-8 max-w-2xl">
+              PROGRESS.md ainda está em estado fresh. O caminho recomendado é:
+              fazer Self-Assessment honesto pra calibrar onde você realmente
+              está, escolher um plan, e abrir N01.
+            </p>
+            <div className="flex flex-wrap gap-6">
+              <Link
+                href="/docs/self-assessment"
+                className="font-sans text-caption tracking-luxury uppercase border border-platinum text-platinum
+                           px-6 py-3 hover:bg-platinum hover:text-obsidian transition-colors duration-300"
+              >
+                Self-Assessment
+              </Link>
+              <Link
+                href="/docs/study-plans"
+                className="font-sans text-caption tracking-luxury uppercase text-chrome hover:text-pearl
+                           transition-colors duration-300"
+              >
+                Study Plans →
+              </Link>
+              <Link
+                href="/modules/n01"
+                className="font-sans text-caption tracking-luxury uppercase text-chrome hover:text-pearl
+                           transition-colors duration-300"
+              >
+                N01 — Computation Model →
+              </Link>
+            </div>
+          </div>
+        )}
+
         {(activeMod || nextMod) && (
           <div className="mb-16">
             <p className="font-mono text-caption text-racing-green-lit tracking-luxury uppercase mb-6">
