@@ -12,7 +12,6 @@ export const metadata = {
 
 export default async function StagesPage() {
   const snap = await loadProgress();
-  // Build per-stage progress map: count rows where status === 'DONE' divided by total rows.
   const progressByStage = new Map<number, { done: number; total: number }>();
   if (snap) {
     for (const row of snap.rows) {

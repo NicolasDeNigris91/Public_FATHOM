@@ -9,10 +9,8 @@ import { loadProgress } from '@/lib/progress';
 
 export default async function HomePage() {
   const allModules = await getAllModules();
-  // Filter out capstones from module count to match framework's 78
   const moduleCount = allModules.filter((m) => !m.rawId.startsWith('CAPSTONE')).length;
 
-  // Resolve "active module" from PROGRESS.md so Hero CTA can be context-aware.
   const snap = await loadProgress();
   const activeRawId = snap?.activeModule.match(/^([A-Z]+\d+|CAPSTONE-[a-z]+)/)?.[1];
   const activeMod = activeRawId ? await getModuleByRawId(activeRawId) : null;
@@ -20,7 +18,6 @@ export default async function HomePage() {
     ? { id: activeMod.id, rawId: activeMod.rawId, title: activeMod.title }
     : null;
 
-  // Per-stage progress for the StageCard grid.
   const progressByStage = new Map<number, { done: number; total: number }>();
   if (snap) {
     for (const row of snap.rows) {

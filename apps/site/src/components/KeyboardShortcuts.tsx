@@ -65,7 +65,6 @@ export function KeyboardShortcuts() {
         return;
       }
 
-      // j / k for prev/next module navigation (only on /modules/...)
       if (inModule && (e.key === 'j' || e.key === 'k')) {
         const direction = e.key === 'j' ? 'next' : 'prev';
         const target = document.querySelector<HTMLAnchorElement>(

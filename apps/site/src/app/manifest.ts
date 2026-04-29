@@ -1,10 +1,5 @@
 import type { MetadataRoute } from 'next';
 
-/**
- * Web App Manifest (PWA-lite). Adds Android/iOS "Add to Home Screen"
- * capability with proper theme color and naming. No service worker
- * — Fathom is content-static, not an offline-first app.
- */
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'Fathom — Framework de Maestria Full Stack',

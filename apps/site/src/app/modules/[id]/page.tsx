@@ -33,7 +33,6 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const mod = await getModuleByRawId(id);
   if (!mod) return { title: 'Módulo' };
 
-  // Pull a brief description from the first non-trivial paragraph after frontmatter
   const desc = mod.content
     .replace(/^#+\s+.*$/gm, '')
     .replace(/```[\s\S]*?```/g, '')
@@ -69,7 +68,6 @@ export default async function ModulePage({ params }: { params: Promise<{ id: str
   const meta = readingMetadata(mod.content);
   const toc = extractToc(mod.content);
 
-  // Quick description from first non-trivial paragraph (mirrors generateMetadata).
   const desc = mod.content
     .replace(/^#+\s+.*$/gm, '')
     .replace(/```[\s\S]*?```/g, '')
@@ -78,7 +76,6 @@ export default async function ModulePage({ params }: { params: Promise<{ id: str
     .find((s) => s.length > 80 && !s.startsWith('|') && !s.startsWith('-'))
     ?.slice(0, 160);
 
-  // Resolve status of each prereq so the chip can reflect it visually.
   const prereqStatus = await Promise.all(
     mod.prereqs.map(async (p) => {
       const target = await getModuleByRawId(p);
@@ -86,7 +83,6 @@ export default async function ModulePage({ params }: { params: Promise<{ id: str
     }),
   );
 
-  // Modules that gate behind this one — useful pra "destrava: …"
   const dependents = await getDependents(mod.rawId);
 
   const breadcrumbLd = buildBreadcrumbLd([

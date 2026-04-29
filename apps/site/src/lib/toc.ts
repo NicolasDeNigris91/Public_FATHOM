@@ -4,11 +4,6 @@ export interface TocItem {
   slug: string;
 }
 
-/**
- * Mirror of rehype-slug's logic for h2/h3 headings: lowercase, strip
- * non-word, collapse spaces to hyphens. Good enough for our framework
- * markdown (no exotic Unicode in headings).
- */
 function slugify(text: string): string {
   return text
     .trim()
@@ -21,11 +16,6 @@ function slugify(text: string): string {
     .replace(/^-|-$/g, '');
 }
 
-/**
- * Extracts h2 and h3 headings from markdown body. Skips fenced code
- * blocks (which may contain # for shell prompts, comments, etc).
- * Returns a flat list — caller can render as nested or flat.
- */
 export function extractToc(markdown: string): TocItem[] {
   const items: TocItem[] = [];
   const lines = markdown.split(/\r?\n/);

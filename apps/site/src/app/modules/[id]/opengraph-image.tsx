@@ -18,9 +18,6 @@ export default async function ModuleOpengraphImage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  // If module read fails (corrupt frontmatter, fs error, etc.) we still want
-  // a valid PNG response — fall back to generic Fathom branding instead of
-  // crashing the build.
   let mod: Awaited<ReturnType<typeof getModuleByRawId>> = null;
   try {
     mod = await getModuleByRawId(id);

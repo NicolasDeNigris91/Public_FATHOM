@@ -4,13 +4,6 @@ import { loadProgress, summarize } from '@/lib/progress';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/**
- * Programmatic access to current progress snapshot.
- * Useful for external tooling: webhook into another service,
- * Anki sync, custom dashboards, etc.
- *
- * Same data the /progress page renders, in JSON.
- */
 export async function GET() {
   const snap = await loadProgress();
   if (!snap) {

@@ -8,10 +8,6 @@ interface Props extends HTMLAttributes<HTMLPreElement> {
   lang?: string;
 }
 
-/**
- * Code block wrapper with a copy-to-clipboard button.
- * Used by MarkdownContent's `pre` handler when language !== 'mermaid'.
- */
 export function CodeBlock({ rawText, lang, children, ...rest }: Props) {
   const [copied, setCopied] = useState(false);
   const timeoutRef = useRef<number | null>(null);
@@ -29,7 +25,7 @@ export function CodeBlock({ rawText, lang, children, ...rest }: Props) {
       if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
       timeoutRef.current = window.setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Permission denied or insecure context — silently fail.
+      // clipboard indisponível
     }
   }
 

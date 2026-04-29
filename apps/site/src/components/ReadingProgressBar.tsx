@@ -2,11 +2,6 @@
 
 import { useEffect, useState } from 'react';
 
-/**
- * Thin horizontal bar at top of viewport that fills as the user scrolls
- * through the page. Used on module pages to give a sense of "how much is left".
- * Pure client-side, no persistence — purely visual.
- */
 export function ReadingProgressBar() {
   const [progress, setProgress] = useState(0);
 

@@ -47,8 +47,6 @@ function rewriteHref(href: string | undefined): string | undefined {
 }
 
 const components: Components = {
-  // react-markdown passes a `node` prop we don't need on the DOM element.
-  // Destructure and discard it — without this, React warns in dev.
   a({ node: _node, href, children, className }) {
     const rewritten = rewriteHref(typeof href === 'string' ? href : undefined);
     if (rewritten && rewritten.startsWith('/')) {

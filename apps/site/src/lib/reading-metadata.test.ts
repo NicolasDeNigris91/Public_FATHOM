@@ -11,8 +11,6 @@ describe('readingMetadata', () => {
   it('counts words ignoring markdown headers and emphasis', () => {
     const md = '# Big heading\n\nA simple **bold** sentence with `code`.';
     const r = readingMetadata(md);
-    // "Big heading A simple bold sentence with" — 7 actual prose words
-    // (header chars stripped, emphasis chars stripped, inline code stripped)
     expect(r.words).toBeGreaterThanOrEqual(6);
     expect(r.words).toBeLessThanOrEqual(8);
   });
@@ -33,10 +31,7 @@ describe('readingMetadata', () => {
   });
 
   it('ceil minutes at WPM=220', () => {
-    const md = 'palavra '.repeat(440); // 440 words → 2 minutes
-    expect(readingMetadata(md).minutes).toBe(2);
-
-    const md2 = 'palavra '.repeat(221); // 221 words → ceil(1.005) = 2
-    expect(readingMetadata(md2).minutes).toBe(2);
+    expect(readingMetadata('palavra '.repeat(440)).minutes).toBe(2);
+    expect(readingMetadata('palavra '.repeat(221)).minutes).toBe(2);
   });
 });

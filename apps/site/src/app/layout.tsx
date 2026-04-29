@@ -77,8 +77,6 @@ export const metadata: Metadata = {
     follow: true,
     googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1 },
   },
-  // SVG favicon for modern browsers; icon.tsx and apple-icon.tsx auto-generate
-  // PNG fallbacks via next/og for older clients and iOS home-screen.
   icons: {
     icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
   },

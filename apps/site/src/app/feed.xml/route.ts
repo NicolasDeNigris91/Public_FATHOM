@@ -17,13 +17,6 @@ function escapeXml(s: string): string {
     .replace(/'/g, '&apos;');
 }
 
-/**
- * RSS 2.0 feed pra módulos com status `done`. Atualiza a cada build.
- * Subscribers veem novos módulos done conforme PROGRESS.md avança.
- *
- * Quando 0 módulos done, feed sai vazio mas válido (passa em
- * validators).
- */
 export async function GET() {
   const all = await getAllModules();
   const done = all.filter((m) => {

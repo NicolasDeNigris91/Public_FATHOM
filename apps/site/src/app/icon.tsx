@@ -4,11 +4,6 @@ export const runtime = 'edge';
 export const size = { width: 32, height: 32 };
 export const contentType = 'image/png';
 
-/**
- * App icon — generated at build via next/og ImageResponse.
- * "F" in Cormorant-style serif on obsidian background, gold-leaf
- * accent. Replaces the need for a binary favicon.ico in /public.
- */
 export default async function Icon() {
   return new ImageResponse(
     (

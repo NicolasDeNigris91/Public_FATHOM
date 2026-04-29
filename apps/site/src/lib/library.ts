@@ -11,15 +11,7 @@ export interface Book {
   stage: StageId | 'meta';
 }
 
-/**
- * Top books per stage. NOT a full mirror of framework/00-meta/reading-list.md;
- * curated subset of the most-load-bearing references per stage. The full
- * reading-list lives in /docs/reading-list and stays the authoritative source.
- *
- * Criteria: cited as primary in 2+ modules OR genre-defining for the stage.
- */
 export const LIBRARY: Book[] = [
-  // === Novice ===
   {
     stage: 'novice',
     title: 'Computer Systems: A Programmer\'s Perspective',
@@ -89,7 +81,6 @@ export const LIBRARY: Book[] = [
     modules: ['N15'],
   },
 
-  // === Apprentice ===
   {
     stage: 'apprentice',
     title: 'Designing Data-Intensive Applications',
@@ -132,7 +123,6 @@ export const LIBRARY: Book[] = [
     modules: ['A15'],
   },
 
-  // === Professional ===
   {
     stage: 'professional',
     title: 'Site Reliability Engineering',
@@ -175,7 +165,6 @@ export const LIBRARY: Book[] = [
     modules: ['P11'],
   },
 
-  // === Senior ===
   {
     stage: 'senior',
     title: 'Designing Distributed Systems',
@@ -218,7 +207,6 @@ export const LIBRARY: Book[] = [
     modules: ['S04', 'P15'],
   },
 
-  // === Staff ===
   {
     stage: 'staff',
     title: 'The Staff Engineer\'s Path',

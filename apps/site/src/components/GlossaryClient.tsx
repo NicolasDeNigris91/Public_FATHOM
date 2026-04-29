@@ -9,14 +9,9 @@ interface Props {
   sections: string[];
 }
 
-/**
- * Splits text into parts with the matched query wrapped in <mark>.
- * Case-insensitive. Handles regex special chars by escaping the query.
- */
 function highlight(text: string, query: string): ReactNode {
   if (!query) return text;
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  // Split with capture group → odd indices are matches.
   const parts = text.split(new RegExp(`(${escaped})`, 'i'));
   return parts.map((part, idx) =>
     idx % 2 === 1 ? (

@@ -1,9 +1,3 @@
-/**
- * Single source of truth for the meta-docs catalog.
- * Drives /docs (index page), /docs/[slug] (renderer), and CommandPalette
- * search entries. Adding a new doc requires editing only this file.
- */
-
 export type DocCategory = 'protocol' | 'roadmap' | 'reference' | 'meta';
 export type DocSource = 'root' | 'meta';
 
@@ -13,14 +7,11 @@ export interface DocEntry {
   eyebrow: string;
   category: DocCategory;
   source: DocSource;
-  /** filename relative to source root (no leading path) */
   file: string;
-  /** show "core" tag in /docs index */
   highlight?: boolean;
 }
 
 export const DOCS: DocEntry[] = [
-  // Protocol (root .md files)
   {
     slug: 'mentor',
     title: 'Mentor Protocol',
@@ -48,7 +39,6 @@ export const DOCS: DocEntry[] = [
     file: 'SELF-ASSESSMENT.md',
   },
 
-  // Roadmap / archaeology
   {
     slug: 'release-notes',
     title: 'Release Notes',
@@ -82,7 +72,6 @@ export const DOCS: DocEntry[] = [
     file: 'SPRINT-NEXT.md',
   },
 
-  // Reference
   {
     slug: 'study-plans',
     title: 'Study Plans',
@@ -148,7 +137,6 @@ export const DOCS: DocEntry[] = [
     file: 'INTERVIEW-PREP.md',
   },
 
-  // Meta
   {
     slug: 'module-template',
     title: 'Module Template',

@@ -4,7 +4,6 @@ import path from 'node:path';
 import matter from 'gray-matter';
 import { STAGES, type StageId, type StageMeta } from './stages';
 
-// Resolves to the framework root: apps/site/../../framework
 const FRAMEWORK_ROOT = path.resolve(process.cwd(), '..', '..', 'framework');
 const REPO_ROOT = path.resolve(process.cwd(), '..', '..');
 
@@ -29,9 +28,9 @@ export interface GateState {
 }
 
 export interface ModuleSummary {
-  id: string;          // lowercase: n01, a09, st02
-  rawId: string;       // original case: N01, A09, ST02
-  slug: string;        // route slug: n01-computation-model
+  id: string;
+  rawId: string;
+  slug: string;
   stageId: StageId;
   fileName: string;
   frontmatter: ModuleFrontmatter;
@@ -40,8 +39,23 @@ export interface ModuleSummary {
 }
 
 export interface ModuleFull extends ModuleSummary {
-  content: string;     // raw markdown body (no frontmatter)
+  content: string;
 }
+
+export interface NeighborModules {
+  prev: ModuleSummary | null;
+  next: ModuleSummary | null;
+}
+
+export interface GlossaryTerm {
+  term: string;
+  expansion: string | null;
+  definition: string;
+  section: string;
+}
+
+export type { ReadingMetadata } from './reading-metadata';
+export { readingMetadata } from './reading-metadata';
 
 async function safeRead(filePath: string): Promise<string | null> {
   try {
@@ -62,6 +76,18 @@ async function listMd(dir: string): Promise<string[]> {
   }
 }
 
+function extractFirstHeading(md: string): string | null {
+  const m = md.match(/^#\s+(.+)$/m);
+  return m ? m[1].trim() : null;
+}
+
+function moduleOrder(rawId: string): number {
+  if (rawId.startsWith('CAPSTONE')) return 999;
+  const m = rawId.match(/^([A-Z]+)(\d+)$/);
+  if (!m) return 1000;
+  return parseInt(m[2], 10);
+}
+
 export async function getStageModules(stage: StageMeta): Promise<ModuleSummary[]> {
   const dir = path.join(FRAMEWORK_ROOT, stage.dir);
   const files = await listMd(dir);
@@ -75,7 +101,6 @@ export async function getStageModules(stage: StageMeta): Promise<ModuleSummary[]
     const parsed = matter(raw);
     const fm = (parsed.data ?? {}) as ModuleFrontmatter;
 
-    // Extract id from filename: N01-computation-model.md => N01
     const idMatch = fileName.match(/^([A-Z]+\d+|CAPSTONE-[a-z]+)/);
     const rawId = idMatch ? idMatch[1] : fileName.replace(/\.md$/, '');
     const id = rawId.toLowerCase();
@@ -101,17 +126,6 @@ export async function getStageModules(stage: StageMeta): Promise<ModuleSummary[]
   return summaries.sort((a, b) => moduleOrder(a.rawId) - moduleOrder(b.rawId));
 }
 
-function moduleOrder(rawId: string): number {
-  if (rawId.startsWith('CAPSTONE')) return 999;
-  const m = rawId.match(/^([A-Z]+)(\d+)$/);
-  if (!m) return 1000;
-  return parseInt(m[2], 10);
-}
-
-// Per-process memoization. Build runs are short-lived so a permanent
-// cache is fine — server stays warm between requests in production
-// (Railway standalone Node), so subsequent /modules and /stages reads
-// reuse the parsed list.
 let _allModulesCache: Promise<ModuleSummary[]> | null = null;
 
 export async function getAllModules(): Promise<ModuleSummary[]> {
@@ -165,7 +179,9 @@ export async function getStageReadme(stage: StageMeta): Promise<string | null> {
   return await safeRead(filePath);
 }
 
-export async function getRootDoc(name: 'README' | 'MENTOR' | 'STUDY-PROTOCOL' | 'PROGRESS'): Promise<string | null> {
+export async function getRootDoc(
+  name: 'README' | 'MENTOR' | 'STUDY-PROTOCOL' | 'PROGRESS',
+): Promise<string | null> {
   return await safeRead(path.join(REPO_ROOT, `${name}.md`));
 }
 
@@ -173,24 +189,20 @@ export async function getMetaDoc(file: string): Promise<string | null> {
   return await safeRead(path.join(FRAMEWORK_ROOT, '00-meta', file));
 }
 
-function extractFirstHeading(md: string): string | null {
-  const m = md.match(/^#\s+(.+)$/m);
-  return m ? m[1].trim() : null;
-}
-
 export function stripFrontmatter(md: string): string {
   return md.replace(/^---\n[\s\S]*?\n---\n?/, '').trimStart();
 }
 
-export interface NeighborModules {
-  prev: ModuleSummary | null;
-  next: ModuleSummary | null;
+export async function getNeighborModules(rawId: string): Promise<NeighborModules> {
+  const all = await getAllModules();
+  const idx = all.findIndex((m) => m.rawId.toLowerCase() === rawId.toLowerCase());
+  if (idx < 0) return { prev: null, next: null };
+  return {
+    prev: idx > 0 ? all[idx - 1] : null,
+    next: idx < all.length - 1 ? all[idx + 1] : null,
+  };
 }
 
-/**
- * Modules that declare `rawId` in their prereqs frontmatter.
- * Useful pra UI "este módulo destrava: A, B, C".
- */
 export async function getDependents(rawId: string): Promise<ModuleSummary[]> {
   const all = await getAllModules();
   return all.filter((m) =>
@@ -198,27 +210,6 @@ export async function getDependents(rawId: string): Promise<ModuleSummary[]> {
   );
 }
 
-export type { ReadingMetadata } from './reading-metadata';
-
-/**
- * Quick reading metadata for a Markdown body. WPM=220 is a reasonable
- * average for technical reading; rounded up to a whole minute.
- * Code blocks are counted but not subtracted — they slow reading;
- * we intentionally don't compensate, since "denser per minute" is fine.
- */
-export interface GlossaryTerm {
-  term: string;
-  expansion: string | null;
-  definition: string;
-  section: string;
-}
-
-/**
- * Parses framework/00-meta/GLOSSARY.md into structured terms.
- * Format expected per term:
- *   - **TERM** (optional expansion) — definition text.
- * Sections delimited by `## Section heading`.
- */
 export async function loadGlossary(): Promise<{ sections: string[]; terms: GlossaryTerm[] }> {
   const raw = await getMetaDoc('GLOSSARY.md');
   if (!raw) return { sections: [], terms: [] };
@@ -249,21 +240,4 @@ export async function loadGlossary(): Promise<{ sections: string[]; terms: Gloss
   }
 
   return { sections, terms };
-}
-
-// readingMetadata implementation lives in ./reading-metadata.ts (pure, testable).
-export { readingMetadata } from './reading-metadata';
-
-/**
- * Returns the prev/next modules around `rawId` in the global ordering
- * (stage order from STAGES, then numeric order within stage).
- */
-export async function getNeighborModules(rawId: string): Promise<NeighborModules> {
-  const all = await getAllModules();
-  const idx = all.findIndex((m) => m.rawId.toLowerCase() === rawId.toLowerCase());
-  if (idx < 0) return { prev: null, next: null };
-  return {
-    prev: idx > 0 ? all[idx - 1] : null,
-    next: idx < all.length - 1 ? all[idx + 1] : null,
-  };
 }

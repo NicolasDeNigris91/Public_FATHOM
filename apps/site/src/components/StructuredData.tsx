@@ -1,13 +1,3 @@
-/**
- * Server-only JSON-LD emitter. Pass a structured-data object,
- * renders it as <script type="application/ld+json">.
- *
- * Schema.org types we use:
- * - BreadcrumbList for navigation hierarchy
- * - TechArticle for module pages
- * - WebSite for landing
- * - CreativeWork / Book for library entries
- */
 interface Props {
   data: Record<string, unknown> | Array<Record<string, unknown>>;
 }

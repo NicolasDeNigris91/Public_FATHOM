@@ -1,12 +1,5 @@
 # Fathom — Framework de Maestria Full Stack
 
-[![validate framework](https://github.com/NicolasDeNigris91/FATHOM/actions/workflows/validate.yml/badge.svg)](https://github.com/NicolasDeNigris91/FATHOM/actions/workflows/validate.yml)
-[![build site](https://github.com/NicolasDeNigris91/FATHOM/actions/workflows/build-site.yml/badge.svg)](https://github.com/NicolasDeNigris91/FATHOM/actions/workflows/build-site.yml)
-[![License: CC BY-NC 4.0](https://img.shields.io/badge/license-CC%20BY--NC%204.0-B8963E.svg)](LICENSE)
-![5 estágios](https://img.shields.io/badge/estágios-5-1A6B50.svg)
-![78 módulos](https://img.shields.io/badge/módulos-78-1A6B50.svg)
-![5 capstones](https://img.shields.io/badge/capstones-5-1A6B50.svg)
-
 > Trilha estruturada de iniciante real até Staff/Principal Software Engineer. Mastery-based, sem prazos, conduzida pelo mentor (você, peer, ou suplemento opcional) sob protocolo rígido.
 
 Não é curso. Não é bootcamp. Não é leitura passiva. É uma **disciplina de longo prazo** com módulos densos, portões de avaliação, e um produto encadeado (Logística) que evolui ao longo dos 5 estágios.

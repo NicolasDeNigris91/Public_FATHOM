@@ -36,7 +36,6 @@ export default async function StagePage({ params }: { params: Promise<{ stage: s
   const readme = await getStageReadme(stage);
   const number = String(stage.number).padStart(2, '0');
 
-  // Per-stage progress aggregate from PROGRESS.md
   const snap = await loadProgress();
   const stageRows = snap?.rows.filter((r) => r.stageNumber === stage.number) ?? [];
   const done = stageRows.filter((r) => r.status === 'DONE').length;

@@ -12,8 +12,6 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Log to server-side error tracking would go here.
-    // Keeping silent in client for now; Railway logs catch it server-side.
     if (process.env.NODE_ENV !== 'production') {
       console.error('[fathom] error boundary caught:', error);
     }
