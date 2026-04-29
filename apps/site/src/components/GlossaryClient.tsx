@@ -114,7 +114,7 @@ export function GlossaryClient({ terms, sections }: Props) {
 
       {filtered.length === 0 ? (
         <p className="font-sans text-body text-chrome italic py-12 text-center">
-          Nenhum termo bate com "{query}"{activeSection ? ` em ${activeSection}` : ''}.
+          Nenhum termo bate com &ldquo;{query}&rdquo;{activeSection ? ` em ${activeSection}` : ''}.
         </p>
       ) : (
         [...grouped.entries()].map(([section, items]) => (

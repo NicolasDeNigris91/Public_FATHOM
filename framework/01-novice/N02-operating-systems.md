@@ -284,9 +284,9 @@ Construa um REPL que aceite comandos e execute como um shell (bash-like). Suport
 - **Conecta com [N03 — Networking](N03-networking.md):** sockets são FDs. `epoll` esperando em N sockets é o **fundamento** do servidor Node.
 - **Conecta com [N09 — Git Internals](N09-git-internals.md):** Git usa file locks (`*.lock` files) pra serializar escritas no `.git/`. Falhas em fork+exec são origem de "git stuck on lock" issues.
 - **Conecta com [N10 — Unix CLI & Bash](N10-unix-cli-bash.md):** o que você usa no shell é orquestração de processos via syscalls.
-- **Conecta com [A07 — Node.js Internals](A07-nodejs-internals.md):** event loop do Node é construído sobre `epoll` (Linux), `kqueue` (BSD/macOS), `IOCP` (Windows). Worker threads são threads kernel.
-- **Conecta com [P02 — Docker](P02-docker.md):** containers são processos com **namespaces** (PID, net, mount, IPC, UTS, user) e **cgroups** isolados — features do kernel Linux.
-- **Conecta com [P03 — Kubernetes](P03-kubernetes.md):** pods são grupos de containers compartilhando network namespace.
+- **Conecta com [A07 — Node.js Internals](../02-apprentice/A07-nodejs-internals.md):** event loop do Node é construído sobre `epoll` (Linux), `kqueue` (BSD/macOS), `IOCP` (Windows). Worker threads são threads kernel.
+- **Conecta com [P02 — Docker](../03-professional/P02-docker.md):** containers são processos com **namespaces** (PID, net, mount, IPC, UTS, user) e **cgroups** isolados — features do kernel Linux.
+- **Conecta com [P03 — Kubernetes](../03-professional/P03-kubernetes.md):** pods são grupos de containers compartilhando network namespace.
 
 ### Ferramentas satélites
 

@@ -111,7 +111,7 @@ c.abort(); // cancela em qualquer momento
 
 ### 2.5 Storage APIs
 
-- **Cookies**: ~4 KB, vão em cada request. Use pra session token (`HttpOnly; Secure; SameSite=Lax`) — sem JS access. Detalhes em [N03](../01-novice/N03-networking.md) e [A13](A13-auth-oauth2-jwt.md).
+- **Cookies**: ~4 KB, vão em cada request. Use pra session token (`HttpOnly; Secure; SameSite=Lax`) — sem JS access. Detalhes em [N03](../01-novice/N03-networking.md) e [A13](A13-auth.md).
 - **localStorage**: ~5-10 MB, sync, pares string-string, persiste indefinidamente. Não use pra dados sensíveis (XSS rouba). Não use pra dados grandes (sync = bloqueia main thread).
 - **sessionStorage**: igual a localStorage mas dura só a session da aba.
 - **IndexedDB**: KV store assíncrono, suporta transações, índices, ~50 MB+ (varia). Pra dados estruturados grandes em offline-first apps. API verbose — use wrapper como [`idb`](https://github.com/jakearchibald/idb).
@@ -211,7 +211,7 @@ Esse é o motor de SPAs vanilla. Frameworks usam por baixo.
 - **Crypto API**: `crypto.subtle` — hash, encrypt, sign. Use pra ETags client-side, key derivation.
 - **Web Push**: notificações push em PWA via service worker.
 - **Geolocation**: `navigator.geolocation.getCurrentPosition` — só com user gesture + permissions.
-- **WebRTC**: comunicação peer-to-peer, video/audio + DataChannel. Detalhes em [A14](A14-realtime-ws-sse-webrtc.md).
+- **WebRTC**: comunicação peer-to-peer, video/audio + DataChannel. Detalhes em [A14](A14-realtime.md).
 - **WebSocket / EventSource (SSE)**: real-time. Também em A14.
 - **WebAuthn**: autenticação por chave assimétrica (passkeys). Vale leitura conforme passkeys virarem padrão.
 - **Web Locks API**: coordenação entre tabs (uma elege "líder", outras esperam).

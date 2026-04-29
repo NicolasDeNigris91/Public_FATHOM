@@ -359,11 +359,11 @@ Você vai construir um servidor TCP que:
 
 - **Conecta com [N02 — OS](N02-operating-systems.md):** sockets são FDs; `epoll` é o que sustenta servidores high-concurrency. Acceptar conexão é syscall.
 - **Conecta com [N07 — JavaScript Deep](N07-javascript-deep.md):** todos eventos de socket entram no event loop como callbacks. Backpressure em streams TCP/HTTP é gerenciado pela API de streams do Node.
-- **Conecta com [A07 — Node.js Internals](A07-nodejs-internals.md):** `net` e `http` são thin wrappers em libuv + parsing TS.
-- **Conecta com [A13 — Auth](A13-auth-oauth2-jwt.md):** OAuth2 e JWT dependem de TLS pra confidencialidade. Cookies SameSite são defesa CSRF.
-- **Conecta com [A14 — Real-time](A14-realtime-ws-sse-webrtc.md):** WebSocket é upgrade HTTP → protocolo binário sobre TCP. SSE usa HTTP normal com `Content-Type: text/event-stream`.
-- **Conecta com [P05 — AWS Core](P05-aws-core.md):** Route53 (DNS), CloudFront (CDN), Application Load Balancer (TLS termination), Security Groups (firewalls em IP/porta).
-- **Conecta com [P08 — Applied Security](P08-applied-security-owasp.md):** mTLS, CSP, CORS, rate limiting baseado em IP.
+- **Conecta com [A07 — Node.js Internals](../02-apprentice/A07-nodejs-internals.md):** `net` e `http` são thin wrappers em libuv + parsing TS.
+- **Conecta com [A13 — Auth](../02-apprentice/A13-auth.md):** OAuth2 e JWT dependem de TLS pra confidencialidade. Cookies SameSite são defesa CSRF.
+- **Conecta com [A14 — Real-time](../02-apprentice/A14-realtime.md):** WebSocket é upgrade HTTP → protocolo binário sobre TCP. SSE usa HTTP normal com `Content-Type: text/event-stream`.
+- **Conecta com [P05 — AWS Core](../03-professional/P05-aws-core.md):** Route53 (DNS), CloudFront (CDN), Application Load Balancer (TLS termination), Security Groups (firewalls em IP/porta).
+- **Conecta com [P08 — Applied Security](../03-professional/P08-applied-security.md):** mTLS, CSP, CORS, rate limiting baseado em IP.
 
 ### Ferramentas satélites
 

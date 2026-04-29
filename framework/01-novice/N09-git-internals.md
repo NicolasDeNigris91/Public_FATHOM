@@ -297,8 +297,8 @@ Esse desafio é particularmente valioso porque **você nunca mais vai mistificar
 - **Conecta com [N04 — Data Structures](N04-data-structures.md):** Git é **DAG** + **Merkle tree** (cada commit é hash do tree, que é hash dos blobs). Mesma estrutura de blockchain.
 - **Conecta com [N02 — OS](N02-operating-systems.md):** Git usa **file locks** (`*.lock`) pra serializar escritas. `fork`/`exec` ao chamar editor (`commit -m` vs sem -m).
 - **Conecta com [N10 — Unix CLI](N10-unix-cli-bash.md):** Git é shell-friendly. Pipes (`git log --oneline | head`), aliases.
-- **Conecta com [P04 — CI/CD](P04-cicd.md):** GitHub Actions triggers em commits/PRs. Branch protection rules.
-- **Conecta com [S11 — Web3](S11-web3-blockchain.md):** Merkle trees, content-addressable storage. Git foi inspiração pra muito de blockchain.
+- **Conecta com [P04 — CI/CD](../03-professional/P04-cicd.md):** GitHub Actions triggers em commits/PRs. Branch protection rules.
+- **Conecta com [S11 — Web3](../04-senior/S11-web3.md):** Merkle trees, content-addressable storage. Git foi inspiração pra muito de blockchain.
 
 ### Ferramentas satélites
 

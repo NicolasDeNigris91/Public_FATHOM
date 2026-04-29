@@ -448,12 +448,12 @@ Pra passar o **Portão Conceitual**, sem consultar:
 - **Conecta com [N01 — Computation Model](N01-computation-model.md):** layout (contíguo vs não) determina cache behavior.
 - **Conecta com [N05 — Algorithms](N05-algorithms.md):** algoritmos operam sobre estruturas. Dijkstra usa heap, BFS usa queue, DFS usa stack.
 - **Conecta com [N07 — JavaScript Deep](N07-javascript-deep.md):** `Map`, `Set`, `WeakMap`, `WeakRef`, hidden classes.
-- **Conecta com [A09 — Postgres Deep](A09-postgres-deep.md):** índices B-Tree, GIN (inverted index), GiST (generalized search tree), BRIN. Hash join, merge join.
-- **Conecta com [A11 — Redis](A11-redis.md):** sorted sets via skip list, sets via hash table, lists via quicklist (linked list de listas), streams via radix tree.
-- **Conecta com [A12 — MongoDB](A12-mongodb.md):** índices B-Tree.
+- **Conecta com [A09 — Postgres Deep](../02-apprentice/A09-postgres-deep.md):** índices B-Tree, GIN (inverted index), GiST (generalized search tree), BRIN. Hash join, merge join.
+- **Conecta com [A11 — Redis](../02-apprentice/A11-redis.md):** sorted sets via skip list, sets via hash table, lists via quicklist (linked list de listas), streams via radix tree.
+- **Conecta com [A12 — MongoDB](../02-apprentice/A12-mongodb.md):** índices B-Tree.
 - **Conecta com [N09 — Git Internals](N09-git-internals.md):** Merkle DAG, packfiles indexados.
-- **Conecta com [S03 — Event-Driven Patterns](S03-event-driven-patterns.md):** event store é frequentemente append-log + index estruturado.
-- **Conecta com [S11 — Web3](S11-web3-blockchain.md):** Merkle trees em blockchains, Patricia tries em Ethereum.
+- **Conecta com [S03 — Event-Driven Patterns](../04-senior/S03-event-driven-patterns.md):** event store é frequentemente append-log + index estruturado.
+- **Conecta com [S11 — Web3](../04-senior/S11-web3.md):** Merkle trees em blockchains, Patricia tries em Ethereum.
 
 ### Ferramentas satélites
 

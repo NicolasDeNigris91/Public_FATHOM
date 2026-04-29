@@ -262,7 +262,7 @@ Faça o mesmo benchmark em C ou Rust e compare com Node. Discuta no README quant
 - **Conecta com [N04 — Data Structures](N04-data-structures.md):** escolha de estrutura (array vs linked list vs hash table) é em grande parte decisão de **layout de memória** e **acesso pattern**. Hash tables com open addressing > chaining em muitos casos por cache locality.
 - **Conecta com [N05 — Algorithms](N05-algorithms.md):** análise de complexidade ignora cache; mas na prática, um algoritmo O(n²) cache-friendly pode bater um O(n log n) cache-hostile pra n moderado.
 - **Conecta com [N07 — JavaScript Deep](N07-javascript-deep.md):** o V8 GC opera no heap. Hidden classes do V8 fazem objetos com mesma "shape" terem layout previsível, melhorando cache.
-- **Conecta com [A09 — Postgres Deep](A09-postgres-deep.md):** o Postgres mantém um **buffer cache** (default `shared_buffers`) na RAM. Quando query precisa de página fora do cache, vira I/O. Latência de query muda de microssegundos pra milissegundos.
+- **Conecta com [A09 — Postgres Deep](../02-apprentice/A09-postgres-deep.md):** o Postgres mantém um **buffer cache** (default `shared_buffers`) na RAM. Quando query precisa de página fora do cache, vira I/O. Latência de query muda de microssegundos pra milissegundos.
 
 ### Ferramentas satélites
 

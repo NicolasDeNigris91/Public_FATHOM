@@ -417,9 +417,9 @@ Top paths:
 
 - **Conecta com [N02 — OS](N02-operating-systems.md):** comandos shell são processos. Pipes são FDs. Permissões são features do kernel.
 - **Conecta com [N09 — Git Internals](N09-git-internals.md):** `gitignore`, `find`, `xargs` pra operações em massa em repos.
-- **Conecta com [P02 — Docker](P02-docker.md):** Dockerfile é shell + comandos. Entrypoint é shell.
-- **Conecta com [P04 — CI/CD](P04-cicd.md):** GitHub Actions runs shell. Workflows são scripts.
-- **Conecta com [P07 — Observability](P07-observability.md):** análise de logs com `awk`/`jq` é a porta de entrada antes de Loki/Grafana.
+- **Conecta com [P02 — Docker](../03-professional/P02-docker.md):** Dockerfile é shell + comandos. Entrypoint é shell.
+- **Conecta com [P04 — CI/CD](../03-professional/P04-cicd.md):** GitHub Actions runs shell. Workflows são scripts.
+- **Conecta com [P07 — Observability](../03-professional/P07-observability.md):** análise de logs com `awk`/`jq` é a porta de entrada antes de Loki/Grafana.
 
 ### Ferramentas satélites
 

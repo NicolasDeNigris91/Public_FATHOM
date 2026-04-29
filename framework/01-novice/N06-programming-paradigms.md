@@ -354,10 +354,10 @@ Pra passar o **Portão Conceitual**, sem consultar:
 
 - **Conecta com [N07 — JavaScript Deep](N07-javascript-deep.md):** closures, prototype chain, this binding sustentam OO em JS.
 - **Conecta com [N08 — TypeScript Type System](N08-typescript-type-system.md):** ADTs com discriminated unions são sintaxe pra sum types. `never` é o bottom type. Conditional types simulam computação em tipos.
-- **Conecta com [A04 — React Deep](A04-react-deep.md):** React funcional moderno é FP-styled. Hooks são closures. State é imutável (não muta — substitui).
-- **Conecta com [S03 — Event-Driven](S03-event-driven-patterns.md):** Event Sourcing é literally append-only log de eventos imutáveis (FP friendly).
-- **Conecta com [S06 — DDD](S06-domain-driven-design.md):** Aggregates são objetos OO com invariantes; Value Objects são estruturas imutáveis funcionais; Domain Events são puros.
-- **Conecta com [P11 — Systems Languages](P11-systems-languages-go-rust.md):** Rust força imutabilidade default e ownership — paradigma funcional + manual.
+- **Conecta com [A04 — React Deep](../02-apprentice/A04-react-deep.md):** React funcional moderno é FP-styled. Hooks são closures. State é imutável (não muta — substitui).
+- **Conecta com [S03 — Event-Driven](../04-senior/S03-event-driven-patterns.md):** Event Sourcing é literally append-only log de eventos imutáveis (FP friendly).
+- **Conecta com [S06 — DDD](../04-senior/S06-domain-driven-design.md):** Aggregates são objetos OO com invariantes; Value Objects são estruturas imutáveis funcionais; Domain Events são puros.
+- **Conecta com [P11 — Systems Languages](../03-professional/P11-systems-languages.md):** Rust força imutabilidade default e ownership — paradigma funcional + manual.
 
 ### Ferramentas satélites
 

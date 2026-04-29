@@ -447,10 +447,10 @@ Construa uma lib chamada `zod-mini` com:
 
 - **Conecta com [N06 — Paradigmas](N06-programming-paradigms.md):** ADTs (sum + product) são modelados com discriminated unions. Generics são polymorphism paramétrico.
 - **Conecta com [N07 — JavaScript Deep](N07-javascript-deep.md):** TS é estritamente camada de tipos sobre JS — runtime é JS puro.
-- **Conecta com [A04 — React Deep](A04-react-deep.md):** Component props com generics, hooks com tipo, RSC com type narrowing através de boundaries.
-- **Conecta com [A08 — Backend Frameworks](A08-backend-frameworks.md):** Zod schemas integram com Hono/Fastify pra type safety end-to-end.
-- **Conecta com [A10 — ORMs](A10-orms.md):** Drizzle e Prisma usam TS pra inferir schemas do banco.
-- **Conecta com [S05 — API Design](S05-api-design-advanced.md):** tRPC usa TS extensivamente pra RPC type-safe.
+- **Conecta com [A04 — React Deep](../02-apprentice/A04-react-deep.md):** Component props com generics, hooks com tipo, RSC com type narrowing através de boundaries.
+- **Conecta com [A08 — Backend Frameworks](../02-apprentice/A08-backend-frameworks.md):** Zod schemas integram com Hono/Fastify pra type safety end-to-end.
+- **Conecta com [A10 — ORMs](../02-apprentice/A10-orms.md):** Drizzle e Prisma usam TS pra inferir schemas do banco.
+- **Conecta com [S05 — API Design](../04-senior/S05-api-design.md):** tRPC usa TS extensivamente pra RPC type-safe.
 
 ### Ferramentas satélites
 

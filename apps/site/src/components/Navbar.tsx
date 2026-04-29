@@ -1,11 +1,21 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, type Variants } from 'framer-motion';
 import { Menu, Search, X } from 'lucide-react';
 import { EASE_STANDARD } from '@/lib/motion';
+
+function subscribePlatform() {
+  return () => {};
+}
+function getIsMacSnapshot() {
+  return /mac/i.test(navigator.platform);
+}
+function getIsMacServerSnapshot() {
+  return true;
+}
 
 const navVariants: Variants = {
   hidden: { opacity: 0, y: -16 },
@@ -25,21 +35,19 @@ const navLinks = [
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
-  const [isMac, setIsMac] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
+  const isMac = useSyncExternalStore(subscribePlatform, getIsMacSnapshot, getIsMacServerSnapshot);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 60);
     window.addEventListener('scroll', handleScroll, { passive: true });
-    setIsMac(/mac/i.test(navigator.platform));
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Close mobile menu on route change
-  useEffect(() => {
+  function closeMobile() {
     setMobileOpen(false);
-  }, [pathname]);
+  }
 
   function isActive(href: string): boolean {
     if (href === '/') return pathname === '/';
@@ -144,6 +152,7 @@ export function Navbar() {
                   <Link
                     href={link.href}
                     aria-current={active ? 'page' : undefined}
+                    onClick={closeMobile}
                     className={`block font-sans text-caption tracking-luxury uppercase py-2
                                transition-colors duration-200
                                ${active ? 'text-pearl border-l-2 border-gold-leaf pl-4' : 'text-chrome pl-0'}`}
@@ -156,6 +165,7 @@ export function Navbar() {
             <li className="pt-2 border-t border-mist/30">
               <Link
                 href="/modules/n01"
+                onClick={closeMobile}
                 className="block font-sans text-caption tracking-luxury uppercase
                            border border-mist text-chrome px-5 py-3 mt-3
                            text-center hover:border-platinum hover:text-platinum transition-colors duration-200"

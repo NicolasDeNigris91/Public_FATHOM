@@ -281,10 +281,10 @@ Esse desafio é particularmente útil porque **alimenta o capstone de logística
 
 - **Conecta com [N04 — Data Structures](N04-data-structures.md):** todo algoritmo opera sobre estruturas. Heap pra Dijkstra, queue pra BFS, stack pra DFS.
 - **Conecta com [N01 — Computation Model](N01-computation-model.md):** algoritmos cache-friendly batem cache-hostile na prática mesmo com mesmo Big-O.
-- **Conecta com [A09 — Postgres Deep](A09-postgres-deep.md):** query planner escolhe entre nested loop, hash, merge join — algoritmos de junção. PostGIS faz routing geo com algoritmos similares ao seu desafio.
-- **Conecta com [S09 — Scaling](S09-scaling.md):** **consistent hashing** (DynamoDB, Cassandra, sharding moderno) é algoritmo crítico.
+- **Conecta com [A09 — Postgres Deep](../02-apprentice/A09-postgres-deep.md):** query planner escolhe entre nested loop, hash, merge join — algoritmos de junção. PostGIS faz routing geo com algoritmos similares ao seu desafio.
+- **Conecta com [S09 — Scaling](../04-senior/S09-scaling.md):** **consistent hashing** (DynamoDB, Cassandra, sharding moderno) é algoritmo crítico.
 - **Conecta com [Capstone Senior](../04-senior/CAPSTONE-senior.md):** logística distribuída exige routing + otimização (VRP).
-- **Conecta com [S10 — AI/LLM](../04-senior/S10-ai-llm-systems.md):** algoritmos de **nearest neighbor** em vector DBs (HNSW, IVF) são variações de graph search e clustering.
+- **Conecta com [S10 — AI/LLM](../04-senior/S10-ai-llm.md):** algoritmos de **nearest neighbor** em vector DBs (HNSW, IVF) são variações de graph search e clustering.
 
 ### Ferramentas satélites
 

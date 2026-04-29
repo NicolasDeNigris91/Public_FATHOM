@@ -425,8 +425,8 @@ Você vai construir uma reimplementação de `Promise` que passa o test suite of
 - **Conecta com [N04 — Data Structures](N04-data-structures.md):** queues de tasks são FIFO. V8 usa hash maps internos, hidden classes são layout structs.
 - **Conecta com [N06 — Paradigmas](N06-programming-paradigms.md):** closures = núcleo de FP em JS. Promises são monads. Classes ES6 são açúcar sobre prototypes.
 - **Conecta com [N08 — TypeScript](N08-typescript-type-system.md):** TS adiciona tipos sobre tudo aqui. Generics, conditional types, type guards.
-- **Conecta com [A04 — React Deep](A04-react-deep.md):** Hooks dependem de closures. Reconciliação roda em microtasks. Suspense joga com Promise/throw conventions.
-- **Conecta com [A07 — Node.js Internals](A07-nodejs-internals.md):** event loop fases, libuv, streams, buffers — extensão deste módulo.
+- **Conecta com [A04 — React Deep](../02-apprentice/A04-react-deep.md):** Hooks dependem de closures. Reconciliação roda em microtasks. Suspense joga com Promise/throw conventions.
+- **Conecta com [A07 — Node.js Internals](../02-apprentice/A07-nodejs-internals.md):** event loop fases, libuv, streams, buffers — extensão deste módulo.
 
 ### Ferramentas satélites
 
