@@ -42,14 +42,14 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     ?.slice(0, 160);
 
   return {
-    title: `${mod.rawId}, ${mod.title}`,
+    title: `${mod.rawId}: ${mod.title}`,
     description: desc ?? `Módulo ${mod.rawId} do Fathom, ${mod.title}.`,
     keywords: [mod.rawId, mod.title, ...(mod.prereqs ?? [])],
     alternates: {
       canonical: `/modules/${mod.id}`,
     },
     openGraph: {
-      title: `${mod.rawId}, ${mod.title}`,
+      title: `${mod.rawId}: ${mod.title}`,
       description: desc,
       type: 'article',
       url: `/modules/${mod.id}`,

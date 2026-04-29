@@ -31,7 +31,7 @@ export async function GET() {
       const stageLabel = stage ? stage.title : '';
       const link = `${SITE_URL}/modules/${m.id}`;
       return `    <item>
-      <title>${escapeXml(`${m.rawId}, ${m.title}`)}</title>
+      <title>${escapeXml(`${m.rawId}: ${m.title}`)}</title>
       <link>${escapeXml(link)}</link>
       <guid isPermaLink="true">${escapeXml(link)}</guid>
       <category>${escapeXml(stageLabel)}</category>

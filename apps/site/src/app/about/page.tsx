@@ -21,18 +21,18 @@ export default function AboutPage() {
         <EyebrowHeading
           eyebrow="Sobre"
           title="O que é o Fathom"
-          subtitle="Trilha pessoal de longo prazo, mastery-based, sem prazos. Construída como artefato vivo, site, repo público, e disciplina diária."
+          subtitle="Estudo pessoal de longo prazo, sem prazos. Site, repo público, e o que vou aprendendo no caminho."
         />
 
         <div className="mt-16 space-y-8 font-sans text-body-lg text-platinum leading-relaxed">
           <p>
-            Fathom é meu caderno pessoal de estudo de engenharia de software. Começa em <Link href="/modules/01-01" className="text-gold-leaf underline underline-offset-4 hover:text-pearl">01-01, Computation Model</Link> e termina no capstone do estágio 5.
+            Fathom é meu caderno pessoal de estudo de engenharia de software. Começa em <Link href="/modules/01-01" className="text-gold-leaf underline underline-offset-4 hover:text-pearl">01-01: Computation Model</Link> e termina no capstone do estágio 5.
           </p>
           <p>
             Cinco estágios. 78 módulos. Cinco capstones encadeados em torno de um único produto (Logística) que evolui de servidor HTTP from scratch até sistema distribuído multi-region em 4 incrementos.
           </p>
           <p>
-            Conteúdo é <em>synthesis + curadoria</em> sobre fontes canônicas, DDIA, SICP, OS:TEP, RFCs, papers. Nunca substitui livro; é mapa pra navegar o território.
+            Conteúdo é síntese e curadoria sobre fontes canônicas (DDIA, SICP, OS:TEP, RFCs, papers). Não substitui o livro; é o mapa pra navegar o território.
           </p>
         </div>
 
@@ -42,7 +42,7 @@ export default function AboutPage() {
           </p>
           <h3 className="font-display text-display-md text-pearl mb-4">Nicolas De Nigris</h3>
           <p className="font-sans text-body text-chrome leading-relaxed mb-8 max-w-2xl">
-            Construído solo durante a transição da joalharia de luxo pra software development. Disciplina herdada do craft anterior: precisão, depth, paciência.
+            Construído solo durante a transição da joalharia de luxo pra software. A disciplina veio do ofício anterior.
           </p>
           <div className="flex flex-wrap gap-6">
             <a

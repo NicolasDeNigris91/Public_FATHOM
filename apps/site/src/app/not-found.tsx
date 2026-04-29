@@ -44,7 +44,7 @@ export default function NotFound() {
           <ul className="space-y-2 font-sans text-body">
             <li>
               <Link href="/modules/01-01" className="text-platinum hover:text-gold-leaf transition-colors">
-                01-01, Computation Model
+                01-01: Computation Model
               </Link>
             </li>
             <li>

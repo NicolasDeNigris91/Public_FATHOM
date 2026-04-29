@@ -34,7 +34,7 @@ export default async function StagesPage() {
         <EyebrowHeading
           eyebrow="Mapa do Framework"
           title="Os cinco estágios"
-          subtitle="Cada estágio cobre um nível de abstração distinto. A ordem importa, prereqs entre estágios são reais e bloqueantes."
+          subtitle="Cada estágio cobre uma camada distinta. Os prereqs entre eles são bloqueantes."
         />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-16">

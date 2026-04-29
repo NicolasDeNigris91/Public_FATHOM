@@ -38,7 +38,7 @@ export default async function HomePage() {
           <EyebrowHeading
             eyebrow="Cinco Estágios"
             title="A trajetória"
-            subtitle="Cada estágio resolve um teto diferente. Estudo de longo prazo, com critério de conseguir explicar o interno e provar com código."
+            subtitle="Cada estágio cobre uma camada distinta da stack. O critério é entender o que está embaixo e provar com código."
           />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-16">
@@ -79,7 +79,7 @@ export default async function HomePage() {
             <Pillar
               n="04"
               title="Três Portões"
-              body="Conceitual (5-8 perguntas), Prático (code review profundo), Conexões (integração com módulos anteriores). Falha bem-feita é evidência."
+              body="Conceitual (5-8 perguntas), Prático (code review do desafio), Conexões (integração com módulos anteriores). Os três precisam passar."
             />
           </div>
 
@@ -112,7 +112,7 @@ export default async function HomePage() {
           </h2>
           <div className="h-px bg-gold-leaf w-24 mx-auto mb-8" />
           <p className="font-sans text-body-lg text-chrome leading-relaxed max-w-3xl mx-auto mb-10">
-            HTTP server from scratch (v0) evolui para monolito full-stack (v1), production-ready (v2), distribuído escalável (v3), e specialization showcase (v4). Você sente refactor, migration, redesign na pele.
+            HTTP server from scratch (v0) vira monolito full-stack (v1), depois production-ready (v2), distribuído (v3), e por fim showcase de especialização (v4). O mesmo produto atravessando refactor, migration e redesign.
           </p>
           <Link
             href="/docs/capstone-evolution"

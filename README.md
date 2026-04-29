@@ -51,9 +51,9 @@ Detalhe completo em [framework/00-meta/INDEX.md](framework/00-meta/INDEX.md).
 2. **Estágio 2: Plataforma (Aplicações Full Stack)**: você constrói e opera aplicação full-stack monolítica em produção, defendendo cada escolha técnica. [framework/02-plataforma/](framework/02-plataforma/README.md)
 3. **Estágio 3: Produção (Ecossistema, Testes, Operações)**: você coloca em produção com qualidade de empresa séria, testes confiáveis, deploy seguro, observabilidade real, segurança defensável, performance medida, planning honesto. [framework/03-producao/](framework/03-producao/README.md)
 4. **Estágio 4: Sistemas (Arquitetura Distribuída)**: você desenha e justifica arquitetura distribuída pra problema novo, prevendo trade-offs, modos de falha, custos operacionais, com TLA+ pra o que importa. [framework/04-sistemas/](framework/04-sistemas/README.md)
-5. **Estágio 5: Amplitude (Specialization, Influence, Public Output)**: você multiplica via influência, especializa em eixo, publica, mentora, lê papers, constrói from-scratch, fala org, pensa business. [framework/05-amplitude/](framework/05-amplitude/README.md)
+5. **Estágio 5: Amplitude (Specialization, Influence, Public Output)**: você publica, mentora, lê papers, constrói coisas do zero, e articula trade-offs em termos de negócio. [framework/05-amplitude/](framework/05-amplitude/README.md)
 
-Cada estágio tem capstone que **evolui o mesmo produto** (Logística, sistema de roteamento de entregas multi-tenant). Você sente refactor, migration, redesign na pele. Detalhe em [CAPSTONE-EVOLUTION.md](framework/00-meta/CAPSTONE-EVOLUTION.md).
+Cada estágio tem um capstone que **evolui o mesmo produto** (Logística, um sistema de roteamento de entregas multi-tenant). Detalhe em [CAPSTONE-EVOLUTION.md](framework/00-meta/CAPSTONE-EVOLUTION.md).
 
 ---
 
@@ -74,7 +74,7 @@ Após Teoria + Desafio, você pede o **portão**:
 - **Portão Prático**: o mentor faz code review profundo do desafio + 5 perguntas justificativas.
 - **Portão de Conexões**: o mentor pergunta como o módulo se conecta a 2-3 anteriores.
 
-Os 3 portões devem passar pra módulo virar `done`. Falha é normal, falha bem-feita é evidência de aprendizado real (ver [STUDY-PROTOCOL.md](STUDY-PROTOCOL.md)).
+Os 3 portões precisam passar pra módulo virar `done`. Falhar é parte do processo (ver [STUDY-PROTOCOL.md](STUDY-PROTOCOL.md)).
 
 ---
 
@@ -99,7 +99,7 @@ Depois, abra **01-01, Computation Model** e leia a seção 1 + parte da Teoria H
 4. **Conexões > silos.** Conhecimento isolado é inútil.
 5. **Cada Desafio é não-trivial.** Construir do zero o que já existe em produção.
 6. **Referências de Elite sempre.** DDIA, SICP, OS:TEP, RFCs, specs oficiais, talks de elite. Nada de Medium clickbait.
-7. **Capstone encadeado.** Logística evolui, você sente refactor, migration, redesign na pele.
+7. **Capstone encadeado.** O mesmo produto (Logística) evolui em todos os estágios, atravessando refactor, migration e redesign.
 
 ---
 

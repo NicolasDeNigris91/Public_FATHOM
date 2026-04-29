@@ -39,7 +39,7 @@ export function buildTechArticleLd(args: {
     '@context': 'https://schema.org',
     '@type': 'TechArticle',
     headline: args.title,
-    name: `${args.rawId}, ${args.title}`,
+    name: `${args.rawId}: ${args.title}`,
     url: `${SITE_URL}${args.url}`,
     description: args.description,
     inLanguage: 'pt-BR',

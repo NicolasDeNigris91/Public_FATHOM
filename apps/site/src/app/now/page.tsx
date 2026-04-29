@@ -113,9 +113,8 @@ export default async function NowPage() {
               Antes de começar, calibre
             </h3>
             <p className="font-sans text-body text-chrome leading-relaxed mb-8 max-w-2xl">
-              PROGRESS.md ainda está em estado fresh. O caminho recomendado é:
-              fazer Self-Assessment honesto pra calibrar onde você realmente
-              está, escolher um plan, e abrir 01-01.
+              PROGRESS.md ainda está vazio. Caminho sugerido: passar pelo
+              Self-Assessment, escolher um plano, e abrir 01-01.
             </p>
             <div className="flex flex-wrap gap-6">
               <Link
@@ -137,7 +136,7 @@ export default async function NowPage() {
                 className="font-sans text-caption tracking-luxury uppercase text-chrome hover:text-pearl
                            transition-colors duration-300"
               >
-                01-01, Computation Model →
+                01-01: Computation Model →
               </Link>
             </div>
           </div>
