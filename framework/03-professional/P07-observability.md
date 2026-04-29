@@ -183,14 +183,56 @@ Bots simulando user em rotas críticas, periodicamente:
 
 Detecta downtime quando ninguém está usando. Catch regressões rapidamente.
 
-### 2.16 eBPF e high-cardinality observability
+### 2.16 eBPF observability — deep
 
-eBPF: sondas no kernel sem invasividade. Tools:
-- **Pixie**: K8s observability via eBPF.
-- **Cilium Tetragon**: security + observability.
-- **Parca**: continuous profiling.
+eBPF (extended Berkeley Packet Filter) deixou de ser nicho de kernel hackers e virou categoria de observability mainstream entre 2023-2025. Vale entender por que e quando usar.
 
-Em sistemas distribuídos sérios, eBPF dá visibilidade que tradicionalmente exigia agentes invasivos.
+**O que é eBPF tecnicamente:**
+- Linguagem **bytecode** rodando em VM dentro do kernel Linux. Verifier checa programa antes de carregar (sem loops infinitos, sem violar memória).
+- Pode atachar em **kprobes** (functions do kernel), **uprobes** (functions de user space), **tracepoints**, **cgroups**, **socket filters**, **XDP** (Packet processing antes da network stack).
+- Programa coleta dados em maps (hash, array, ring buffer) que user space lê.
+- Custo: ~5-15% overhead em workloads bem instrumentados — significativo mas viável.
+
+**Por que substitui agentes tradicionais:**
+- **Sem instrumentação de código**. Tradicional APM exige SDK em cada lib (HTTP, DB driver, gRPC). eBPF lê do kernel a syscall que o SDK iria interceptar.
+- **Cobre apps que você não controla** — vendor app, legacy binary, processo do OS.
+- **Visibilidade L3-L7** num framework só.
+- **Alta cardinalidade barata**: tracking por IP/PID/cgroup sem cost de span por request.
+
+**Tools em produção (2026):**
+
+| Tool | Foco | Onde brilha |
+|---|---|---|
+| **Pixie** (CNCF) | K8s "instant observability" | Auto-detect HTTP/gRPC/DB queries. Latency/error breakdown sem instrumentação. |
+| **Cilium Tetragon** | Security + observability | Detect process exec, file access, network. Audit + run-time policy. |
+| **Parca** | Continuous profiling | Pprof-format flamegraphs do cluster inteiro. Achar funções caras em prod. |
+| **Cilium** | CNI + service mesh | Substitui kube-proxy + Istio sidecar. L7 policy via eBPF, sem sidecar. |
+| **Coroot** | Full-stack observability | Mapa de serviços auto-gerado, RED/USE method baseados em eBPF. |
+| **Inspektor Gadget** | K8s troubleshooting | Coleção de gadgets eBPF (trace exec, DNS, net policies). |
+| **bpftrace** | Ad-hoc tracing | DTrace-like one-liner pra investigar prod sem instalar nada permanente. |
+| **Beyla** (Grafana) | Auto-instrumentation HTTP/gRPC | Span generation OTel-compat sem SDK. |
+
+**Quando vale eBPF observability vs OTel manual:**
+
+| Caso | Tradicional (OTel SDK) | eBPF |
+|---|---|---|
+| App que você desenvolve, ownership total | Melhor — span semantics ricos | Complementar |
+| Mix de apps de fornecedores (Postgres, Redis, custom) | Custoso instrumentar tudo | Vence — coverage automático |
+| Profile de função em prod | Impossível sem code changes | Parca/eBPF cover |
+| Network L4/L7 visibility (mTLS broken, who's calling who) | Service mesh ou tcpdump | Cilium / Pixie |
+| Forensics de incident (que processo escreveu nesse arquivo?) | Logs, audit | Tetragon |
+| Latency breakdown de Postgres query interno | Lib instrumentation se exists | bpftrace cover |
+
+**Pegadinhas:**
+- **Kernel version matters**. eBPF moderno (CO-RE — Compile Once Run Everywhere) precisa Linux 5.10+. Pra distros com kernel velho, fallback BPF tradicional.
+- **GKE/EKS Autopilot e Fargate**: limitam capabilities, várias eBPF tools não funcionam. Use nodes managed.
+- **Encryption pode mascarar**: HTTPS dentro de TLS. Pixie usa **uprobes em libssl** pra capturar antes do encrypt — funciona se app linka libssl dynamically.
+- **Cardinalidade ainda é problema**: eBPF gera muito dado. Filtre/sample ou backend cai.
+
+**Estratégia pragmática 2026:**
+- **App próprio**: OTel SDK pra spans + métricas. eBPF complementa pra blind spots (DB internals, syscalls, network).
+- **Plataforma com mix de apps**: Pixie ou Coroot como zero-config baseline. Adicionar OTel onde precisar custom semantics.
+- **Security forense**: Tetragon ou Falco (ambos eBPF-based hoje).
 
 ### 2.17 Honeycomb-style high-cardinality
 

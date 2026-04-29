@@ -257,12 +257,54 @@ Sintomas comuns:
 - 100% CPU → flame graph, achar função quente.
 - App não morre após `Ctrl+C` → handle/refs ainda abertos. `process._getActiveHandles()` debug.
 
-### 2.17 Bun, Deno, Node-compat
+### 2.17 Node vs Bun vs Deno — comparação real (2026)
 
-- **Deno**: runtime alternativo (mesmo criador, Ryan Dahl). TS nativo, secure-by-default (permissions), URLs como imports. Tem compat layer com Node.
-- **Bun**: runtime + bundler + test runner + package manager. JavaScriptCore (Safari engine), startup muito rápido, performance forte em alguns casos. Compat Node em maturação rápida.
+Os três rodam JS/TS server-side mas diferem em decisões de design, runtime base, e maturidade de ecossistema. Senior real escolhe consciente, não por moda.
 
-Em 2026: Node ainda é base de produção pra maior parte dos backends e tooling. Bun ganha em scripts e dev. Deno ganha em scripts seguros e edge.
+| Dimensão | Node 22 LTS | Bun 1.x | Deno 2.x |
+|---|---|---|---|
+| Engine | V8 (Chrome) | JavaScriptCore (Safari) | V8 (Chrome) |
+| I/O backbone | libuv | Bun's own (zig + io_uring quando disponível) | Tokio (Rust) |
+| TS nativo | Não (precisa loader/`--experimental-strip-types` em 22.6+) | Sim, sem config | Sim, sem config |
+| Package manager | npm/pnpm/yarn | `bun install` (CAS local, ~10x mais rápido que npm) | npm registry + `deno install` |
+| Imports | CommonJS + ESM | CommonJS + ESM + auto-resolve `.ts` | ESM-only, URL imports + `npm:` specifier |
+| Bundler builtin | Não (use esbuild/swc) | Sim (`bun build`) | Sim (`deno bundle` deprecated; `deno compile`) |
+| Test runner | `node --test` (built-in desde 18) | `bun test` (Jest-compat API) | `deno test` (built-in) |
+| Native code | N-API, addon C++ | N-API parcial + Bun.FFI | FFI nativo (`Deno.dlopen`) |
+| Permissions | Sem (full access) | Sem (full access) | Granular (`--allow-net`, `--allow-read`, etc.) |
+| Maturidade prod | Total (10+ anos) | Crescendo (early adopters em prod desde 2024) | Estável em edge/scripts |
+| Memory baseline | ~30MB idle | ~25MB idle | ~40MB idle |
+| Startup time | ~50ms (TS via tsx) | ~5-10ms | ~25ms |
+| Hot reload | `--watch` | `--watch` (mais rápido) | `--watch` |
+
+**Quando escolher Node:**
+- Maior parte de backends de produção. Stack mais conservadora, ecossistema maior, tooling enterprise (APM, profilers, vendor support).
+- Quando dependências usam **N-API addons** complexos (Sharp, sqlite3 native).
+- Quando o time inteiro é Node-fluent.
+
+**Quando escolher Bun:**
+- **Scripts**, ferramentas internas, **build pipelines** — startup rápido importa.
+- **Test suite grande**: `bun test` é 5-10x mais rápido que Jest.
+- **Bundling de aplicação** — substitui esbuild/Vite em alguns casos.
+- **Dev experience**: `bun --hot` reinicia em milissegundos vs segundos.
+- Em produção: ainda emergente, mas Cloudflare Workers e várias startups estão em produção. Compat com `node:` modules ~95% — testar caso específico.
+
+**Quando escolher Deno:**
+- **Edge functions / serverless** (Deno Deploy nativo, Supabase Functions usa Deno).
+- **Scripts onde permissions importam** — automação que toca rede/disco em CI ganha audit fácil.
+- **Projetos novos sem legacy npm**, quando o time topa URL-imports.
+- **Workspace TS isolado**: zero config TS é genuinamente bom.
+
+**Pegadinhas reais:**
+- **Bun**: alguns workers/cluster patterns Node não funcionam ainda. APM tools (DataDog, NewRelic) tem agentes Bun mas defasados.
+- **Deno 2.x**: ganhou compat npm dramatic em 2024. Ainda assim, libs que assumem `__dirname`/CommonJS quebram. ESM-only é decisão consciente.
+- **Bun em produção**: já tem horror stories — memory leak em alguns cases de stream HTTP. Node tem 10 anos de patches em corner cases que Bun ainda vai descobrir.
+
+**Veredicto pragmático 2026:**
+- **Backend produção crítico**: Node. Mude quando Bun atingir paridade vendor-support em 2027+.
+- **Tools/scripts/CI**: Bun. Vale a velocidade.
+- **Edge/serverless novo**: Deno ou Bun, depende de plataforma.
+- **Em time mixed**: padronize um. Coexistência custa onboarding.
 
 ---
 

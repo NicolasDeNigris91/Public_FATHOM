@@ -200,14 +200,57 @@ Em rede async, "exactly-once delivery" não existe. O que existe:
 
 Kafka claims "exactly-once" via transações across producer + consumer + offset commit. Mesmo assim, é "exactly-once processing".
 
-### 2.18 CRDT — Conflict-free Replicated Data Types
+### 2.18 CRDT — Conflict-free Replicated Data Types (deep)
 
-Estruturas de dados que mergeiam automaticamente sem conflict:
-- G-counter, PN-counter, LWW-Register.
-- OR-Set (observed-remove set).
-- RGA pra texto.
+CRDTs são estruturas de dados onde **merge é automatic e determinístico** — independente de ordem ou duplicação de mensagens, todas as réplicas convergem pro mesmo state. Strong eventual consistency sem coordination.
 
-Use quando você precisa multi-leader sem coordination. Apps colaborativos (Figma, Liveblocks). Trade-off: state cresce.
+**Por que importam em 2026:**
+- **Linear, Figma, Notion** sync collaboration via CRDT (cada um com variant). Não é academic — é production de billion-dollar product.
+- Edge-first apps (Local-first software, Ink & Switch): CRDT viabiliza apps que funcionam offline e sync sem central server.
+- Multi-region writes sem leader election: write em qualquer região, eventual converge.
+
+**Famílias:**
+
+**State-based (CvRDT)** — replicas trocam state inteiro; merge é função associativa, comutativa, idempotente (ACI).
+- **G-Counter**: vetor de counters per-replica, increment-only. Merge = element-wise max.
+- **PN-Counter**: 2 G-Counters (positive, negative). Permite decrement.
+- **G-Set**: union-only set. Merge = set union.
+- **2P-Set**: G-Set "added" + G-Set "removed". Tombstone limita re-add.
+- **LWW-Element-Set**: cada elemento tem timestamp; merge mantém o de timestamp maior. Requer wall-clock sane.
+- **OR-Set (Observed-Remove)**: cada add carrega tag única; remove só remove tags observadas. Permite re-add limpo. Mais complexa, mais correta.
+
+**Operation-based (CmRDT)** — replicas propagam operações. Exige causal delivery (geralmente via vector clock).
+- Mais eficiente em bandwidth (não manda state inteiro).
+- Mais frágil: ops podem ser duplicadas/perdidas; channel precisa garantir.
+
+**Delta-state CRDTs** (modernas) — estado mas só **delta** desde último sync. Mistura vantagens.
+
+**Sequence/Text CRDTs** — gerenciam ordering em streams editáveis.
+- **Treedoc**: árvore de IDs hierárquicos.
+- **Logoot**: posições densas (entre cada par de elementos cabe outro).
+- **WOOT**: 1ª geração, lenta.
+- **RGA (Replicated Growable Array)**: timestamp-based ordering, usa em Figma e similar.
+- **Yjs / Automerge** (libs): RGA-like otimizado, primary choice em 2025-2026 pra apps colaborativos.
+
+**Yjs em particular** dominou — biblioteca JS que serializa CRDT pra binary compact, integra com WebRTC/WebSocket pra sync, e tem bindings pra ProseMirror, Quill, Slate, etc. Linear e várias ferramentas SaaS usam.
+
+**Limitações reais:**
+- **State cresce**: tombstones de removes (em OR-Set, RGA) acumulam. Garbage collection precisa de coordination — perde "pure" CRDT-ness.
+- **Merge é commutativo, não comutativo em significado**: se replicas concorrentes editam mesmo objeto de forma "incompatível semanticamente", CRDT converge pra **algum** state, não necessariamente o **certo** semanticamente. Ex: 2 users movem um item pro mesmo slot — quem ganha? CRDT decide via tiebreaker (lexicographic ID); user pode ver inconsistência.
+- **Performance**: sync em árvore-de-mil-elementos tem overhead. Não é zero-cost.
+
+**Calm Theorem** (relacionado): programa é monotônico (set-only-grows) → pode ser implementado sem coordination. CRDTs são corollary prático.
+
+**Quando usar CRDT vs alternatives:**
+- **Multi-master multi-region writes**: CRDT vence sobre conflict resolution manual.
+- **Apps colaborativos realtime**: Yjs/Automerge é estado da arte.
+- **Apps com modo offline-first**: CRDT permite long offline + merge sane.
+- **Sistemas com leader único viável**: leader + Raft/Paxos é mais simples e dá strong consistency. CRDT só vale se coordination custa caro.
+
+Refs canônicas:
+- "A comprehensive study of Convergent and Commutative Replicated Data Types" (Shapiro et al, 2011) — paper original.
+- "CRDTs: The Hard Parts" (Martin Kleppmann talks).
+- crdt.tech — catálogo curado.
 
 ### 2.19 Backpressure cross-system
 

@@ -146,24 +146,68 @@ Formas:
 - **Push notification** — bom, exige app proprietário.
 - **WebAuthn / FIDO2** — passkeys. Forte. Crescente.
 
-### 2.9 Passkeys / WebAuthn
+### 2.9 Passkeys / WebAuthn — deep
 
-WebAuthn (W3C, FIDO2) é o padrão moderno. Resumo:
-- User registra um **authenticator** (key, biometria do device).
-- Authenticator gera key pair; pública vai ao server.
-- Login: server manda challenge; authenticator assina com private key.
-- Server verifica assinatura.
+WebAuthn (W3C Level 3 em 2024) + CTAP2 (FIDO Alliance) são o substrato técnico. **Passkey** é o termo de marketing pra credentials WebAuthn que sincronizam entre devices via iCloud Keychain, Google Password Manager, 1Password, Bitwarden. Em 2025-2026 viraram default em Apple/Google/Microsoft accounts, GitHub, Stripe.
 
-Sem senhas, sem phishing (origin é parte da assinatura), sem replay.
+**Modelo criptográfico:**
+- Authenticator gera **key pair** ECDSA (P-256) ou EdDSA (Ed25519). Private key nunca sai do authenticator.
+- Em registro: server envia `challenge`, recebe `attestation` (assinada). Pública é guardada no server, associada ao user.
+- Em login: server envia novo challenge, recebe `assertion` (challenge + clientDataJSON + authenticatorData assinados). Verifica com pública.
+- **Origin** está em `clientDataJSON` — phishing falha porque attacker em domínio errado não consegue produzir assinatura válida pro origin real.
 
-**Passkeys** = WebAuthn credential sincronizada via iCloud/Google Password Manager. Move entre devices. Apple, Google, Microsoft pushing pesado em 2024-2026.
+**Tipos de credential** (decisão importante):
 
-Implementar:
-- Lib server-side: `@simplewebauthn/server` em Node.
-- Lib client: `@simplewebauthn/browser`.
-- Suporte cross-browser sólido em 2026.
+| Tipo | Onde reside | Sincroniza? | Backup | Use case |
+|---|---|---|---|---|
+| **Synced passkey** (default 2024+) | iCloud / Google PM / 1Password | Sim | Sim (cloud do provider) | Consumer apps. UX prioridade. |
+| **Device-bound** (`authenticatorAttachment: "platform"`) | Secure enclave do device | Não | Não | High-assurance: banking, gov |
+| **Roaming** (security key física: YubiKey) | Hardware key | Manual | Não | Enterprise admins, dev signing |
 
-Em 2026 é viável **eliminar senhas** em apps novos a favor de passkeys + magic link como fallback.
+**Server-side flow (registration):**
+```ts
+// 1. Server gera options
+const options = await generateRegistrationOptions({
+  rpName: 'Logistica',
+  rpID: 'logistica.com',         // domain — ESSENCIAL pra anti-phishing
+  userID: bytesFromUuid(user.id),
+  userName: user.email,
+  attestationType: 'none',        // 'direct' se quiser auditar fabricantes (corporate)
+  excludeCredentials: existingCreds.map((c) => ({ id: c.credentialID, type: 'public-key' })),
+  authenticatorSelection: {
+    residentKey: 'preferred',     // 'required' pra usernameless login
+    userVerification: 'preferred',
+  },
+});
+// 2. Cliente chama navigator.credentials.create(options)
+// 3. Server verifica resposta com verifyRegistrationResponse, persiste credentialID + publicKey + counter
+```
+
+**Pegadinhas reais:**
+- **`rpID` precisa ser registrable suffix** do origin. `logistica.com` cobre `app.logistica.com` mas não `acme.io`. Subdomain isolation é decisão consciente.
+- **`counter` em authenticatorData**: detecta clonagem. Cresce em cada uso. Se vier menor que o último guardado: alerta (possível attacker com cópia). Synced passkeys reportam counter=0 sempre — não dá pra detectar clone via counter em passkey synced. Trade-off conhecido.
+- **Conditional UI** (`mediation: 'conditional'`): mostra autofill de passkey direto no input. Implementação do navegador. Default em 2025+.
+- **Recovery**: se perder TODOS os devices que têm a passkey, perdeu acesso. Mitigação: múltiplas passkeys (cross-device), magic link/email recovery, account recovery codes salvos.
+- **Backward compat**: usuário usa Firefox antigo, sem passkey suporte? Detecte via `PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()` e degrade pra password+OTP.
+
+**Server libs (2026):**
+- **Node**: `@simplewebauthn/server` (de longe o mais usado e atualizado).
+- **Go**: `github.com/go-webauthn/webauthn`.
+- **Python**: `webauthn` package.
+- **Rust**: `webauthn-rs`.
+
+**Quando NÃO usar passkey:**
+- Shared accounts (multi-user num device): passkey é per-user, atrapalha. Use sessions tradicionais.
+- B2B com SSO existente (SAML/OIDC corporate): passkey complementa, não substitui.
+- Setups onde recovery process é caro/manual: você provavelmente quer fallback de password.
+
+**Estratégia de migração pragmática (2025+):**
+1. Adicione passkey como segundo fator opcional.
+2. Quando user registrar passkey, ofereça "use passkey instead of password" no próximo login.
+3. Quando >50% dos logins forem por passkey, marque password como legacy.
+4. App novo em 2025+: passkey-first, magic link como fallback, password só se mercado exigir.
+
+Apple, Google, Microsoft já fizeram esse caminho. Stripe e GitHub também. Vale seguir.
 
 ### 2.10 Magic links
 

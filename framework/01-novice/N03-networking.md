@@ -173,6 +173,37 @@ DNS resolve nomes (`example.com`) em IPs.
 - **0-RTT** em conexões repetidas (envia dado no primeiro pacote se conhece o servidor).
 - Migração de IP transparente (útil em mobile que muda de Wi-Fi pra 4G).
 
+### 2.6.1 QUIC deep — por que é o transport de 2025+
+
+QUIC (RFC 9000, 9001, 9002) é o substrato de HTTP/3 mas tem importância autônoma. Em 2026 já é majoritário em CDN traffic (Cloudflare, Akamai, Fastly reportam 30-50% das requests). Vale entender pra design de protocolos novos.
+
+**Por que UDP em vez de TCP:**
+- TCP é **kernel space** e protocolo concreto — mudar exige patch de OS, deploy lento.
+- UDP é primitivo. QUIC roda em user space — bibliotecas atualizam por release de aplicação. Isso destrava velocidade de evolução do transport.
+- TCP fast open exige cooperação de kernel + middleboxes; muitos NATs descartam. QUIC encripta cabeçalho de transport — middleboxes não têm o que mexer.
+
+**Connection vs streams:**
+- 1 conexão QUIC = N streams independentes. Stream individual tem ordering garantida; entre streams, **sem HOL blocking**.
+- Stream IDs são tipados (client-initiated bidirecional, server-initiated unidirecional, etc.) — base de WebTransport (A14).
+
+**0-RTT na prática:**
+- Cliente cacheia "session ticket" do servidor. Próxima conexão envia request **junto com handshake**. Latência: 0 RTT extra vs 1-2 RTT do TLS 1.3 sobre TCP.
+- Risco: **replay attack** em requests não-idempotentes. POST de pagamento via 0-RTT é furada — aceite só GET/idempotent em 0-RTT (NGINX faz isso por default).
+
+**Connection migration:**
+- Conexão identificada por **Connection ID** (não por 5-tuple IP/port). Mudar de Wi-Fi pra 4G mantém conexão viva — útil em apps mobile, vídeo conferência.
+- Cuidado: alguns load balancers velhos hash em 5-tuple e quebram migration.
+
+**Trade-offs reais:**
+- **CPU cost**: QUIC na primeira geração custava 2-3x mais CPU que TCP+TLS. Em 2026 com aceleração (kTLS-like, GSO/GRO em UDP) está ~1.2-1.5x. Cloudflare publicou números detalhados.
+- **Middlebox blocking**: ~5% de redes corporativas bloqueiam UDP/443 por DPI conservador. App precisa fallback pra HTTP/2-over-TCP.
+- **Stateful firewall**: rotas que registram TCP states não funcionam pra UDP. Custom rules necessários.
+
+**Quando você toca QUIC:**
+- Servidor: nginx 1.25+, Caddy, h2o, ou bibliotecas (`quiche` da Cloudflare em Rust, `msquic` da Microsoft, `lsquic` da LiteSpeed).
+- Cliente: navegadores modernos por default, `curl --http3`, libs HTTP em todas as linguagens majoritárias têm clients h3.
+- WebTransport (cobre A14): API de browser pra streams QUIC custom.
+
 **Métodos HTTP:**
 - `GET` (idempotente, sem body, com query string)
 - `POST` (criação, com body, **não idempotente**)

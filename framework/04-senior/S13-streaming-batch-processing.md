@@ -43,6 +43,62 @@ Kappa simplifica e tem ganho com Kafka log retention longa. Lambda persiste em a
 
 Flink é "default sério"; ksqlDB e Materialize ganham em DX.
 
+### 2.2.1 Streaming SQL incremental — Materialize, RisingWave
+
+Categoria que cresceu 2023-2025: você escreve SQL como em Postgres, engine mantém **materialized view incrementalmente atualizada** conforme dados chegam. Não é micro-batch — é update real-time conforme cada change.
+
+**Modelo conceitual:**
+- Conecta **sources** (Kafka, Postgres CDC via Debezium, Kinesis, S3).
+- Define **CREATE MATERIALIZED VIEW** com SQL.
+- Engine descobre dataflow incremental (timely dataflow / differential dataflow).
+- Cada source change propaga; view atualiza com latência sub-segundo.
+- **SELECT** retorna sempre o estado atual da view (não scan, é cache).
+
+**Exemplo em Materialize:**
+```sql
+CREATE SOURCE orders FROM KAFKA BROKER 'kafka:9092' TOPIC 'orders'
+  FORMAT AVRO USING CONFLUENT SCHEMA REGISTRY 'http://sr:8081';
+
+CREATE MATERIALIZED VIEW revenue_per_user AS
+  SELECT user_id, SUM(amount) AS total
+  FROM orders
+  WHERE status = 'paid'
+  GROUP BY user_id;
+
+-- agora SELECT retorna em ms, sempre fresco
+SELECT * FROM revenue_per_user WHERE user_id = 42;
+```
+
+**Materialize:**
+- Construído em Rust sobre **timely dataflow** (Naiad paper, Frank McSherry).
+- SQL Postgres-compatible (~85%). Drivers Postgres funcionam.
+- Strong consistency garantida (linearizable views).
+- Cloud + self-hosted.
+- Trade-off: cluster precisa caber state em memory + disk; não escala pra petabytes.
+
+**RisingWave:**
+- Open-source streaming database em Rust.
+- SQL Postgres-compatible.
+- State em **shared storage** (S3) com cache local — escala melhor que Materialize em workloads grandes.
+- Apache 2.0 license.
+- Maturidade crescendo; menos battle-tested que Flink em 2026.
+
+**Quando vale streaming SQL incremental sobre Flink:**
+- Time não tem expertise JVM/Flink — SQL é universal.
+- Queries são predominantemente **agregação + join + filter** (não custom Java function complexa).
+- Latência sub-segundo importa, não ms.
+- Você quer **interactive** — `psql` no engine, descobrir queries iterativamente.
+
+**Quando NÃO vale:**
+- Custom processing complex (ML inference, custom enrichment com APIs externas) — Flink dá flexibility.
+- Throughput extremo (10M events/s sustained) — Flink ainda vence em workloads massive.
+- Stack já tem Flink expert e roda bem.
+
+**Padrões de uso emergentes:**
+- **Operational analytics**: dashboard de business em real-time substituindo cron-job-em-warehouse.
+- **CDC + materialized views**: replica Postgres pra Materialize via Debezium, deriva views ricas que seriam caras em Postgres OLTP.
+- **Feature stores incrementais** pra ML: features atualizadas em real-time, sem batch overnight.
+
 ### 2.3 Event-time vs processing-time
 
 - **Event time**: quando evento aconteceu no mundo.

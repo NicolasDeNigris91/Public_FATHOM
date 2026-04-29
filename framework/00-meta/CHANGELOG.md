@@ -20,6 +20,47 @@ Tipos:
 
 ## 2026
 
+### 2026-04-28 — Content gap fill: 24+ subseções novas em 16 módulos
+
+Expansão de conteúdo cobrindo gaps detectados em audit interno. Tópicos atualizados pra 2025-2026 reality.
+
+**Novice (4 módulos):**
+- N02: §2.4.1 schedulers modernos (CFS→EEVDF Linux 6.6+, Windows Thread Director, hybrid CPUs P/E cores).
+- N03: §2.6.1 QUIC deep — UDP user-space, 0-RTT replay attack, connection migration, custos vs TCP.
+- N11: §2.17 modelos de concorrência comparados — CSP/Go vs Actors/Erlang vs async-await/Rust com tabela e quando usar cada.
+- N12: §2.15 reescrito — NIST PQ standards 2024 (FIPS 203/204/205), TLS hybrid X25519MLKEM768, "harvest now decrypt later".
+
+**Apprentice (5 módulos):**
+- A04: §2.7 React Compiler deep — modelo mental novo, rules of React, bail-out behavior, migrações práticas.
+- A07: §2.17 Node vs Bun vs Deno comparação real 2026 — tabela de decisão, pegadinhas, veredicto pragmático.
+- A09: §2.13.1 logical replication uso real (CDC, zero-downtime upgrade, pegadinhas) + §2.14 Postgres 17/18 features.
+- A13: §2.9 Passkeys/WebAuthn deep — synced vs device-bound vs roaming, server flow, pegadinhas, migration strategy.
+- A14: §2.14 WebTransport deep — modelo, API client, quando vs WebSocket, server libs 2026.
+
+**Professional (6 módulos):**
+- P03: §2.18 operators pattern + §2.18.1 alternativas a K8s (ECS, Nomad, Fly, Railway, Cloud Run, Kamal) com heurística pragmática.
+- P05: §2.3.1 VPC deep — TGW, PrivateLink, egress VPC, IPv6, custos esquecidos. + §2.19 FinOps + §2.20 Sustainability.
+- P07: §2.16 eBPF observability deep — tools 2026 (Pixie, Tetragon, Parca, Cilium, Coroot, bpftrace, Beyla), quando vale.
+- P08: §2.17.1 privacy engineering — tokenization, field encryption, RTBF real, differential privacy, k-anonymity, antipatterns.
+- P10: §2.19 perf JVM/.NET/Go — JIT tiers, GCs, AOT, virtual threads, comparação cross-runtime.
+- P15: §2.11 chaos engineering tooling deep — Litmus, Chaos Mesh, Gremlin, FIS, Pumba; tipos de injeção; maturity ladder.
+
+**Senior (5 módulos):**
+- S01: §2.18 CRDT deep — famílias (CvRDT/CmRDT/delta), Yjs/Automerge, limitações, quando usar.
+- S02: §2.7 Pulsar/Redpanda/NATS JetStream deep com tabela de decisão.
+- S05: §2.13 tRPC + Connect-RPC — comparação com gRPC clássico e REST, quando escolher.
+- S13: §2.2.1 streaming SQL incremental — Materialize, RisingWave, vs Flink.
+- S14: §2.7-2.9 reescritos — P language, Alloy, Lean 4 (mathlib4, Cedar) deep.
+
+**Staff (3 módulos):**
+- ST04: §2.7.1 must-read papers list — 35 papers ordenados por estágio (Apprentice→Staff→Foundations→Data/ML).
+- ST05: §2.2.1 YouTube/podcast como medium — formatos, setup, cadência, quando NÃO usar.
+- CAPSTONE-staff: Track G — AI Infrastructure Engineer (vLLM, training pipelines, vector DBs prod, evals, GPU cost).
+
+**Cross-cutting:**
+- STUDY-PROTOCOL §17 — Quarterly Review template com cadência fixa, 3 perguntas brutais, sinais de burnout.
+- SPRINT-NEXT entries SN-054 a SN-064 documentando gaps remanescentes (Anki decks, solution sketches, mock interviews, AI Infra track curriculum, etc.).
+
 ### 2026-04-28 — Site público em apps/site/
 
 - **add**: `apps/site/` — Next.js 16 + React 19 + Tailwind 4 + Framer Motion. Mesma stack/visual do `MyPersonalWebSite`.

@@ -105,6 +105,32 @@ Quando uma thread faz syscall bloqueante (`read` num socket sem dado), o kernel 
 - **Context switching tem custo.** 1000s de threads concorrentes em I/O bound podem funcionar, mas em CPU-bound geralmente é melhor ~1 thread por core.
 - **CPU affinity** (`taskset`, `sched_setaffinity`) trava thread em cores específicos — útil pra cache locality em workloads críticas.
 
+### 2.4.1 Schedulers modernos: CFS, EEVDF, Windows, BSD
+
+CFS reinou de 2007 até 2024. A partir do **Linux 6.6** (out/2023), o kernel mainline adotou **EEVDF** (Earliest Eligible Virtual Deadline First) substituindo CFS pra workloads não-realtime. Mudança discreta pra usuário comum, relevante pra quem ajusta latência fina.
+
+**EEVDF em uma frase:** cada thread recebe um **deadline virtual**; scheduler sempre roda quem está "elegível" (acumulou direito) com menor deadline. CFS minimizava unfairness entre quem rodou; EEVDF agrega **slice/lag** explícitos — mais fácil raciocinar sobre latência tail.
+
+**Por que mudou:**
+- CFS dependia de heurísticas (`sched_min_granularity_ns`, etc.) pra balancear interatividade vs throughput. EEVDF expressa o trade-off via `slice` por entidade.
+- CFS tinha bugs documentados em workloads com burst pequeno (web servers acordando rápido). EEVDF reduz tail latency em ~20% em benchmarks (Phoronix 2024).
+
+**Outras classes de scheduler em Linux** (não substituídas por EEVDF):
+- **`SCHED_FIFO`/`SCHED_RR`** (real-time, prioridade fixa). Usada em audio, controle industrial. Sem timesharing — pode ser starver.
+- **`SCHED_DEADLINE`** (EDF — Earliest Deadline First). Real-time hard. Você declara `(runtime, deadline, period)` e kernel admite só se cabe.
+- **`SCHED_IDLE`** (background, prioridade mais baixa que normal).
+- **`chrt`** muda a classe de um processo.
+
+**Windows scheduler:** **multilevel feedback queue** com 32 prioridades. Foreground apps recebem boost (UI responsivo), I/O-bound idem. Não é "fair" no sentido CFS — é "responsivo". A partir do **Windows 11**, há **Thread Director** que coopera com Intel hybrid CPUs (P-cores + E-cores) pra colocar work certo no core certo.
+
+**macOS/BSD scheduler:** **Mach** + **BSD scheduler layer**. Threads têm `quality of service class` (`QOS_CLASS_USER_INTERACTIVE`, `..._USER_INITIATED`, `..._UTILITY`, `..._BACKGROUND`). Apple Silicon tem heterogeneous cores (P/E) — scheduler decide energy/perf.
+
+**Implicações práticas pra Senior:**
+- **Latency-sensitive workload em Linux**: considere `SCHED_FIFO` ou `SCHED_DEADLINE` em vez de só `nice`. Cuidado com starvation.
+- **Container scheduling**: containers herdam scheduler do host. cgroups v2 com `cpu.weight` é o que você ajusta em K8s `resources.requests.cpu`.
+- **Hybrid CPUs (Intel 12th+, Apple M-series)**: `taskset` em P-core/E-core importa. Background scrapers em E-core, hot path em P-core.
+- **Não adivinhe**: use `perf sched`, `bpftrace` (eBPF), ou `schedviz` pra ver decisões reais do scheduler.
+
 ### 2.5 System calls e standard library
 
 Aplicação não chama syscalls diretamente — chama wrappers da **libc** (em C, libc é a implementação que faz a syscall). Em outras linguagens, há equivalente (Node usa libuv que chama syscalls).
@@ -202,7 +228,9 @@ Pra passar o **Portão Conceitual**, sem consultar:
 - [ ] Explicar a diferença entre **kernel mode** e **user mode**, e o que é uma **system call**.
 - [ ] Distinguir **processo** vs **thread**, listando 4 diferenças concretas (memória, FDs, custo de criação, paralelismo).
 - [ ] Desenhar o ciclo de vida de uma thread (Running → Runnable → Sleeping → Runnable...).
-- [ ] Explicar **CFS** (Completely Fair Scheduler) em uma frase: o que ele otimiza.
+- [ ] Explicar **CFS** em uma frase e dizer **por que EEVDF substituiu** em Linux 6.6+ (o que muda em latência tail).
+- [ ] Diferenciar `SCHED_OTHER` / `SCHED_FIFO` / `SCHED_RR` / `SCHED_DEADLINE` em Linux. Quando usar cada um.
+- [ ] Explicar como hybrid CPUs (P/E cores em Intel 12+ e Apple M-series) influenciam decisões de scheduling.
 - [ ] Listar pelo menos 8 syscalls e dizer pra que servem.
 - [ ] Explicar **file descriptor** e por que sockets, files e pipes usam o mesmo conceito.
 - [ ] Distinguir **bloqueante**, **não-bloqueante**, **multiplex (epoll)**, e **AIO** com casos onde cada um se aplica.

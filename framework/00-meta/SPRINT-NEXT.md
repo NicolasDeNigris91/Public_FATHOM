@@ -211,6 +211,74 @@ Objetivo: nivelar profundidade dos módulos shallow ao patamar dos densos. Targe
 **Ação opcional**: docs `OVERLAYS/fintech.md`, `healthcare.md`, etc., apontando módulos críticos por setor.
 **Estimate**: 2-4 horas por overlay.
 
+### SN-054: Anki deck stub por estágio
+**Status**: pending.
+**Gap**: STUDY-PROTOCOL §3 recomenda 50-150 cards/estágio. Aluno cria do zero.
+**Ação**: starter deck com 30 cards core por estágio, marcadas "expand from here". Distribuir como `.apkg`.
+**Estimate**: 2-3h por estágio (5 estágios = 10-15h).
+**Risco**: cards genéricos viram crutch. Documentar "starter; crie os seus".
+
+### SN-055: Solution sketches dos Desafios
+**Status**: pending.
+**Gap**: Cada Desafio tem spec mas sem sketch reference. Aluno não sabe se solução está em range.
+**Ação**: sketch (não solução) por Desafio com components esperados, trade-offs comuns, common pitfalls, métricas alvo.
+**Estimate**: 2-4h por módulo.
+**Risco**: tentação de spoiler. Documentar "abrir só após travar 1h".
+
+### SN-056: Mock interview transcripts
+**Status**: pending.
+**Gap**: INTERVIEW-PREP.md mapeia áreas mas não tem mock real.
+**Ação**: 1 transcript por estágio (5 totais) — pergunta-resposta-feedback realístico tier-1. Útil pra calibrar nível.
+**Estimate**: 4-6h por mock.
+
+### SN-057: Antipatterns aplicados ao capstone Logística
+**Status**: pending.
+**Gap**: ANTIPATTERNS.md genérico. Mostrar como Logística v1 quebraria se feita errada (concrete patterns) seria muito didático.
+**Ação**: doc `framework/00-meta/ANTIPATTERNS-LOGISTICA.md` com 10-15 cenários concretos de "antes vs depois" no contexto do capstone.
+**Estimate**: 6-8h.
+
+### SN-058: AI Infrastructure track (Track G) curriculum detalhado
+**Status**: pending.
+**Gap**: Track G adicionado em CAPSTONE-staff §2.11 mas trail e references ainda thin.
+**Ação**: dedicated doc `framework/05-staff/TRACK-G-AI-INFRA.md` com modules priorizados, papers, OSS contributing targets, mentor archetypes.
+**Estimate**: 8-12h.
+
+### SN-059: Sustainability deep — módulo dedicado
+**Status**: pending.
+**Gap**: Cobertura em P05 §2.20 é overview. Em alguns mercados (EU, B2C consumer) virou tópico Senior+.
+**Ação opcional**: módulo S17 "Sustainability Engineering" ou subseção forte em S16. Decidir baseado em demanda.
+**Estimate**: 6-10h.
+
+### SN-060: Privacy engineering — módulo dedicado Senior
+**Status**: pending.
+**Gap**: Cobertura em P08 §2.17.1 é overview. LGPD/GDPR multi-jurisdição + differential privacy + tokenization vault merecem módulo.
+**Ação opcional**: módulo S17b "Privacy Engineering" — após mercado B2B EU consolidar requirement.
+**Estimate**: 8-12h.
+
+### SN-061: Cross-stack revisit em Apprentice
+**Status**: pending.
+**Gap**: Bun/Deno/Node deep cobre runtimes JS. Falta para outros stacks: ".NET 9 vs Java 21 vs Go" deep, "FastAPI vs Django vs Flask vs Litestar".
+**Ação opcional**: subseções em A07/A08 ou módulo cross-stack dedicado.
+**Estimate**: 4-8h.
+
+### SN-062: Reading list por estágio expandido
+**Status**: done parcialmente.
+**Gap**: ST04 §2.7.1 lista 35 papers must-read agora. Falta integração visual no site (`/library` ou `/papers`).
+**Ação**: page `/papers` com lista filtrada por estágio + 3-pass tracking.
+**Estimate**: 4-6h.
+
+### SN-063: Quarterly review template — automação
+**Status**: pending (template criado em STUDY-PROTOCOL §17).
+**Gap**: Template é markdown manual. Pra ter série temporal útil, vale CLI ou script que gera estrutura + pull stats do git/PROGRESS.
+**Ação opcional**: script `scripts/quarterly-review.mjs` que gera template preenchido com stats reais do trimestre.
+**Estimate**: 3-5h.
+
+### SN-064: Schedulers modernos — refresh periódico
+**Status**: pending.
+**Gap**: N02 §2.4.1 documenta CFS→EEVDF (Linux 6.6). Hybrid CPUs (Intel 12+, Apple M-series) impactam scheduling. Tópico evolui rápido.
+**Ação**: refresh anual de N02 pra acompanhar kernel changes.
+**Estimate**: 1-2h por refresh.
+
 ---
 
 ## Não-prioridades explícitas (don't do)

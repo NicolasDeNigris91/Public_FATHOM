@@ -68,6 +68,48 @@ Padrão: 3 AZs com 1 subnet pública + 1 privada cada. Backend em privadas; ALB 
 
 NAT Gateway custa ~$32/mês + $0.045/GB. Em projetos sensíveis a custo, considere VPC Endpoints pra S3/ECR/etc., reduzindo egresso via NAT.
 
+### 2.3.1 VPC deep — onde Senior diverge de Pleno
+
+Pleno conhece subnet/SG/NAT. Senior decide topologia, custos, e patterns avançados. Lacuna típica:
+
+**Multi-VPC topology — quando você precisa:**
+- **VPC peering**: conexão 1-pra-1, sem transitive routing. Bom pra 2-3 VPCs. Não escala — N² pares.
+- **Transit Gateway (TGW)**: hub-and-spoke. 1 TGW conecta N VPCs + on-prem (via VPN/Direct Connect) + outras regiões. Custo: $0.05/hora por VPC attach + processing fees. Em multi-account real, TGW resolve. Suporta route tables segmentadas (prod isolada de dev mesmo no mesmo TGW).
+- **Cloud WAN** (2024+): camada acima de TGW pra global multi-region. Mais cara, melhor pra dezenas de VPCs cross-region.
+
+**PrivateLink — o que Pleno raramente domina:**
+- VPC Endpoints clássicos: **Gateway** (S3, DynamoDB) usam route table; **Interface** usam ENI dentro da sua VPC com IP privado.
+- **PrivateLink avançado**: você expõe um **NLB** como serviço VPC. Outros VPCs (até de outras contas) consomem como Interface Endpoint. Pattern padrão pra **B2B SaaS** — cliente acessa seu serviço sem expor à internet.
+- Custo: $0.01/hora por Endpoint + $0.01/GB processed. Usado bem, economiza muito vs NAT egress.
+
+**Egress VPC pattern (multi-account):**
+- 1 VPC dedicada pra egress (NAT Gateways, AWS Network Firewall, traffic inspection).
+- Outras VPCs roteiam internet via TGW → egress VPC. Centraliza custo, controle, e logging.
+- Reduz NAT GW de N (uma por VPC) pra ~3 (uma por AZ centralizada).
+
+**IPv6 em 2026:**
+- AWS cobra **$0.005/hora por IPv4 público**. IPv6 é grátis. Em 2026 vale dual-stack ou IPv6-only quando possível pra cortar custo significativo em fleets grandes.
+- ALB, NLB, EC2 suportam IPv6 nativo. Lambda em VPC com IPv6 desde 2024.
+
+**Security Groups vs NACLs — pegadinha:**
+- SG é **stateful**: response automática. NACL é **stateless**: regra explícita pra response port (ephemeral 1024-65535).
+- SG padrão: deny tudo, allow listas. NACL padrão default VPC: allow tudo.
+- Pra **egress filtering** (impedir exfil de dados), SG outbound é o que importa. NACL ajuda em DDoS L4 (block IP range).
+
+**VPC Lattice (2023+):**
+- Service-to-service connectivity sem você gerenciar VPC peering/TGW. Application-layer (HTTP/gRPC).
+- Concorrente direto de Service Mesh (Istio/Linkerd) pra cenários AWS-only.
+- Custo razoável; vale considerar antes de stack mesh complexa.
+
+**Endpoint Policies — controle granular:**
+- VPC Endpoint pode ter policy IAM-like restringindo o que você acessa via aquela rota.
+- Pattern: bucket S3 só acessível via PrivateLink + bucket policy reforça (defesa em profundidade).
+
+**Custos típicos de networking esquecidos:**
+- **NAT Gateway egress**: linha mais cara em fatura de muitos times. ~$0.045/GB. 1TB/mês = $45 só em egress.
+- **AZ-cross traffic**: $0.01/GB ao mover entre AZs. ALB → target em outra AZ. Multi-AZ RDS replicação.
+- **Region-cross**: $0.02-0.09/GB. Cuidado com cross-region replication automática sem necessidade.
+
 ### 2.4 EC2
 
 VMs. Tipos:
@@ -258,6 +300,80 @@ Em orgs sérias:
 - Accounts por env (dev, staging, prod) e/ou por team.
 
 **SSO** (Identity Center) federa users em todas contas com roles específicas.
+
+### 2.19 FinOps e cost engineering
+
+Pleno conhece "monitorar fatura". Senior pratica **FinOps** — disciplina de unit economics em cloud. Em 2025-2026 virou skill obrigatória pra quem opera infra.
+
+**Conceitos centrais:**
+- **Unit cost**: $ por unidade de business (per request, per active user, per GB processed). Métrica que importa, não fatura absoluta.
+- **Cost allocation tags**: tag tudo (`team`, `service`, `env`). AWS Cost Explorer + tags = breakdown real. Sem tags, fatura é black box.
+- **Budgets + alerts** (AWS Budgets): alarmes em $X% do mês esperado. Catch surge antes do CFO catch.
+- **Reserved Instances vs Savings Plans**: SP é mais flexível (cobre EC2/Fargate/Lambda em qualquer região). 1-year ou 3-year, no/partial/all upfront. Tipicamente 30-60% off on-demand.
+- **Spot**: instâncias interruptíveis, ~70-90% off. Use pra workloads tolerantes (batch, CI, stateless web com graceful drain).
+
+**Padrões de waste em produção:**
+- **Idle resources**: NAT GW idle, RDS dev rodando full-time, EBS volumes detached, snapshots órfãos.
+- **Over-provisioning**: CPU usado < 20% mas instância dimensionada pro pico. RightSize via CloudWatch ou Compute Optimizer.
+- **Cross-AZ traffic gratuito assumido**: $0.01/GB. Multi-AZ RDS replication, ALB → target em AZ diferente.
+- **Egress sem PrivateLink**: dados saindo via NAT vs VPC endpoint.
+- **Logs over-retentioned**: CloudWatch Logs $0.50/GB ingest + storage. Tiered: hot 1 dia, S3 30 dias, Glacier após.
+
+**Tools de FinOps:**
+- **AWS Cost Explorer** (built-in): breakdowns, forecasts, recommendations.
+- **AWS Compute Optimizer**: rightsizing automático.
+- **CUR (Cost and Usage Reports)**: dump completo em S3, query via Athena.
+- **Vantage, Cloudability, CloudHealth, ProsperOps**: third-party dashboards.
+- **OpenCost** (CNCF): K8s-aware cost allocation.
+
+**Métricas de programa de FinOps:**
+- Cloud spend / revenue ratio (ideal < 10% pra SaaS, < 30% pra AI startup).
+- Reserved coverage % (target > 70% em compute estável).
+- Spot adoption % em workloads compatíveis.
+- Idle resource $ recovered/quarter.
+
+**Padrão pragmático:**
+1. Tag everything em IaC desde o dia 1 (Terraform default tags).
+2. Setup Budgets em $50% e $80% do esperado por month.
+3. Monthly cost review (1h/mês): top 5 services, top 5 growth, anomalies.
+4. Quarterly: Compute Optimizer recommendations + Reserved/Savings refresh.
+
+### 2.20 Sustainability (Green software)
+
+Em 2025-2026 virou signal de maturidade técnica em diversos contextos (consumer-facing brands, EU GDPR + sustainability reporting, talent attraction). Não é só "marketing" — tem decisões técnicas reais.
+
+**Princípios (Green Software Foundation):**
+- **Carbon efficiency**: minimizar emissões por unit work.
+- **Energy efficiency**: minimizar energia consumida.
+- **Carbon awareness**: rodar quando grid está mais limpo.
+- **Hardware efficiency**: aproveitar hardware existente (cloud > underutilized on-prem).
+
+**Métricas:**
+- **gCO₂eq/request** (gramas CO2 equivalente por request).
+- **gCO₂eq/user-month**.
+- **PUE** (Power Usage Effectiveness) do data center.
+
+**Decisões técnicas com impact:**
+- **Region choice**: AWS us-west-2 (Oregon, hydropower-heavy) emite ~10x menos CO2 que us-east-1 (Virginia, gas-heavy). Mesmo workload.
+- **Time-shifting**: jobs batch quando grid é renovável (Cloud Carbon Footprint API mostra forecast).
+- **Right-sizing**: instance idle = energia desperdiçada. FinOps e sustainability se sobrepõem 80%.
+- **Static site / cache**: page renderizado 1x e servido N vezes via CDN consume ~100x menos que SSR per request.
+- **Image/asset optimization**: WebP/AVIF reduz transferred bytes (network energy).
+- **Database query efficiency**: query unindexed = N⁰ inéfico = N⁰ joules.
+
+**Tools/specs:**
+- **Cloud Carbon Footprint** (open-source): estimativas por cloud.
+- **AWS Customer Carbon Footprint Tool**: built-in console.
+- **GCP Carbon Footprint dashboard**: emissions per project.
+- **Website Carbon Calculator**: gCO2/page load.
+- **Green Software Foundation** (GSF): standards, certificações.
+
+**Como integrar em practice:**
+- **Carbon budget per service**: similar a SLO, mas pra sustentabilidade. Alarme quando ultrapassa.
+- **Sustainability checklist em design review**: caching, region choice, right-sizing default.
+- **PR template item**: "Esta mudança aumenta ou reduz consumo de recurso? Por quê?".
+
+Pra muitos times é prematuro. Pra times em B2C, governance forte, ou EU compliance: já é parte do trabalho.
 
 ---
 

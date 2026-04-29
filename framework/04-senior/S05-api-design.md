@@ -178,13 +178,94 @@ Quando: backend ↔ backend perf-sensitive (microservices). Mobile pode usar.
 
 Padrão moderno: gRPC interno + REST/GraphQL externo.
 
-### 2.13 tRPC
+### 2.13 tRPC e Connect-RPC — type-safe sem schema
 
-TS end-to-end type-safe. Already covered. Recap:
-- Pros: 0 schema duplication; refactor seguro.
-- Cons: TS-only; sem cache HTTP; pública é ruim.
+Duas alternativas modernas a REST/gRPC quando você controla cliente e servidor.
 
-Em monorepo TS de tamanho médio, tRPC é game-changer.
+**tRPC (TS-only)**
+
+Define procedures em TS, infere tipos no client por type-level magic. Sem code generation, sem schema separado.
+
+```ts
+// server
+export const appRouter = router({
+  user: router({
+    byId: publicProcedure
+      .input(z.object({ id: z.string() }))
+      .query(({ input }) => db.user.findUnique({ where: { id: input.id } })),
+    update: protectedProcedure
+      .input(updateSchema)
+      .mutation(({ input, ctx }) => db.user.update({ ... })),
+  }),
+});
+export type AppRouter = typeof appRouter;
+
+// client
+const user = await trpc.user.byId.query({ id: 'abc' });  // tipado!
+```
+
+- Validation runtime via Zod (ou Yup, Valibot).
+- Transport HTTP normal — pode usar batching, links, custom headers.
+- Sem code gen, sem rebuild quando muda schema.
+- Adapters: Next.js, Express, Fastify, Lambda, etc.
+
+**Trade-offs:**
+- **TS-only** literalmente. Cliente não-TS = você reverte pra REST/OpenAPI.
+- **Acoplamento monorepo**: cliente importa `AppRouter` type do server. Não funciona em deploys cross-repo sem ginástica.
+- **Public API ruim**: sem schema externo legível, terceiros não consumem fácil.
+- **Sem caching HTTP automático** — você implementa via React Query / TanStack Query (que tRPC integra).
+
+**Quando vale tRPC:**
+- App full-stack TS (Next.js, Remix) com cliente próprio.
+- Time pequeno, monorepo, iteração rápida.
+- API privada, não exposta externally.
+
+**Connect-RPC (Buf)**
+
+Sucessor moderno de gRPC-Web. Mantém **Protocol Buffers** como schema mas suporta **JSON sobre HTTP/1.1** e **gRPC sobre HTTP/2**, no mesmo endpoint.
+
+```proto
+service UserService {
+  rpc GetUser(GetUserRequest) returns (User);
+}
+```
+
+- Client gerado pode chamar via HTTP normal (debugar com curl) ou gRPC binary (perf).
+- **Cross-language** real: Go, TS, Swift, Python, Java, Rust, C++ — protobuf gera tudo.
+- **`buf` tooling** (Buf Build): linting, breaking-change detection, schema registry, CI integration.
+- **Sem dependência de gRPC runtime pesado** em browser — funciona com `fetch` plain.
+
+```ts
+// client TS gerado
+const client = createPromiseClient(UserService, transport);
+const user = await client.getUser({ id: 'abc' });
+```
+
+**Trade-offs:**
+- Schema separado (.proto). Refactor menos fluido que tRPC.
+- Code gen step. CI precisa rodar `buf generate`.
+- Curva de aprendizado de protobuf — vale o investimento se você vai consumir cross-language.
+
+**Quando vale Connect-RPC:**
+- Multi-language clients (mobile native + web + serviços internos em Go/Java).
+- Você já tem cultura de schema-first.
+- Quer migrar de gRPC tradicional sem perder schema mas ganhar HTTP/JSON debugability.
+- Public API que vai ter vendor SDKs em várias linguagens.
+
+**Comparação rápida:**
+
+| Aspecto | tRPC | Connect-RPC | gRPC clássico | REST + OpenAPI |
+|---|---|---|---|---|
+| Schema | Type-level TS | .proto | .proto | OpenAPI YAML |
+| Cross-language | Não | Sim | Sim | Sim |
+| Code gen | Não | Sim | Sim | Opcional |
+| HTTP/JSON debug | Sim | Sim | Não (binary) | Sim |
+| Setup overhead | Mínimo | Médio | Alto | Médio |
+| Refactor velocity | Excelente | Bom | OK | Manual |
+| Public API | Ruim | OK | Ruim (binary) | Excelente |
+| Browser support | Nativo | Nativo (Connect-Web) | gRPC-Web (envoy proxy) | Nativo |
+
+**Em monorepo TS médio, tRPC é game-changer.** Em sistema multi-language ou API pública, Connect-RPC é o moderno; gRPC clássico ainda vence em latency-extreme.
 
 ### 2.14 JSON:API spec
 

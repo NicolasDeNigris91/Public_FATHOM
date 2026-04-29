@@ -126,13 +126,61 @@ Hooks dependem de **ordem de chamada estável**. Internamente, React mantém uma
 
 `useSyncExternalStore` — para integrar stores externos (Redux, Zustand) com Concurrent Mode corretamente.
 
-### 2.7 Compiler (React Compiler)
+### 2.7 Compiler (React Compiler) — deep
 
-React Compiler (oficial em RC desde 2024-2025, GA em 2026) automatiza memoization. Ele analisa seu código e injeta o equivalente a `useMemo`/`useCallback` onde apropriado, sem você precisar.
+React Compiler (RC 2024, GA 2025-2026) automatiza memoization estática. Vale entender o **modelo mental** novo porque muda profundamente como você escreve componentes.
 
-Implicação prática: em código compilado, `React.memo`, `useMemo`, `useCallback` viram redundantes na maior parte dos casos. Você ainda escreve hooks como antes; compiler otimiza.
+**O que ele faz:**
+- Analisa cada função/componente como **black box puro** (rules of React).
+- Detecta dependências reais via análise estática (sem runtime overhead extra de `useMemo` chains).
+- Insere caches de valores derivados e closures **automaticamente**, em build time.
+- Output é JS normal — não é runtime; é transformação.
 
-Não é mágico — depende do código seguir as **rules of React** (não mutar props, não usar refs durante render, etc.). Code lint (`eslint-plugin-react-compiler`) avisa.
+**Antes do compiler:**
+```tsx
+const Card = memo(function Card({ user, onSelect }) {
+  const fullName = useMemo(() => `${user.first} ${user.last}`, [user.first, user.last]);
+  const handleClick = useCallback(() => onSelect(user.id), [onSelect, user.id]);
+  return <button onClick={handleClick}>{fullName}</button>;
+});
+```
+
+**Com compiler:**
+```tsx
+function Card({ user, onSelect }) {
+  const fullName = `${user.first} ${user.last}`;
+  return <button onClick={() => onSelect(user.id)}>{fullName}</button>;
+}
+```
+
+Compiler detecta que `fullName` depende só de `user.first/.last`, que `onClick` depende de `onSelect/user.id`, e gera memoization equivalente. **Sem React.memo, sem useMemo, sem useCallback.** O código fica como você escreveria sem otimização — performance vem grátis.
+
+**Rules of React (compiler-friendly):**
+- Componentes/hooks são **idempotentes** dado mesmas props/state.
+- **Sem mutação de props/state durante render**. Spread + retorno novo, sempre.
+- **Sem chamada de hooks condicional** (a regra antiga vale igual).
+- **Refs lidas/setadas em event handlers ou effects, nunca durante render**.
+- **Props/state tratados como imutáveis**.
+
+`eslint-plugin-react-compiler` (build-time) avisa quando código viola e o compiler vai pular esse arquivo (bail-out).
+
+**Bail-out behavior:**
+- Compiler decide **per-component** se compila. Se viola regras, pula esse componente — código segue funcionando, só sem otimização.
+- DevTools mostra ✨ "compiled" badge nos otimizados (em React 19+).
+
+**Migrações práticas:**
+- **Não rip out `useMemo` em massa**. Compiler é resiliente — manter useMemos antigos não quebra.
+- **Remova primeiro o `React.memo` redundante** depois de auditar — compiler memoiza componentes shallow-equal-prop automaticamente.
+- **Lints novos**: `react-compiler/cannot-be-compiled` flagsa razão exata da bail-out.
+
+**Quando ainda escrever useMemo manualmente:**
+- Computação **muito** cara (parsing de mil linhas de JSON) onde você quer garantia de cache via referência shallow comparada.
+- Identidade referencial **necessária** pra deps de hook downstream que **não** está sendo compilado (lib externa, custom hook bail-out).
+- A maioria dos casos: **deixe o compiler decidir**.
+
+**O que muda em interview/review:**
+- Pergunta clássica "useMemo vs useCallback, quando usar?" passa a ser "como compiler decide quando memoizar; quando você ainda precisa intervir manualmente?".
+- Code review: ver `useMemo`/`useCallback` em código novo é sinal de "não confia no compiler" — questione, não copie.
 
 ### 2.8 Suspense e streaming
 

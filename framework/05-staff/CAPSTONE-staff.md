@@ -34,6 +34,7 @@ Tracks recomendados:
 - **D. Data / ML Engineer**: pipelines, feature stores, RAG/LLM. ST02 RAG capstone + S13 streaming + model serving.
 - **E. Security Engineer**: AppSec, crypto, threat modeling. N12 base + P08 + S11 web3 + secure design reviews.
 - **F. Founding / Product Engineer**: range generalist + business sense. S16 unit economics + ST03 org + ST05 public output.
+- **G. AI Infrastructure Engineer**: GPU clusters, inference servers, training pipelines, evals, vector DBs em prod. S10 + ST02 + custom infra.
 
 Pick 1. O capstone produz portfolio e promo case alinhados.
 
@@ -157,6 +158,40 @@ Output:
 - Talk em founder-engineering oriented event.
 - Possibly small product launched (Plasmic-style).
 
+### 2.11 Track G — AI Infrastructure Engineer
+
+Categoria que explodiu em 2024-2026. Diferente de "ML engineer" tradicional (treinar modelos) ou "AI app dev" (consume API): **infraestrutura que serve modelos em escala** — GPU clusters, inference servers, training pipelines, vector DBs em prod, evals em CI.
+
+Output:
+- **Inference cluster próprio** (toy ou real): vLLM ou TGI servindo modelo open-weight (Llama 3, Mistral) com batch dynamic, KV cache. Mede tokens/sec, p99 latency, GPU utilization.
+- **Training pipeline pequeno**: fine-tune LoRA num modelo base sobre dataset curado. Track via Weights & Biases ou MLflow. Documenta loss curves, eval metrics, decisions.
+- **Vector DB em produção**: pgvector ou Qdrant servindo RAG real (continuação do ST02). Embedding strategy documentada, recall metrics, cost/QPS analysis.
+- **Eval framework**: golden dataset + LLM-as-judge + A/B em produção. Report comparando 3+ modelos em metric específico do seu domínio.
+- **GPU cost optimization case study**: análise de spot vs on-demand, batch vs streaming, caching de KV, quantization (INT8/FP8). Antes vs depois com números.
+- **Observability LLM**: tracing de prompts, token usage tracking, cost-per-customer, drift detection.
+- **Blog series MLOps**: 4-6 posts sobre challenges reais. "Why we moved from OpenAI to self-hosted Llama" tipo de artigo.
+- **Talk em Ray Summit, MLOps Community, AI Engineer Summit**.
+
+Stack típico:
+- **Serving**: vLLM, TGI (HuggingFace), TensorRT-LLM, Triton.
+- **Training**: PyTorch, JAX, Lightning. Distributed: DeepSpeed, FSDP.
+- **Vector DB**: pgvector, Qdrant, Pinecone, Weaviate, Milvus.
+- **Orchestration**: Ray, Kubeflow, Argo Workflows.
+- **Monitoring**: Langfuse, Helicone, Phoenix, Arize.
+- **Hardware**: NVIDIA H100/H200, AMD MI300, Google TPU v5. Cloud: AWS p5/p6, GCP A3, Lambda Labs, RunPod, Modal.
+
+Companies: OpenAI, Anthropic, Mistral, Together, Replicate, Modal, Hugging Face, Databricks, NVIDIA, Cohere, AI startups Series A-C.
+
+**Quando faz sentido escolher Track G:**
+- Você tem genuíno interesse em GPU programming, distributed training, ou modelo internals.
+- Mercado tá pagando muito (TC tier-1 em AI Infra > Distributed Systems generic em 2026).
+- Você acompanhou S10 de perto e quer ir mais fundo do que só consumir APIs.
+
+**Trade-offs honestos:**
+- Stack mexe rápido. Investimento em vLLM 2024 vale 70% em 2026. Re-investment continuous.
+- GPU é caro. Side projects sérios = $500-2000/mês em compute. Lambda Labs ou Modal pra burst são alternativas.
+- Comunidade ainda fragmentada. Conferences sérias (NeurIPS, ICLR) viraram MLOps/Infra-friendly recente.
+
 Companies: YC startups Series A-B, founding engineer roles, Plasmic, Replit, Linear.
 
 ### 2.11 Cross-track core
@@ -228,7 +263,7 @@ Você precisa, sem consultar:
 
 - Justificar specialization vs generalist trajectory pra você.
 - Listar componentes de promo case.
-- Diferenciar 6 tracks listados em §2.5-§2.10.
+- Diferenciar 7 tracks listados em §2.5-§2.11.
 - Identificar gap pessoal vs Staff target.
 - Aplicar calibration via levels.fyi e job descriptions.
 - Estruturar portfolio público.

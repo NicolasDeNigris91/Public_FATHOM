@@ -49,8 +49,56 @@ Audience secondary; clarity primary.
 - **Book / e-book**: long-form único.
 - **Course / video**: tutorial pago ou free.
 - **Podcast**: host, guest, ou episodic.
+- **YouTube técnico**: deep dives em vídeo (próxima seção).
 
 Pick 1-2 onde você é mais natural. Não tudo.
+
+### 2.2.1 YouTube e podcast — médium escalável de 2025+
+
+Em 2025-2026, vídeo e podcast são **canais mais escaláveis** que blog pra Senior+ visibility. Razões objetivas:
+
+- **Algorithmo do YouTube/Spotify** distribui pra audiência sem precisar SEO. Blog precisa Google ranking ou Hacker News luck.
+- **Voz e cara** criam conexão pessoal que texto não cria. Recruiter "sente" você no vídeo, não no blog.
+- **Tempo de retenção** mais alto: viewer fica 10-15 min num vídeo bem feito; reader fica 2-3 min num blog post.
+- **Sponsorship potential** real (vs blog onde conversões são raras).
+- **Pessoas referência em 2025-2026** (Theo, Primeagen, Fireship, Dave's Garage, Jonas Schmedtmann) cresceram via YouTube. Texto é memo institucional; vídeo é alcance.
+
+**Tipos de vídeo técnico que funcionam:**
+
+| Formato | Esforço | Audiência | Exemplo |
+|---|---|---|---|
+| **Code-along (live coding)** | Médio | Devs aprendendo stack | Theo, Primeagen |
+| **Architecture deep dive** | Alto | Senior+ pensando design | ByteByteGo, ThePrimeagen vs Theo discussions |
+| **Reaction / commentary** | Baixo | Devs medio | Theo, Primeagen reagindo a posts |
+| **Tutorial focado** | Alto | Devs aprendendo X | Fireship (curtos), Web Dev Simplified |
+| **Career advice** | Médio | Devs em transição | Joshua Fluke, Continuous Delivery |
+| **Conference talk recording** | Alto (talk + edição) | Senior buscando depth | Strange Loop, GOTO talks |
+
+**Setup mínimo viável:**
+- **Microfone**: Rode NT-USB Mini ou Shure MV7. ~$100-250. Áudio é mais importante que vídeo.
+- **Câmera**: webcam 1080p decente, ou DSLR. Não precisa 4K.
+- **Software**: OBS Studio (free) pra recording, DaVinci Resolve (free) pra edit. Premiere ou Final Cut depois.
+- **Ambiente**: light decente (janela ou ring light), bg quieto, fundo organizado.
+
+**Cadência realista (combinando com day job):**
+- **1 vídeo/mês** estilo deep dive (5-10h prep + 5-10h edit).
+- **1 short/semana** (1-3 min) — extracted de live coding ou observation.
+- **1 podcast appearance/mês** (entrevista em outros podcasts) — reach sem produção própria.
+
+**Quando NÃO investir em vídeo:**
+- Você não gosta de aparecer em câmera. Faking não funciona — viewer detecta.
+- Sua especialização é hyper-niche e audiência ínfima (specific compiler internals). Blog vence.
+- Você não tem 10-20h/mês sustentável. Cadência irregular mata canal.
+
+**Podcast pure-audio:**
+- Mais barato setup (só mic + software).
+- Reach menor que YouTube em geral, mas audiência mais qualificada (devs ouvindo no carro/gym).
+- Modelo de **interview podcast** funciona bem: você convida pessoas mais notórias que você → emprestado de notoriedade + content.
+
+**Veredicto pragmático:**
+- **Stage 5 capstone** vale 1 talk gravada em conf. Subir pra YouTube depois é trivial.
+- Se você gosta de aparecer e tem 10h/mês: comece com **1 deep dive/mês** + cross-posta blog. ~12 vídeos em 1 ano = canal real.
+- Se você não gosta de câmera: **podcast como guest** em outros canais (ex: Software Engineering Daily, Pragmatic Engineer) é alta-alavancagem sem produção própria.
 
 ### 2.3 Cadence sustentável
 

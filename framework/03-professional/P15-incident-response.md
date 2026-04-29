@@ -143,13 +143,67 @@ Pra cada alerta, runbook acompanha. Conteúdo:
 
 Runbook desatualizado é pior que ausência (engana). Test em game days.
 
-### 2.11 Game days e chaos engineering
+### 2.11 Game days e chaos engineering — deep
 
-**Game day**: simulação. Time se reúne, alguém quebra algo intencionalmente em staging (ou prod com cuidado), time pratica detection/mitigation.
+**Game day**: simulação coordenada. Time se reúne, alguém quebra algo intencionalmente em staging (ou prod com cuidado), time pratica detection/mitigation.
 
-**Chaos engineering** (Netflix): chaos automatizado em prod. Chaos Monkey kills instances aleatoriamente; Latency Monkey injeta delay. Builds confidence via prática.
+**Chaos engineering** (Netflix, Principles of Chaos Engineering, principlesofchaos.org): hipótese → experimentar → observar → corrigir. Disciplina, não vandalismo.
 
-Disciplina: hipótese → experimentar → observar → corrigir.
+**Princípios canônicos:**
+1. Defina o **steady state** (RED metrics OK, error rate < threshold).
+2. Hipótese: "system continua em steady state quando X falha".
+3. Inject falha controlada (escopo, blast radius limitado, abort condition definido).
+4. Observe se hipótese se mantém. Se não, fix.
+
+**Tooling em produção (2026):**
+
+| Tool | Modelo | Onde brilha | Pegadinha |
+|---|---|---|---|
+| **LitmusChaos** (CNCF) | K8s-native, CRDs declarativos | Cloud-native stack, GitOps-friendly | Curve de aprendizado em CRDs |
+| **Chaos Mesh** (CNCF, PingCAP) | K8s CRDs + dashboard | UX bom, comunidade ativa | K8s-only |
+| **Gremlin** | SaaS, agent-based | Enterprise, reporting executivo | Pago, agent footprint |
+| **AWS Fault Injection Service (FIS)** | AWS-native | Stack AWS, integra IAM/CloudWatch | Apenas AWS |
+| **Azure Chaos Studio** | Azure-native | Stack Azure | Apenas Azure |
+| **toxiproxy** (Shopify) | TCP proxy entre serviços | Network failures (latency, drop, partition) — local dev e staging | Não cobre process kill |
+| **Chaos Monkey** (legacy Netflix) | Random instance termination | Histórico, ainda usado por times maduros | Cobre só 1 dimensão |
+| **Pumba** | Docker-native | Local dev, CI | Container-only |
+| **PowerfulSeal** | K8s | Random pod kill com policies | Manutenção light |
+
+**Tipos de injeção comuns:**
+- **Process/pod kill** — testa redundância, restart logic.
+- **Network latency** — testa timeouts, circuit breakers.
+- **Network partition** — testa split-brain handling em quorum systems.
+- **Packet drop / corruption** — testa retry e checksums.
+- **CPU/memory stress** — testa autoscaling, throttling.
+- **Disk full / I/O slowdown** — testa logging behavior, fallbacks.
+- **DNS failure** — surpreendentemente comum em prod, raramente testado.
+- **Clock skew** — testa systems sensíveis a tempo (token expiration, distributed locks com TTL).
+- **Time-of-day failure** (artificial peak load).
+
+**Pre-requisitos pra chaos engineering valer:**
+- **Observability sólida**: sem RED + USE não dá pra detectar abort condition. Faça P07 antes.
+- **Alerting funcional**: senão você fura SLO sem perceber em ambiente de teste.
+- **Runbooks por feature**: chaos vai expor cenários documentados ou não.
+- **Stakeholder buy-in**: chaos em prod sem comms é hostil.
+
+**Steady-state metrics típicos:**
+- Error rate < 0.1%
+- p99 latency < 200ms
+- Throughput entre 80-120% do baseline
+- 0 alertas críticos
+
+**Anti-patterns:**
+- Chaos em prod sem **abort condition** automático (auto-rollback).
+- Chaos sem **on-call notificado** — gera incidente real.
+- Chaos só em staging — não captura coisas que **só acontecem em prod scale** (DNS quirks, CDN cache states, load balancer states).
+- "Chaos engineering" como blame deflector ("a falha foi do experimento, não do design").
+- Single experiment, single time. Disciplina é **continuous chaos** — toolings de cima rodam programados.
+
+**Maturity ladder:**
+1. **Game days manuais** em staging. Time pratica processo.
+2. **Game days em prod** com escopo limitado (1 service, off-peak).
+3. **Chaos automatizado em staging** (CI ou scheduled).
+4. **Chaos automatizado em prod** com abort/blast radius. Netflix-tier.
 
 ### 2.12 Disaster Recovery (DR)
 

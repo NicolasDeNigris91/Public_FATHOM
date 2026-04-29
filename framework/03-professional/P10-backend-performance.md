@@ -218,6 +218,66 @@ Pra Logística: cold start não é crítico em web traffic constante. Em endpoin
 - Aggregation: pre-compute em scheduled job; cache.
 - Listing endpoint: cursor pagination em vez de offset.
 
+### 2.19 Performance em outros runtimes — JVM, .NET, Go
+
+Node é coberto acima. Se você opera stack mixed ou migra de Node, vale entender perf characteristics dos runtimes vizinhos.
+
+**JVM (Java/Kotlin/Scala)**
+
+- **JIT tiers**: HotSpot tem **C1** (compilação rápida, código OK) → **C2** (compilação cara, código ótimo). Tiered compilation é default. Métodos hot atingem C2; cold ficam em interpreted ou C1.
+- **Warmup**: app JVM é lento nos primeiros segundos/minutos até JIT estabilizar. Em microservice serverless, pode ser problemático. Mitigação: AOT compilation (`-XX:+TieredCompilation` + warmup tests, ou **GraalVM Native Image** pra binário sem JVM).
+- **GCs disponíveis**:
+  - **G1GC** (default desde Java 9): generational, low-pause target ~200ms. Bom default.
+  - **ZGC** (Java 15+): pause-less concurrent collector. Pause < 1ms até heaps de TBs. Custo: ~10% throughput. Vence em apps latency-critical.
+  - **Shenandoah**: similar ZGC, projeto RH. Pra workloads parecidos.
+  - **Parallel GC**: throughput máximo, pause longa. Bom pra batch.
+  - **Epsilon**: no-op GC. Só use em workloads finitos sabidos.
+- **Tuning crítico**: heap size (`-Xmx`), GC algoritmo, `-XX:MaxGCPauseMillis`, region size em G1. **JFR** (Java Flight Recorder) + **Mission Control** ou **Async Profiler** pra investigação.
+- **Virtual threads (Project Loom, Java 21+)**: thread-per-request real fica viável de novo. Substitui muito código reactive (Reactor, RxJava). Em apps I/O-bound, ganho de simplicidade enorme. CPU-bound não muda.
+
+**.NET (C#)**
+
+- **JIT tiers**: similar JVM. **Tier 0** (rápido, sem otimização) → **Tier 1** (otimizado). **ReadyToRun (R2R)** pré-compila bibliotecas comuns pra reduzir startup.
+- **AOT** via `dotnet publish -p:PublishAot=true` em .NET 8+. Single binary, startup instantâneo. Compatível com subset de APIs.
+- **GC**: **Server GC** (multithreaded, default em ASP.NET) vs **Workstation GC** (single, default desktop). Configurável via `<ServerGarbageCollection>true</ServerGarbageCollection>`. **Background GC** reduz pausas.
+- **Span<T>, Memory<T>**: zero-copy primitives. `ArrayPool<T>.Shared.Rent()` pra reduzir alloc em hot path. Idiomático em código perf-sensitive.
+- **Profilers**: **dotTrace** (JetBrains), **PerfView** (MS), **dotnet-trace** + **dotnet-counters** (CLI built-in).
+- **BenchmarkDotNet**: padrão pra microbenchmarks corretos (warmup, JIT, GC isolation).
+- **.NET 8/9 (2024-2025)**: improvements significativos em ASP.NET hot path, Native AOT viável pra muito código.
+
+**Go**
+
+- **Sem JIT**: tudo AOT. Startup instantâneo. Trade-off: sem PGO clássica, mas Go 1.21+ suporta profile-guided optimization simples.
+- **GC**: garbage collector concurrent, low-pause (target <1ms desde 1.5). **GOGC** controla threshold (100 = padrão; 200 = menos GC, mais memória). **GOMEMLIMIT** (1.19+) limita heap total.
+- **Goroutines**: M:N scheduler. Lightweight (~2-8KB stack inicial, cresce). 100k goroutines em produção é normal.
+- **Escape analysis**: stack vs heap decidido em compile time. `go build -gcflags='-m'` mostra decisões. Otimização: evitar variáveis que escapam pro heap em hot path.
+- **Profilers**: `go tool pprof` (CPU, heap, goroutine, block, mutex). **continuous profiling** com Pyroscope/Parca.
+- **`-race`** detector em CI: detecta data races, custo de runtime ~5-10x mas pega bugs caros.
+- **Performance idioms**:
+  - `sync.Pool` pra objetos reusáveis (reduz GC pressure).
+  - Pre-allocate slices com capacity (`make([]T, 0, expectedLen)`).
+  - Avoid `interface{}` em hot path (causa boxing).
+  - `bytes.Buffer` em vez de string concatenação.
+
+**Comparação cross-runtime (typical web service workload):**
+
+| Runtime | Cold start | Steady-state throughput | Memory overhead | Latency p99 ajustado |
+|---|---|---|---|---|
+| Go | <100ms | Alto | Baixo (~30-100MB) | Excelente |
+| .NET 8+ AOT | <100ms | Alto | Médio | Muito bom |
+| .NET JIT | 1-3s | Alto | Médio | Bom (após warmup) |
+| Java GraalVM Native | <100ms | Médio-alto | Baixo | Bom |
+| Java JVM (HotSpot) | 5-15s | Alto | Alto (~200MB+) | Bom (após warmup) |
+| Node | 50-200ms | Médio (single-thread) | Baixo | Bom (ev loop) |
+| Bun | 5-20ms | Médio-alto | Baixo | Bom |
+| Python | 100-500ms | Baixo (GIL) | Médio | Mediano |
+
+**Heurísticas pragmáticas:**
+- **Latência tail (p99/p999) crítica**: Go ou .NET AOT ou Java/ZGC.
+- **Throughput máximo CPU-bound**: Go, Java JVM tunada, ou Rust (out of scope aqui).
+- **Time onboarding rápido + ecossistema rico**: Node ou .NET. JS é universal; .NET tem stdlib enorme.
+- **Cold start importa (serverless)**: Bun, Go, .NET AOT. Nunca JVM.
+
 ---
 
 ## 3. Threshold de Maestria

@@ -198,11 +198,59 @@ WebSocket bruto é at-most-once. Protocols sobre (graphql-ws, custom) podem impl
 
 Pra notificações user-facing simples, at-most-once geralmente ok. Pra ações críticas (pagamento), use HTTP + idempotency, não WS.
 
-### 2.14 WebTransport
+### 2.14 WebTransport — deep
 
-Sobre HTTP/3/QUIC. Permite múltiplos streams (independent ordering), datagrams (UDP-like), bidirectional. Substituirá WebSocket em casos onde streams múltiplos importam.
+Sobre HTTP/3 / QUIC (N03 §2.6.1). Em 2025-2026 saiu de "experimental" pra suportado em Chrome/Edge (default), Firefox (release recente), Safari (em desenvolvimento). Substitui WebSocket em casos onde HOL blocking importa ou onde você precisa datagram unreliable.
 
-Em 2026: suportado em Chromium-based browsers (Chrome, Edge), Safari adicionando, Firefox em progresso. Use case: real-time games, live media. Em apps comuns ainda WS é suficiente.
+**Modelo mental:**
+- WebTransport = **conexão QUIC** exposta no browser.
+- Por conexão você abre **N streams** + **datagram channel**.
+- Cada stream é independente — perda em um não afeta outros (sem TCP HOL blocking).
+
+**API client (browser):**
+```ts
+const wt = new WebTransport('https://example.com/realtime');
+await wt.ready;
+
+// Stream bidirecional ordered & reliable (TCP-like dentro de QUIC)
+const stream = await wt.createBidirectionalStream();
+const writer = stream.writable.getWriter();
+await writer.write(new TextEncoder().encode('hello'));
+
+// Stream unidirecional do servidor → cliente
+for await (const stream of wt.incomingUnidirectionalStreams) { /* ... */ }
+
+// Datagrams: unreliable, unordered, message-sized (UDP-like)
+const dgWriter = wt.datagrams.writable.getWriter();
+await dgWriter.write(new Uint8Array([1, 2, 3]));
+```
+
+**Quando usar WebTransport sobre WebSocket:**
+
+| Caso | WebSocket | WebTransport |
+|---|---|---|
+| Chat/notificações | Suficiente | Overkill |
+| Game state sync (latency-critical) | TCP HOL blocking dói | Streams independentes ganham |
+| Live video/audio (realtime) | Frequência alta + lossy OK | Datagrams unreliable matam latency |
+| Telemetria de sensors | Cada métrica em stream próprio | Streams + datagrams ideal |
+| Browser → Browser (P2P) | WebRTC já cobre | WebRTC ainda é melhor |
+
+**Server-side em 2026:**
+- **Node**: `@fails-components/webtransport` (binding pra `lsquic` em C). Maturidade média.
+- **Rust**: `wtransport` ou `quiche`. Maduro.
+- **Go**: `quic-go/webtransport-go`. Sólido em produção.
+- **Servidores HTTP/3**: nginx 1.25+, Caddy 2.7+, Cloudflare Workers (Durable Objects WebSocket por enquanto, WT em roadmap).
+
+**Pegadinhas reais:**
+- **TLS 1.3 obrigatório** + **QUIC** = nem sempre passa em redes corporativas com firewalls UDP-blocking. Tenha fallback pra WebSocket.
+- **CORS-like origin checking** — server precisa validar origin do client.
+- **Stateful proxies/CDN**: muitos CDNs ainda não passam WebTransport em 2026. Cloudflare e Fastly sim, outros não.
+- **Reconnect**: ao contrário de WebSocket que tem semantics simples (connection drop = reopen), WebTransport tem reconnect por stream + connection migration QUIC. Lib client geralmente abstrai.
+
+**Veredicto:**
+- **App genérico de chat/notificação em 2026**: WebSocket continua sendo o pragmático. Maturidade total, suporte universal.
+- **Game multiplayer, live editor colaborativo, vídeo realtime, telemetry**: vale WebTransport. Resolve dores reais de WebSocket.
+- **Edge functions / serverless**: WebSocket via Durable Objects (Cloudflare) ou similar; WebTransport em edge ainda nascente.
 
 ### 2.15 Edge runtime e WebSocket
 

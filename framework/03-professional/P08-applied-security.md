@@ -187,6 +187,71 @@ Em pipeline: SAST barato em PR, DAST nightly.
 
 Compliance acelera com infra que já incorpora controls (audit log, encryption at rest, RBAC, logs imutáveis).
 
+### 2.17.1 Privacy engineering — disciplina, não compliance checklist
+
+GDPR/LGPD aparecem como compliance ("o que jurídico exige"). Privacy engineering é diferente: **discipline de design** que coloca privacy como restrição técnica primária, não atenuação posterior.
+
+**Princípios técnicos (não legais):**
+- **Privacy by design** (Cavoukian, 2009): privacy é default, end-to-end, não trade-off.
+- **Data minimization**: colete só o que precisa. Cada campo PII tem custo (storage, breach impact, compliance overhead).
+- **Purpose limitation**: dado coletado pra X não migra pra Y sem consent novo.
+- **Storage limitation**: TTL em dado pessoal. Logs, eventos, sessões — todos com expiry.
+- **Pseudonymization**: substitui PII por token reversível (mantido em vault separado). Eventos podem usar tokens.
+- **Anonymization**: irreversível (k-anonymity, differential privacy). Aceitável pra analytics.
+
+**Patterns técnicos:**
+
+**Tokenization de PII:**
+- Vault separado (Vault, AWS KMS+DynamoDB) guarda mapping `token ↔ value`.
+- App principal e logs usam só tokens. Breach do app principal não vaza PII.
+- Vault tem audit log + access controls extra-rigorosos.
+
+**Field-level encryption:**
+- DB tem campo `email_encrypted` (não `email`). Decryption só em código que precisa exibir.
+- Postgres `pgcrypto` ou app-level com KMS.
+- Trade-off: search direto fica impossível (use deterministic encryption ou hash separado pra search).
+
+**Right to be forgotten (LGPD/GDPR Art. 17):**
+- Não é só `DELETE FROM users`. É:
+  - Anonymize PII em event log e materialized data (analytics, replicas, backups).
+  - Drop ou re-anonymize backup snapshots dentro de janela legal.
+  - Notify processors downstream (third-party APIs onde dado foi compartilhado).
+- Técnica comum: **soft anonymization** mantém row pra integridade referencial mas substitui campos PII por hash determinístico (`hash(salt + user_id)`). Foreign keys continuam válidas, PII vai embora.
+
+**Differential privacy:**
+- Adiciona noise calibrado a queries agregadas pra que individual record não seja inferível.
+- Apple usa em telemetry de iOS. Google em Chrome stats.
+- Lib: Google's `differential-privacy`, OpenDP.
+- Útil pra **publish analytics** sem violar privacy.
+
+**k-anonymity, l-diversity, t-closeness:**
+- k-anonymity: cada row indistinguível de pelo menos k-1 outras em quasi-identifiers.
+- l-diversity: dentro de cada bucket k-anonymized, valores sensíveis variam.
+- t-closeness: distribution dentro de bucket próxima de geral.
+- Aplicação prática: ANTES de share dataset, valide que quasi-identifiers (CEP+idade+gênero) não permitem re-identification.
+
+**Data flow mapping:**
+- Diagrama de **DPIA** (Data Protection Impact Assessment): pra cada PII field, mapeie de onde vem, onde fica, com quem é compartilhado, quanto tempo retém, base legal.
+- Atualize em cada feature nova. Privacy-by-design exige isso seja artifact vivo.
+
+**Patterns de minimização concretos:**
+- Cookies: `Strict-Transport-Security`, `SameSite=Strict`, sem PII em cookie value.
+- IP logging: store hash diário do IP (rotaciona key) em vez de raw IP. Permite analytics, perde re-id de longo prazo.
+- Email: hash determinístico (`SHA256(email + salt)`) em logs de evento. Original só no user record.
+- Address: country/state em analytics, full address só onde shipping precisa.
+
+**Tools de privacy engineering:**
+- **Datafold**, **Bigeye** — data lineage incluindo PII flow.
+- **Privacy Dynamics**, **Skyflow** — vaults de PII.
+- **Transcend**, **OneTrust** — automation de DSARs (Data Subject Access Requests).
+- **Syft** (federated) e **OpenDP** — differential privacy libs.
+
+**Antipatterns comuns:**
+- "Vamos coletar X agora, decidir uso depois." — viola purpose limitation. Coleta sem necessidade é débito legal e técnico.
+- "Logamos full request pra debug" — logs com PII = breach quando logs vazarem.
+- "Anonimizado = `name = 'redacted'`" — quasi-identifiers (CEP+idade+gênero) podem re-id em datasets pequenos.
+- "Backup encrypted = privacy" — backup encrypted ainda contém PII. Right-to-be-forgotten exige tocar backups.
+
 ### 2.18 Incident response
 
 NIST framework:

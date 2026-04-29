@@ -133,10 +133,83 @@ Managed queue service.
 - Ordering global (FIFO é por group, não global).
 - Retention longa (max 14 dias).
 
-### 2.7 Outros
+### 2.7 Outros — Pulsar, Redpanda, NATS JetStream deep
 
-- **Apache Pulsar**: Kafka-like com BookKeeper persistence. Multi-tenant native.
-- **Redpanda**: Kafka-compatible, single-binary, sem JVM.
+Em 2025-2026 esses três viraram alternativas sérias a Kafka pra cenários específicos. Vale conhecer pra escolher consciente.
+
+#### Apache Pulsar
+
+Arquitetura **separada de storage e serving**: brokers stateless, **BookKeeper** (Apache) é o storage layer (segments). Brokers podem cair sem perder dados.
+
+- **Multi-tenancy first-class**: tenants → namespaces → topics. Quotas, isolation, separação real.
+- **Geo-replication built-in**: replicação cross-region como configuração, não DIY.
+- **Tiered storage**: dados antigos vão pra S3/GCS automatically. Reduz custo storage drasticamente.
+- **Functions**: serverless inside Pulsar — process events sem deploy externo (similar a Kafka Streams mas in-process no broker).
+- **Kafka API compatibility**: Pulsar oferece KoP (Kafka-on-Pulsar) — clients Kafka conectam direto.
+
+**Quando vale Pulsar:**
+- Setup multi-tenant pesado (B2B SaaS multi-customer com isolation real).
+- Workload com retenção longa que ficaria caro em Kafka (tiered storage).
+- Times que valorizam separação storage/compute pra elasticidade.
+
+**Trade-off:**
+- Mais peças (brokers + bookies + ZK ou OxiaCoord). Operação mais complexa que Kafka single-component.
+- Comunidade menor; vendor lock-in com StreamNative/DataStax pra hosting maduro.
+
+#### Redpanda
+
+**Kafka-compatible** binary-único em **C++**. Sem JVM, sem ZooKeeper, sem KRaft. Implementação from-scratch do protocolo Kafka.
+
+- **Latência muito menor**: sub-ms p99 vs Kafka ~5-50ms. Atinge 10x throughput em mesmo hardware em vários benchmarks (mantidos pela própria Redpanda — verificar com cuidado, mas tendência é real).
+- **Single binary**: deploy trivial. SystemD service ou container. Sem 50 JVM flags.
+- **Tiered storage** com S3.
+- **Schema Registry compatível** integrado.
+
+**Quando vale Redpanda:**
+- Latência crítica (financial trading, real-time bidding, gaming).
+- Times que adoraram Kafka API mas operam Kafka mal — custo operacional cai.
+- Edge / on-prem com hardware limitado (sem JVM ajuda).
+
+**Trade-off:**
+- Source available license (Business Source License) — não é open source pure. Free pra uso comum, restricted em certos casos comerciais. Ler license.
+- Ecossistema (Kafka Connect, ksqlDB) funciona mas com asterisks. Verificar caso a caso.
+- Vendor (Redpanda Data) é único. Comunidade de contribuição menor que Kafka.
+
+#### NATS JetStream
+
+NATS Core é pub/sub efêmero ultra-rápido. **JetStream** (2021+) adiciona persistence — streams + consumers + retention.
+
+- **Streams**: subject filter, retention policy (limits, work queue, interest-based), replication (RAFT entre N nodes).
+- **Consumers**: durable ou ephemeral, push ou pull, com ack semantics (none, all, explicit).
+- **Subject hierarchy**: `orders.>` consome todo subtree. Padrão poderoso pra event taxonomy.
+- **Geo-replication**: leaf nodes + super-cluster pra topology multi-region nativa.
+- **Key-Value e Object Store** built-in (em cima de streams).
+
+**Quando vale NATS JetStream:**
+- Setup small-to-medium (pra throughput muito alto, Kafka domina).
+- Dev experience prioridade — `nats-server` single binary, CLI excelente, latência sub-ms.
+- Microservices internal communication onde você não precisa retention longa nem replay massivo.
+- Edge / IoT — leaf nodes funcionam disconnected e sync quando reconectam.
+- Serverless — consumir mensagem é HTTP-like simples, não precisa client lib heavy Kafka.
+
+**Trade-off:**
+- Throughput max menor que Kafka tunado (Kafka dedicado top-tier ainda vence em pure ingest >1M msg/s).
+- Ferramental third-party menor. Connect-style integrations existem mas não são tão maduros.
+
+#### Tabela de decisão
+
+| Caso | Escolha 1 | Escolha 2 | Por quê |
+|---|---|---|---|
+| High-throughput pipeline (>500k msg/s sustentado) | Kafka | Redpanda | Ecossistema vs latency |
+| Multi-tenant SaaS B2B com isolation | Pulsar | Kafka + custom | Multi-tenancy nativa |
+| Microservices internos, latency-sensitive | NATS JetStream | Redpanda | Simplicidade / DX |
+| AWS-native, ops zero | SQS / Kinesis | EventBridge | Managed |
+| Event sourcing com long retention barata | Pulsar (tiered) | Kafka + tiered | Tiered storage built-in |
+| IoT/edge | NATS | MQTT brokers | Leaf nodes, footprint baixo |
+| Você já tem time com expertise Kafka | Kafka | Redpanda | Reusar conhecimento |
+
+#### Outros menos comuns
+
 - **Redis Streams** (vimos em A11): light, mas dataset cabe em RAM.
 - **Google Pub/Sub**: managed. Push or pull. Generous limits.
 - **Azure Event Hubs / Service Bus**.

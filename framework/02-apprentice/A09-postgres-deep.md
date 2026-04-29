@@ -161,6 +161,61 @@ Em serverless, sem pooler, cada Lambda invoca conexão nova → conexão storm �
 
 Failover manual ou via tools (Patroni, repmgr, cloud manager). RPO/RTO depende dos SLAs.
 
+### 2.13.1 Logical replication deep — uso real
+
+Streaming replication é simples: réplica é cópia exata. Logical é onde Senior real distingue de Pleno — habilita patterns que streaming não permite.
+
+**Como funciona internamente:**
+1. WAL é decodificado por **logical decoder** num formato lógico (INSERT/UPDATE/DELETE com valores).
+2. **Publication** declara quais tabelas/operações expor: `CREATE PUBLICATION mypub FOR TABLE orders, payments;`
+3. **Subscription** consome no consumidor: `CREATE SUBSCRIPTION mysub CONNECTION '...' PUBLICATION mypub;`
+4. Apply worker no consumer aplica as mudanças.
+
+**Patterns viabilizados:**
+- **Zero-downtime major version upgrade**: Postgres 15 → 17 sem dump/restore. Logical replication mantém réplica nova em sync; cutover é segundos.
+- **CDC pra event bus**: Debezium consome `pgoutput` plugin (logical decoding) e empurra pra Kafka. Base de outbox pattern (S03). Sem dual-write — single source of truth.
+- **Multi-region partial**: réplica regional só com tabelas relevantes. Streaming não consegue (cópia bit-a-bit, all-or-nothing).
+- **Database-per-tenant consolidation**: agregar N DBs lógicas pra um warehouse via subscriptions seletivas.
+
+**Pegadinhas críticas:**
+- **DDL não replica**. `ALTER TABLE` no publisher exige aplicar manualmente no subscriber **antes** do data com a nova schema chegar.
+- **Sequences não replicam**. Em failover lógico, você reseta sequences manualmente. Postgres 16+ pode replicar sequences via opção, mas com ressalvas.
+- **Replication slot lag = WAL retido**. Se subscriber morre e ninguém percebe, slot mantém WAL no disco do publisher e enche o `pg_wal/`. Monitor `pg_replication_slots.confirmed_flush_lsn` SEMPRE.
+- **DELETE/UPDATE de linhas sem REPLICA IDENTITY** (PK ou FULL) silenciosamente quebra. Verifique `relreplident` em todas as tabelas publicadas.
+- **Conflict resolution**: subscriber recebe linha que já existe → erro, replication para. Postgres 16+ tem `subscription disable_on_error`.
+
+**Postgres 17 (set/2024) features novas:**
+- **Failover de logical slots**: réplica streaming preserva logical slots pra failover automatic. Antes era manual.
+- **`pg_createsubscriber`**: converte streaming standby em subscriber de logical replication com 1 comando — mata o gap "preciso ressincar tudo do zero pra mudar pra logical".
+
+### 2.14 Postgres 17/18 — features que mudam o jogo
+
+Postgres ciclo anual; vale acompanhar releases recentes porque mudam patterns operacionais.
+
+**Postgres 17 (set/2024):**
+- **JSON_TABLE (SQL standard)**: query JSON como se fosse tabela relacional. Substitui parsing custom no app.
+  ```sql
+  SELECT * FROM JSON_TABLE(events, '$[*]'
+    COLUMNS (id INT PATH '$.id', user_id INT PATH '$.user'));
+  ```
+- **Incremental backup** via `pg_basebackup --incremental`: backups baseados em WAL summaries em vez de full snapshot. Reduz custo de storage e tempo de backup em DBs grandes (>1TB).
+- **MERGE com RETURNING**: ergonomia em upsert workflows.
+- **Streaming I/O**: read-ahead em sequential scan reduz IOPS em queries OLAP.
+- **Vacuum melhorado**: usa 1/4 da memória com new memory layout (importante pra DBs com muitas tabelas).
+- **Logical replication failover** (acima).
+
+**Postgres 18 (set/2025):**
+- **Skip locked em WITH RECURSIVE** — ergonomia em queues SQL.
+- **OAuth2/OIDC client authentication** built-in.
+- **Optimizações em planner** pra queries com `IN (subquery)` e correlated subqueries.
+- **`pg_stat_io`** mais detalhado (visibilidade fina de operação por tablespace/relation).
+- **Connection pinning melhorado** — facilita session-level pooling em PgBouncer transaction mode.
+
+**Como acompanhar:**
+- Release notes oficiais (`https://www.postgresql.org/docs/current/release.html`) — leia mesmo, são curtos.
+- **Postgres Weekly** newsletter.
+- Posts da Crunchy Data, Cybertec, EDB pra deep dives.
+
 ### 2.14 WAL e checkpoints
 
 **WAL** (Write-Ahead Log) registra cada mudança antes de aplicar. Garante durabilidade e replication.

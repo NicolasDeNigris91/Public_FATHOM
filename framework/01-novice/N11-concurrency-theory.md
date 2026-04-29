@@ -187,6 +187,83 @@ Lock não-contendido custa pouco. Lock contendido custa muito (context switch + 
 
 Concorrência é design; paralelismo é execução. Programa pode ser concorrente sem ser paralelo (Node) ou paralelo sem ser concorrente (cálculo numérico data-parallel).
 
+### 2.17 Modelos de concorrência: CSP, Actors, async/await comparados
+
+Três famílias dominam concorrência aplicada em 2026. Vale entender as diferenças porque escolha errada de modelo destrói código.
+
+**CSP (Communicating Sequential Processes) — Go, Clojure core.async**
+
+Hoare 1978. Processos leves comunicam via **canais síncronos**. Sem estado compartilhado entre goroutines.
+
+```go
+ch := make(chan int)
+go func() { ch <- compute() }()    // sender bloqueia até alguém receber
+result := <-ch                      // receiver bloqueia até alguém mandar
+```
+
+- **Goroutine**: thread userland (~2KB stack inicial, cresce). Runtime do Go scheduule N goroutines em M threads OS.
+- **Canal**: queue tipada com semantics de bloqueio explícitas (sync ou bufferizada).
+- **`select`**: espera múltiplos canais — primitiva de composição.
+
+Trade-offs: trivial pra fan-out/fan-in. Difícil pra estado compartilhado complexo (você acaba reinventando mutex via canais). Race detector do Go (`go run -race`) mitiga, mas não cobre tudo.
+
+**Actor model — Erlang, Elixir, Akka (Scala/Java), Pony**
+
+Hewitt 1973. Actor é **unidade de estado privado** que se comunica via **mensagens assíncronas** num **mailbox**.
+
+```elixir
+spawn(fn ->
+  receive do
+    {:add, x, y, sender} -> send(sender, x + y)
+  end
+end)
+```
+
+- Sem estado compartilhado. Toda comunicação é mensagem.
+- Mailbox isola — actor processa uma mensagem por vez (event loop interno).
+- **"Let it crash"** (Erlang/OTP): actors falham e são re-spawned por supervisor. Tolerância a falhas é first-class.
+- BEAM VM (Erlang) preempção em ~2000 reductions; isolation real entre actors.
+
+Trade-offs: ótimo pra sistemas distribuídos com falhas independentes (WhatsApp em Erlang, Discord em Elixir). Custo: cada interação tem latência de mensagem; sequencing de operações cross-actor exige tracking explícito.
+
+**async/await — Rust, JS/TS, C#, Python, Kotlin coroutines**
+
+Função suspende (`await`) sem bloquear thread. **Stackless** em Rust/C# (compilador transforma em state machine), **stackful** em algumas runtimes (Java virtual threads — Loom).
+
+```rust
+async fn fetch_user(id: u64) -> Result<User, Error> {
+    let resp = client.get(&format!("/u/{id}")).send().await?;
+    Ok(resp.json().await?)
+}
+```
+
+- **Single-threaded run-to-completion** em JS (event loop). **Multi-threaded work-stealing** em Tokio (Rust) — futures podem migrar entre threads, exigindo `Send`.
+- **Cooperative scheduling**: você cede no `await`. Loop quente sem `await` causa starvation.
+- Cancellation propaga via Drop (Rust), `CancellationToken` (.NET), `AbortController` (JS).
+
+Trade-offs: zero-cost em Rust (state machine compilada). Em JS é trivial mas constringido a single-threaded. Java só ganhou virtual threads (Loom, Java 21+) — abriu uso de blocking APIs em alta concorrência sem callback hell.
+
+**Tabela comparativa**
+
+| Aspecto | CSP (Go) | Actors (Erlang) | async/await (Rust/Tokio) |
+|---|---|---|---|
+| Comunicação | Canal tipado | Mensagem em mailbox | Future + shared state ou channels |
+| Isolamento | Convenção | First-class (sem shared) | Convenção (`Send`/`Sync` ajuda) |
+| Falhas | panic propaga | Crash + supervisor | `Result` propagado |
+| Schedule | Runtime-managed (M:N) | BEAM preempção | Cooperativo, runtime escolhe |
+| Estado compartilhado | Possível (mutex) | Não (apenas via msg) | Possível (`Arc<Mutex<_>>`) |
+| Composição | `select` | Pattern match em receive | `join!`, `select!`, `tokio::spawn` |
+| Distribuído | Manual | Native (Erlang distribution) | Manual |
+| Hot reload | Não | Native | Não |
+
+**Quando escolher:**
+- **Latência alta tail / fault-tolerance crítica** (telecom, gaming server, payment routing): Actors.
+- **Pipeline data + workers cooperando localmente** (web server moderno, scrapers): CSP ou async.
+- **CPU-bound + alta concorrência I/O simultânea** (proxies, gateways, servers de baixa latência): async em Rust/Tokio.
+- **Ecossistema JS-only**: async/await + workers quando precisar paralelismo real.
+
+Modelos não são exclusivos: Akka adiciona streams (CSP-like) sobre actors; Tokio tem `tokio::sync::mpsc` (channel CSP-style sobre futures).
+
 ---
 
 ## 3. Threshold de Maestria

@@ -169,9 +169,40 @@ Nunca use timestamp como token. Nunca use sequencial.
 
 Algoritmos viram ruins (MD5, SHA-1, RC4). Sistema deve ser capaz de **trocar** sem rewrite — versionar formato (`v1$argon2id$...`, `v2$...`), suportar múltiplos algorithms em paralelo, ter rotation plan de chaves.
 
-### 2.15 Pós-quântico (overview, S11 conecta)
+### 2.15 Pós-quântico — NIST standards 2024+
 
-Computadores quânticos (Shor's algorithm) quebram RSA e ECC. NIST padronizou primeiros pós-quânticos (Kyber pra KEM, Dilithium pra signature, 2024). Em 5-15 anos, migração começa em sistemas críticos. Não é prioridade hoje, mas saiba que existe.
+Computadores quânticos teóricos quebram **RSA, DH, ECC** via algoritmo de Shor. Hash e simétrico (AES) sobrevivem com chaves maiores (Grover dá speedup quadrático em busca, não exponencial).
+
+**Estado atual (2025-2026)**: NIST finalizou primeiro batch pós-quântico em **agosto 2024**:
+
+| Standard | Algoritmo base | Uso | Status |
+|---|---|---|---|
+| **FIPS 203** | ML-KEM (ex-Kyber) | KEM (key encapsulation) | Recomendado pra TLS, key exchange |
+| **FIPS 204** | ML-DSA (ex-Dilithium) | Assinatura | Recomendado pra signatures gerais |
+| **FIPS 205** | SLH-DSA (ex-SPHINCS+) | Assinatura hash-based | Backup conservador (sem assumptions de lattice) |
+| (em finalização) | ML-DSA-44/Falcon | Assinatura compacta | Pra firmware, certificates |
+
+**Por que importa hoje** (não em 10 anos):
+- **"Harvest now, decrypt later"**: adversário grava tráfego TLS hoje, decrypta quando tiver quantum em ~10-20 anos. Dados sensíveis com lifetime longo (medical records, state secrets, IP) já estão expostos.
+- **PKI de longo prazo**: cert root CA dura décadas. Migrar PKI demora 5-10 anos. Começou em 2024.
+
+**O que está acontecendo na prática:**
+- **TLS 1.3 hybrid**: Chrome 124+ + servidores Cloudflare/Google usam **X25519MLKEM768** (combina ECDH clássico com ML-KEM). Se um quebra, o outro segura. Default em vários clients.
+- **SSH**: OpenSSH 9.0+ tem `sntrup761x25519-sha512` hybrid em key exchange.
+- **Signal**: PQXDH (Post-Quantum Extended Diffie-Hellman) live em produção desde 2023.
+- **Browsers**: Chrome 116+ negocia X25519Kyber768Draft00 em ~ todo TLS handshake; análise de telemetria mostrou 1-2ms overhead por handshake.
+
+**Trade-offs práticos:**
+- **Tamanho de chave/assinatura**: ML-KEM cipher é ~1.1KB (vs 32 bytes ECDH). ML-DSA signature é 2.5KB. Impact em embedded e em cabeçalhos QUIC/TLS.
+- **Performance**: ML-KEM é rápido (mais rápido que RSA em alguns casos). ML-DSA verifica em ~50 µs. Não é gargalo.
+- **Conservadorismo**: SLH-DSA (hash-based, sem lattice) é fallback se descobrirem ataque a lattices. Custa em tamanho mas é "matematicamente conservador".
+
+**Quando você toca:**
+- **Hoje**: rodando TLS recente, você já tem hybrid. Nada a fazer.
+- **Próximos 2-3 anos**: PKI corporativa começa a emitir certificates híbridos. Code signing migra.
+- **5-10 anos**: assinaturas legacy (RSA 2048) em firmware/devices viram passivo de risco real.
+
+Não implemente PQ crypto você mesmo — use **liboqs** (Open Quantum Safe), **AWS-LC**, **OpenSSL 3.5+**, ou **BoringSSL**. Cripto pós-quântica é especialmente sensível a side-channels novos (timing em lattice ops).
 
 ### 2.16 Constant-time programming
 

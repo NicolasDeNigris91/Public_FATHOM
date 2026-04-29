@@ -282,18 +282,86 @@ Em 2026 muitos projetos preferem Helm pra installs de terceiros (charts oficiais
 
 **Argo CD** / **Flux**: GitOps — repo Git é fonte de verdade; controller syncs cluster com repo. Padrão moderno em times maduros.
 
-### 2.18 Operators
+### 2.18 Operators — pattern deep
 
-CRD (Custom Resource Definition) + Controller. Permite estender K8s com objetos custom.
+CRD (Custom Resource Definition) + Controller. Permite estender K8s com objetos custom. É o pattern que torna K8s extensível além de "container orchestrator" — vira plataforma onde stateful systems se autoadministram.
 
-Operators famosos:
-- **PostgreSQL Operator** (Crunchy, Zalando, CloudNativePG).
+**Anatomia de um operator:**
+1. **CRD** define schema do recurso novo (`PostgresCluster`, `KafkaTopic`).
+2. **Controller** roda em pod no cluster, watches o API server pra mudanças nesses recursos.
+3. **Reconcile loop**: `desired_state - current_state = action`. Loop infinito.
+4. **Status subresource**: controller publica observed state em `.status` do recurso.
+
+**Reconcile loop pseudo-code:**
+```go
+for event := range watch(api, "PostgresCluster") {
+    desired := event.spec
+    current := observe(cluster, desired.name)
+    diff := compare(desired, current)
+    apply(diff)              // create StatefulSet, ConfigMap, Secret, etc.
+    updateStatus(desired.name, observed)
+}
+```
+
+**Idempotência é essencial**: mesma reconcile rodando 100x deve convergir pra mesmo estado. Sem efeitos colaterais cumulativos.
+
+**Quando vale escrever operator próprio:**
+- Aplicação tem **lifecycle complexo** (rolling upgrade com migration de schema, election de leader, backup orchestration).
+- Operações repetitivas que humanos fazem hoje viram automatable + auditable.
+- Você publica como produto / open source.
+
+**Quando NÃO escrever:**
+- App stateless padrão. Deployment + HPA cobrem.
+- Lifecycle simples. Helm chart resolve.
+- Time pequeno. Manter operator é overhead permanente.
+
+**Ferramentas pra escrever operators:**
+- **Operator SDK** (RH/Operator Framework): Go (mais maduro), Ansible-based, Helm-based.
+- **Kubebuilder**: Go. Mais low-level, comunidade ampla.
+- **Metacontroller**: lambdas-style. Você escreve sync function em qualquer linguagem.
+- **Crossplane**: declara cloud resources como K8s resources (RDS, S3, GKE clusters via YAML).
+
+**Operators famosos em produção:**
+- **CloudNativePG** (Postgres) — provavelmente o melhor operator de DB existente em 2026.
 - **Strimzi** (Kafka).
 - **cert-manager** (TLS).
-- **Prometheus Operator**.
-- **External Secrets Operator** (puxa de cloud secret stores).
+- **Prometheus Operator** + **kube-prometheus-stack**.
+- **External Secrets Operator** (puxa de AWS SM, Vault, GCP Secret Manager).
+- **ArgoCD** (GitOps — operator que reconcila git → cluster).
+- **Velero** (backup/restore).
+- **OpenTelemetry Operator** (instrumenta apps automaticamente).
 
-Pattern Operator: o controller traduz "vontade" declarada (`Postgres { replicas: 3, version: 16 }`) em ações (criar StatefulSet, configurar replicação, gerenciar backups).
+**Anti-patterns conhecidos:**
+- Operator que faz scheduling logic próprio (concorre com kube-scheduler — perde sempre).
+- Reconcile loop que cria recursos sem `ownerReferences` — leak ao deletar CR.
+- Operator que faz blocking I/O em reconcile (bloqueia outros eventos).
+- Status update sem retry — perdas silenciosas.
+
+### 2.18.1 Alternativas a Kubernetes — quando NÃO usar
+
+K8s é poderoso, é caro de manter. Senior real escolhe consciente. Stack atual em 2026:
+
+| Alternativa | Modelo | Melhor pra | Trade-off |
+|---|---|---|---|
+| **AWS ECS / Fargate** | Container scheduler AWS-native | Stack já em AWS, time pequeno | Lock-in pesado, menos primitives |
+| **HashiCorp Nomad** | Scheduler genérico (containers, VMs, JARs, exec) | Multi-runtime, sem K8s overhead | Comunidade menor, ecossistema próprio |
+| **Fly.io** | App platform global anycast | Apps regional/global com SQLite/Litestream | Menos controle low-level, vendor risk |
+| **Railway** | Heroku-style PaaS | MVPs, side projects, monolitos | Não escala em compliance heavy |
+| **Render** | Heroku-style + alguns advanced | Alternativa Heroku moderna | Custos crescem |
+| **Cloud Run / App Runner** | Serverless containers | Bursty traffic, scale-to-zero | Cold start + state externo obrigatório |
+| **Cloudflare Workers / Vercel Functions** | Edge serverless | UX-critical, baixa latência global | Tempo de execução limitado, paradigma diferente |
+| **Kamal** (37signals) | Deploy direto a VMs | Times pequenos que querem servers reais | Você opera VMs |
+
+**Heurística pragmática:**
+- Time **< 5 engineers** + app **< 10 services**: K8s é overhead net-negative. Use Fly.io, Railway, ECS, ou Kamal.
+- Time **5-30 engineers** + crescendo: K8s managed (EKS/GKE) começa a fazer sentido. EKS Auto Mode (2024) reduz drasticamente operação manual.
+- Time **> 30 engineers** + multi-region + heavy compliance: K8s domina. Operadores próprios. Service mesh.
+- **Compliance crítica (PCI, HIPAA)**: K8s viabiliza isolation patterns (network policies, OPA, PSS) que ECS exige reproduzir manualmente.
+
+**Mito vs realidade:**
+- Mito: "K8s escala automaticamente". Realidade: você ainda capacity-planeja, configura HPA/VPA com cuidado, paga por nodes idle.
+- Mito: "K8s previne lock-in cloud". Realidade: você troca lock-in cloud por lock-in K8s ecosystem (CRDs custom, Helm charts próprios). Migrar pra outro cluster é trabalho.
+- Mito: "Vale aprender K8s pra qualquer SRE em 2026". Realidade: pra app simples, Fly.io ou Railway ensina mais sobre app architecture e custa menos tempo.
 
 ### 2.19 Security
 

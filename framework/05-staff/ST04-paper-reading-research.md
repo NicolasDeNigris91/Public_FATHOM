@@ -107,6 +107,66 @@ Não tente ler tudo. Liste papers organizados por tema:
 
 `elite-references.md` no framework já tem lista. Adicione papers faltando. ST04 expande isso.
 
+### 2.7.1 Must-read papers ordenados por estágio
+
+Lista curada pra começar com sequência sane. Cada paper aqui é referenciado em pelo menos 2 módulos do framework e tem leitura ainda relevante em 2026. **Pass 1-2 obrigatório**, pass 3 nos que mais te interessam.
+
+**Pra ler antes de Senior** (durante Apprentice/Professional, 1 paper/semana):
+
+1. **"On the Criteria To Be Used in Decomposing Systems into Modules"** — Parnas, 1972. ~10 páginas. Information hiding, módulos como decisões de design. Base de DDD.
+2. **"End-to-End Arguments in System Design"** — Saltzer, Reed, Clark, 1984. ~10 páginas. Onde colocar lógica numa stack.
+3. **"What Every Programmer Should Know About Memory"** — Drepper, 2007. Long, denso. Pass 1-2 ~3h. Lê pra A09/P10/N14.
+4. **"Time, Clocks, and the Ordering of Events"** — Lamport, 1978. Causalidade. Base de tudo distribuído.
+5. **"The Google File System"** (GFS) — Ghemawat et al, 2003. Architecture pattern que viraram HDFS, S3 compat layers.
+
+**Pra ler durante Senior** (paper/semana, 6 meses):
+
+6. **"MapReduce: Simplified Data Processing on Large Clusters"** — Dean, Ghemawat, 2004.
+7. **"Bigtable: A Distributed Storage System for Structured Data"** — Chang et al, 2006.
+8. **"Dynamo: Amazon's Highly Available Key-Value Store"** — DeCandia et al, 2007. Eventual consistency em produção.
+9. **"The Chubby Lock Service for Loosely-Coupled Distributed Systems"** — Burrows, 2006. Coordination.
+10. **"In Search of an Understandable Consensus Algorithm"** (Raft) — Ongaro, Ousterhout, 2014. Pass 3 obrigatório. Implemente.
+11. **"Spanner: Google's Globally-Distributed Database"** — Corbett et al, 2012. TrueTime, external consistency.
+12. **"FLP Impossibility"** — Fischer, Lynch, Paterson, 1985. Por que consensus puro async é impossível.
+13. **"Paxos Made Simple"** — Lamport, 2001. (Original "The Part-Time Parliament" é pra masochistas.)
+14. **"The Tail at Scale"** — Dean, Barroso, 2013. ~5 páginas. Latency tail em escala.
+15. **"Architecture of a Database System"** — Hellerstein, Stonebraker, Hamilton, 2007. ~140 páginas (livro técnico). Como DB funciona por dentro.
+16. **"C-Store / Vertica" / "MonetDB"** — papers fundamentais de columnar store. Base de ClickHouse, BigQuery.
+17. **"Calvin: Fast Distributed Transactions for Partitioned Database Systems"** — Thomson et al, 2012. Determinism em distribuído.
+18. **"Conflict-free Replicated Data Types"** — Shapiro et al, 2011. Base do que Linear/Figma usam.
+19. **"Calm Theorem and CALM theorem reconsidered"** — Hellerstein, 2010. Coordination-free programs.
+20. **"How Complex Systems Fail"** — Cook, 1998. ~7 páginas. Pra todo on-call. Filosofia operacional.
+
+**Pra ler durante Staff** (paper/2 semanas, ongoing):
+
+21. **"Byzantine Generals Problem"** — Lamport, Shostak, Pease, 1982. Trust model em distribuído.
+22. **"Out of the Tar Pit"** — Moseley, Marks, 2006. Complexidade essencial vs acidental. Filosofia.
+23. **"Network Latency Is Not Free"** + **"Latency Numbers Every Programmer Should Know"** (Dean) — sub-paper, mas referência diária.
+24. **"Use of Formal Methods at Amazon Web Services"** — Newcombe et al, 2014. TLA+ em produção.
+25. **"Tagless Final Encoding"** — Carette, Kiselyov, Shan, 2007. Para devs em FP avançado.
+
+**Pra Data/ML track:**
+
+26. **"Attention Is All You Need"** — Vaswani et al, 2017. Transformer paper.
+27. **"GPT-3 / Language Models are Few-Shot Learners"** — Brown et al, 2020.
+28. **"Retrieval-Augmented Generation for Knowledge-Intensive NLP"** — Lewis et al, 2020. Base de RAG.
+29. **"FlashAttention"** — Dao et al, 2022. Otimização kernel-level que viabilizou contextos longos.
+30. **"Hidden Technical Debt in Machine Learning Systems"** — Sculley et al, 2015. Sistemas, não modelos.
+
+**Foundations (ler em algum momento):**
+
+31. **"Reflections on Trusting Trust"** — Thompson, 1984. Turing lecture. Supply chain trust.
+32. **"No Silver Bullet"** — Brooks, 1986. Software engineering como disciplina.
+33. **"The Bitter Lesson"** — Sutton, 2019. Não é paper formal, ensaio. Sobre AI scaling.
+34. **"Worse is Better"** — Gabriel, 1991. Filosofia de design.
+35. **"Goto Considered Harmful"** — Dijkstra, 1968. Curto, marca era pre-structured.
+
+**Como usar a lista:**
+- Marque um paper/semana em `journal.md`. Faça 3-pass (§2.3) com Q&A (§2.4).
+- Após 1 ano, ~50 papers lidos — entra em ~5% top dev em tooling de pensamento.
+- Discussão com peer (paper club) acelera 3x. Sozinho funciona, junto é melhor.
+- Re-leia papers core a cada 2-3 anos. Você vai entender mais cada vez.
+
 ### 2.8 Implementing papers
 
 10x deepening: implement paper. Não tudo — peça central.
