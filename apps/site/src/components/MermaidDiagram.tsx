@@ -65,19 +65,30 @@ export function MermaidDiagram({ source }: Props) {
 
   if (!svg) {
     return (
-      <div className="my-6 border border-mist/40 bg-graphite p-8 flex items-center justify-center">
-        <span className="font-mono text-caption text-chrome tracking-luxury uppercase animate-pulse">
+      <div className="my-6 border border-mist/40 bg-graphite p-8">
+        <span className="font-mono text-caption text-chrome tracking-luxury uppercase animate-pulse print:hidden">
           Rendering diagram…
         </span>
+        {/* Print-only fallback: when user prints before mermaid hydrates,
+            show the source as code instead of the spinner. */}
+        <pre className="hidden print:block font-mono text-xs whitespace-pre-wrap break-all">
+          {source}
+        </pre>
       </div>
     );
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="my-8 border border-mist/40 bg-graphite p-6 overflow-x-auto [&_svg]:max-w-full [&_svg]:h-auto"
-      dangerouslySetInnerHTML={{ __html: svg }}
-    />
+    <>
+      <div
+        ref={containerRef}
+        className="my-8 border border-mist/40 bg-graphite p-6 overflow-x-auto [&_svg]:max-w-full [&_svg]:h-auto print:hidden"
+        dangerouslySetInnerHTML={{ __html: svg }}
+      />
+      {/* Source as code block when printing — SVGs render unevenly to PDF. */}
+      <pre className="hidden print:block font-mono text-xs whitespace-pre-wrap break-all my-6">
+        {source}
+      </pre>
+    </>
   );
 }
