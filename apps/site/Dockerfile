@@ -15,6 +15,7 @@ WORKDIR /app
 COPY apps/site ./apps/site
 # Copy content (framework/ + root .md files needed at build time)
 COPY framework ./framework
+COPY scripts ./scripts
 COPY README.md MENTOR.md PROGRESS.md STUDY-PROTOCOL.md ./
 
 # Reuse installed deps
