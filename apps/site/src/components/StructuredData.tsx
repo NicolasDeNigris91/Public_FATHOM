@@ -62,10 +62,10 @@ export function buildWebSiteLd() {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
     name: 'Fathom',
-    alternateName: 'Fathom — Framework de Maestria Full Stack',
+    alternateName: 'Fathom — Notas de engenharia de software',
     url: SITE_URL,
     description:
-      'Trilha mastery-based de Novice a Staff/Principal Software Engineer.',
+      'Minhas notas de estudo de engenharia de software, organizadas por estágio.',
     inLanguage: 'pt-BR',
     author: {
       '@type': 'Person',

@@ -1,7 +1,7 @@
 import { ImageResponse } from 'next/og';
 
 export const runtime = 'edge';
-export const alt = 'Fathom — Framework de Maestria Full Stack';
+export const alt = 'Fathom — Notas de engenharia de software';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -32,7 +32,7 @@ export default async function OpengraphImage() {
               marginBottom: 32,
             }}
           >
-            {`Framework de Maestria · ${new Date().getFullYear()}`}
+            {`Caderno de estudos · ${new Date().getFullYear()}`}
           </div>
           <div
             style={{
@@ -65,7 +65,7 @@ export default async function OpengraphImage() {
               maxWidth: 900,
             }}
           >
-            De Novice a Staff/Principal Software Engineer.
+            Minhas notas de estudo de engenharia de software.
           </div>
           <div
             style={{
@@ -77,7 +77,7 @@ export default async function OpengraphImage() {
               marginTop: 16,
             }}
           >
-            Mastery-based. Sem prazos. Sob protocolo rígido.
+            Organizadas por estágio.
           </div>
         </div>
 

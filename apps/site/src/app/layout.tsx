@@ -36,22 +36,18 @@ const siteUrl =
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: 'Fathom | Framework de Maestria Full Stack',
+    default: 'Fathom | Notas de engenharia de software',
     template: '%s | Fathom',
   },
   description:
-    'Trilha estruturada de iniciante real até Staff/Principal Software Engineer. Mastery-based, sem prazos, conduzida pelo mentor sob protocolo rígido.',
+    'Minhas notas de estudo de engenharia de software, organizadas por estágio.',
   applicationName: 'Fathom',
   authors: [{ name: 'Nicolas De Nigris', url: 'https://github.com/NicolasDeNigris91' }],
   creator: 'Nicolas De Nigris',
   keywords: [
     'Fathom',
-    'Framework de Maestria',
-    'Full Stack',
+    'Notas de estudo',
     'Software Engineering',
-    'Staff Engineer',
-    'Principal Engineer',
-    'Mastery-based',
     'Computer Science',
   ],
   alternates: {
@@ -63,14 +59,14 @@ export const metadata: Metadata = {
     locale: 'pt_BR',
     url: '/',
     siteName: 'Fathom',
-    title: 'Fathom | Framework de Maestria Full Stack',
+    title: 'Fathom | Notas de engenharia de software',
     description:
-      'Trilha estruturada de Novice a Staff/Principal. Mastery-based, sem prazos.',
+      'Minhas notas de estudo de engenharia de software, organizadas por estágio.',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Fathom | Framework de Maestria Full Stack',
-    description: 'Trilha estruturada de Novice a Staff/Principal.',
+    title: 'Fathom | Notas de engenharia de software',
+    description: 'Minhas notas de estudo de engenharia de software, organizadas por estágio.',
   },
   robots: {
     index: true,

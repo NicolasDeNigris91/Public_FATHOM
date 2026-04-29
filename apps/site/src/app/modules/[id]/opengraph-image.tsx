@@ -107,7 +107,7 @@ export default async function ModuleOpengraphImage({
             textTransform: 'uppercase',
           }}
         >
-          <div style={{ display: 'flex' }}>Fathom · Framework de Maestria</div>
+          <div style={{ display: 'flex' }}>Fathom · Caderno de estudos</div>
           <div style={{ display: 'flex' }}>Nicolas De Nigris</div>
         </div>
       </div>

@@ -8,10 +8,7 @@ export function Footer() {
           <p className="font-mono text-caption text-racing-green-lit tracking-luxury uppercase mb-3">
             Fathom · {new Date().getFullYear()}
           </p>
-          <p className="font-display text-display-md text-pearl mb-2">Mastery não tem prazo.</p>
-          <p className="font-sans text-body text-chrome">
-            Tem prática.
-          </p>
+          <p className="font-display text-display-md text-pearl mb-2">Estudo de longo prazo.</p>
         </div>
 
         <div>

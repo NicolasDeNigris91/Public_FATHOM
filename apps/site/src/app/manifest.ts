@@ -2,10 +2,10 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Fathom — Framework de Maestria Full Stack',
+    name: 'Fathom — Notas de engenharia de software',
     short_name: 'Fathom',
     description:
-      'Trilha mastery-based de Novice a Staff/Principal Software Engineer.',
+      'Minhas notas de estudo de engenharia de software, organizadas por estágio.',
     start_url: '/',
     display: 'minimal-ui',
     background_color: '#0A0A0A',
