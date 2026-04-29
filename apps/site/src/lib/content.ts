@@ -198,11 +198,7 @@ export async function getDependents(rawId: string): Promise<ModuleSummary[]> {
   );
 }
 
-export interface ReadingMetadata {
-  words: number;
-  minutes: number;
-  codeBlocks: number;
-}
+export type { ReadingMetadata } from './reading-metadata';
 
 /**
  * Quick reading metadata for a Markdown body. WPM=220 is a reasonable
@@ -255,16 +251,8 @@ export async function loadGlossary(): Promise<{ sections: string[]; terms: Gloss
   return { sections, terms };
 }
 
-export function readingMetadata(markdown: string): ReadingMetadata {
-  const stripped = markdown
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/`[^`]*`/g, ' ')
-    .replace(/[#>*_\-`|]/g, ' ');
-  const words = stripped.trim().split(/\s+/).filter(Boolean).length;
-  const minutes = Math.max(1, Math.ceil(words / 220));
-  const codeBlocks = (markdown.match(/^```/gm)?.length ?? 0) >> 1;
-  return { words, minutes, codeBlocks };
-}
+// readingMetadata implementation lives in ./reading-metadata.ts (pure, testable).
+export { readingMetadata } from './reading-metadata';
 
 /**
  * Returns the prev/next modules around `rawId` in the global ordering

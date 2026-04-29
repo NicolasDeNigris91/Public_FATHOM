@@ -1,5 +1,3 @@
-import 'server-only';
-
 export interface TocItem {
   level: 2 | 3;
   text: string;
