@@ -64,7 +64,7 @@ export default function NotFound() {
             </li>
           </ul>
           <p className="font-mono text-caption text-chrome/70 tracking-wide mt-6">
-            Dica: <kbd className="border border-mist/60 px-1.5 py-0.5">⌘K</kbd> abre command palette com fuzzy search.
+            Dica: <kbd className="kbd">⌘K</kbd> abre command palette com fuzzy search.
           </p>
         </div>
       </div>

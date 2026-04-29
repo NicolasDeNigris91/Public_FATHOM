@@ -1,0 +1,42 @@
+name: Site bug
+description: Bug visual, comportamento errado, ou erro de runtime em fathom.nicolaspilegidenigris.dev.
+labels: ['site', 'bug', 'triage']
+body:
+  - type: input
+    id: url
+    attributes:
+      label: URL afetada
+      placeholder: https://fathom.nicolaspilegidenigris.dev/modules/n01
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: O que era pra acontecer
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: O que aconteceu
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Passos pra reproduzir
+      placeholder: |
+        1. Abro /modules/n04
+        2. Pressiono Cmd+K
+        3. Digito "post"
+        4. Resultado: ...
+  - type: input
+    id: env
+    attributes:
+      label: Browser / OS / device
+      placeholder: Chrome 130 / macOS 14 / MacBook M3
+  - type: input
+    id: digest
+    attributes:
+      label: Error digest (se mostrou em /error page)
+      placeholder: ex 1234567890abcdef

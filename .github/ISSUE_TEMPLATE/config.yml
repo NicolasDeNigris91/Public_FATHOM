@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Discussão geral
+    url: https://github.com/NicolasDeNigris91/FATHOM/discussions
+    about: Pergunta aberta, ideia ainda não estruturada, ou compartilhamento de experiência usando o framework.

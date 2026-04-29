@@ -298,8 +298,11 @@
     letter-spacing: 0.05em;
   }
 
-  /* Inline kbd styling for the keyboard hints used across the site */
-  .prose-fathom kbd, kbd {
+  /* Inline kbd styling for the keyboard hints used across the site.
+     Scoped to .prose-fathom kbd (in markdown) and explicit .kbd class
+     (in components) so we don't leak styles into 3rd-party widgets
+     that happen to render <kbd>. */
+  .prose-fathom kbd, .kbd {
     font-family: var(--font-mono);
     font-size: 0.78em;
     color: var(--color-chrome);

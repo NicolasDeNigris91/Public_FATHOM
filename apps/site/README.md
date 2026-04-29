@@ -65,8 +65,10 @@ Padrão usado pelos outros projetos no Railway dashboard (subdomínio em `*.nico
    - **Builder**: Dockerfile.
    - **Dockerfile path**: `apps/site/Dockerfile` (já configurado em `railway.json`).
 3. **Domains** → add custom domain `fathom.nicolaspilegidenigris.dev` → segue instrução do Railway pra apontar CNAME no provedor de DNS.
-4. **Variables** (opcional):
-   - `NEXT_PUBLIC_SITE_URL=https://fathom.nicolaspilegidenigris.dev`
+4. **Variables**:
+   - `NEXT_PUBLIC_SITE_URL=https://fathom.nicolaspilegidenigris.dev` (canonical/sitemap/OG/robots usam isto)
+   - **Auto-injetadas pelo Railway**: `RAILWAY_GIT_COMMIT_SHA`, `RAILWAY_GIT_BRANCH` — `/api/version` lê e expõe pra debug de deploy
+   - Opcional analytics: `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` + `NEXT_PUBLIC_PLAUSIBLE_SCRIPT` (sem essas vars, zero tracking)
 
 ### Como o build funciona
 
