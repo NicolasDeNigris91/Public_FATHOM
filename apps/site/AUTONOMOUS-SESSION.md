@@ -8,7 +8,9 @@ Branch: `main` · Repo: `https://github.com/NicolasDeNigris91/FATHOM`
 
 ## Resumo executivo
 
-46 commits de melhorias foram feitos no site (`apps/site/`) sem tocar no protocolo, conteúdo de módulos, ou estrutura do framework. Foco: type safety, UX, a11y, SEO, e features que aumentam valor sem expandir scope.
+53 commits de melhorias foram feitos no site (`apps/site/`) sem tocar no protocolo, conteúdo de módulos, ou estrutura do framework. Foco: type safety, UX, a11y, SEO, e features que aumentam valor sem expandir scope.
+
+**Build local validado**: `npm install` rodou (632 packages), `tsc --noEmit` passa, `vitest` passa 10 tests, `next build` gera 208 páginas com 0 erros. Pronto pra Railway.
 
 **Nada quebrou conteúdo existente.** O site continua sendo render do Markdown — single source of truth preservado.
 
@@ -18,7 +20,21 @@ Branch: `main` · Repo: `https://github.com/NicolasDeNigris91/FATHOM`
 
 ## Commits (ordem reversa, mais recente primeiro)
 
-### Onda 6 (final)
+### Onda 7 (deploy-ready)
+
+- **CI**: GitHub Actions `validate.yml` + `build-site.yml` (Node 22, typecheck, vitest, lint, build).
+- **/now empty state**: card "Calibrando" sugerindo Self-Assessment quando PROGRESS.md está fresh.
+- **Analytics**: Plausible-ready component, env-var-gated, sem tracking se não configurado.
+- **/feed.xml**: RSS 2.0 dos módulos `done`, cache 1h.
+- **VisitTracker**: localStorage tracking de módulos visitados (max 50, single-device).
+- **MermaidDiagram**: print fallback mostrando source quando hidratação não completou.
+- **OG try/catch**: módulo OG sobrevive a getModuleByRawId failures (fallback graceful).
+- **Tests**: Vitest setup + 10 tests pra `extractToc` e `readingMetadata`. `reading-metadata.ts` extraído pra módulo testável.
+- **lib/docs.ts**: catalog único pros 16 docs. Substitui 3 listas paralelas em /docs, /docs/[slug], CommandPaletteMount.
+- **favicon.svg**: SVG estático "F" obsidian/gold-leaf como fallback pra crawlers/old browsers que não pegam icon.tsx.
+- **Build fixes**: package-lock.json gerado, twitter-image runtime export direto, OG images com `display: flex` em todo div com múltiplos children (satori requirement) + template literals pra single-child.
+
+### Onda 6
 
 - **`1fb6472`** — feat: progress bar no header de /stages/[stage].
 - **`388ba7e`** — feat: /now per-stage completion bar graph.
