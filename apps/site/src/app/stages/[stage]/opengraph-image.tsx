@@ -60,6 +60,7 @@ export default async function StageOpengraphImage({
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <div
             style={{
+              display: 'flex',
               fontFamily: 'monospace',
               fontSize: 22,
               color: '#1A6B50',
@@ -68,10 +69,11 @@ export default async function StageOpengraphImage({
               marginBottom: 24,
             }}
           >
-            Fathom · Estágio {number}
+            {`Fathom · Estágio ${number}`}
           </div>
           <div
             style={{
+              display: 'flex',
               fontSize: 160,
               fontWeight: 300,
               color: '#F5F5F0',
@@ -84,6 +86,7 @@ export default async function StageOpengraphImage({
           </div>
           <div
             style={{
+              display: 'flex',
               fontFamily: 'monospace',
               fontSize: 26,
               color: '#C0C0C0',
@@ -104,6 +107,7 @@ export default async function StageOpengraphImage({
           />
           <div
             style={{
+              display: 'flex',
               fontSize: 28,
               fontWeight: 300,
               color: '#C0C0C0',
@@ -127,8 +131,8 @@ export default async function StageOpengraphImage({
             textTransform: 'uppercase',
           }}
         >
-          <div>{stage.moduleCount} módulos · 1 capstone</div>
-          <div>Nicolas De Nigris</div>
+          <div style={{ display: 'flex' }}>{`${stage.moduleCount} módulos · 1 capstone`}</div>
+          <div style={{ display: 'flex' }}>Nicolas De Nigris</div>
         </div>
       </div>
     ),

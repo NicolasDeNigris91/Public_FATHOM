@@ -23,6 +23,7 @@ export default async function OpengraphImage() {
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <div
             style={{
+              display: 'flex',
               fontFamily: 'monospace',
               fontSize: 22,
               color: '#1A6B50',
@@ -31,10 +32,11 @@ export default async function OpengraphImage() {
               marginBottom: 32,
             }}
           >
-            Framework de Maestria · {new Date().getFullYear()}
+            {`Framework de Maestria · ${new Date().getFullYear()}`}
           </div>
           <div
             style={{
+              display: 'flex',
               fontSize: 200,
               fontWeight: 300,
               color: '#F5F5F0',
@@ -55,6 +57,7 @@ export default async function OpengraphImage() {
           />
           <div
             style={{
+              display: 'flex',
               fontSize: 36,
               fontWeight: 300,
               color: '#C0C0C0',
@@ -66,6 +69,7 @@ export default async function OpengraphImage() {
           </div>
           <div
             style={{
+              display: 'flex',
               fontSize: 24,
               fontWeight: 300,
               color: '#C0C0C0',
@@ -89,8 +93,8 @@ export default async function OpengraphImage() {
             textTransform: 'uppercase',
           }}
         >
-          <div>5 Estágios · 78 Módulos · 5 Capstones</div>
-          <div>Nicolas De Nigris</div>
+          <div style={{ display: 'flex' }}>5 Estágios · 78 Módulos · 5 Capstones</div>
+          <div style={{ display: 'flex' }}>Nicolas De Nigris</div>
         </div>
       </div>
     ),

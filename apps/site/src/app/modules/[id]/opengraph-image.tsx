@@ -18,7 +18,15 @@ export default async function ModuleOpengraphImage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const mod = await getModuleByRawId(id);
+  // If module read fails (corrupt frontmatter, fs error, etc.) we still want
+  // a valid PNG response — fall back to generic Fathom branding instead of
+  // crashing the build.
+  let mod: Awaited<ReturnType<typeof getModuleByRawId>> = null;
+  try {
+    mod = await getModuleByRawId(id);
+  } catch {
+    mod = null;
+  }
   const stage = mod ? getStage(mod.stageId) : null;
 
   return new ImageResponse(
@@ -38,6 +46,7 @@ export default async function ModuleOpengraphImage({
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <div
             style={{
+              display: 'flex',
               fontFamily: 'monospace',
               fontSize: 22,
               color: '#1A6B50',
@@ -46,11 +55,15 @@ export default async function ModuleOpengraphImage({
               marginBottom: 24,
             }}
           >
-            {stage ? `Estágio ${String(stage.number).padStart(2, '0')} · ${stage.title}` : 'Fathom'}
-            {mod ? ` · ${mod.rawId}` : ''}
+            {`${
+              stage
+                ? `Estágio ${String(stage.number).padStart(2, '0')} · ${stage.title}`
+                : 'Fathom'
+            }${mod ? ` · ${mod.rawId}` : ''}`}
           </div>
           <div
             style={{
+              display: 'flex',
               fontSize: mod && mod.title.length > 40 ? 80 : 110,
               fontWeight: 300,
               color: '#F5F5F0',
@@ -73,13 +86,14 @@ export default async function ModuleOpengraphImage({
           {mod && mod.prereqs.length > 0 && (
             <div
               style={{
+                display: 'flex',
                 fontFamily: 'monospace',
                 fontSize: 22,
                 color: '#C0C0C0',
                 letterSpacing: '0.05em',
               }}
             >
-              Prereqs: {mod.prereqs.join(' · ')}
+              {`Prereqs: ${mod.prereqs.join(' · ')}`}
             </div>
           )}
         </div>
@@ -96,8 +110,8 @@ export default async function ModuleOpengraphImage({
             textTransform: 'uppercase',
           }}
         >
-          <div>Fathom · Framework de Maestria</div>
-          <div>Nicolas De Nigris</div>
+          <div style={{ display: 'flex' }}>Fathom · Framework de Maestria</div>
+          <div style={{ display: 'flex' }}>Nicolas De Nigris</div>
         </div>
       </div>
     ),
