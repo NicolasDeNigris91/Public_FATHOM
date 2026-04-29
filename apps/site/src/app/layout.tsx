@@ -5,6 +5,7 @@ import { Footer } from '@/components/Footer';
 import { CommandPaletteMount } from '@/components/CommandPaletteMount';
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import { BackToTop } from '@/components/BackToTop';
+import { Analytics } from '@/components/Analytics';
 import './globals.css';
 
 const cormorant = Cormorant_Garamond({
@@ -53,7 +54,10 @@ export const metadata: Metadata = {
     'Mastery-based',
     'Computer Science',
   ],
-  alternates: { canonical: '/' },
+  alternates: {
+    canonical: '/',
+    types: { 'application/rss+xml': '/feed.xml' },
+  },
   openGraph: {
     type: 'website',
     locale: 'pt_BR',
@@ -73,7 +77,11 @@ export const metadata: Metadata = {
     follow: true,
     googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1 },
   },
-  // icon.tsx and apple-icon.tsx in app/ auto-generate via next/og.
+  // SVG favicon for modern browsers; icon.tsx and apple-icon.tsx auto-generate
+  // PNG fallbacks via next/og for older clients and iOS home-screen.
+  icons: {
+    icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
+  },
 };
 
 export const viewport: Viewport = {
@@ -104,6 +112,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <CommandPaletteMount />
         <KeyboardShortcuts />
         <BackToTop />
+        <Analytics />
       </body>
     </html>
   );

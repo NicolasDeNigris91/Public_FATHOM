@@ -2,50 +2,13 @@ import Link from 'next/link';
 import { ArrowUpRight } from 'lucide-react';
 import { EyebrowHeading } from '@/components/EyebrowHeading';
 import { Breadcrumb } from '@/components/Breadcrumb';
+import { DOCS, DOC_CATEGORIES } from '@/lib/docs';
 
 export const metadata = {
   title: 'Docs',
   description: 'Protocolos, decisões, glossário, e meta-docs do framework.',
   alternates: { canonical: '/docs' },
 };
-
-interface DocEntry {
-  slug: string;
-  title: string;
-  eyebrow: string;
-  category: 'protocol' | 'meta' | 'roadmap' | 'reference';
-  highlight?: boolean;
-}
-
-const DOCS: DocEntry[] = [
-  // Protocol
-  { slug: 'mentor', title: 'Mentor Protocol', eyebrow: 'Contrato canônico', category: 'protocol', highlight: true },
-  { slug: 'study-protocol', title: 'Study Protocol', eyebrow: 'Disciplina cognitiva', category: 'protocol', highlight: true },
-  { slug: 'self-assessment', title: 'Self-Assessment', eyebrow: 'Calibração inicial', category: 'protocol' },
-  // Roadmap / archaeology
-  { slug: 'release-notes', title: 'Release Notes', eyebrow: 'Versão atual', category: 'roadmap' },
-  { slug: 'changelog', title: 'Changelog', eyebrow: 'Histórico append-only', category: 'roadmap' },
-  { slug: 'decision-log', title: 'Decision Log', eyebrow: 'Archaeology', category: 'roadmap' },
-  { slug: 'sprint-next', title: 'Sprint Next', eyebrow: 'Backlog priorizado', category: 'roadmap' },
-  // Reference
-  { slug: 'study-plans', title: 'Study Plans', eyebrow: '7 templates de cadência', category: 'reference' },
-  { slug: 'capstone-evolution', title: 'Capstone Evolution', eyebrow: 'Logística v0 → v4', category: 'reference' },
-  { slug: 'codebase-tours', title: 'Codebase Tours', eyebrow: '20 reading paths', category: 'reference' },
-  { slug: 'stack-comparisons', title: 'Stack Comparisons', eyebrow: 'Cross-stack mapping', category: 'reference' },
-  { slug: 'reading-list', title: 'Reading List', eyebrow: 'Livros canônicos', category: 'reference' },
-  { slug: 'elite-references', title: 'Elite References', eyebrow: 'Repos / blogs / talks', category: 'reference' },
-  { slug: 'antipatterns', title: 'Antipatterns', eyebrow: 'O que não fazer', category: 'reference' },
-  { slug: 'interview-prep', title: 'Interview Prep', eyebrow: 'Mapping tier-1', category: 'reference' },
-  // Meta
-  { slug: 'module-template', title: 'Module Template', eyebrow: 'Template oficial', category: 'meta' },
-];
-
-const CATEGORIES: { id: DocEntry['category']; label: string; eyebrow: string }[] = [
-  { id: 'protocol', label: 'Protocolos', eyebrow: 'Contratos do framework' },
-  { id: 'roadmap', label: 'Roadmap & Archaeology', eyebrow: 'Histórico e direção' },
-  { id: 'reference', label: 'Referências', eyebrow: 'Materiais de apoio' },
-  { id: 'meta', label: 'Meta', eyebrow: 'Sobre o framework em si' },
-];
 
 export default function DocsIndex() {
   return (
@@ -59,7 +22,7 @@ export default function DocsIndex() {
         />
 
         <div className="mt-16 space-y-16">
-          {CATEGORIES.map((cat) => {
+          {DOC_CATEGORIES.map((cat) => {
             const items = DOCS.filter((d) => d.category === cat.id);
             if (items.length === 0) return null;
             return (
