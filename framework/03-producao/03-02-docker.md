@@ -1,6 +1,6 @@
 ---
 module: 03-02
-title: Docker — Images, Layers, Networking, Compose, Multi-stage
+title: Docker, Images, Layers, Networking, Compose, Multi-stage
 stage: producao
 prereqs: [01-02, 01-10]
 gates:
@@ -10,7 +10,7 @@ gates:
 status: locked
 ---
 
-# 03-02 — Docker
+# 03-02, Docker
 
 ## 1. Problema de Engenharia
 
@@ -31,7 +31,7 @@ Docker é wrapper sobre features Linux:
 - **Capabilities**: subset de root privileges (NET_ADMIN, SYS_PTRACE...). Containers default rodam sem maioria.
 - **seccomp/AppArmor/SELinux**: filtros de syscall.
 
-Container = processo Linux com namespaces aplicados. Não é "VM leve" — VM tem kernel próprio; container compartilha kernel do host.
+Container = processo Linux com namespaces aplicados. Não é "VM leve", VM tem kernel próprio; container compartilha kernel do host.
 
 ### 2.2 Image vs container
 
@@ -103,7 +103,7 @@ Recomendação 2026: `node:22-bookworm-slim` ou `gcr.io/distroless/nodejs22` na 
 `DOCKER_BUILDKIT=1` (default em Docker 23+) habilita BuildKit:
 - Concorrência entre stages independentes.
 - Cache mounts (`--mount=type=cache,target=/root/.npm`).
-- Secrets mounts (`--mount=type=secret,id=npm_token`) — não fica em layer.
+- Secrets mounts (`--mount=type=secret,id=npm_token`), não fica em layer.
 - Bind mounts pra build context.
 - `RUN --mount=type=ssh` pra git private.
 
@@ -158,7 +158,7 @@ Em Compose, networks default isolam por projeto. Containers no mesmo network res
 
 Em prod: named volumes pra estado durável. Em dev: bind mounts pra código.
 
-Cuidado: bind mount em Mac/Windows é lento (file system sync). Mac VM-based usa virtiofs/9p — performance varia.
+Cuidado: bind mount em Mac/Windows é lento (file system sync). Mac VM-based usa virtiofs/9p, performance varia.
 
 ### 2.11 Docker Compose
 
@@ -345,7 +345,7 @@ Containerizar **Logística v1** (apprentice) com produção em mente.
 ### Stretch
 
 - Sign images com cosign + verify em pull.
-- Distroless Node pra backend (sem shell — debug com `kubectl debug` ou ephemeral container).
+- Distroless Node pra backend (sem shell, debug com `kubectl debug` ou ephemeral container).
 - SBOM (Software Bill of Materials) gerado com syft.
 - Comparar build com `docker buildx` cross-platform (linux/amd64 + linux/arm64).
 - Reduzir front Next pra < 100 MB com tree-shaking + apenas o necessário.
@@ -368,12 +368,12 @@ Containerizar **Logística v1** (apprentice) com produção em mente.
 
 ## 6. Referências
 
-- **Docker docs** ([docs.docker.com](https://docs.docker.com/)) — leia "Build best practices", "Compose specification".
+- **Docker docs** ([docs.docker.com](https://docs.docker.com/)), leia "Build best practices", "Compose specification".
 - **Dockerfile reference** ([docs.docker.com/reference/dockerfile](https://docs.docker.com/reference/dockerfile/)).
 - **Adrian Mouat, "Using Docker"** (livro O'Reilly).
-- **Liz Rice, "Container Security"** — internals, hardening.
+- **Liz Rice, "Container Security"**: internals, hardening.
 - **BuildKit docs** ([docs.docker.com/build/buildkit](https://docs.docker.com/build/buildkit/)).
 - **Distroless** ([github.com/GoogleContainerTools/distroless](https://github.com/GoogleContainerTools/distroless)).
 - **Trivy** ([trivy.dev](https://trivy.dev/)) e **Docker Scout** docs.
-- **CIS Docker Benchmark** — checklist de hardening.
-- **OCI specs** ([opencontainers.org](https://opencontainers.org/)) — image spec, runtime spec.
+- **CIS Docker Benchmark**: checklist de hardening.
+- **OCI specs** ([opencontainers.org](https://opencontainers.org/)), image spec, runtime spec.

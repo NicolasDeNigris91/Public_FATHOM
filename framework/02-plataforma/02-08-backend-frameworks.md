@@ -1,6 +1,6 @@
 ---
 module: 02-08
-title: Backend Frameworks — Express, Fastify, Hono, NestJS, Elysia
+title: Backend Frameworks, Express, Fastify, Hono, NestJS, Elysia
 stage: plataforma
 prereqs: [02-07]
 gates:
@@ -10,11 +10,11 @@ gates:
 status: locked
 ---
 
-# 02-08 — Backend Frameworks
+# 02-08, Backend Frameworks
 
 ## 1. Problema de Engenharia
 
-`http` puro de Node é spartano. Você manualmente parseia URL, body, multipart, escreve roteamento, lida com errors. Em produção real, frameworks tomam conta dessa fundação. Mas há diferença real entre eles: throughput, ergonomia, modelo de plugins, type safety, edge-readiness, ecosystem. Escolher errado é dor cara — refactor de framework em projeto vivo é trabalho de meses.
+`http` puro de Node é spartano. Você manualmente parseia URL, body, multipart, escreve roteamento, lida com errors. Em produção real, frameworks tomam conta dessa fundação. Mas há diferença real entre eles: throughput, ergonomia, modelo de plugins, type safety, edge-readiness, ecosystem. Escolher errado é dor cara, refactor de framework em projeto vivo é trabalho de meses.
 
 Este módulo dissecca os principais. Não é "qual é o melhor". É: **como cada um foi desenhado, que problema ele optou por resolver, que problema ele empurrou pra você, e como escolher conforme o contexto**.
 
@@ -166,7 +166,7 @@ Quando vence: projetos novos em Bun com foco em DX e tipagem.
 
 ### 2.7 tRPC e GraphQL (vale considerar mesmo nesse módulo)
 
-Não são "frameworks HTTP" tradicionais — são camadas:
+Não são "frameworks HTTP" tradicionais, são camadas:
 
 **tRPC**: RPC type-safe entre TS client e TS server. Você define procedures no server, client tem tipos automáticos. Roda sobre Express, Fastify, Next, Hono.
 
@@ -215,9 +215,9 @@ Sem OpenAPI, integração externa vira documentação manual desatualizada. **Se
 
 ### 2.11 Logging estruturado
 
-- **pino** (default Fastify) — JSON, super rápido, child loggers.
-- **winston** — clássico, mais flexível mas mais lento.
-- **bunyan** — ainda em uso.
+- **pino** (default Fastify), JSON, super rápido, child loggers.
+- **winston**: clássico, mais flexível mas mais lento.
+- **bunyan**: ainda em uso.
 - **console.log**: nunca em produção (sem nível, sem structured fields).
 
 Padrão: structured logs (JSON) com:
@@ -233,14 +233,14 @@ Logs vão pra stdout. Coletor (Loki, CloudWatch, Datadog) recolhe.
 ### 2.12 Error handling
 
 Erros devem virar respostas HTTP previsíveis:
-- 400 — input inválido (validation).
-- 401 — não autenticado.
-- 403 — autenticado mas sem permissão.
-- 404 — recurso não existe.
-- 409 — conflito (ex: duplicate key).
-- 422 — entidade processável mas inválida (subjective; alguns usam 400).
-- 500 — erro do servidor.
-- 503 — overload/dependência fora.
+- 400, input inválido (validation).
+- 401, não autenticado.
+- 403, autenticado mas sem permissão.
+- 404, recurso não existe.
+- 409, conflito (ex: duplicate key).
+- 422, entidade processável mas inválida (subjective; alguns usam 400).
+- 500, erro do servidor.
+- 503, overload/dependência fora.
 
 Erros específicos do domínio: subclasses de Error com `code`, `status`, `details`. Middleware central traduz pra response. Evite expor stacks em prod.
 
@@ -290,7 +290,7 @@ Onde tenant fica no contexto: AsyncLocalStorage, ou objeto de request anotado.
 
 ### 2.17 Reverse proxy considerations
 
-Nginx, Caddy, Traefik, Cloudflare na frente. Backend recebe `X-Forwarded-For`, `X-Forwarded-Proto`, etc. Frameworks têm `trust proxy` setting — habilite quando atrás de proxy.
+Nginx, Caddy, Traefik, Cloudflare na frente. Backend recebe `X-Forwarded-For`, `X-Forwarded-Proto`, etc. Frameworks têm `trust proxy` setting, habilite quando atrás de proxy.
 
 `req.ip` real só é confiável se trust proxy estiver configurado e proxy injetar headers.
 
@@ -315,7 +315,7 @@ Você precisa, sem consultar:
 
 ## 4. Desafio de Engenharia
 
-Reescrever **Logística API** sobre framework — duas implementações paralelas: **Fastify** e **Hono**. Comparar.
+Reescrever **Logística API** sobre framework, duas implementações paralelas: **Fastify** e **Hono**. Comparar.
 
 ### Especificação
 
@@ -386,11 +386,11 @@ Reescrever **Logística API** sobre framework — duas implementações paralela
 ## 6. Referências
 
 - **Express docs** ([expressjs.com](https://expressjs.com/)).
-- **Fastify docs** ([fastify.dev](https://fastify.dev/)) — leia plugins, lifecycle, schema.
+- **Fastify docs** ([fastify.dev](https://fastify.dev/)), leia plugins, lifecycle, schema.
 - **Hono docs** ([hono.dev](https://hono.dev/)).
 - **NestJS docs** ([docs.nestjs.com](https://docs.nestjs.com/)).
 - **Elysia docs** ([elysiajs.com](https://elysiajs.com/)).
 - **tRPC docs** ([trpc.io](https://trpc.io/)).
-- **"RESTful Web APIs"** — Leonard Richardson, Mike Amundsen.
+- **"RESTful Web APIs"**: Leonard Richardson, Mike Amundsen.
 - **RFC 9457** (Problem Details for HTTP APIs).
 - **OpenAPI Spec 3.1** ([spec.openapis.org/oas/v3.1.0](https://spec.openapis.org/oas/v3.1.0)).

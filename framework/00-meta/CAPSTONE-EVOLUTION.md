@@ -1,18 +1,18 @@
-# Capstone Evolution — Logística v0 → v1 → v2 → v3 → v4
+# Capstone Evolution, Logística v0 → v1 → v2 → v3 → v4
 
 > Como o mesmo produto **evolui ao longo dos 5 estágios**. Este doc consolida em um lugar a trajetória que cada `CAPSTONE-*.md` descreve isoladamente. Use pra ver o filme inteiro: o que entra a cada nível, o que **muda** (refactor, migration, redesign), e por que.
 
-A ideia central do framework é não pular pra "microservices distribuídos com Kafka" sem antes ter sentido a dor de fazer monolito crescer, refatorar pra modular monolith, decompor pra serviços. Você sente refactor, migration, redesign **na pele** — não em vídeo, não em palestra. Esse é o pedagógico.
+A ideia central do framework é não pular pra "microservices distribuídos com Kafka" sem antes ter sentido a dor de fazer monolito crescer, refatorar pra modular monolith, decompor pra serviços. Você sente refactor, migration, redesign **na pele**: não em vídeo, não em palestra. Esse é o pedagógico.
 
 ---
 
-## v0 — HTTP server from scratch (CAPSTONE-fundamentos)
+## v0, HTTP server from scratch (CAPSTONE-fundamentos)
 
 **Não é Logística ainda.** É a fundação técnica.
 
 - HTTP/1.1 server em Node puro (sem `http`, sem Express).
 - Parser manual (request line, headers, body com `Content-Length` e `chunked`).
-- Cache LRU em memória (hash map + linked list — usa 01-04).
+- Cache LRU em memória (hash map + linked list, usa 01-04).
 - Keep-alive correto.
 - CLI de logs estruturados.
 - Test de carga `wrk` mantendo correção sob concorrência.
@@ -23,7 +23,7 @@ A ideia central do framework é não pular pra "microservices distribuídos com 
 
 ---
 
-## v1 — Logística monolítica (CAPSTONE-plataforma)
+## v1, Logística monolítica (CAPSTONE-plataforma)
 
 **Primeira versão de produto.** Full-stack monolith deployable, multi-tenant.
 
@@ -63,7 +63,7 @@ A ideia central do framework é não pular pra "microservices distribuídos com 
 
 ---
 
-## v2 — Logística production-ready (CAPSTONE-producao)
+## v2, Logística production-ready (CAPSTONE-producao)
 
 **Mesma v1, mas operada em produção séria.** Refactor + ops.
 
@@ -109,11 +109,11 @@ A ideia central do framework é não pular pra "microservices distribuídos com 
 
 **Threshold:** dashboard Grafana mostrando RED/USE + relatório pentest com mitigações + flamegraph de gargalo resolvido + postmortems + SLO budget tracking + a11y CI verde.
 
-**Caráter:** ainda monolítico (ou apenas parcialmente decomposto), mas **production-grade**. Diferença de v1 não é arquitetura — é operação.
+**Caráter:** ainda monolítico (ou apenas parcialmente decomposto), mas **production-grade**. Diferença de v1 não é arquitetura, é operação.
 
 ---
 
-## v3 — Logística distribuída escalável (CAPSTONE-sistemas)
+## v3, Logística distribuída escalável (CAPSTONE-sistemas)
 
 **Redesign arquitetural.** Decomposição em bounded contexts; mensageria; sharding; event-driven.
 
@@ -126,7 +126,7 @@ A ideia central do framework é não pular pra "microservices distribuídos com 
    - **Identity**: auth, tenants, RBAC.
    - **Routing**: optimization (graph DBs 02-16, OR-Tools).
    - **Notifications**: emails, push, SMS.
-2. **Services** (microservices ou modular monolith — decisão com ADR):
+2. **Services** (microservices ou modular monolith, decisão com ADR):
    - Cada bounded context ganha module/service próprio.
    - Communication: Kafka eventos (`OrderCreated`, `DeliveryAssigned`, `OrderDelivered`).
 3. **CQRS + Event Sourcing** no contexto de Orders:
@@ -165,11 +165,11 @@ A ideia central do framework é não pular pra "microservices distribuídos com 
 
 **Threshold:** simulação de carga sob falha demonstrada com gráficos + ADRs aprovados em code review architectural por peer Senior+ ou self-review estruturado com checklist do módulo + TLA+ specs validas + RAG funcional.
 
-**Caráter:** sistema **distribuído** real. Não brinca — você lida com partial failures, eventual consistency, CAP trade-offs vividos.
+**Caráter:** sistema **distribuído** real. Não brinca, você lida com partial failures, eventual consistency, CAP trade-offs vividos.
 
 ---
 
-## v4 — Specialization Showcase (CAPSTONE-amplitude)
+## v4, Specialization Showcase (CAPSTONE-amplitude)
 
 **Não é v4 do produto.** É a **cristalização da carreira** sobre a Logística + outputs cumulativos.
 
@@ -199,7 +199,7 @@ Cada track aprofunda uma dimensão da Logística + integra outputs do Estágio 5
 - 25+ papers lidos com Q&A notes.
 - 6+ long-form blog posts.
 
-**Caráter:** não é projeto novo — é **posicionamento**. Tudo o que você fez nas v1-v3 + módulos novos viram material de promo case e job mobility.
+**Caráter:** não é projeto novo, é **posicionamento**. Tudo o que você fez nas v1-v3 + módulos novos viram material de promo case e job mobility.
 
 ---
 

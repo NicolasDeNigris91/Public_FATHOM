@@ -1,6 +1,6 @@
 ---
 module: 03-10
-title: Backend Performance — Profiling, GC, Concurrency, Caching, DB Tuning
+title: Backend Performance, Profiling, GC, Concurrency, Caching, DB Tuning
 stage: producao
 prereqs: [02-07, 02-09, 02-11, 03-07]
 gates:
@@ -10,7 +10,7 @@ gates:
 status: locked
 ---
 
-# 03-10 — Backend Performance
+# 03-10, Backend Performance
 
 ## 1. Problema de Engenharia
 
@@ -81,7 +81,7 @@ Mitigações:
 - Pool de objetos reutilizados.
 - Buffer pool.
 - Reduzir allocations em loops (closures novas a cada iteração).
-- Aumentar heap (`--max-old-space-size`) — última opção.
+- Aumentar heap (`--max-old-space-size`), última opção.
 
 ### 2.5 Conexões: pool tuning
 
@@ -213,12 +213,12 @@ Pra Logística: cold start não é crítico em web traffic constante. Em endpoin
 
 ### 2.18 Casos típicos: latência por feature
 
-- Login: hash Argon2 custa ~100-500ms — deliberadamente. Não otimize "down". Considere caching de session token em vez de re-auth.
+- Login: hash Argon2 custa ~100-500ms, deliberadamente. Não otimize "down". Considere caching de session token em vez de re-auth.
 - Search: text search em Postgres pode ser custoso; considere índices, search engine externo (Meilisearch, Typesense).
 - Aggregation: pre-compute em scheduled job; cache.
 - Listing endpoint: cursor pagination em vez de offset.
 
-### 2.19 Performance em outros runtimes — JVM, .NET, Go
+### 2.19 Performance em outros runtimes, JVM, .NET, Go
 
 Node é coberto acima. Se você opera stack mixed ou migra de Node, vale entender perf characteristics dos runtimes vizinhos.
 
@@ -359,7 +359,7 @@ Profiling e tuning sistemático de **Logística v1** sob carga.
 - Substituir JSON.stringify por fast-json-stringify (Fastify default; teste em endpoint custom).
 - Worker thread pra job CPU-bound, comparar latência mainline vs worker.
 - HTTP/2 outbound pra serviços internos (undici Pool com http2 enabled).
-- io_uring no kernel (libuv 1.45+) — verificar uso.
+- io_uring no kernel (libuv 1.45+), verificar uso.
 
 ---
 
@@ -382,13 +382,13 @@ Profiling e tuning sistemático de **Logística v1** sob carga.
 
 ## 6. Referências
 
-- **"Systems Performance"** — Brendan Gregg. Bíblia de perf de sistemas.
-- **"BPF Performance Tools"** — Brendan Gregg.
-- **"Node.js Design Patterns"** — Casciaro, capítulos sobre performance.
+- **"Systems Performance"**: Brendan Gregg. Bíblia de perf de sistemas.
+- **"BPF Performance Tools"**: Brendan Gregg.
+- **"Node.js Design Patterns"**: Casciaro, capítulos sobre performance.
 - **clinic.js docs** ([clinicjs.org](https://clinicjs.org/)).
 - **0x docs** ([github.com/davidmarkclements/0x](https://github.com/davidmarkclements/0x)).
 - **Pyroscope docs** ([grafana.com/oss/pyroscope](https://grafana.com/oss/pyroscope/)).
 - **PostgreSQL Wiki "Slow Query Questions"**.
 - **Use The Index, Luke**.
-- **Charity Majors / Honeycomb** — observability como base de perf.
+- **Charity Majors / Honeycomb**: observability como base de perf.
 - **Brendan Gregg blog** ([brendangregg.com](https://www.brendangregg.com/)).

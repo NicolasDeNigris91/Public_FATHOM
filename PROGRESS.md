@@ -1,8 +1,8 @@
-# PROGRESS — Fathom
+# PROGRESS: Fathom
 
 **Estágio ativo:** Fundamentos
-**Módulo ativo:** — (nenhum iniciado ainda)
-**Próximo módulo:** 01-01 — Computation Model
+**Módulo ativo:**: (nenhum iniciado ainda)
+**Próximo módulo:** 01-01, Computation Model
 **Atualizado em:** 2026-04-28
 
 > Este arquivo é a fonte de verdade do progresso. O mentor DEVE lê-lo a cada `SessionStart` e atualizá-lo após cada portão (ver `MENTOR.md` §4).
@@ -11,7 +11,7 @@
 
 ---
 
-## Estágio 1 — Fundamentos
+## Estágio 1: Fundamentos
 
 | ID | Módulo | Conceitual | Prático | Conexões | Status |
 |----|--------|:---:|:---:|:---:|:------:|
@@ -30,11 +30,11 @@
 | 01-13 | Compilers & Interpreters | ⬜ | ⬜ | ⬜ | LOCKED |
 | 01-14 | CPU Microarchitecture | ⬜ | ⬜ | ⬜ | LOCKED |
 | 01-15 | Math Foundations | ⬜ | ⬜ | ⬜ | LOCKED |
-| **CAPSTONE-fundamentos** | HTTP server from scratch | — | ⬜ | — | LOCKED |
+| **CAPSTONE-fundamentos** | HTTP server from scratch | - | ⬜ | - | LOCKED |
 
 ---
 
-## Estágio 2 — Plataforma
+## Estágio 2: Plataforma
 
 | ID | Módulo | Conceitual | Prático | Conexões | Status |
 |----|--------|:---:|:---:|:---:|:------:|
@@ -57,11 +57,11 @@
 | 02-17 | Native Mobile (iOS/Android) | ⬜ | ⬜ | ⬜ | LOCKED |
 | 02-18 | Payments & Billing | ⬜ | ⬜ | ⬜ | LOCKED |
 | 02-19 | i18n / l10n | ⬜ | ⬜ | ⬜ | LOCKED |
-| **CAPSTONE-plataforma** | Logística v1 (full stack monolith) | — | ⬜ | — | LOCKED |
+| **CAPSTONE-plataforma** | Logística v1 (full stack monolith) | - | ⬜ | - | LOCKED |
 
 ---
 
-## Estágio 3 — Produção
+## Estágio 3: Produção
 
 | ID | Módulo | Conceitual | Prático | Conexões | Status |
 |----|--------|:---:|:---:|:---:|:------:|
@@ -83,11 +83,11 @@
 | 03-16 | Estimation & Technical Planning | ⬜ | ⬜ | ⬜ | LOCKED |
 | 03-17 | Accessibility Testing & Automation | ⬜ | ⬜ | ⬜ | LOCKED |
 | 03-18 | Cognitive Accessibility | ⬜ | ⬜ | ⬜ | LOCKED |
-| **CAPSTONE-producao** | Logística v2 (production-ready) | — | ⬜ | — | LOCKED |
+| **CAPSTONE-producao** | Logística v2 (production-ready) | - | ⬜ | - | LOCKED |
 
 ---
 
-## Estágio 4 — Sistemas
+## Estágio 4: Sistemas
 
 | ID | Módulo | Conceitual | Prático | Conexões | Status |
 |----|--------|:---:|:---:|:---:|:------:|
@@ -107,11 +107,11 @@
 | 04-14 | Formal Methods (TLA+) | ⬜ | ⬜ | ⬜ | LOCKED |
 | 04-15 | OSS Maintainership | ⬜ | ⬜ | ⬜ | LOCKED |
 | 04-16 | Product, Business & Unit Economics | ⬜ | ⬜ | ⬜ | LOCKED |
-| **CAPSTONE-sistemas** | Logística v3 (distribuído escalável) | — | ⬜ | — | LOCKED |
+| **CAPSTONE-sistemas** | Logística v3 (distribuído escalável) | - | ⬜ | - | LOCKED |
 
 ---
 
-## Estágio 5 — Amplitude
+## Estágio 5: Amplitude
 
 | ID | Módulo | Conceitual | Prático | Conexões | Status |
 |----|--------|:---:|:---:|:---:|:------:|
@@ -125,7 +125,7 @@
 | 05-08 | Hardware Design Fundamentals (opcional) | ⬜ | ⬜ | ⬜ | LOCKED |
 | 05-09 | Bioinformatics & Scientific Computing (opcional) | ⬜ | ⬜ | ⬜ | LOCKED |
 | 05-10 | Game Development Pipeline (opcional) | ⬜ | ⬜ | ⬜ | LOCKED |
-| **CAPSTONE-amplitude** | Specialization + Portfolio + Promo Case | — | ⬜ | — | LOCKED |
+| **CAPSTONE-amplitude** | Specialization + Portfolio + Promo Case | - | ⬜ | - | LOCKED |
 
 ---
 
@@ -179,7 +179,7 @@
 
 ## Mentorship Tracking
 
-> Registro privado de mentees (05-06). Não inclua dados pessoais sensíveis aqui — use doc separado privado se preciso. Aqui só counts e status.
+> Registro privado de mentees (05-06). Não inclua dados pessoais sensíveis aqui, use doc separado privado se preciso. Aqui só counts e status.
 
 (vazio)
 
@@ -192,7 +192,7 @@
 > Atualize quando trocar máquina, OS, editor principal, ou pillar de stack.
 
 ### Hardware
-- **Máquina principal**: (modelo, CPU, RAM, GPU, OS version) — ex: MacBook Pro M3, 32GB RAM, macOS 14.4.
+- **Máquina principal**: (modelo, CPU, RAM, GPU, OS version), ex: MacBook Pro M3, 32GB RAM, macOS 14.4.
 - **Display setup**: (1 ou 2 monitores, resolução).
 - **Periféricos relevantes**: (teclado mecânico, microfone, etc.).
 

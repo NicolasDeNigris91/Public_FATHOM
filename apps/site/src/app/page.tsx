@@ -64,7 +64,7 @@ export default async function HomePage() {
             <Pillar
               n="01"
               title="Teoria Hard"
-              body="Densa, com referências primárias, sem padding. Você lê DDIA, OS:TEP, RFCs canônicos — não Medium clickbait."
+              body="Densa, com referências primárias, sem padding. Você lê DDIA, OS:TEP, RFCs canônicos, não Medium clickbait."
             />
             <Pillar
               n="02"

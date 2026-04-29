@@ -1,10 +1,10 @@
-# DECISION-LOG — Decisões de Design do Framework
+# DECISION-LOG, Decisões de Design do Framework
 
 > Registro de **por que** o framework foi feito como foi. Não é roadmap; é archaeology.
 >
 > Daqui a 1 ano você (ou outro leitor) vai perguntar: "por que 5 estágios?", "por que Logística?", "por que 05-07-05-10 opcionais?". Este doc responde com reasoning.
 >
-> Cada decisão tem ID `DL-NNN`, contexto, alternativas, escolha, trade-offs, status. Append-only — superseded com nova entry citando o ID antigo.
+> Cada decisão tem ID `DL-NNN`, contexto, alternativas, escolha, trade-offs, status. Append-only, superseded com nova entry citando o ID antigo.
 
 ---
 
@@ -21,7 +21,7 @@ Frameworks de carreira tradicionais usam 3 níveis (Junior/Pleno/Senior) ou 7+ (
 **Escolha**: 5 estágios (Fundamentos, Plataforma, Professional, Senior, Staff/Principal).
 
 **Por quê**:
-- Fundamentos/Plataforma/Professional/Senior cobrem trajetória full-stack até Senior generalista — o que 95% dos engineers precisam.
+- Fundamentos/Plataforma/Professional/Senior cobrem trajetória full-stack até Senior generalista, o que 95% dos engineers precisam.
 - Estágio 5 (Staff/Principal) preenche gap real onde dev fica preso em Senior por 5+ anos sem ferramentas pra cruzar.
 - "Distinguished/Fellow" e além são domain-specific demais pra framework standardizable; trajetórias divergem.
 
@@ -129,7 +129,7 @@ Framework é mastery-based; portões precisam de examinador rigoroso. Quem ocupa
 - Peer-to-peer / cohort: complementar, não substitui em todos os contextos.
 - Suplemento opcional de produtividade: instrumento auxiliar pra fricções pontuais (gerar listas de perguntas, apontar typos), nunca pra avaliar portão.
 
-**Escolha**: protocolo de mentor agnóstico documentado em `MENTOR.md` com 4 modos válidos — A (self), B (peer/cohort), C (suplemento opcional, com restrições), D (hybrid recomendado). O **rigor não-negociável** é o que importa, não quem ocupa o papel.
+**Escolha**: protocolo de mentor agnóstico documentado em `MENTOR.md` com 4 modos válidos, A (self), B (peer/cohort), C (suplemento opcional, com restrições), D (hybrid recomendado). O **rigor não-negociável** é o que importa, não quem ocupa o papel.
 
 **Por quê**:
 - Acessibilidade: framework não fica preso a um único provedor de mentoria.
@@ -139,7 +139,7 @@ Framework é mastery-based; portões precisam de examinador rigoroso. Quem ocupa
 
 **Trade-offs**:
 - Aceita: self-mentor solo tem maior risco de auto-engano. Mitigação: anti-isolamento gate (MENTOR.md §10.5) força 1+ canal externo após 6 meses solo.
-- Aceita: nenhum modo é "óbvio" — aluno tem que decidir. Mitigação: STUDY-PLANS.md + SELF-ASSESSMENT.md ajudam calibrar.
+- Aceita: nenhum modo é "óbvio", aluno tem que decidir. Mitigação: STUDY-PLANS.md + SELF-ASSESSMENT.md ajudam calibrar.
 - Pago em: protocol explicit + MENTOR.md §9 (anti-burla) + checkpoints de sustentabilidade.
 
 **Status**: ativo.
@@ -321,10 +321,10 @@ Não delete entries; superseded é OK. History é o ponto.
 
 ## Decisões pendentes (open questions)
 
-- **Translation pra EN**: vale o esforço? Quando? — não decidido. Tracked como SN-040 em SPRINT-NEXT.
+- **Translation pra EN**: vale o esforço? Quando?, não decidido. Tracked como SN-040 em SPRINT-NEXT.
 - **Tooling de validate frontmatter consistency**: nice-to-have, não essential. Tracked como SN-030.
 - **Custom Anki deck por módulo**: trabalho grande, retorno incerto. Tracked como SN-021.
-- **Versioning de framework**: semver-style? CalVer? — não decidido (CHANGELOG por enquanto cobre).
+- **Versioning de framework**: semver-style? CalVer?, não decidido (CHANGELOG por enquanto cobre).
 - **Distinguished/Fellow stage 6**: gap real mas extremamente nicho. Provavelmente não.
 
 Reabra entry quando decidir.
@@ -334,10 +334,10 @@ Reabra entry quando decidir.
 ## DL-014: Profundidade desigual aceita pragmaticamente
 
 **Contexto** (2026-04-28):
-Auditoria interna mostra que módulos têm profundidade desigual. 02-09 (Postgres) é denso; 01-04 (Data Structures) é mais shallow proporcionalmente; 01-15 (Math) cobre 18 sub-tópicos em 350 linhas — cada um merece livro. Tentação: rewrite tudo pra alcançar profundidade máxima.
+Auditoria interna mostra que módulos têm profundidade desigual. 02-09 (Postgres) é denso; 01-04 (Data Structures) é mais shallow proporcionalmente; 01-15 (Math) cobre 18 sub-tópicos em 350 linhas, cada um merece livro. Tentação: rewrite tudo pra alcançar profundidade máxima.
 
 **Alternativas consideradas**:
-- A. Rewrite todos os 78 módulos pra ~500-600 linhas cada — torna framework livro de 40k+ linhas. Demora meses.
+- A. Rewrite todos os 78 módulos pra ~500-600 linhas cada, torna framework livro de 40k+ linhas. Demora meses.
 - B. Aceitar disparidade. Documentar lacuna e apontar leituras complementares obrigatórias por módulo.
 - C. Identificar 10-15 módulos shallow específicos e fazer batch de aprofundamento (Sprint 1).
 
@@ -411,7 +411,7 @@ Texto não substitui leitura de código real de produção. Framework reconhece 
 ## DL-017: Atribuição autoral única (Nicolas De Nigris)
 
 **Contexto** (2026-04-28):
-Framework é artefato pessoal. Versão anterior tinha attribuição compartilhada com ferramenta de produtividade específica usada durante a redação. Reflexão honesta concluiu: a ferramenta foi instrumento, não co-autor — análogo a um editor de texto, Grammarly, ou template de Notion. Co-attribuição inflaciona crédito e introduz dependência conceitual desnecessária na trajetória.
+Framework é artefato pessoal. Versão anterior tinha attribuição compartilhada com ferramenta de produtividade específica usada durante a redação. Reflexão honesta concluiu: a ferramenta foi instrumento, não co-autor, análogo a um editor de texto, Grammarly, ou template de Notion. Co-attribuição inflaciona crédito e introduz dependência conceitual desnecessária na trajetória.
 
 **Alternativas consideradas**:
 - A. Manter co-attribuição com ferramenta específica usada no draft inicial.
@@ -421,10 +421,10 @@ Framework é artefato pessoal. Versão anterior tinha attribuição compartilhad
 **Escolha**: C. Autor único: Nicolas De Nigris. Síntese pedagógica baseada em fontes canônicas (DDIA, SICP, OS:TEP, RFCs, papers, talks) creditadas em `reading-list.md` e `elite-references.md`.
 
 **Por quê**:
-- Framework é responsabilidade pessoal — quem mantém, escolhe rumo, calibra rigor é o autor único.
+- Framework é responsabilidade pessoal, quem mantém, escolhe rumo, calibra rigor é o autor único.
 - Ferramentas de escrita assistida são instrumento (igual a editor de código, dicionário, linter). Não viram co-autor.
 - Atribuição limpa simplifica licenciamento futuro e evita dependência simbólica em fornecedor terceiro.
-- Honestidade técnica: o conteúdo é original synthesis + curadoria de fontes canônicas reconhecidas — essas são as fontes que merecem crédito.
+- Honestidade técnica: o conteúdo é original synthesis + curadoria de fontes canônicas reconhecidas, essas são as fontes que merecem crédito.
 
 **Trade-offs**:
 - Aceita: leitor curioso sobre processo de escrita não verá pelo doc qual ferramenta foi usada. Não é informação relevante pro framework como artefato.
@@ -437,18 +437,18 @@ Framework é artefato pessoal. Versão anterior tinha attribuição compartilhad
 ## DL-018: Site público em monorepo (apps/site/), não repo separado
 
 **Contexto** (2026-04-28):
-Framework precisa de surface pública pra ser consumido fora do GitHub raw — recruiters, peers, leitores casuais, futuro promo case (CAPSTONE-amplitude §2.12). Decisão: criar repo dedicado pro site, ou manter dentro do `FATHOM` em `apps/site/`?
+Framework precisa de surface pública pra ser consumido fora do GitHub raw, recruiters, peers, leitores casuais, futuro promo case (CAPSTONE-amplitude §2.12). Decisão: criar repo dedicado pro site, ou manter dentro do `FATHOM` em `apps/site/`?
 
 **Alternativas consideradas**:
 - A. Repo separado `FATHOM-site`. Pros: clean boundary, deploy independente. Cons: duplicação cross-repo de conteúdo (ou pull via submodule), dois lugares pra atualizar, divergência risk.
-- B. Monorepo com `apps/site/` lendo `framework/` por path relativo. Pros: single source of truth, cada `git push` atualiza site, zero duplicação. Cons: site code fica versionado junto com framework content (mas isso é OK — vivem na mesma estória).
+- B. Monorepo com `apps/site/` lendo `framework/` por path relativo. Pros: single source of truth, cada `git push` atualiza site, zero duplicação. Cons: site code fica versionado junto com framework content (mas isso é OK, vivem na mesma estória).
 - C. Markdown estático servido por GitHub Pages. Pros: zero infra. Cons: sem custom layout/UI, sem search, sem mermaid render, sem CMD+K.
 
 **Escolha**: B. Monorepo, `apps/site/` lê `../../framework/*.md` em build/runtime via `fs/promises`. Railway aponta Dockerfile path pra `apps/site/Dockerfile`, build context é repo root pra ter acesso ao framework.
 
 **Por quê**:
-- Single source of truth alinha com princípio do framework (DL-002 capstone único, DL-007 mastery-based — nada de cópia).
-- Edição preserva fluxo "vim/VS Code → git commit" — não muda workflow do autor.
+- Single source of truth alinha com princípio do framework (DL-002 capstone único, DL-007 mastery-based, nada de cópia).
+- Edição preserva fluxo "vim/VS Code → git commit", não muda workflow do autor.
 - Stack idêntica ao `MyPersonalWebSite` (Next.js 16 + React 19 + Tailwind 4) facilita migração futura caso queiramos integrar como rota `/fathom` no portfolio principal.
 - Deploy independente preservado: Railway service dedicado, subdomínio `fathom.nicolaspilegidenigris.dev` (mesmo padrão dos outros projetos pessoais).
 

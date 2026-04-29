@@ -1,4 +1,4 @@
-# INTERVIEW-PREP — Mapping Módulos → Entrevistas Pleno/Senior/Staff
+# INTERVIEW-PREP, Mapping Módulos → Entrevistas Pleno/Senior/Staff
 
 > Cada empresa tier-1 (Stripe, Google, Meta, Anthropic, Cloudflare, Netflix, Airbnb, Datadog, Snowflake, Databricks) testa subset de tópicos consistentes. Este doc mapeia módulos do framework → áreas de entrevista, com perguntas-amostra reais e nível esperado.
 >
@@ -89,7 +89,7 @@ Staff/Principal: pesos shifts pra **system design + experience + influence** vs 
 
 **Frameworks de prática**:
 - "System Design Interview" (Alex Xu, vol 1 + 2).
-- "Designing Data-Intensive Applications" (Kleppmann) — base teórica.
+- "Designing Data-Intensive Applications" (Kleppmann), base teórica.
 - ByteByteGo blog/newsletter.
 - Pramp / Hello Interview / Exponent.
 
@@ -129,7 +129,7 @@ Empresas tipo Amazon usam **Leadership Principles** (16). Cada round pergunta 2-
 
 **Brag doc** (04-12, 05-06) é fonte primária. Mantenha live.
 
-### Domain deep — Backend
+### Domain deep, Backend
 
 **Módulos relevantes**: 02-07-02-14, 02-18, 03-01, 03-10, 03-13.
 
@@ -140,7 +140,7 @@ Empresas tipo Amazon usam **Leadership Principles** (16). Cada round pergunta 2-
 - "Como debug N+1 query em produção?"
 - "Como fazer migração de schema sem downtime?"
 
-### Domain deep — Frontend
+### Domain deep, Frontend
 
 **Módulos relevantes**: 02-01-02-06, 02-19, 03-09, 03-14, 03-17.
 
@@ -151,7 +151,7 @@ Empresas tipo Amazon usam **Leadership Principles** (16). Cada round pergunta 2-
 - "Como gerenciar state global em app SPA grande?"
 - "Bundle 2MB ficou lento. Como diagnosticar?"
 
-### Domain deep — Distributed Systems
+### Domain deep, Distributed Systems
 
 **Módulos relevantes**: 04-01-04-04, 04-09, 04-13, 04-14.
 
@@ -162,7 +162,7 @@ Empresas tipo Amazon usam **Leadership Principles** (16). Cada round pergunta 2-
 - "Outbox pattern: qual problema resolve?"
 - "Como TLA+ ajudaria em design de [X]?"
 
-### Domain deep — Security
+### Domain deep, Security
 
 **Módulos relevantes**: 01-12, 02-13, 03-08, 04-11, 03-18.
 
@@ -173,7 +173,7 @@ Empresas tipo Amazon usam **Leadership Principles** (16). Cada round pergunta 2-
 - "Como detectar XSS automaticamente?"
 - "Threat model de Logística: identifique top 5 threats."
 
-### Domain deep — Data / ML
+### Domain deep, Data / ML
 
 **Módulos relevantes**: 01-15, 02-09, 02-15, 03-13, 04-10, 04-13, 05-09.
 
@@ -183,7 +183,7 @@ Empresas tipo Amazon usam **Leadership Principles** (16). Cada round pergunta 2-
 - "Como handle drift em ML em produção?"
 - "Streaming aggregation com windows e watermarks."
 
-### Domain deep — Platform / Infra
+### Domain deep, Platform / Infra
 
 **Módulos relevantes**: 03-02-03-07, 03-11, 03-15, 04-04, 04-08, 05-07-05-08.
 
@@ -193,7 +193,7 @@ Empresas tipo Amazon usam **Leadership Principles** (16). Cada round pergunta 2-
 - "Multi-region failover: design + RTO/RPO targets."
 - "Redução de custo cloud: top 5 levers."
 
-### Domain deep — AI/ML em produção
+### Domain deep, AI/ML em produção
 
 **Módulos relevantes**: 04-10, 03-13, 04-13, 01-15.
 
@@ -234,15 +234,15 @@ Empresas tipo Amazon usam **Leadership Principles** (16). Cada round pergunta 2-
 Recebeu offer? Comp não é fixo:
 
 - **Sempre negocie**, mesmo se já está acima de target. -10% se silent + 10-25% if negotiate é range típica.
-- Coleta competing offers se possível (mesmo se você não vai aceitar — leverage).
+- Coleta competing offers se possível (mesmo se você não vai aceitar, leverage).
 - **levels.fyi** + **rora.com** + **Compendium List** pra calibrar.
 - Componentes negociáveis: base, equity (RSU/stock), sign-on bonus, performance bonus, vacation, start date, relocation.
 - Comp em equity: entenda vesting schedule, cliff, refresher.
-- Recruiter NÃO é seu amigo — representam empresa. Be professional, be firm.
+- Recruiter NÃO é seu amigo, representam empresa. Be professional, be firm.
 
 Refs:
-- "Salary Negotiation: Make More Money, Be More Valued" — Patrick McKenzie (kalzumeus).
-- "Ten Rules for Negotiating a Job Offer" — Haseeb Qureshi.
+- "Salary Negotiation: Make More Money, Be More Valued", Patrick McKenzie (kalzumeus).
+- "Ten Rules for Negotiating a Job Offer", Haseeb Qureshi.
 
 ---
 
@@ -265,7 +265,7 @@ Mock 5-10 vezes antes de real. Feedback signal qualidade.
 Maioria de candidatos rejeitam algumas vezes antes de offer.
 
 - **Cooldown**: empresas grandes têm 6-12 meses entre attempts.
-- **Feedback é raramente honesto** (legal). Aceite generic "cultural fit" — frequently encrypta "your interview perf was below bar".
+- **Feedback é raramente honesto** (legal). Aceite generic "cultural fit", frequently encrypta "your interview perf was below bar".
 - **Iterate**: identifica gaps, study, retry.
 - **Não personalize**. Probabilidade de rejection mesmo de candidatos strong é alta.
 

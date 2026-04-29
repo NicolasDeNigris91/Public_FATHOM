@@ -9,7 +9,7 @@ import { STAGES } from '@/lib/stages';
 export const metadata = {
   title: 'Now',
   description:
-    'Em que estou trabalhando agora — estágio ativo, módulo ativo, próximo passo. /now convention.',
+    'Em que estou trabalhando agora, estágio ativo, módulo ativo, próximo passo. /now convention.',
   alternates: { canonical: '/now' },
 };
 
@@ -56,7 +56,7 @@ export default async function NowPage() {
               </span>
             </div>
             <p className="font-display text-display-md text-pearl mb-2">
-              {stage?.title ?? '—'}
+              {stage?.title ?? '-'}
             </p>
             <p className="font-sans text-body text-chrome leading-relaxed">
               {stage?.subtitle ?? ''}
@@ -137,7 +137,7 @@ export default async function NowPage() {
                 className="font-sans text-caption tracking-luxury uppercase text-chrome hover:text-pearl
                            transition-colors duration-300"
               >
-                01-01 — Computation Model →
+                01-01, Computation Model →
               </Link>
             </div>
           </div>
@@ -243,7 +243,7 @@ export default async function NowPage() {
             <p className="text-racing-green-lit tracking-luxury uppercase mb-2">
               Última atualização
             </p>
-            <p className="font-display text-xl text-pearl">{snap?.updatedAt ?? '—'}</p>
+            <p className="font-display text-xl text-pearl">{snap?.updatedAt ?? '-'}</p>
           </div>
         </div>
 

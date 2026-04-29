@@ -1,6 +1,6 @@
 ---
 module: 01-08
-title: TypeScript Type System — Generics, Inference, Conditional Types, Discriminated Unions
+title: TypeScript Type System, Generics, Inference, Conditional Types, Discriminated Unions
 stage: fundamentos
 prereqs: [01-07]
 gates:
@@ -10,7 +10,7 @@ gates:
 status: locked
 ---
 
-# 01-08 — TypeScript Type System
+# 01-08, TypeScript Type System
 
 ## 1. Problema de Engenharia
 
@@ -20,7 +20,7 @@ Entender TS profundamente significa:
 - Você modela domínio com **discriminated unions** e elimina classes de bugs.
 - Você usa **generics** pra escrever lib reutilizável sem `any`.
 - Você escreve **type guards** que estreitam tipos com base em runtime.
-- Você consegue implementar (ou ler) tipos como os de Zod, Drizzle, tRPC — bibliotecas que **fazem mágica em compile time**.
+- Você consegue implementar (ou ler) tipos como os de Zod, Drizzle, tRPC, bibliotecas que **fazem mágica em compile time**.
 - Você lê erros do TS sem se perder em "Type X is not assignable to type Y".
 
 ---
@@ -36,7 +36,7 @@ type Point = { x: number; y: number };
 type Vector = { x: number; y: number };
 
 const p: Point = { x: 1, y: 2 };
-const v: Vector = p; // OK — mesma forma
+const v: Vector = p; // OK, mesma forma
 ```
 
 Java é **nominal**: `class A` e `class B` com mesma estrutura são incompatíveis. TS não.
@@ -59,7 +59,7 @@ if (typeof x === 'string') x.toUpperCase(); // OK
 x.toUpperCase(); // erro
 ```
 
-**`any`**: top type **inseguro**. Aceita qualquer operação. **Use raramente** — é "desligar o type checker" pontualmente.
+**`any`**: top type **inseguro**. Aceita qualquer operação. **Use raramente**: é "desligar o type checker" pontualmente.
 
 **`void`**: ausência de retorno (function), mas não exatamente `undefined`. Tipo retorno `void` aceita função que retorna qualquer coisa (intencional pra callbacks).
 
@@ -276,7 +276,7 @@ function fn(x: number | undefined) {
 | `Awaited<T>` | Unwrap Promise |
 | `InstanceType<C>` | Type da instância de class |
 
-Implemente cada um manualmente como exercício — fortalece intuição.
+Implemente cada um manualmente como exercício, fortalece intuição.
 
 ### 2.11 Variance: covariance vs contravariance
 
@@ -345,7 +345,7 @@ type UserId = string & { readonly __brand: 'UserId' };
 type OrderId = string & { readonly __brand: 'OrderId' };
 
 const uid: UserId = 'abc' as UserId;
-const oid: OrderId = uid; // erro — nominal
+const oid: OrderId = uid; // erro, nominal
 ```
 
 Útil pra prevenir mistura de IDs.
@@ -381,11 +381,11 @@ Construa uma lib chamada `zod-mini` com:
 
 1. **Schemas builders:**
    - `z.string()`, `z.number()`, `z.boolean()`, `z.literal(value)`
-   - `z.object({ ... })` — schema de objeto
+   - `z.object({ ... })`, schema de objeto
    - `z.array(schema)`
-   - `z.union([s1, s2])` — schema A ou B
-   - `z.optional(schema)` — `T | undefined`
-   - `z.tuple([s1, s2, s3])` — schema fixo de tuple
+   - `z.union([s1, s2])`, schema A ou B
+   - `z.optional(schema)`, `T | undefined`
+   - `z.tuple([s1, s2, s3])`, schema fixo de tuple
    - `z.record(keyS, valS)`
 
 2. **Refinements:**
@@ -423,7 +423,7 @@ Construa uma lib chamada `zod-mini` com:
 
 - **TS 5.x estrito.**
 - Sem libs externas (apenas `vitest`).
-- A inferência **tem que funcionar de verdade** — type tests com `tsd` ou `expectType`.
+- A inferência **tem que funcionar de verdade**: type tests com `tsd` ou `expectType`.
 
 ### Threshold
 
@@ -445,39 +445,39 @@ Construa uma lib chamada `zod-mini` com:
 
 ## 5. Extensões e Conexões
 
-- **Conecta com [01-06 — Paradigmas](01-06-programming-paradigms.md):** ADTs (sum + product) são modelados com discriminated unions. Generics são polymorphism paramétrico.
-- **Conecta com [01-07 — JavaScript Deep](01-07-javascript-deep.md):** TS é estritamente camada de tipos sobre JS — runtime é JS puro.
-- **Conecta com [02-04 — React Deep](../02-plataforma/02-04-react-deep.md):** Component props com generics, hooks com tipo, RSC com type narrowing através de boundaries.
-- **Conecta com [02-08 — Backend Frameworks](../02-plataforma/02-08-backend-frameworks.md):** Zod schemas integram com Hono/Fastify pra type safety end-to-end.
-- **Conecta com [02-10 — ORMs](../02-plataforma/02-10-orms.md):** Drizzle e Prisma usam TS pra inferir schemas do banco.
-- **Conecta com [04-05 — API Design](../04-sistemas/04-05-api-design.md):** tRPC usa TS extensivamente pra RPC type-safe.
+- **Conecta com [01-06, Paradigmas](01-06-programming-paradigms.md):** ADTs (sum + product) são modelados com discriminated unions. Generics são polymorphism paramétrico.
+- **Conecta com [01-07, JavaScript Deep](01-07-javascript-deep.md):** TS é estritamente camada de tipos sobre JS, runtime é JS puro.
+- **Conecta com [02-04, React Deep](../02-plataforma/02-04-react-deep.md):** Component props com generics, hooks com tipo, RSC com type narrowing através de boundaries.
+- **Conecta com [02-08, Backend Frameworks](../02-plataforma/02-08-backend-frameworks.md):** Zod schemas integram com Hono/Fastify pra type safety end-to-end.
+- **Conecta com [02-10, ORMs](../02-plataforma/02-10-orms.md):** Drizzle e Prisma usam TS pra inferir schemas do banco.
+- **Conecta com [04-05, API Design](../04-sistemas/04-05-api-design.md):** tRPC usa TS extensivamente pra RPC type-safe.
 
 ### Ferramentas satélites
 
-- **[type-challenges](https://github.com/type-challenges/type-challenges)** — exercícios brutais. Faça pelo menos 30.
-- **[ts-toolbelt](https://github.com/millsp/ts-toolbelt)** — biblioteca de utilities avançadas.
-- **[Type-fest](https://github.com/sindresorhus/type-fest)** — utility types extras.
-- **[tsd](https://github.com/tsdjs/tsd)** — testes pra tipos.
+- **[type-challenges](https://github.com/type-challenges/type-challenges)**: exercícios brutais. Faça pelo menos 30.
+- **[ts-toolbelt](https://github.com/millsp/ts-toolbelt)**: biblioteca de utilities avançadas.
+- **[Type-fest](https://github.com/sindresorhus/type-fest)**: utility types extras.
+- **[tsd](https://github.com/tsdjs/tsd)**: testes pra tipos.
 
 ---
 
 ## 6. Referências de Elite
 
 ### Livros canônicos
-- **Effective TypeScript** (Dan Vanderkam) — 62 idioms. **Curto e denso.**
-- **Programming TypeScript** (Boris Cherny) — sólido.
-- **Total TypeScript** (Matt Pocock) — curso pago, mas o autor escreve muito de graça em [totaltypescript.com](https://www.totaltypescript.com/).
+- **Effective TypeScript** (Dan Vanderkam), 62 idioms. **Curto e denso.**
+- **Programming TypeScript** (Boris Cherny), sólido.
+- **Total TypeScript** (Matt Pocock), curso pago, mas o autor escreve muito de graça em [totaltypescript.com](https://www.totaltypescript.com/).
 
 ### Recursos online
-- **[TypeScript Handbook (oficial)](https://www.typescriptlang.org/docs/handbook/intro.html)** — leia inteiro.
-- **[TypeScript Deep Dive](https://basarat.gitbook.io/typescript/)** — gratuito, profundo.
-- **[Matt Pocock's YouTube](https://www.youtube.com/@mattpocockuk)** — tips diários de TS avançado.
+- **[TypeScript Handbook (oficial)](https://www.typescriptlang.org/docs/handbook/intro.html)**: leia inteiro.
+- **[TypeScript Deep Dive](https://basarat.gitbook.io/typescript/)**: gratuito, profundo.
+- **[Matt Pocock's YouTube](https://www.youtube.com/@mattpocockuk)**: tips diários de TS avançado.
 
 ### Repos
-- **[TypeScript source](https://github.com/microsoft/TypeScript)** — leia issues marked "easy" pra ver discussão de design.
-- **[type-challenges](https://github.com/type-challenges/type-challenges)** — solução de cada desafio é estudo.
-- **[Zod source](https://github.com/colinhacks/zod)** — leia `src/types.ts`.
-- **[ts-toolbelt source](https://github.com/millsp/ts-toolbelt/tree/master/src)** — masterclass em TS.
+- **[TypeScript source](https://github.com/microsoft/TypeScript)**: leia issues marked "easy" pra ver discussão de design.
+- **[type-challenges](https://github.com/type-challenges/type-challenges)**: solução de cada desafio é estudo.
+- **[Zod source](https://github.com/colinhacks/zod)**: leia `src/types.ts`.
+- **[ts-toolbelt source](https://github.com/millsp/ts-toolbelt/tree/master/src)**: masterclass em TS.
 
 ### Comunidade
 - **[TypeScript Discord](https://discord.gg/typescript)**.

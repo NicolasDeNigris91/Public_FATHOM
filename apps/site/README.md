@@ -8,24 +8,24 @@ Stack idêntica ao [`MyPersonalWebSite`](https://github.com/NicolasDeNigris91/My
 
 ## Single source of truth
 
-Você **edita os `.md` em `framework/` e raiz** — o site re-renderiza no próximo build. Zero conteúdo duplicado em `apps/site/`.
+Você **edita os `.md` em `framework/` e raiz**: o site re-renderiza no próximo build. Zero conteúdo duplicado em `apps/site/`.
 
 Páginas:
-- `/` — Landing com Hero, 5 estágios, método em 4 pilares
-- `/stages` — Grid dos 5 estágios
-- `/stages/[stage]` — Lista de módulos do estágio + README do estágio renderizado
-- `/modules/[id]` — Render do módulo (frontmatter, prereqs, reading time, prev/next nav)
-- `/progress` — Dashboard de portões (parsea PROGRESS.md)
-- `/now` — "Em que estou estudando agora" (segue /now convention de nownownow.com)
-- `/index` — INDEX.md global (DAG mermaid renderizado + tabela)
-- `/library` — Livros canônicos curados por estágio
-- `/glossary` — 210 termos canônicos com client-side search + filtro por seção
-- `/docs/[slug]` — MENTOR, STUDY-PROTOCOL, RELEASE-NOTES, CHANGELOG, DECISION-LOG, etc.
-- `/about` — Sobre o framework
-- `/api/health` — Healthcheck JSON pra Railway
+- `/`, Landing com Hero, 5 estágios, método em 4 pilares
+- `/stages`, Grid dos 5 estágios
+- `/stages/[stage]`, Lista de módulos do estágio + README do estágio renderizado
+- `/modules/[id]`, Render do módulo (frontmatter, prereqs, reading time, prev/next nav)
+- `/progress`, Dashboard de portões (parsea PROGRESS.md)
+- `/now`, "Em que estou estudando agora" (segue /now convention de nownownow.com)
+- `/index`, INDEX.md global (DAG mermaid renderizado + tabela)
+- `/library`, Livros canônicos curados por estágio
+- `/glossary`, 210 termos canônicos com client-side search + filtro por seção
+- `/docs/[slug]`, MENTOR, STUDY-PROTOCOL, RELEASE-NOTES, CHANGELOG, DECISION-LOG, etc.
+- `/about`, Sobre o framework
+- `/api/health`, Healthcheck JSON pra Railway
 
 **Atalhos:**
-- `Cmd+K` / `Ctrl+K` — command palette com fuzzy search em 78 módulos, 5 estágios, 17 docs, todas as páginas.
+- `Cmd+K` / `Ctrl+K`, command palette com fuzzy search em 78 módulos, 5 estágios, 17 docs, todas as páginas.
 
 **Navegação:**
 - Breadcrumbs em todas as rotas internas.
@@ -67,14 +67,14 @@ Padrão usado pelos outros projetos no Railway dashboard (subdomínio em `*.nico
 3. **Domains** → add custom domain `fathom.nicolaspilegidenigris.dev` → segue instrução do Railway pra apontar CNAME no provedor de DNS.
 4. **Variables**:
    - `NEXT_PUBLIC_SITE_URL=https://fathom.nicolaspilegidenigris.dev` (canonical/sitemap/OG/robots usam isto)
-   - **Auto-injetadas pelo Railway**: `RAILWAY_GIT_COMMIT_SHA`, `RAILWAY_GIT_BRANCH` — `/api/version` lê e expõe pra debug de deploy
+   - **Auto-injetadas pelo Railway**: `RAILWAY_GIT_COMMIT_SHA`, `RAILWAY_GIT_BRANCH`, `/api/version` lê e expõe pra debug de deploy
    - Opcional analytics: `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` + `NEXT_PUBLIC_PLAUSIBLE_SCRIPT` (sem essas vars, zero tracking)
 
 ### Como o build funciona
 
 - `Dockerfile` multi-stage (`node:22-alpine`).
 - `apps/site/` é o app; `framework/` + raiz `.md` são copiados pro contexto de build.
-- `next.config.ts` usa `output: 'standalone'` — imagem final pequena (~150MB), só `server.js` + deps mínimas.
+- `next.config.ts` usa `output: 'standalone'`, imagem final pequena (~150MB), só `server.js` + deps mínimas.
 - Runtime: `node server.js` na porta `$PORT` (Railway injeta).
 
 ### Push automatic deploy
@@ -120,7 +120,7 @@ apps/site/
 
 Não há frontmatter especial. Edite os `.md` no framework como sempre:
 
-- Novo módulo: criar `framework/0X-stage/M##-topic.md` com frontmatter padrão (ver `framework/00-meta/MODULE-TEMPLATE.md`). Site detecta automaticamente.
+- Novo módulo: criar `framework/0X-stage/0X-NN-topic.md` com frontmatter padrão (ver `framework/00-meta/MODULE-TEMPLATE.md`). Site detecta automaticamente.
 - Novo doc meta: criar em `framework/00-meta/`. Pra rotear, adicionar entry em `apps/site/src/app/docs/[slug]/page.tsx` `DOCS` array.
 - Atualizar progresso: editar `PROGRESS.md` na raiz. `/progress` lê e renderiza.
 
@@ -129,10 +129,10 @@ Não há frontmatter especial. Edite os `.md` no framework como sempre:
 ## Decisões técnicas
 
 - **Stack idêntico ao portfolio principal**: mesmo `package.json` deps, mesmas fonts via `next/font`, mesmos tokens em `globals.css`. Quando integrar como rota `/fathom` no portfolio, é drop-in.
-- **Markdown rendering**: `react-markdown` + `remark-gfm` + `rehype-slug`. Custom `<a>` component reescreve links relativos do framework (`../01-novice/N01-foo.md`) pra rotas do site (`/modules/n01`). Custom `pre` detecta blocos `language-mermaid` e renderiza via `MermaidDiagram` client component.
+- **Markdown rendering**: `react-markdown` + `remark-gfm` + `rehype-slug`. Custom `<a>` component reescreve links relativos do framework (`../01-fundamentos/01-01-foo.md`) pra rotas do site (`/modules/01-01`). Custom `pre` detecta blocos `language-mermaid` e renderiza via `MermaidDiagram` client component.
 - **Mermaid**: dynamic import client-side (~500KB lazy). Tema dark customizado com tokens do framework. DAG do `/index` agora renderiza visualmente.
 - **Static gen onde possível**: `generateStaticParams` em `[stage]`, `[id]`, `[slug]`. Build pre-renderiza tudo.
-- **CMD+K**: `cmdk` lib + global keyboard listener. Substitui necessidade de search full-text — 100+ entries indexadas com fuzzy match.
+- **CMD+K**: `cmdk` lib + global keyboard listener. Substitui necessidade de search full-text, 100+ entries indexadas com fuzzy match.
 - **Validation script** (`scripts/validate-content.mjs`): hookado como `prebuild`. Checa frontmatter, prereqs, links internos. Flags `--strict`/`--quiet`/`--json`. Build do Railway falha cedo se houver regressão estrutural.
 - **Reading time** estimada em 220 WPM (technical pace), strip de code blocks pra contar palavras úteis.
 - **Library curada**: hand-curated TS data em `lib/library.ts` em vez de parsear o `reading-list.md` heterogêneo. Reading-list completo continua em `/docs/reading-list`.

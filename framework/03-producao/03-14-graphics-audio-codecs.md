@@ -1,6 +1,6 @@
 ---
 module: 03-14
-title: Graphics, Audio & Real-Time Codecs — WebGL/WebGPU, Canvas, Audio API, Video Pipelines
+title: Graphics, Audio & Real-Time Codecs, WebGL/WebGPU, Canvas, Audio API, Video Pipelines
 stage: producao
 prereqs: [03-09]
 gates:
@@ -10,13 +10,13 @@ gates:
 status: locked
 ---
 
-# 03-14 — Graphics, Audio & Real-Time Codecs
+# 03-14, Graphics, Audio & Real-Time Codecs
 
 ## 1. Problema de Engenharia
 
 Web é mais que documento + form. Aplicações modernas crescentemente envolvem **mídia**: mapas com millions de pontos, dashboards reativos com 60fps, videoconferência, áudio capture/processing, edição de imagem no browser, jogos, AR/VR (WebXR). Cada uma dessas capabilities tem stack próprio: Canvas 2D, WebGL/WebGPU, Web Audio, MediaStream, codecs (H.264, VP9, AV1, Opus), MSE, WebRTC.
 
-Maioria dos devs trata isso como caixa-preta — usa biblioteca, cruza dedos. Mas apps competitivos no espaço de mídia (Figma, Excalidraw, Loom, Tldraw, Google Meet, Discord) **dominam pipelines internos**: GPU shaders custom, audio worklets, frame budgets de 16ms, codec choice e bitrate adaptation. Quando você precisa pixel-perfect 60fps com ms de latency, abstrações vazam.
+Maioria dos devs trata isso como caixa-preta, usa biblioteca, cruza dedos. Mas apps competitivos no espaço de mídia (Figma, Excalidraw, Loom, Tldraw, Google Meet, Discord) **dominam pipelines internos**: GPU shaders custom, audio worklets, frame budgets de 16ms, codec choice e bitrate adaptation. Quando você precisa pixel-perfect 60fps com ms de latency, abstrações vazam.
 
 Este módulo é **graphics/audio/video pipelines no browser e nativo**, com foco em entender **frame budget, GPU pipeline, codec internals, latência fim-a-fim**. Logística pode se beneficiar de mapa GPU-rendered, vídeo de comprovação de entrega, dashboards 60fps.
 
@@ -111,7 +111,7 @@ Pipeline: capture → encode (browser-controlled) → network → decode → ren
 
 Conceitos:
 - **GOP** (Group of Pictures): I-frame (independente) → P-frames (predict forward) → B-frames (bi-direção).
-- **Bitrate**: CBR (constant), VBR (variable), CRF (constant rate factor — quality target).
+- **Bitrate**: CBR (constant), VBR (variable), CRF (constant rate factor, quality target).
 - **Profile/level**: subset de features.
 - **Resolution / framerate / colorspace** (BT.709/2020).
 
@@ -278,11 +278,11 @@ Construir **dashboard ao vivo da Logística com mapa GPU-rendered (deck.gl ou Ma
 - **WebGL Fundamentals** ([webglfundamentals.org](https://webglfundamentals.org/)).
 - **WebGPU Fundamentals** ([webgpufundamentals.org](https://webgpufundamentals.org/)).
 - **MDN Web Audio API** docs.
-- **"High Performance Browser Networking"** — Ilya Grigorik, capítulos sobre real-time.
-- **"The Book of Shaders"** — Patricio Gonzalez Vivo.
-- **"Real-Time Rendering" (4th ed)** — Akenine-Möller et al.
+- **"High Performance Browser Networking"**: Ilya Grigorik, capítulos sobre real-time.
+- **"The Book of Shaders"**: Patricio Gonzalez Vivo.
+- **"Real-Time Rendering" (4th ed)**: Akenine-Möller et al.
 - **deck.gl docs**.
 - **MediaSource Extensions spec**, **WebCodecs spec**.
-- **"FFmpeg from Zero to Hero"** — Nick Janetakis.
-- **"Designing Audio Effect Plug-Ins in C++"** — Will Pirkle (DSP fundamentos).
-- **GPU Gems** (free online) — NVIDIA.
+- **"FFmpeg from Zero to Hero"**: Nick Janetakis.
+- **"Designing Audio Effect Plug-Ins in C++"**: Will Pirkle (DSP fundamentos).
+- **GPU Gems** (free online), NVIDIA.

@@ -1,6 +1,6 @@
 ---
 module: 02-14
-title: Real-time — WebSockets, SSE, WebRTC, Long Polling
+title: Real-time, WebSockets, SSE, WebRTC, Long Polling
 stage: plataforma
 prereqs: [02-07, 01-03]
 gates:
@@ -10,11 +10,11 @@ gates:
 status: locked
 ---
 
-# 02-14 — Real-time
+# 02-14, Real-time
 
 ## 1. Problema de Engenharia
 
-"Real-time na web" não é uma tecnologia — são quatro, com semantics diferentes, custos diferentes, e armadilhas próprias. WebSockets, SSE, long polling, WebRTC. Cada um responde a um cenário específico. Devs frequentemente escolhem WebSocket por reflexo, paga complexidade que não precisa; outros usam polling pelo medo de WS, perdem performance.
+"Real-time na web" não é uma tecnologia, são quatro, com semantics diferentes, custos diferentes, e armadilhas próprias. WebSockets, SSE, long polling, WebRTC. Cada um responde a um cenário específico. Devs frequentemente escolhem WebSocket por reflexo, paga complexidade que não precisa; outros usam polling pelo medo de WS, perdem performance.
 
 Este módulo é real-time com clareza: protocolo (frames, ping/pong, reconnect), uso adequado, escala (sticky sessions, fan-out), back-pressure, autenticação no upgrade, e quando usar cada. Você sai sabendo desenhar um sistema com pushing real, não polling disfarçado.
 
@@ -29,7 +29,7 @@ Este módulo é real-time com clareza: protocolo (frames, ping/pong, reconnect),
 - **Server-Sent Events (SSE)**: server faz push unidirecional sobre HTTP/1.1 ou HTTP/2. Reconnect automático.
 - **WebSockets (WS)**: full-duplex bidirecional sobre HTTP upgrade.
 - **WebRTC**: P2P entre clients, com servidor só pra signaling.
-- **HTTP/2 push (DEPRECATED)**: foi removida do mainstream — não use.
+- **HTTP/2 push (DEPRECATED)**: foi removida do mainstream, não use.
 - **HTTP/3 + WebTransport**: novo, baseado em QUIC. Estável mas adoção nascente.
 
 Escolha por **direção** e **frequência**:
@@ -48,12 +48,12 @@ Vantagens:
 
 Desvantagens:
 - Conexão consumida durante hold.
-- Não é "real-time" puro — overhead de reconnect a cada evento.
+- Não é "real-time" puro, overhead de reconnect a cada evento.
 - Cuidado com proxies (timeouts, buffering).
 
 Usado como fallback quando WS bloqueado.
 
-### 2.3 SSE — Server-Sent Events
+### 2.3 SSE, Server-Sent Events
 
 Spec MDN/W3C. Stream de eventos texto, framing trivial (`\n\n` separa). API browser:
 
@@ -73,7 +73,7 @@ id: 42
 
 Vantagens:
 - Reconnect automático com `Last-Event-ID` header (server pode resumir).
-- Trafega sobre HTTP normal — passa por CDN, proxies geralmente.
+- Trafega sobre HTTP normal, passa por CDN, proxies geralmente.
 - Push barato.
 
 Desvantagens:
@@ -81,9 +81,9 @@ Desvantagens:
 - Default browser limita 6 conexões por origin em HTTP/1.1. HTTP/2/3 levanta isso.
 - IE/old-mobile sem suporte (irrelevante em 2026).
 
-Quando vence: notificações push, status updates, dashboards live, AI streaming responses (ChatGPT-style). **SSE é underrated** — em 2026 voltou a ser padrão pra LLM streaming.
+Quando vence: notificações push, status updates, dashboards live, AI streaming responses (ChatGPT-style). **SSE é underrated**: em 2026 voltou a ser padrão pra LLM streaming.
 
-### 2.4 WebSockets — protocolo
+### 2.4 WebSockets, protocolo
 
 RFC 6455. Upgrade de HTTP/1.1:
 ```
@@ -102,7 +102,7 @@ Frames:
 
 Subprotocols (`Sec-WebSocket-Protocol`): negociados, definem semantica acima do raw frame (ex: `graphql-ws`).
 
-### 2.5 WebSockets — operacional
+### 2.5 WebSockets, operacional
 
 **Ping/pong**: keep-alive. Server manda `ping`, client responde `pong`. Detect disconexão e mantém NATs vivos. Lib geralmente faz auto.
 
@@ -121,7 +121,7 @@ Subprotocols (`Sec-WebSocket-Protocol`): negociados, definem semantica acima do 
 
 - **`ws`**: lib pura WebSocket, performance forte, low-level.
 - **`uWebSockets.js`**: C++ bindings, throughput muito alto.
-- **`socket.io`**: alto-nível, com fallback (long polling), rooms, namespaces, ack callbacks. Próprio protocol em cima de WS — cliente precisa ser socket.io. Não é raw WS.
+- **`socket.io`**: alto-nível, com fallback (long polling), rooms, namespaces, ack callbacks. Próprio protocol em cima de WS, cliente precisa ser socket.io. Não é raw WS.
 - **`Bun.serve` com `websocket`**: built-in em Bun.
 - **Hono `upgradeWebSocket`** + adapters.
 
@@ -131,13 +131,13 @@ Em greenfield, decide:
 
 ### 2.7 Autenticação no upgrade
 
-WebSocket abre via HTTP — cookies/headers do upgrade são acessíveis ao server. Padrões:
-- **Cookie HttpOnly de session** (mesmo que HTTP) — server lê no upgrade, valida.
-- **JWT em query string** (`/ws?token=...`) — funciona, mas evite (logs).
-- **JWT em first message** — depois do connect, cliente manda `{auth: token}`; server valida ou fecha.
+WebSocket abre via HTTP, cookies/headers do upgrade são acessíveis ao server. Padrões:
+- **Cookie HttpOnly de session** (mesmo que HTTP), server lê no upgrade, valida.
+- **JWT em query string** (`/ws?token=...`), funciona, mas evite (logs).
+- **JWT em first message**: depois do connect, cliente manda `{auth: token}`; server valida ou fecha.
 - **Subprotocol header**: alguns trafegam token em `Sec-WebSocket-Protocol`.
 
-Em mobile (RN), cookies trickier — mais comum first-message auth.
+Em mobile (RN), cookies trickier, mais comum first-message auth.
 
 ### 2.8 WebSocket em scale
 
@@ -165,7 +165,7 @@ CDNs (Cloudflare) suportam WebSocket; trace `Cf-Ray` se aparecerem problemas.
 
 Mesma lógica de fan-out (Redis pub/sub) aplica. Mais simples por ser unidirecional.
 
-CDN compat: SSE deveria passar — mas configure pra não bufferizar (`X-Accel-Buffering: no` em Nginx, `Cache-Control: no-cache`).
+CDN compat: SSE deveria passar, mas configure pra não bufferizar (`X-Accel-Buffering: no` em Nginx, `Cache-Control: no-cache`).
 
 ### 2.11 GraphQL Subscriptions
 
@@ -198,14 +198,14 @@ WebSocket bruto é at-most-once. Protocols sobre (graphql-ws, custom) podem impl
 
 Pra notificações user-facing simples, at-most-once geralmente ok. Pra ações críticas (pagamento), use HTTP + idempotency, não WS.
 
-### 2.14 WebTransport — deep
+### 2.14 WebTransport, deep
 
 Sobre HTTP/3 / QUIC (01-03 §2.6.1). Em 2025-2026 saiu de "experimental" pra suportado em Chrome/Edge (default), Firefox (release recente), Safari (em desenvolvimento). Substitui WebSocket em casos onde HOL blocking importa ou onde você precisa datagram unreliable.
 
 **Modelo mental:**
 - WebTransport = **conexão QUIC** exposta no browser.
 - Por conexão você abre **N streams** + **datagram channel**.
-- Cada stream é independente — perda em um não afeta outros (sem TCP HOL blocking).
+- Cada stream é independente, perda em um não afeta outros (sem TCP HOL blocking).
 
 **API client (browser):**
 ```ts
@@ -243,7 +243,7 @@ await dgWriter.write(new Uint8Array([1, 2, 3]));
 
 **Pegadinhas reais:**
 - **TLS 1.3 obrigatório** + **QUIC** = nem sempre passa em redes corporativas com firewalls UDP-blocking. Tenha fallback pra WebSocket.
-- **CORS-like origin checking** — server precisa validar origin do client.
+- **CORS-like origin checking**: server precisa validar origin do client.
 - **Stateful proxies/CDN**: muitos CDNs ainda não passam WebTransport em 2026. Cloudflare e Fastly sim, outros não.
 - **Reconnect**: ao contrário de WebSocket que tem semantics simples (connection drop = reopen), WebTransport tem reconnect por stream + connection migration QUIC. Lib client geralmente abstrai.
 
@@ -262,7 +262,7 @@ Em projetos sérios de real-time, considere serviço dedicado (Soketi, Centrifug
 
 ### 2.16 Push notifications mobile
 
-Diferente de real-time em-app. Push notifications via APN (iOS) e FCM (Android) — chegam mesmo com app fechado. Cobertos no 02-06.
+Diferente de real-time em-app. Push notifications via APN (iOS) e FCM (Android), chegam mesmo com app fechado. Cobertos no 02-06.
 
 Combinação real: WebSocket quando app aberto + Push quando fechado.
 
@@ -287,26 +287,26 @@ Você precisa, sem consultar:
 
 ## 4. Desafio de Engenharia
 
-Adicionar **real-time tracking** ao Logística — courier streama posição, lojista vê em tempo real.
+Adicionar **real-time tracking** ao Logística, courier streama posição, lojista vê em tempo real.
 
 ### Especificação
 
 1. **Stack**:
    - Continuação Fastify + Redis. Adicione lib `ws` (não Socket.io aqui).
    - Front: dashboard simples (SSR Next ou SPA básica) consumindo eventos.
-2. **Endpoint WebSocket — courier upload**:
-   - `WS /courier/stream` — courier envia `{lat, lng, speed, ts}` a cada 5s.
+2. **Endpoint WebSocket, courier upload**:
+   - `WS /courier/stream`, courier envia `{lat, lng, speed, ts}` a cada 5s.
    - Auth: cookie session ou first-message JWT (escolha + justifique).
    - Server valida, persiste último ponto em Redis (`courier:<id>:last`), faz pub em canal `courier:updates:<tenantId>`.
-3. **Endpoint SSE — lojista observa**:
-   - `GET /orders/:id/track` — SSE stream que emite eventos quando courier do pedido se move.
+3. **Endpoint SSE, lojista observa**:
+   - `GET /orders/:id/track`, SSE stream que emite eventos quando courier do pedido se move.
    - Server subscribe ao canal Redis correspondente, repassa pro client SSE.
    - Reconnect: server respeita `Last-Event-ID` e replay últimos eventos do Redis Stream.
 4. **Long polling fallback**:
-   - `GET /orders/:id/track-poll?since=<eventId>` — long polling 30s.
+   - `GET /orders/:id/track-poll?since=<eventId>`, long polling 30s.
    - Cliente que não suporta SSE cai aqui.
-5. **Notificação genérica via WebSocket — bidirecional**:
-   - `WS /notifications` — cada user logado subscreve.
+5. **Notificação genérica via WebSocket, bidirecional**:
+   - `WS /notifications`, cada user logado subscreve.
    - Server envia eventos: `order_status_changed`, `new_message`.
    - Cliente envia `{ack: eventId}` pra server marcar entregue.
 6. **Scale-out**:
@@ -361,11 +361,11 @@ Adicionar **real-time tracking** ao Logística — courier streama posição, lo
 
 ## 6. Referências
 
-- **MDN — WebSockets, EventSource, WebRTC, Fetch streams** ([developer.mozilla.org/en-US/docs/Web/API](https://developer.mozilla.org/en-US/docs/Web/API)).
+- **MDN, WebSockets, EventSource, WebRTC, Fetch streams** ([developer.mozilla.org/en-US/docs/Web/API](https://developer.mozilla.org/en-US/docs/Web/API)).
 - **RFC 6455** (WebSocket Protocol).
 - **RFC 8441** (WebSockets over HTTP/2).
-- **High Performance Browser Networking** — Ilya Grigorik (capítulos sobre WS, SSE, WebRTC).
-- **"Designing Data-Intensive Applications"** — Kleppmann, capítulo 11 (stream processing).
-- **WebRTC for the Curious** ([webrtcforthecurious.com](https://webrtcforthecurious.com/)) — book gratuito.
-- **Soketi** ([soketi.app](https://soketi.app/)) e **Centrifugo** ([centrifugal.dev](https://centrifugal.dev/)) — open-source WS infra.
+- **High Performance Browser Networking**: Ilya Grigorik (capítulos sobre WS, SSE, WebRTC).
+- **"Designing Data-Intensive Applications"**: Kleppmann, capítulo 11 (stream processing).
+- **WebRTC for the Curious** ([webrtcforthecurious.com](https://webrtcforthecurious.com/)), book gratuito.
+- **Soketi** ([soketi.app](https://soketi.app/)) e **Centrifugo** ([centrifugal.dev](https://centrifugal.dev/)), open-source WS infra.
 - **Cloudflare blog**: Durable Objects, WebSocket at the edge.

@@ -1,4 +1,4 @@
-# INDEX — Mapa Global do Framework
+# INDEX, Mapa Global do Framework
 
 > Índice de **todos** os módulos com links e dependências cross-stage. Use isto pra navegar; cada estágio também tem seu README, mas este é o "meta-mapa" único.
 
@@ -11,24 +11,24 @@
 - **16 metas em `00-meta/`**: INDEX, CAPSTONE-EVOLUTION, CHANGELOG, GLOSSARY, MODULE-TEMPLATE, SELF-ASSESSMENT, INTERVIEW-PREP, ANTIPATTERNS, DECISION-LOG, SPRINT-NEXT, CODEBASE-TOURS, STACK-COMPARISONS, STUDY-PLANS, RELEASE-NOTES, elite-references, reading-list.
 - **4 raiz**: README.md, MENTOR.md, PROGRESS.md, STUDY-PROTOCOL.md.
 
-Note: 05-07-05-10 (embedded, hardware, bioinformatics, game dev) são **opcionais** — escolha conforme eixo de carreira.
+Note: 05-07-05-10 (embedded, hardware, bioinformatics, game dev) são **opcionais**: escolha conforme eixo de carreira.
 
 **Outros documentos vivos**:
-- [RELEASE-NOTES.md](RELEASE-NOTES.md) — v1.0 shipping marker; o que está pronto + limitações.
-- [SPRINT-NEXT.md](SPRINT-NEXT.md) — backlog priorizado de aprofundamento.
-- [STUDY-PLANS.md](STUDY-PLANS.md) — 7 templates de plano por cenário (full-time, part-time, weekend, bootcamp grad, Senior→Staff, career switcher, executive).
-- [CODEBASE-TOURS.md](CODEBASE-TOURS.md) — 20 guided reading tours em repos canônicos.
-- [STACK-COMPARISONS.md](STACK-COMPARISONS.md) — patterns cross-stack (Node/Java/Python/Ruby/Go/.NET/PHP/Rust/Elixir).
+- [RELEASE-NOTES.md](RELEASE-NOTES.md), v1.0 shipping marker; o que está pronto + limitações.
+- [SPRINT-NEXT.md](SPRINT-NEXT.md), backlog priorizado de aprofundamento.
+- [STUDY-PLANS.md](STUDY-PLANS.md), 7 templates de plano por cenário (full-time, part-time, weekend, bootcamp grad, Senior→Staff, career switcher, executive).
+- [CODEBASE-TOURS.md](CODEBASE-TOURS.md), 20 guided reading tours em repos canônicos.
+- [STACK-COMPARISONS.md](STACK-COMPARISONS.md), patterns cross-stack (Node/Java/Python/Ruby/Go/.NET/PHP/Rust/Elixir).
 
 ---
 
 ## Tabela completa de módulos
 
-### Estágio 1 — Fundamentos (15 + 1 capstone)
+### Estágio 1: Fundamentos (15 + 1 capstone)
 
 | ID | Módulo | Prereqs |
 |---|---|---|
-| [01-01](../01-fundamentos/01-01-computation-model.md) | Computation Model | — |
+| [01-01](../01-fundamentos/01-01-computation-model.md) | Computation Model | - |
 | [01-02](../01-fundamentos/01-02-operating-systems.md) | Operating Systems | 01-01 |
 | [01-03](../01-fundamentos/01-03-networking.md) | Networking | 01-02 |
 | [01-04](../01-fundamentos/01-04-data-structures.md) | Data Structures | 01-01 |
@@ -45,11 +45,11 @@ Note: 05-07-05-10 (embedded, hardware, bioinformatics, game dev) são **opcionai
 | [01-15](../01-fundamentos/01-15-math-foundations.md) | Math Foundations | 01-01 |
 | [CAPSTONE-fundamentos](../01-fundamentos/CAPSTONE-fundamentos.md) | HTTP server from scratch | (estágio 1 completo) |
 
-### Estágio 2 — Plataforma (19 + 1 capstone)
+### Estágio 2: Plataforma (19 + 1 capstone)
 
 | ID | Módulo | Prereqs |
 |---|---|---|
-| [02-01](../02-plataforma/02-01-html-css-tailwind.md) | HTML/CSS/Tailwind | — |
+| [02-01](../02-plataforma/02-01-html-css-tailwind.md) | HTML/CSS/Tailwind | - |
 | [02-02](../02-plataforma/02-02-accessibility.md) | Accessibility | 02-01 |
 | [02-03](../02-plataforma/02-03-dom-web-apis.md) | DOM & Web APIs | 02-01 |
 | [02-04](../02-plataforma/02-04-react-deep.md) | React Deep | 02-03, 01-07 |
@@ -70,7 +70,7 @@ Note: 05-07-05-10 (embedded, hardware, bioinformatics, game dev) são **opcionai
 | [02-19](../02-plataforma/02-19-internationalization.md) | i18n / l10n | 02-01, 02-02 |
 | [CAPSTONE-plataforma](../02-plataforma/CAPSTONE-plataforma.md) | Logística v1 | (estágio 2 completo) |
 
-### Estágio 3 — Produção (17 + 1 capstone)
+### Estágio 3: Produção (17 + 1 capstone)
 
 | ID | Módulo | Prereqs |
 |---|---|---|
@@ -94,7 +94,7 @@ Note: 05-07-05-10 (embedded, hardware, bioinformatics, game dev) são **opcionai
 | [03-18](../03-producao/03-18-cognitive-accessibility.md) | Cognitive Accessibility | 02-02, 03-17 |
 | [CAPSTONE-producao](../03-producao/CAPSTONE-producao.md) | Logística v2 | (estágio 3 completo) |
 
-### Estágio 4 — Sistemas (16 + 1 capstone)
+### Estágio 4: Sistemas (16 + 1 capstone)
 
 | ID | Módulo | Prereqs |
 |---|---|---|
@@ -116,7 +116,7 @@ Note: 05-07-05-10 (embedded, hardware, bioinformatics, game dev) são **opcionai
 | [04-16](../04-sistemas/04-16-product-business-economics.md) | Product, Business & Unit Economics | 04-12 |
 | [CAPSTONE-sistemas](../04-sistemas/CAPSTONE-sistemas.md) | Logística v3 | (estágio 4 completo) |
 
-### Estágio 5 — Amplitude (7 + 1 capstone)
+### Estágio 5: Amplitude (7 + 1 capstone)
 
 | ID | Módulo | Prereqs |
 |---|---|---|
@@ -136,7 +136,7 @@ Note: 05-07-05-10 (embedded, hardware, bioinformatics, game dev) são **opcionai
 
 ## Dependency DAG (cross-stage com edges reais)
 
-Edges respeitam **prereqs declarados em frontmatter** de cada módulo. Cross-stage edges (ex: 02-13→03-08, 01-12→04-11) são as conexões mais importantes — elas mostram que prerequisitos atravessam estágio.
+Edges respeitam **prereqs declarados em frontmatter** de cada módulo. Cross-stage edges (ex: 02-13→03-08, 01-12→04-11) são as conexões mais importantes, elas mostram que prerequisitos atravessam estágio.
 
 ```mermaid
 graph LR
@@ -353,7 +353,7 @@ Alguns assuntos atravessam estágios. Use estas listas pra busca temática:
 **Carreira/Influência**:
 - 04-12 (leadership), 04-15 (OSS), 04-16 (business), 05-03 (org), 05-05 (output), 05-06 (mentorship).
 
-**Capstone único — Logística**:
+**Capstone único, Logística**:
 - CAPSTONE-fundamentos (HTTP server), CAPSTONE-plataforma (v1), CAPSTONE-producao (v2), CAPSTONE-sistemas (v3), CAPSTONE-amplitude (specialization). Ver [CAPSTONE-EVOLUTION.md](CAPSTONE-EVOLUTION.md).
 
 ---
@@ -368,4 +368,4 @@ Alguns assuntos atravessam estágios. Use estas listas pra busca temática:
 
 ---
 
-**Fim do índice.** Atualize quando adicionar módulos novos. Mantenha simples — este é mapa, não livro.
+**Fim do índice.** Atualize quando adicionar módulos novos. Mantenha simples, este é mapa, não livro.

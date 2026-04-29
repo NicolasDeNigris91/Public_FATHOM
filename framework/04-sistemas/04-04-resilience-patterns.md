@@ -1,6 +1,6 @@
 ---
 module: 04-04
-title: Resilience Patterns — Retries, Circuit Breaker, Bulkhead, Timeouts
+title: Resilience Patterns, Retries, Circuit Breaker, Bulkhead, Timeouts
 stage: sistemas
 prereqs: [04-01, 04-02]
 gates:
@@ -10,7 +10,7 @@ gates:
 status: locked
 ---
 
-# 04-04 — Resilience Patterns
+# 04-04, Resilience Patterns
 
 ## 1. Problema de Engenharia
 
@@ -127,7 +127,7 @@ Quando: leituras idempotentes onde 99th percentile importa muito (search queries
 
 Cuidado: dobra carga. Faça só pra slow requests (após p95 estimado, dispare segunda).
 
-Google publicou paper "The Tail at Scale" — clássico do tema.
+Google publicou paper "The Tail at Scale", clássico do tema.
 
 ### 2.10 Fallback e graceful degradation
 
@@ -279,7 +279,7 @@ Em Kafka: consumer poll pulled-based; producer block se broker queue cheio (acks
 
 Sem backpressure, OOM kill processo é fim típico.
 
-### 2.22 Token bucket vs Leaky bucket — math
+### 2.22 Token bucket vs Leaky bucket, math
 
 **Token bucket**:
 - Bucket capacity C, refill rate R tokens/s.
@@ -505,12 +505,12 @@ Resilience hardening do **Logística v2**.
 
 ## 6. Referências
 
-- **"Release It!"** — Michael Nygard. Bíblia.
-- **"Site Reliability Engineering"** — Google.
-- **"The Tail at Scale"** — Dean & Barroso (paper Google).
-- **"Designing Distributed Systems"** — Brendan Burns.
-- **AWS Builders' Library** ([aws.amazon.com/builders-library](https://aws.amazon.com/builders-library/)) — papers operacionais.
-- **Resilience patterns docs** — resilience4j, opossum.
-- **Charity Majors / Honeycomb blog** — observability + resilience.
-- **Netflix Tech Blog** — chaos eng, Hystrix history.
-- **Polly** docs (.NET) — bons exemplos de patterns.
+- **"Release It!"**: Michael Nygard. Bíblia.
+- **"Site Reliability Engineering"**: Google.
+- **"The Tail at Scale"**: Dean & Barroso (paper Google).
+- **"Designing Distributed Systems"**: Brendan Burns.
+- **AWS Builders' Library** ([aws.amazon.com/builders-library](https://aws.amazon.com/builders-library/)), papers operacionais.
+- **Resilience patterns docs**: resilience4j, opossum.
+- **Charity Majors / Honeycomb blog**: observability + resilience.
+- **Netflix Tech Blog**: chaos eng, Hystrix history.
+- **Polly** docs (.NET), bons exemplos de patterns.

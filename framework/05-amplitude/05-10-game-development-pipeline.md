@@ -1,6 +1,6 @@
 ---
 module: 05-10
-title: Game Development Pipeline — Engines, ECS, Animation, Networking, Tooling
+title: Game Development Pipeline, Engines, ECS, Animation, Networking, Tooling
 stage: amplitude
 prereqs: [03-14]
 gates:
@@ -10,7 +10,7 @@ gates:
 status: locked
 ---
 
-# 05-10 — Game Development Pipeline (Optional)
+# 05-10, Game Development Pipeline (Optional)
 
 ## 1. Problema de Engenharia
 
@@ -388,21 +388,21 @@ Engine: **Bevy** (Rust, ECS-first, recomendado pra learning) ou Godot (acessíve
 
 ## 6. Referências
 
-- **"Game Engine Architecture (3rd ed)"** — Jason Gregory. Bíblia.
-- **"Real-Time Rendering" (4th ed)** — Akenine-Möller et al.
-- **"Game Programming Patterns"** — Robert Nystrom (gratuito em [gameprogrammingpatterns.com](https://gameprogrammingpatterns.com/)).
-- **"Data-Oriented Design"** — Richard Fabian (gratuito).
-- **"Programming Game AI by Example"** — Mat Buckland.
-- **"Multiplayer Game Programming"** — Joshua Glazer, Sanjay Madhav.
-- **"AI for Games (3rd ed)"** — Ian Millington.
-- **GDC Vault** ([gdcvault.com](https://www.gdcvault.com/)) — talks de profissionais.
+- **"Game Engine Architecture (3rd ed)"**: Jason Gregory. Bíblia.
+- **"Real-Time Rendering" (4th ed)**: Akenine-Möller et al.
+- **"Game Programming Patterns"**: Robert Nystrom (gratuito em [gameprogrammingpatterns.com](https://gameprogrammingpatterns.com/)).
+- **"Data-Oriented Design"**: Richard Fabian (gratuito).
+- **"Programming Game AI by Example"**: Mat Buckland.
+- **"Multiplayer Game Programming"**: Joshua Glazer, Sanjay Madhav.
+- **"AI for Games (3rd ed)"**: Ian Millington.
+- **GDC Vault** ([gdcvault.com](https://www.gdcvault.com/)), talks de profissionais.
 - **Bevy book** ([bevyengine.org](https://bevyengine.org/)).
 - **Godot docs** ([docs.godotengine.org](https://docs.godotengine.org/)).
 - **Unreal Engine docs**.
 - **Unity Learn**.
-- **Sebastian Lague YouTube** — visual game algorithms.
-- **Catlike Coding tutorials** — Unity deep.
-- **Casey Muratori, Jonathan Blow** — talks sobre game dev culture.
-- **GGPO library** — rollback netcode reference.
-- **EnTT, Flecs** — ECS libraries C++.
-- **PICO-8 / TIC-80** — fantasy consoles, learning constraints.
+- **Sebastian Lague YouTube**: visual game algorithms.
+- **Catlike Coding tutorials**: Unity deep.
+- **Casey Muratori, Jonathan Blow**: talks sobre game dev culture.
+- **GGPO library**: rollback netcode reference.
+- **EnTT, Flecs**: ECS libraries C++.
+- **PICO-8 / TIC-80**: fantasy consoles, learning constraints.

@@ -1,6 +1,6 @@
 ---
 module: 03-13
-title: Time-Series & Analytical Databases — TimescaleDB, ClickHouse, Columnar, OLAP
+title: Time-Series & Analytical Databases, TimescaleDB, ClickHouse, Columnar, OLAP
 stage: producao
 prereqs: [02-09, 03-07]
 gates:
@@ -10,13 +10,13 @@ gates:
 status: locked
 ---
 
-# 03-13 — Time-Series & Analytical Databases
+# 03-13, Time-Series & Analytical Databases
 
 ## 1. Problema de Engenharia
 
 OLTP e OLAP são problemas diferentes. Postgres (02-09) é otimizado pra row-wise transactional: leitura/escrita de rows individuais, joins em PKs, alta concorrência. **Analytics**, observability e time-series têm shape oposto: bilhões de rows, queries sobre **muitas linhas com poucas colunas**, agregações (SUM, AVG, percentiles), filtros temporais, retention policies.
 
-Tentar fazer dashboards Grafana ou agregações de billing em Postgres puro vai funcionar até dezenas de milhões — depois você sente. **Columnar storage** muda regras: ler só as colunas usadas, comprimir agressivamente (delta-of-delta, dictionary, RLE), agregação vetorizada. ClickHouse, DuckDB, BigQuery, Snowflake, Druid, Pinot, Apache Doris vivem nesse espaço. **TimescaleDB** atravessa: extensão Postgres com hypertables + columnar compressão pra dados antigos.
+Tentar fazer dashboards Grafana ou agregações de billing em Postgres puro vai funcionar até dezenas de milhões, depois você sente. **Columnar storage** muda regras: ler só as colunas usadas, comprimir agressivamente (delta-of-delta, dictionary, RLE), agregação vetorizada. ClickHouse, DuckDB, BigQuery, Snowflake, Druid, Pinot, Apache Doris vivem nesse espaço. **TimescaleDB** atravessa: extensão Postgres com hypertables + columnar compressão pra dados antigos.
 
 Este módulo é **OLAP por dentro**: row-vs-column store, vectorized execution, columnar compression, time-series specifics (downsampling, retention, continuous aggregates), OLAP cubes vs columnar, particionamento, e quando manter dados em OLTP vs separar.
 
@@ -88,7 +88,7 @@ Trade-off: integra bem com app Postgres existente; menos performance bruta que C
 
 ### 2.7 DuckDB
 
-In-process columnar (como SQLite, mas analytical). Lê Parquet, CSV, Arrow. Sem servidor — embed em app.
+In-process columnar (como SQLite, mas analytical). Lê Parquet, CSV, Arrow. Sem servidor, embed em app.
 
 Use cases: ETL local, analytics dentro de notebook, query Parquet em 04-03 sem subir cluster, Logística analytics offline.
 
@@ -224,7 +224,7 @@ Adicionar **camada analítica** à Logística com TimescaleDB + ClickHouse para 
    - Grafana com 2 datasources (Timescale + ClickHouse).
    - Painéis: P50/P95 tempo entrega por região, GMV diário, % entregas no SLA, top 10 lojistas, heatmap de demanda por hora-do-dia.
 5. **Queries de produto**:
-   - "Lojista X tem retention M+1 / M+2 / M+3 dos últimos 6 meses?" — SQL com cohorts.
+   - "Lojista X tem retention M+1 / M+2 / M+3 dos últimos 6 meses?", SQL com cohorts.
    - "Distribuição de tempos de entrega no último mês com percentis P50/P75/P90/P99 via t-digest."
 6. **Bench**:
    - Simule 100M de location pings ingest.
@@ -269,13 +269,13 @@ Adicionar **camada analítica** à Logística com TimescaleDB + ClickHouse para 
 
 ## 6. Referências
 
-- **"Designing Data-Intensive Applications"** — Kleppmann, capítulo 3 (storage), 10 (batch).
+- **"Designing Data-Intensive Applications"**: Kleppmann, capítulo 3 (storage), 10 (batch).
 - **ClickHouse docs** ([clickhouse.com/docs](https://clickhouse.com/docs)).
 - **TimescaleDB docs**.
 - **DuckDB docs**.
-- **"Apache Iceberg: The Definitive Guide"** — Tomer Shiran et al.
-- **"Building a Data Warehouse"** — William Inmon (clássico).
-- **"The Data Warehouse Toolkit"** — Ralph Kimball (star schema bíblia).
-- **HyperLogLog paper** — Flajolet, Fusy, Gandouet, Meunier.
-- **"t-digest" paper** — Ted Dunning.
-- **Materialize, RisingWave docs** — streaming SQL alternatives.
+- **"Apache Iceberg: The Definitive Guide"**: Tomer Shiran et al.
+- **"Building a Data Warehouse"**: William Inmon (clássico).
+- **"The Data Warehouse Toolkit"**: Ralph Kimball (star schema bíblia).
+- **HyperLogLog paper**: Flajolet, Fusy, Gandouet, Meunier.
+- **"t-digest" paper**: Ted Dunning.
+- **Materialize, RisingWave docs**: streaming SQL alternatives.

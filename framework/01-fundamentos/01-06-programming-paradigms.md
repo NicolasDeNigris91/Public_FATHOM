@@ -1,6 +1,6 @@
 ---
 module: 01-06
-title: Paradigmas de Programação — Imperativo, OO, Funcional
+title: Paradigmas de Programação, Imperativo, OO, Funcional
 stage: fundamentos
 prereqs: [01-04, 01-05]
 gates:
@@ -10,7 +10,7 @@ gates:
 status: locked
 ---
 
-# 01-06 — Paradigmas de Programação
+# 01-06, Paradigmas de Programação
 
 ## 1. Problema de Engenharia
 
@@ -68,16 +68,16 @@ class Order {
 
 **4 conceitos canônicos:**
 1. **Encapsulamento**: estado interno protegido, acesso via métodos. `private`, `protected`, `public`.
-2. **Herança**: `class B extends A` — B é A. Reutiliza implementação. **Cuidado**: herança profunda vira pesadelo. Prefira composição.
+2. **Herança**: `class B extends A`, B é A. Reutiliza implementação. **Cuidado**: herança profunda vira pesadelo. Prefira composição.
 3. **Polimorfismo**: mesma interface, comportamento diferente. **Subtype polymorphism** (override de método em subclass) e **parametric polymorphism** (generics).
 4. **Abstração**: interface oculta implementação.
 
 **SOLID** (Robert Martin):
-- **S — Single Responsibility**: classe tem uma razão pra mudar.
-- **O — Open/Closed**: aberta pra extensão, fechada pra modificação.
-- **L — Liskov Substitution**: subclasse deve ser usável como superclasse sem surpresas.
-- **I — Interface Segregation**: muitas interfaces pequenas > poucas grandes.
-- **D — Dependency Inversion**: depender de abstrações, não de concretos.
+- **S, Single Responsibility**: classe tem uma razão pra mudar.
+- **O, Open/Closed**: aberta pra extensão, fechada pra modificação.
+- **L, Liskov Substitution**: subclasse deve ser usável como superclasse sem surpresas.
+- **I, Interface Segregation**: muitas interfaces pequenas > poucas grandes.
+- **D, Dependency Inversion**: depender de abstrações, não de concretos.
 
 SOLID é guia, não dogma. Aplicado mecanicamente vira boilerplate.
 
@@ -201,7 +201,7 @@ const area = (s: Shape): number => {
     case 'square': return s.side ** 2;
     case 'rectangle': return s.width * s.height;
   }
-  // TS conhece exhaustiveness — sem default, erro se case faltar.
+  // TS conhece exhaustiveness, sem default, erro se case faltar.
 };
 ```
 
@@ -209,7 +209,7 @@ const area = (s: Shape): number => {
 
 #### Pure FP vs FP-style
 Linguagens **puras** (Haskell, PureScript) **proíbem** efeitos sem encapsulamento monádico.
-Linguagens **multi-paradigma** (JS, TS, Scala, Rust) permitem **estilo funcional** sem rigor total — escolher quando vale.
+Linguagens **multi-paradigma** (JS, TS, Scala, Rust) permitem **estilo funcional** sem rigor total, escolher quando vale.
 
 ### 2.4 Reativo (Reactive Programming)
 
@@ -310,7 +310,7 @@ Pra passar o **Portão Conceitual**, sem consultar:
    - `map<T, U, E>(r: Result<T, E>, f: (t: T) => U): Result<U, E>`
    - `flatMap<T, U, E>(r: Result<T, E>, f: (t: T) => Result<U, E>): Result<U, E>`
    - `mapErr<T, E, F>(r: Result<T, E>, f: (e: E) => F): Result<T, F>`
-   - `combine<E>(...results: Result<unknown, E>[]): Result<unknown[], E[]>` — agrega múltiplos, retorna lista de erros se algum falhou.
+   - `combine<E>(...results: Result<unknown, E>[]): Result<unknown[], E[]>`, agrega múltiplos, retorna lista de erros se algum falhou.
 3. Construa um **validador composicional** pra um `Order` de logística:
    ```typescript
    type Order = {
@@ -325,7 +325,7 @@ Pra passar o **Portão Conceitual**, sem consultar:
    - `items` não vazio, cada item: `qty > 0`, `price > 0`, `sku` matches `^[A-Z0-9-]+$`.
    - `deliveryAddress`: lat ∈ [-90, 90], lng ∈ [-180, 180].
    - `deadline` no futuro.
-4. Use **só `Result` + composição** — sem `throw`/`try/catch` no caminho de validação.
+4. Use **só `Result` + composição**: sem `throw`/`try/catch` no caminho de validação.
 5. Erros devem ser **estruturados** (objects com `field`, `code`, `message`), agregados (não para no primeiro).
 
 ### Restrições
@@ -352,54 +352,54 @@ Pra passar o **Portão Conceitual**, sem consultar:
 
 ## 5. Extensões e Conexões
 
-- **Conecta com [01-07 — JavaScript Deep](01-07-javascript-deep.md):** closures, prototype chain, this binding sustentam OO em JS.
-- **Conecta com [01-08 — TypeScript Type System](01-08-typescript-type-system.md):** ADTs com discriminated unions são sintaxe pra sum types. `never` é o bottom type. Conditional types simulam computação em tipos.
-- **Conecta com [02-04 — React Deep](../02-plataforma/02-04-react-deep.md):** React funcional moderno é FP-styled. Hooks são closures. State é imutável (não muta — substitui).
-- **Conecta com [04-03 — Event-Driven](../04-sistemas/04-03-event-driven-patterns.md):** Event Sourcing é literally append-only log de eventos imutáveis (FP friendly).
-- **Conecta com [04-06 — DDD](../04-sistemas/04-06-domain-driven-design.md):** Aggregates são objetos OO com invariantes; Value Objects são estruturas imutáveis funcionais; Domain Events são puros.
-- **Conecta com [03-11 — Systems Languages](../03-producao/03-11-systems-languages.md):** Rust força imutabilidade default e ownership — paradigma funcional + manual.
+- **Conecta com [01-07, JavaScript Deep](01-07-javascript-deep.md):** closures, prototype chain, this binding sustentam OO em JS.
+- **Conecta com [01-08, TypeScript Type System](01-08-typescript-type-system.md):** ADTs com discriminated unions são sintaxe pra sum types. `never` é o bottom type. Conditional types simulam computação em tipos.
+- **Conecta com [02-04, React Deep](../02-plataforma/02-04-react-deep.md):** React funcional moderno é FP-styled. Hooks são closures. State é imutável (não muta, substitui).
+- **Conecta com [04-03, Event-Driven](../04-sistemas/04-03-event-driven-patterns.md):** Event Sourcing é literally append-only log de eventos imutáveis (FP friendly).
+- **Conecta com [04-06, DDD](../04-sistemas/04-06-domain-driven-design.md):** Aggregates são objetos OO com invariantes; Value Objects são estruturas imutáveis funcionais; Domain Events são puros.
+- **Conecta com [03-11, Systems Languages](../03-producao/03-11-systems-languages.md):** Rust força imutabilidade default e ownership, paradigma funcional + manual.
 
 ### Ferramentas satélites
 
-- **[fp-ts](https://github.com/gcanti/fp-ts)** — biblioteca FP completa pra TypeScript (Option, Either, Task, etc).
-- **[Effect](https://effect.website/)** — sucessor moderno do fp-ts.
-- **[Ramda](https://ramdajs.com/)** — utility lib FP-style.
-- **[immer](https://immerjs.github.io/immer/)** — imutabilidade com sintaxe mutável.
+- **[fp-ts](https://github.com/gcanti/fp-ts)**: biblioteca FP completa pra TypeScript (Option, Either, Task, etc).
+- **[Effect](https://effect.website/)**: sucessor moderno do fp-ts.
+- **[Ramda](https://ramdajs.com/)**: utility lib FP-style.
+- **[immer](https://immerjs.github.io/immer/)**: imutabilidade com sintaxe mutável.
 
 ---
 
 ## 6. Referências de Elite
 
 ### Livros canônicos
-- **Structure and Interpretation of Computer Programs** (SICP) — free em [web.mit.edu/6.001/6.037/sicp.pdf](https://web.mit.edu/6.001/6.037/sicp.pdf). Funcional + interpreters. **Imprescindível.**
-- **Crafting Interpreters** (Robert Nystrom) — free em [craftinginterpreters.com](https://craftinginterpreters.com/). Implementa 2 linguagens.
-- **Design Patterns: Elements of Reusable OO Software** (Gang of Four) — clássico OO.
-- **Clean Code** (Robert Martin) — controverso mas vocabulário relevante.
+- **Structure and Interpretation of Computer Programs** (SICP), free em [web.mit.edu/6.001/6.037/sicp.pdf](https://web.mit.edu/6.001/6.037/sicp.pdf). Funcional + interpreters. **Imprescindível.**
+- **Crafting Interpreters** (Robert Nystrom), free em [craftinginterpreters.com](https://craftinginterpreters.com/). Implementa 2 linguagens.
+- **Design Patterns: Elements of Reusable OO Software** (Gang of Four), clássico OO.
+- **Clean Code** (Robert Martin), controverso mas vocabulário relevante.
 - **Functional Programming in TypeScript** ([gcanti.github.io](https://gcanti.github.io/fp-ts/)).
-- **Programming Erlang** (Joe Armstrong) — actor model, concorrência funcional.
-- **A Philosophy of Software Design** (Ousterhout) — curto, brilhante. Sobre módulos, interface, abstração.
+- **Programming Erlang** (Joe Armstrong), actor model, concorrência funcional.
+- **A Philosophy of Software Design** (Ousterhout), curto, brilhante. Sobre módulos, interface, abstração.
 
 ### Artigos canônicos
-- **["On the Criteria To Be Used in Decomposing Systems into Modules"](https://www.cs.umd.edu/class/spring2003/cmsc838p/Design/criteria.pdf)** — David Parnas, 1972. Fundamento de modularidade.
-- **["Out of the Tar Pit"](http://curtclifton.net/papers/MoseleyMarks06a.pdf)** — Moseley & Marks, 2006. Crítica devastadora de complexidade incidental em OO + defesa de FP.
-- **["The Bitter Lesson"](http://www.incompleteideas.net/IncIdeas/BitterLesson.html)** — Sutton.
-- **["Composition: a way to make programs simpler"](https://www.youtube.com/watch?v=LKtk3HCgTa8)** — Rich Hickey.
+- **["On the Criteria To Be Used in Decomposing Systems into Modules"](https://www.cs.umd.edu/class/spring2003/cmsc838p/Design/criteria.pdf)**: David Parnas, 1972. Fundamento de modularidade.
+- **["Out of the Tar Pit"](http://curtclifton.net/papers/MoseleyMarks06a.pdf)**: Moseley & Marks, 2006. Crítica devastadora de complexidade incidental em OO + defesa de FP.
+- **["The Bitter Lesson"](http://www.incompleteideas.net/IncIdeas/BitterLesson.html)**: Sutton.
+- **["Composition: a way to make programs simpler"](https://www.youtube.com/watch?v=LKtk3HCgTa8)**: Rich Hickey.
 
 ### Talks
-- **["Simple Made Easy"](https://www.youtube.com/watch?v=LKtk3HCgTa8)** — Rich Hickey. **Obrigatória.**
-- **["The Value of Values"](https://www.youtube.com/watch?v=-6BsiVyC1kM)** — Rich Hickey.
-- **["Hammock Driven Development"](https://www.youtube.com/watch?v=f84n5oFoZBc)** — Rich Hickey.
-- **["The Last Programming Language"](https://www.youtube.com/watch?v=P2yr-3F6PQo)** — Robert Martin (FP).
+- **["Simple Made Easy"](https://www.youtube.com/watch?v=LKtk3HCgTa8)**: Rich Hickey. **Obrigatória.**
+- **["The Value of Values"](https://www.youtube.com/watch?v=-6BsiVyC1kM)**: Rich Hickey.
+- **["Hammock Driven Development"](https://www.youtube.com/watch?v=f84n5oFoZBc)**: Rich Hickey.
+- **["The Last Programming Language"](https://www.youtube.com/watch?v=P2yr-3F6PQo)**: Robert Martin (FP).
 
 ### Repos
-- **[ramda](https://github.com/ramda/ramda)** — FP utilities, código pra ler.
+- **[ramda](https://github.com/ramda/ramda)**: FP utilities, código pra ler.
 - **[fp-ts](https://github.com/gcanti/fp-ts)**.
-- **[Effect](https://github.com/Effect-TS/effect)** — FP TS moderno.
-- **[Rust standard library](https://github.com/rust-lang/rust/tree/master/library)** — código em estilo OO+FP misturado, sem herança.
+- **[Effect](https://github.com/Effect-TS/effect)**: FP TS moderno.
+- **[Rust standard library](https://github.com/rust-lang/rust/tree/master/library)**: código em estilo OO+FP misturado, sem herança.
 
 ### Comunidade
 - **[r/functionalprogramming](https://www.reddit.com/r/functionalprogramming)**.
-- **[Lambda the Ultimate](http://lambda-the-ultimate.org/)** — fórum acadêmico de PL theory.
+- **[Lambda the Ultimate](http://lambda-the-ultimate.org/)**: fórum acadêmico de PL theory.
 
 ---
 

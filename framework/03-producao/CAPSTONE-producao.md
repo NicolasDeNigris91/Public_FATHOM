@@ -1,6 +1,6 @@
 ---
 capstone: professional
-title: Logística v2 — Production-Ready
+title: Logística v2, Production-Ready
 stage: producao
 prereqs: [03-01, 03-02, 03-03, 03-04, 03-05, 03-06, 03-07, 03-08, 03-09, 03-10, 03-11, 03-12]
 status: locked
@@ -8,7 +8,7 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
 ---
 
-# CAPSTONE Professional — Logística v2
+# CAPSTONE Professional, Logística v2
 
 ## 1. Por que esse capstone existe
 
@@ -49,7 +49,7 @@ Mas: **não adicione features que não dependam dos módulos desse estágio**. F
 
 ## 3. Especificação técnica
 
-### 3.1 Stack base — herda de v1 + estende
+### 3.1 Stack base, herda de v1 + estende
 
 - Mesmo stack TS (Fastify + Drizzle + Postgres + Redis) do v1.
 - **Adiciona**: Go ingestor, Rust routing, Wasm preview client.
@@ -171,14 +171,14 @@ Você só passa se:
 
 ## 5. Anti-padrões a evitar
 
-- "Otimização sem profile" — Rust em todo lugar pra "perf" sem evidence.
-- "Microservices porque K8s" — overengineer; mantenha modular monolith + extracts justificados (Go ingestor, Rust routing são justificados).
-- "Observability theater" — dashboards bonitos sem SLOs nem alertas.
-- "Tests pra coverage" — escreva testes que provam comportamento, não linhas.
-- "Container barato em runtime, gordo em build" — both matter.
-- "Secret no env var em K8s manifest commitado" — External Secrets Operator, ou IRSA, ou Vault.
-- "Deploy heroico" — pipeline ou nada.
-- "Performance de Mac" — load test em conditions de prod ARM/x86 actual.
+- "Otimização sem profile", Rust em todo lugar pra "perf" sem evidence.
+- "Microservices porque K8s", overengineer; mantenha modular monolith + extracts justificados (Go ingestor, Rust routing são justificados).
+- "Observability theater", dashboards bonitos sem SLOs nem alertas.
+- "Tests pra coverage", escreva testes que provam comportamento, não linhas.
+- "Container barato em runtime, gordo em build", both matter.
+- "Secret no env var em K8s manifest commitado", External Secrets Operator, ou IRSA, ou Vault.
+- "Deploy heroico", pipeline ou nada.
+- "Performance de Mac", load test em conditions de prod ARM/x86 actual.
 
 ---
 
@@ -197,6 +197,6 @@ Você só passa se:
 
 Sistema vivo com tráfego sintético constante (synthetic checks). Você sai de férias 7 dias; ele continua funcionando, alertas só disparam em problema real, on-call (você mesmo) pode debugar via dashboards e logs em < 15 min do alerta.
 
-Print incident response: 1 incidente real (você induz: derrubar 1 serviço a meia-noite via cron) — alerta dispara, você (no celular) entra no Grafana, identifica, mitiga em < 15 min. Documente em postmortem `incidents/<date>.md`.
+Print incident response: 1 incidente real (você induz: derrubar 1 serviço a meia-noite via cron), alerta dispara, você (no celular) entra no Grafana, identifica, mitiga em < 15 min. Documente em postmortem `incidents/<date>.md`.
 
 Após o capstone passar: atualize PROGRESS.md e frontmatter. v3 (Senior) começa.

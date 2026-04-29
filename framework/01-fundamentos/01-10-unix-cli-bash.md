@@ -1,6 +1,6 @@
 ---
 module: 01-10
-title: Unix CLI & Bash — Filesystem, Permissões, Pipes, Scripting
+title: Unix CLI & Bash, Filesystem, Permissões, Pipes, Scripting
 stage: fundamentos
 prereqs: [01-02]
 gates:
@@ -10,7 +10,7 @@ gates:
 status: locked
 ---
 
-# 01-10 — Unix CLI & Bash
+# 01-10, Unix CLI & Bash
 
 ## 1. Problema de Engenharia
 
@@ -19,11 +19,11 @@ Unix CLI é a **linguagem natural de servidores**. Toda infra (Docker, K8s, CI/C
 Sem domínio de shell:
 - Você abre arquivo no VSCode pra fazer um `grep` quando `grep -rn 'pattern' .` resolve em 1s.
 - Você não automatiza tarefas repetitivas (script de 20 linhas economiza 100 horas no ano).
-- Você fica perdido em produção sem GUI — debug precisa ser via SSH + comandos.
+- Você fica perdido em produção sem GUI, debug precisa ser via SSH + comandos.
 - Você não entende erros de pipeline (CI failures, Dockerfile RUN errors).
 - Você não consegue ler scripts de outros (e CI/CD pipelines são 90% scripts).
 
-Este módulo te dá **fluência** em CLI Unix — não receitas, mas **modelo mental** das ferramentas e composição.
+Este módulo te dá **fluência** em CLI Unix, não receitas, mas **modelo mental** das ferramentas e composição.
 
 ---
 
@@ -53,9 +53,9 @@ Este módulo te dá **fluência** em CLI Unix — não receitas, mas **modelo me
 └── root/        # home do root
 ```
 
-**Tudo é arquivo.** Devices (`/dev/sda`), processos (`/proc/<pid>/`), sockets, FIFOs, links, diretórios — tudo é representado como entrada de FS.
+**Tudo é arquivo.** Devices (`/dev/sda`), processos (`/proc/<pid>/`), sockets, FIFOs, links, diretórios, tudo é representado como entrada de FS.
 
-**Inode**: estrutura de metadados que identifica um arquivo. Contém: tamanho, permissões, owner, timestamps, ponteiros pros blocos de dados. Nome do arquivo NÃO está no inode — está numa **entrada de diretório** que mapeia nome → inode.
+**Inode**: estrutura de metadados que identifica um arquivo. Contém: tamanho, permissões, owner, timestamps, ponteiros pros blocos de dados. Nome do arquivo NÃO está no inode, está numa **entrada de diretório** que mapeia nome → inode.
 
 **Hard link**: outra entrada de diretório apontando pro mesmo inode. `ln file link`.
 **Symbolic link** (soft link): arquivo especial cujo conteúdo é um path. `ln -s file link`. Quebra se file move.
@@ -95,16 +95,16 @@ Cada processo tem 3 FDs default:
 - **2** = stderr
 
 **Redirecionamento:**
-- `cmd > file` — stdout pra file (sobrescreve)
-- `cmd >> file` — stdout pra file (append)
-- `cmd 2> err.log` — stderr
-- `cmd > out.log 2>&1` — stdout e stderr pra mesmo file (`2>&1` = "duplica fd 2 pra fd 1")
-- `cmd < input` — stdin de file
-- `cmd <<EOF ... EOF` — heredoc (string multilinha como stdin)
+- `cmd > file`, stdout pra file (sobrescreve)
+- `cmd >> file`, stdout pra file (append)
+- `cmd 2> err.log`, stderr
+- `cmd > out.log 2>&1`, stdout e stderr pra mesmo file (`2>&1` = "duplica fd 2 pra fd 1")
+- `cmd < input`, stdin de file
+- `cmd <<EOF ... EOF`, heredoc (string multilinha como stdin)
 
 **Pipe:**
-- `cmd1 | cmd2` — stdout do 1 vira stdin do 2.
-- Sem temp file — kernel implementa via pipe (FD pareado).
+- `cmd1 | cmd2`, stdout do 1 vira stdin do 2.
+- Sem temp file, kernel implementa via pipe (FD pareado).
 - Permite composição: `cat file | grep pattern | sort | uniq -c | sort -rn | head`
 
 ### 2.4 Comandos essenciais
@@ -113,7 +113,7 @@ Cada processo tem 3 FDs default:
 - `pwd` (print working dir)
 - `cd <path>` (change)
 - `ls -la` (listar)
-- `tree` (árvore — pode precisar instalar)
+- `tree` (árvore, pode precisar instalar)
 
 **Arquivos:**
 - `cp src dst` (copy)
@@ -129,23 +129,23 @@ Cada processo tem 3 FDs default:
 - `df -h` (disk free)
 
 **Texto:**
-- `grep -rn 'pattern' .` — busca recursiva, com line numbers
-- `grep -E '...'` — extended regex
-- `grep -v 'pattern'` — invert match
-- `sed 's/foo/bar/g' file` — substitute
-- `sed -i 's/foo/bar/g' file` — in place
-- `awk '{print $2}' file` — column extraction (campo 2)
-- `awk '$3 > 100 {print $1}' file` — condicional
-- `cut -d, -f2,4 file.csv` — campos delimitado
+- `grep -rn 'pattern' .`, busca recursiva, com line numbers
+- `grep -E '...'`, extended regex
+- `grep -v 'pattern'`, invert match
+- `sed 's/foo/bar/g' file`, substitute
+- `sed -i 's/foo/bar/g' file`, in place
+- `awk '{print $2}' file`, column extraction (campo 2)
+- `awk '$3 > 100 {print $1}' file`, condicional
+- `cut -d, -f2,4 file.csv`, campos delimitado
 - `sort file`, `sort -n` (numeric), `sort -k2,2`
 - `uniq -c` (count consecutive)
 - `tr 'A-Z' 'a-z'` (translate)
-- `xargs` — converte stdin em args (use com `find ... | xargs cmd`)
+- `xargs`, converte stdin em args (use com `find ... | xargs cmd`)
 
 **Procura:**
-- `find . -name '*.ts' -type f` — busca por nome.
-- `find . -mtime -7` — modificado nos últimos 7 dias.
-- `find . -size +1M` — maior que 1 MB.
+- `find . -name '*.ts' -type f`, busca por nome.
+- `find . -mtime -7`, modificado nos últimos 7 dias.
+- `find . -size +1M`, maior que 1 MB.
 - `find . -name '*.tmp' -delete`
 - `locate file` (precisa updatedb).
 
@@ -158,23 +158,23 @@ Cada processo tem 3 FDs default:
 - `nohup cmd &` (detach + ignore SIGHUP)
 
 **Rede:**
-- `curl -v https://...` — HTTP request (use `-X POST`, `-H 'Header'`, `-d 'data'`).
-- `wget url` — download.
-- `dig example.com` — DNS query.
+- `curl -v https://...`, HTTP request (use `-X POST`, `-H 'Header'`, `-d 'data'`).
+- `wget url`, download.
+- `dig example.com`, DNS query.
 - `ping host`, `mtr host`, `traceroute host`.
-- `ss -tlnp` (sockets TCP listening, com PID — moderno; substitui `netstat`).
+- `ss -tlnp` (sockets TCP listening, com PID, moderno; substitui `netstat`).
 - `nc -lvp 1234` (netcat: listener TCP).
 
 **Compressão:**
-- `tar czf out.tar.gz dir/` — create + gzip.
-- `tar xzf in.tar.gz` — extract.
+- `tar czf out.tar.gz dir/`, create + gzip.
+- `tar xzf in.tar.gz`, extract.
 - `gzip file`, `gunzip file.gz`.
 - `zstd file` (mais moderno).
 
 **Permissões/users:**
 - `whoami`, `id` (UID, GID, groups).
-- `sudo cmd` — roda como root.
-- `su - user` — switch.
+- `sudo cmd`, roda como root.
+- `su - user`, switch.
 
 ### 2.5 Bash scripting essencial
 
@@ -188,10 +188,10 @@ echo "${NAME}_suffix"
 ```
 
 **Quoting:**
-- `'literal'` — sem expansão.
-- `"with $var"` — expande variáveis.
-- `$(cmd)` — substitui com saída de comando.
-- `` `cmd` `` — legacy, prefira `$(...)`.
+- `'literal'`, sem expansão.
+- `"with $var"`, expande variáveis.
+- `$(cmd)`, substitui com saída de comando.
+- `` `cmd` ``, legacy, prefira `$(...)`.
 
 **Condicionais:**
 ```bash
@@ -234,12 +234,12 @@ greet "Alice"
 ```
 
 **Argumentos do script:**
-- `$0` — nome do script
-- `$1`, `$2`, ... — args posicionais
-- `$@` — todos args (lista)
-- `$#` — quantidade de args
-- `$?` — exit status do último comando (`0` = success)
-- `$$` — PID do shell
+- `$0`, nome do script
+- `$1`, `$2`, ..., args posicionais
+- `$@`, todos args (lista)
+- `$#`, quantidade de args
+- `$?`, exit status do último comando (`0` = success)
+- `$$`, PID do shell
 
 **Set strict mode (recomendado):**
 ```bash
@@ -268,12 +268,12 @@ fail() { log "FATAL: $*"; exit 1; }
 
 ### 2.7 SSH e remote
 
-`ssh user@host` — login remoto.
+`ssh user@host`, login remoto.
 
 **Chaves:**
-- `ssh-keygen -t ed25519` — gerar (use ed25519, não RSA).
+- `ssh-keygen -t ed25519`, gerar (use ed25519, não RSA).
 - `~/.ssh/id_ed25519` (private), `.pub` (public).
-- `ssh-copy-id user@host` — copia pública pro `~/.ssh/authorized_keys` no host.
+- `ssh-copy-id user@host`, copia pública pro `~/.ssh/authorized_keys` no host.
 
 **Config (`~/.ssh/config`):**
 ```
@@ -286,14 +286,14 @@ Host myserver
 Aí: `ssh myserver`.
 
 **Port forwarding:**
-- `ssh -L 8080:localhost:80 user@host` — local 8080 → host:80 (acessar serviço remoto via local).
-- `ssh -R 9000:localhost:3000 user@host` — reverso.
+- `ssh -L 8080:localhost:80 user@host`, local 8080 → host:80 (acessar serviço remoto via local).
+- `ssh -R 9000:localhost:3000 user@host`, reverso.
 
 **`scp`** e **`rsync`** pra transferir.
 
-`rsync -av --delete src/ user@host:dst/` — sincroniza (incremental, robusto). Padrão pra deploy/backup.
+`rsync -av --delete src/ user@host:dst/`, sincroniza (incremental, robusto). Padrão pra deploy/backup.
 
-**`tmux`** ou **`screen`**: multiplexador de terminal — sessão persiste após desconectar SSH.
+**`tmux`** ou **`screen`**: multiplexador de terminal, sessão persiste após desconectar SSH.
 
 ### 2.8 Cron e scheduling
 
@@ -313,10 +313,10 @@ Aí: `ssh myserver`.
 ### 2.9 Logs
 
 `/var/log/` contém logs do sistema. `journalctl` (systemd) é a interface moderna:
-- `journalctl -u nginx` — logs do unit nginx.
-- `journalctl -f` — follow.
+- `journalctl -u nginx`, logs do unit nginx.
+- `journalctl -f`, follow.
 - `journalctl --since '1 hour ago'`.
-- `journalctl -p err` — errors.
+- `journalctl -p err`, errors.
 
 `/var/log/syslog`, `/var/log/auth.log` (auth events), `/var/log/dmesg` (kernel).
 
@@ -328,7 +328,7 @@ Aí: `ssh myserver`.
 `disown` remove do controle do shell (sobrevive a logout).
 `nohup cmd &` similar (ignora SIGHUP).
 
-`trap 'echo "got SIGINT"' INT` — captura signal em script.
+`trap 'echo "got SIGINT"' INT`, captura signal em script.
 
 ---
 
@@ -353,7 +353,7 @@ Pra passar o **Portão Conceitual**, sem consultar:
 
 ## 4. Desafio de Engenharia
 
-**Implementar `lograt` — analizador de logs estruturados em Bash + (opcional) Node.**
+**Implementar `lograt`, analizador de logs estruturados em Bash + (opcional) Node.**
 
 ### Especificação
 
@@ -368,20 +368,20 @@ Cada linha é JSON:
 
 #### Comandos
 
-1. `lograt summary <logfile>` — Imprime:
+1. `lograt summary <logfile>`, Imprime:
    - Total requests
    - Requests por status code (2xx, 3xx, 4xx, 5xx counts)
    - Average, p50, p95, p99 latency
    - Top 10 paths por count
    - Top 10 IPs por count
-2. `lograt errors <logfile>` — só requests 5xx, com timestamp + path + IP.
-3. `lograt slow <logfile> --threshold 1000` — requests > threshold ms.
-4. `lograt user <user_id> <logfile>` — requests de um user específico, ordenadas por timestamp.
-5. `lograt rate <logfile> --window 60` — RPS por janela de 60 segundos.
+2. `lograt errors <logfile>`, só requests 5xx, com timestamp + path + IP.
+3. `lograt slow <logfile> --threshold 1000`, requests > threshold ms.
+4. `lograt user <user_id> <logfile>`, requests de um user específico, ordenadas por timestamp.
+5. `lograt rate <logfile> --window 60`, RPS por janela de 60 segundos.
 
 ### Restrições
 
-- **Implementar em Bash puro** (com `awk`, `sort`, `uniq`, `jq` permitido — **`jq` é a única dep externa**).
+- **Implementar em Bash puro** (com `awk`, `sort`, `uniq`, `jq` permitido, **`jq` é a única dep externa**).
 - **Sem Python, Node, Ruby** no caminho principal.
 - Funcionar em arquivos de **1 milhão de linhas** em <30s no seu hardware.
 
@@ -415,11 +415,11 @@ Top paths:
 
 ## 5. Extensões e Conexões
 
-- **Conecta com [01-02 — OS](01-02-operating-systems.md):** comandos shell são processos. Pipes são FDs. Permissões são features do kernel.
-- **Conecta com [01-09 — Git Internals](01-09-git-internals.md):** `gitignore`, `find`, `xargs` pra operações em massa em repos.
-- **Conecta com [03-02 — Docker](../03-producao/03-02-docker.md):** Dockerfile é shell + comandos. Entrypoint é shell.
-- **Conecta com [03-04 — CI/CD](../03-producao/03-04-cicd.md):** GitHub Actions runs shell. Workflows são scripts.
-- **Conecta com [03-07 — Observability](../03-producao/03-07-observability.md):** análise de logs com `awk`/`jq` é a porta de entrada antes de Loki/Grafana.
+- **Conecta com [01-02, OS](01-02-operating-systems.md):** comandos shell são processos. Pipes são FDs. Permissões são features do kernel.
+- **Conecta com [01-09, Git Internals](01-09-git-internals.md):** `gitignore`, `find`, `xargs` pra operações em massa em repos.
+- **Conecta com [03-02, Docker](../03-producao/03-02-docker.md):** Dockerfile é shell + comandos. Entrypoint é shell.
+- **Conecta com [03-04, CI/CD](../03-producao/03-04-cicd.md):** GitHub Actions runs shell. Workflows são scripts.
+- **Conecta com [03-07, Observability](../03-producao/03-07-observability.md):** análise de logs com `awk`/`jq` é a porta de entrada antes de Loki/Grafana.
 
 ### Ferramentas satélites
 
@@ -437,24 +437,24 @@ Top paths:
 ## 6. Referências de Elite
 
 ### Livros canônicos
-- **The Linux Command Line** (William Shotts) — free em [linuxcommand.org](https://linuxcommand.org/tlcl.php). Comprehensive, didático.
-- **The Art of Unix Programming** (Eric Raymond) — free em [catb.org/esr/writings/taoup](http://www.catb.org/esr/writings/taoup/). **Filosofia** Unix. Leia.
-- **Advanced Programming in the UNIX Environment** (Stevens, "APUE") — bíblia.
-- **The Linux Programming Interface** (Kerrisk) — alternativa moderna.
-- **bash Cookbook** (Albing & Vossen) — receitas.
+- **The Linux Command Line** (William Shotts), free em [linuxcommand.org](https://linuxcommand.org/tlcl.php). Comprehensive, didático.
+- **The Art of Unix Programming** (Eric Raymond), free em [catb.org/esr/writings/taoup](http://www.catb.org/esr/writings/taoup/). **Filosofia** Unix. Leia.
+- **Advanced Programming in the UNIX Environment** (Stevens, "APUE"), bíblia.
+- **The Linux Programming Interface** (Kerrisk), alternativa moderna.
+- **bash Cookbook** (Albing & Vossen), receitas.
 
 ### Recursos online
-- **[explainshell.com](https://explainshell.com/)** — cole um comando, mostra cada parte.
-- **[Bash Manual](https://www.gnu.org/software/bash/manual/)** — oficial.
-- **[Bash Reference (greg's wiki)](https://mywiki.wooledge.org/BashGuide)** — alternative reference.
-- **[shellscript.sh](https://www.shellscript.sh/)** — referência prática.
-- **[awk one-liners](https://www.pement.org/awk/awk1line.txt)** — collections de truques.
+- **[explainshell.com](https://explainshell.com/)**: cole um comando, mostra cada parte.
+- **[Bash Manual](https://www.gnu.org/software/bash/manual/)**: oficial.
+- **[Bash Reference (greg's wiki)](https://mywiki.wooledge.org/BashGuide)**: alternative reference.
+- **[shellscript.sh](https://www.shellscript.sh/)**: referência prática.
+- **[awk one-liners](https://www.pement.org/awk/awk1line.txt)**: collections de truques.
 - **[sed one-liners](https://www.pement.org/sed/sed1line.txt)**.
 
 ### Repos
-- **[busybox](https://www.busybox.net/)** — implementações minimal de comandos. Excelente pra ler.
-- **[coreutils](https://github.com/coreutils/coreutils)** — implementação GNU.
-- **[ohmyzsh](https://github.com/ohmyzsh/ohmyzsh)** — vasto repositório de aliases/funções.
+- **[busybox](https://www.busybox.net/)**: implementações minimal de comandos. Excelente pra ler.
+- **[coreutils](https://github.com/coreutils/coreutils)**: implementação GNU.
+- **[ohmyzsh](https://github.com/ohmyzsh/ohmyzsh)**: vasto repositório de aliases/funções.
 
 ### Talks
 - **["Practical Tips and Tricks of Modern Bash"](https://www.youtube.com/watch?v=uh2FqejiTaE)**.
@@ -467,4 +467,4 @@ Top paths:
 
 ---
 
-**Encerramento:** após 01-10 você é fluente em terminal — operação, debug, automação. Isso te transforma na sessão de prod a 3am, em CI/CD pipelines, em qualquer ambiente Linux. **Pratique diariamente.**
+**Encerramento:** após 01-10 você é fluente em terminal, operação, debug, automação. Isso te transforma na sessão de prod a 3am, em CI/CD pipelines, em qualquer ambiente Linux. **Pratique diariamente.**

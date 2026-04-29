@@ -1,6 +1,6 @@
 ---
 module: 05-09
-title: Bioinformatics & Scientific Computing — HPC, Numerical Methods, Reproducibility
+title: Bioinformatics & Scientific Computing, HPC, Numerical Methods, Reproducibility
 stage: amplitude
 prereqs: [01-15]
 gates:
@@ -10,7 +10,7 @@ gates:
 status: locked
 ---
 
-# 05-09 — Bioinformatics & Scientific Computing (Optional)
+# 05-09, Bioinformatics & Scientific Computing (Optional)
 
 ## 1. Problema de Engenharia
 
@@ -18,7 +18,7 @@ Software engineer faz CRUD; cientista faz pesquisa; bioinformata combina. Genôm
 
 Pra Logística, 05-09 é **opcional, pra quem aspira eixo bio/biotech, pharma, healthcare AI, climate, genomics**, ou empresas como Genomatic, Recursion, 23andMe, Insitro, Ginkgo, climate tech. Domínio com complexidade técnica densa: pipelines genomic, file formats binários (BAM/VCF), GPU clusters, Python scientific stack, MPI, Slurm, reprodutibilidade de paper, HIPAA/LGPD-saúde.
 
-Software engineer que vira "tech lead em laboratório" multiplica produtividade científica 5-10x. Saber programar é 30% do trabalho; entender o domínio (biologia, química, física computacional) é 70%. Este módulo dá **fundação suficiente** pra entrar — não pra fazer doutorado.
+Software engineer que vira "tech lead em laboratório" multiplica produtividade científica 5-10x. Saber programar é 30% do trabalho; entender o domínio (biologia, química, física computacional) é 70%. Este módulo dá **fundação suficiente** pra entrar, não pra fazer doutorado.
 
 Cobertura: numerical methods, HPC (Slurm, MPI, OpenMP), GPU computing (CUDA básico), scientific Python stack (NumPy, SciPy, pandas, Polars, Dask), bioinformatics workflows (Nextflow, Snakemake), file formats (FASTA, BAM, VCF, HDF5, Zarr), reproducibility (Nix, conda, containers), papers e citation patterns, regulatory.
 
@@ -72,7 +72,7 @@ Tools: `samtools`, `bcftools`, `bedtools` operam BAM/VCF/BED.
 HPC cluster: 100s-1000s de nodes, interconnect alta-largura (InfiniBand, RoCE), shared filesystem (Lustre, GPFS).
 
 Job scheduler:
-- **Slurm** (Simple Linux Utility for Resource Management) — domina.
+- **Slurm** (Simple Linux Utility for Resource Management), domina.
 - **PBS / Torque** legado.
 - **LSF** (IBM) commercial.
 
@@ -332,18 +332,18 @@ Você precisa, sem consultar:
 
 ## 6. Referências
 
-- **"Bioinformatics Data Skills"** — Vince Buffalo.
-- **"Practical Computing for Biologists"** — Haddock, Dunn.
-- **"Bioinformatics Algorithms: An Active Learning Approach"** — Compeau, Pevzner.
-- **"Scientific Programming and Computer Architecture"** — Divakar Viswanath.
-- **"Numerical Recipes"** — Press et al.
-- **"High Performance Python"** — Gorelick, Ozsvald.
-- **"Python for Data Analysis"** — Wes McKinney.
+- **"Bioinformatics Data Skills"**: Vince Buffalo.
+- **"Practical Computing for Biologists"**: Haddock, Dunn.
+- **"Bioinformatics Algorithms: An Active Learning Approach"**: Compeau, Pevzner.
+- **"Scientific Programming and Computer Architecture"**: Divakar Viswanath.
+- **"Numerical Recipes"**: Press et al.
+- **"High Performance Python"**: Gorelick, Ozsvald.
+- **"Python for Data Analysis"**: Wes McKinney.
 - **Nextflow docs** + **nf-core**.
 - **Bioconductor**.
-- **Pangeo project** — climate.
+- **Pangeo project**: climate.
 - **MIT OpenCourseware 6.0001 + 18.06 + biology**.
 - **Coursera Bioinformatics Specialization** (UC San Diego).
-- **arxiv-sanity, bioRxiv** — pre-prints.
+- **arxiv-sanity, bioRxiv**: pre-prints.
 - **Nature Methods**, **Bioinformatics journal**.
-- **TACC, NERSC, Oak Ridge** — HPC center docs.
+- **TACC, NERSC, Oak Ridge**: HPC center docs.

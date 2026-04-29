@@ -1,6 +1,6 @@
 ---
 module: 04-14
-title: Formal Methods — TLA+, Model Checking, Invariants, Specification
+title: Formal Methods, TLA+, Model Checking, Invariants, Specification
 stage: sistemas
 prereqs: [04-01]
 gates:
@@ -10,13 +10,13 @@ gates:
 status: locked
 ---
 
-# 04-14 — Formal Methods (TLA+)
+# 04-14, Formal Methods (TLA+)
 
 ## 1. Problema de Engenharia
 
-Sistemas distribuídos têm bugs que **testes nunca pegam**. Race conditions em cenários raros, perda de evento em network partition específica, livelock de retry, violações de invariants num caminho que ninguém pensou em testar. Quando AWS cita TLA+ em 04-03, DynamoDB, EBS; quando MongoDB, Cosmos DB, Tendermint, Tezos publicam specs em TLA+/Coq/Isabelle — não é academia. É a única ferramenta confiável pra **provar propriedades** sobre design distribuído antes de escrever código.
+Sistemas distribuídos têm bugs que **testes nunca pegam**. Race conditions em cenários raros, perda de evento em network partition específica, livelock de retry, violações de invariants num caminho que ninguém pensou em testar. Quando AWS cita TLA+ em 04-03, DynamoDB, EBS; quando MongoDB, Cosmos DB, Tendermint, Tezos publicam specs em TLA+/Coq/Isabelle, não é academia. É a única ferramenta confiável pra **provar propriedades** sobre design distribuído antes de escrever código.
 
-Formal methods não substituem testes nem code review. Substituem **whiteboard sessions vagas** ("acho que essa fila funciona") por modelos executáveis que o computador checa exaustivamente. Você desenha o sistema, escreve invariants ("todo pedido finalizado tem pagamento confirmado"), e o model checker explora todos os interleavings possíveis dentro do bound — finds counterexamples impossíveis de encontrar manualmente.
+Formal methods não substituem testes nem code review. Substituem **whiteboard sessions vagas** ("acho que essa fila funciona") por modelos executáveis que o computador checa exaustivamente. Você desenha o sistema, escreve invariants ("todo pedido finalizado tem pagamento confirmado"), e o model checker explora todos os interleavings possíveis dentro do bound, finds counterexamples impossíveis de encontrar manualmente.
 
 Senior de sistemas sérios deve **saber escrever TLA+ pra problemas críticos**: protocolo de consensus custom, fila de outbox com retries, reconciliation de pagamento, escalonador de jobs. Não vai usar todo dia, mas vai usar quando o custo de bug é alto.
 
@@ -85,7 +85,7 @@ Specification high-level (abstract) → low-level (mais detalhada). Refinement: 
 
 Útil pra conectar spec abstrata ("consensus") com algoritmo concreto (Paxos).
 
-### 2.7 P language (Microsoft) — deep
+### 2.7 P language (Microsoft), deep
 
 P (Microsoft Research, 2013+) é linguagem **state-machine first** pra modelagem de sistemas event-driven assíncronos. Diferente de TLA+ (specification language puro), P é executável: você escreve spec **e** gera código de teste pra implementação real.
 
@@ -122,7 +122,7 @@ machine Replica {
 - TLA+ tem comunidade maior, mais resources educacionais (Hillel Wayne).
 - P é mais novo, comunidade menor. Cresceu post-2020.
 
-### 2.8 Alloy — deep
+### 2.8 Alloy, deep
 
 Alloy (MIT, Daniel Jackson): **structural specification language**. Você define objects + relations, declara invariants e operations, e Alloy Analyzer (Kodkod backend) busca contraexemplo via SAT solver dentro de bound finito ("small scope hypothesis": bugs aparecem em modelos pequenos se aparecem).
 
@@ -143,7 +143,7 @@ check NoSelfAfterAdd for 5
 
 **Onde Alloy brilha:**
 - **Schema design**: modelar invariants em árvores, grafos, schemas relacionais.
-- **Permission systems**: ACL, RBAC, ABAC — relations + quantificação.
+- **Permission systems**: ACL, RBAC, ABAC, relations + quantificação.
 - **Data structure invariants**: red-black tree properties, B-tree balancing.
 - **Specification de protocolo de simples a médio**.
 
@@ -154,16 +154,16 @@ check NoSelfAfterAdd for 5
 
 **Quando escolher:** modelagem de **structures/data invariants** > distributed protocols. Pra distributed, TLA+ ou P são primeira escolha.
 
-### 2.9 Coq, Isabelle, Lean: theorem provers — deep
+### 2.9 Coq, Isabelle, Lean: theorem provers, deep
 
-Diferente de model checking. **Theorem prover** ajuda a escrever **prova** de teorema; sistema valida cada passo. Não busca contraexemplo automaticamente — você guia a prova.
+Diferente de model checking. **Theorem prover** ajuda a escrever **prova** de teorema; sistema valida cada passo. Não busca contraexemplo automaticamente, você guia a prova.
 
-**Coq** — clássico. Prova interativa em Gallina. CompCert (compilador C verificado), Software Foundations (curso), CertiKOS (microkernel).
+**Coq**: clássico. Prova interativa em Gallina. CompCert (compilador C verificado), Software Foundations (curso), CertiKOS (microkernel).
 
-**Isabelle/HOL** — mais popular em ambientes acadêmicos europeus. seL4 microkernel formalmente verificado. Mathlib alternativa em Lean.
+**Isabelle/HOL**: mais popular em ambientes acadêmicos europeus. seL4 microkernel formalmente verificado. Mathlib alternativa em Lean.
 
 **Lean 4** (Microsoft Research, **emergente em 2023+**):
-- Linguagem **dual** — pode ser usado como linguagem de programação **e** prover. Muito relevante em 2026.
+- Linguagem **dual**: pode ser usado como linguagem de programação **e** prover. Muito relevante em 2026.
 - **mathlib4**: maior biblioteca de matemática formalizada do mundo (~1M+ lines), liderada por Kevin Buzzard. Cresceu rápido em 2024-2025.
 - **Performance**: Lean 4 compila pra C, performance comparable a OCaml. Outros provers são interpretativos.
 - **Tactic language** moderno (`Mathlib.Tactic`) reduz boilerplate vs Coq.
@@ -183,7 +183,7 @@ Diferente de model checking. **Theorem prover** ajuda a escrever **prova** de te
 3. Componente de OS / kernel onde bug = root.
 4. Smart contracts $$$ que viraram targets de attack.
 
-**Em 2026 vale acompanhar Lean 4** — ferramenta que pode democratizar parte do espaço. Já há tutoriais "Lean for Engineers" emergindo.
+**Em 2026 vale acompanhar Lean 4**: ferramenta que pode democratizar parte do espaço. Já há tutoriais "Lean for Engineers" emergindo.
 
 ### 2.10 Onde formal methods agregam
 
@@ -354,13 +354,13 @@ Para cada:
 
 ## 6. Referências
 
-- **"Specifying Systems"** — Leslie Lamport. Bíblia TLA+, gratuito.
-- **"Practical TLA+"** — Hillel Wayne. Mais hands-on.
+- **"Specifying Systems"**: Leslie Lamport. Bíblia TLA+, gratuito.
+- **"Practical TLA+"**: Hillel Wayne. Mais hands-on.
 - **Hillel Wayne's blog** ([learntla.com](https://learntla.com/), [hillelwayne.com](https://hillelwayne.com/)).
-- **Marc Brooker's blog** — AWS engineer escrevendo sobre formal em produção.
-- **"How Amazon Web Services Uses Formal Methods"** — paper Newcombe et al.
-- **TLA+ video course** — Lamport.
-- **P language repo & paper** — Microsoft Research.
-- **Alloy book** — Daniel Jackson, "Software Abstractions".
-- **"Formal Verification of Distributed Systems"** — comprehensive reading list.
-- **"Software Foundations"** — Coq tutorial (Pierce et al, gratuito).
+- **Marc Brooker's blog**: AWS engineer escrevendo sobre formal em produção.
+- **"How Amazon Web Services Uses Formal Methods"**: paper Newcombe et al.
+- **TLA+ video course**: Lamport.
+- **P language repo & paper**: Microsoft Research.
+- **Alloy book**: Daniel Jackson, "Software Abstractions".
+- **"Formal Verification of Distributed Systems"**: comprehensive reading list.
+- **"Software Foundations"**: Coq tutorial (Pierce et al, gratuito).

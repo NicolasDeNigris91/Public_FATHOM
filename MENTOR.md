@@ -1,4 +1,4 @@
-# Fathom — Protocolo de Mentoria
+# Fathom, Protocolo de Mentoria
 
 > Este arquivo é o **contrato canônico do mentor**. Toda sessão neste diretório opera sob estas regras, **independente de quem está mentorizando** (você mesmo, peer humano, ou hybrid).
 
@@ -8,16 +8,16 @@
 
 Três modos de operação válidos. Escolha um (ou combine):
 
-### Modo A — Self-Mentor (default mais difícil)
+### Modo A, Self-Mentor (default mais difícil)
 Você é seu próprio examinador. Funciona se:
 - Disciplina alta confirmada (>3 meses de cadência sustentada).
 - Aplica STUDY-PROTOCOL §1-§16 sem cortar.
-- Faz portões com **rigor brutal contra si mesmo** — cada pergunta de Threshold respondida em folha em branco antes de marcar passou.
+- Faz portões com **rigor brutal contra si mesmo**: cada pergunta de Threshold respondida em folha em branco antes de marcar passou.
 - Mantém journal honesto de falhas.
 
 Risco principal: auto-engano. Você passa portão por exhaustão ou orgulho. Detectável: se mês depois você não consegue reproduzir o que "passou", falhou. Audit retrospectivo.
 
-### Modo B — Peer / Cohort Mentor
+### Modo B, Peer / Cohort Mentor
 Buddy ou pequeno grupo (2-5 pessoas) examinam uns aos outros. Funciona se:
 - Cohort com cadence semanal mínima.
 - Um mentor humano Senior+ ocasional (mensal/trimestral) calibra rigor do grupo.
@@ -25,15 +25,15 @@ Buddy ou pequeno grupo (2-5 pessoas) examinam uns aos outros. Funciona se:
 
 Modelo testado em paper clubs, reading groups, pair programming intenso, college study groups.
 
-### Modo C — Suplemento opcional de ferramentas de produtividade
-Ferramentas de produtividade (qualquer suplemento de escrita, busca, ou checagem) podem auxiliar tarefas pontuais — gerar lista de perguntas a partir de um texto, sugerir contraexemplos, apontar typos em código. Tratar como **instrumento auxiliar**, nunca como substituto do portão. Restrições rígidas:
+### Modo C, Suplemento opcional de ferramentas de produtividade
+Ferramentas de produtividade (qualquer suplemento de escrita, busca, ou checagem) podem auxiliar tarefas pontuais, gerar lista de perguntas a partir de um texto, sugerir contraexemplos, apontar typos em código. Tratar como **instrumento auxiliar**, nunca como substituto do portão. Restrições rígidas:
 - Não usar pra **gerar a resposta** que você mesmo deveria produzir em folha em branco.
-- Não usar pra **avaliar seu próprio portão** — auto-engano embutido.
-- Não usar pra **resolver Desafios de Engenharia** — o ponto é deliberate practice (STUDY-PROTOCOL §4).
+- Não usar pra **avaliar seu próprio portão**: auto-engano embutido.
+- Não usar pra **resolver Desafios de Engenharia**: o ponto é deliberate practice (STUDY-PROTOCOL §4).
 
 Modo C é apêndice. Modos A e B são onde mastery se forma.
 
-### Modo D — Hybrid (recomendado)
+### Modo D, Hybrid (recomendado)
 Mix dos modos:
 - Self-mentor pra Anki, journal, leitura, micro-portões.
 - Peer/cohort pra discussões semanais e portões grandes.
@@ -63,7 +63,7 @@ O mentor (você, peer, ou hybrid) atua como **Principal Software Engineer e Exam
 - Usar emojis. Nem em respostas, nem em arquivos.
 - Inflar respostas com elogios performáticos ("ótima pergunta!", "excelente!"). Tom: técnico, seco, respeitoso.
 
-**Postura padrão:** assuma que o aluno **ainda não sabe** até prova em contrário. Quando ele afirmar saber, peça explicação — e ouça com atenção pra detalhes errados.
+**Postura padrão:** assuma que o aluno **ainda não sabe** até prova em contrário. Quando ele afirmar saber, peça explicação, e ouça com atenção pra detalhes errados.
 
 Em Modo A (self-mentor): você assume o papel acima contra si. Em Modo B: peer assume. Disciplina exige escolher um e operar lá.
 
@@ -97,7 +97,7 @@ Se `PROGRESS.md` está vazio:
 2. Encaminhar a `framework/00-meta/SELF-ASSESSMENT.md` pra calibrar.
 3. Encaminhar a `framework/00-meta/STUDY-PLANS.md` pra escolher cadência.
 4. Encaminhar a `framework/00-meta/reading-list.md` pra entender fontes canônicas.
-5. Iniciar `01-01-computation-model.md` — sempre nessa ordem.
+5. Iniciar `01-01-computation-model.md`, sempre nessa ordem.
 
 ### 2.3 Quando o aluno declara "li o módulo X, quero o portão"
 
@@ -156,7 +156,7 @@ Cada módulo tem **três portões obrigatórios em ordem**.
 
 **Em self-mentor**: 24h após terminar, releia código com olhos hostis. Liste issues como se fosse PR de outro. Tente quebrar com inputs adversos. Justificativas escritas em `decisions.md`.
 
-**Em peer-mentor**: dê código + Threshold do módulo + esta seção. Peça review. Não corrija a defesa — escute.
+**Em peer-mentor**: dê código + Threshold do módulo + esta seção. Peça review. Não corrija a defesa, escute.
 
 ### 3.3 Portão de Conexões
 
@@ -206,7 +206,7 @@ Editar **dois arquivos**, sempre nessa ordem:
 Atualizar cabeçalho de `PROGRESS.md`:
 ```
 **Estágio ativo:** Fundamentos
-**Módulo ativo:** 01-02 — Operating Systems
+**Módulo ativo:** 01-02, Operating Systems
 **Atualizado em:** YYYY-MM-DD
 ```
 
@@ -232,7 +232,7 @@ Atualizar cabeçalho de `PROGRESS.md`:
 - Fontes canônicas em `framework/00-meta/reading-list.md` e `elite-references.md`.
 - **Nunca crie arquivos fora dessa estrutura.**
 
-Código do aluno (Desafios) **não mora** neste repo — mora em repo separado. Aqui só o framework.
+Código do aluno (Desafios) **não mora** neste repo, mora em repo separado. Aqui só o framework.
 
 ---
 
@@ -337,4 +337,4 @@ Não use como atalho. Use como honestidade de eixo.
 
 ---
 
-**Fim do protocolo.** Independente de quem mentora — você, peer, hybrid — as regras acima são o contrato. Discipline começa na hora de escolher não burlar.
+**Fim do protocolo.** Independente de quem mentora, você, peer, hybrid, as regras acima são o contrato. Discipline começa na hora de escolher não burlar.

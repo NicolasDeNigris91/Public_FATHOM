@@ -85,7 +85,7 @@ export function MermaidDiagram({ source }: Props) {
         className="my-8 border border-mist/40 bg-graphite p-6 overflow-x-auto [&_svg]:max-w-full [&_svg]:h-auto print:hidden"
         dangerouslySetInnerHTML={{ __html: svg }}
       />
-      {/* Source as code block when printing — SVGs render unevenly to PDF. */}
+      {/* Source as code block when printing, SVGs render unevenly to PDF. */}
       <pre className="hidden print:block font-mono text-xs whitespace-pre-wrap break-all my-6">
         {source}
       </pre>

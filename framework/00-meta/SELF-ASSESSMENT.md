@@ -1,6 +1,6 @@
-# SELF-ASSESSMENT — Calibração Inicial
+# SELF-ASSESSMENT, Calibração Inicial
 
-> Questionário pra você decidir, com honestidade brutal, **onde realmente está**. Não pra pular módulos sem provar — você ainda passa portões. Mas pra **calibrar cadência** (módulos que você domina passam rápido; módulos novos demandam tempo) e **identificar gaps cegos**.
+> Questionário pra você decidir, com honestidade brutal, **onde realmente está**. Não pra pular módulos sem provar, você ainda passa portões. Mas pra **calibrar cadência** (módulos que você domina passam rápido; módulos novos demandam tempo) e **identificar gaps cegos**.
 
 Regras:
 
@@ -14,7 +14,7 @@ Total: **66 perguntas, ~3 horas com tempo de pensar**. Faça em 1-2 sessões. An
 
 ---
 
-## Estágio 1 — Fundamentos
+## Estágio 1: Fundamentos
 
 ### 01-01 Computation Model
 1. Qual a diferença entre RAM e disco em ordem de magnitude de latência?
@@ -78,7 +78,7 @@ Total: **66 perguntas, ~3 horas com tempo de pensar**. Faça em 1-2 sessões. An
 
 ---
 
-## Estágio 2 — Plataforma
+## Estágio 2: Plataforma
 
 ### 02-01 HTML/CSS/Tailwind
 31. Diferença entre `inline-block` e `flex` em modelo de layout.
@@ -145,7 +145,7 @@ Total: **66 perguntas, ~3 horas com tempo de pensar**. Faça em 1-2 sessões. An
 
 ---
 
-## Estágio 3 — Produção
+## Estágio 3: Produção
 
 ### 03-01 Testing
 56. Diferencie unit, integration, E2E, property-based.
@@ -177,7 +177,7 @@ Total: **66 perguntas, ~3 horas com tempo de pensar**. Faça em 1-2 sessões. An
 
 ---
 
-## Estágio 4 — Sistemas
+## Estágio 4: Sistemas
 
 ### 04-01 Distributed Systems
 66. Enuncie CAP e por que ele é insuficiente sem PACELC.
@@ -223,7 +223,7 @@ Em `assessment-result.md` (seu repo pessoal):
 - Lista de gaps cegos identificados.
 - Decisão sobre por onde começar (probabilidade alta: 01-01, mas se você é meio-Senior real, pode começar mais alto).
 
-Refazer assessment a cada 6 meses recomendado. Sua percepção muda — autoavaliação evolui.
+Refazer assessment a cada 6 meses recomendado. Sua percepção muda, autoavaliação evolui.
 
 ---
 

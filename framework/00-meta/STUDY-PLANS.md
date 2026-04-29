@@ -1,8 +1,8 @@
-# STUDY-PLANS — Templates de Plano por Cenário
+# STUDY-PLANS, Templates de Plano por Cenário
 
 > Trilhas paralelas em `INDEX.md` listam ordens; aqui dou **plans semanais reais** por cenário típico.
 >
-> Cada plan assume a pessoa **passou SELF-ASSESSMENT.md** e calibrou onde está. Não é receita — é template a customizar.
+> Cada plan assume a pessoa **passou SELF-ASSESSMENT.md** e calibrou onde está. Não é receita, é template a customizar.
 >
 > Time é orientativo; cadência > prazo.
 
@@ -16,25 +16,25 @@ Sleep + exercício são pré-requisitos (STUDY-PROTOCOL §7). Plans assumem 7+ h
 
 ---
 
-## Plan A — Full-time learner (sabbatical / between jobs)
+## Plan A, Full-time learner (sabbatical / between jobs)
 
 **Premissa**: 30-40h/semana de foco real disponível. Geralmente 3-12 meses. Custom timing.
 
 ### Cadência diária
 
 ```
-07:00 — Acordar, exercício 30min, café da manhã.
-08:00 — Sessão profunda 1 (90min): Teoria Hard novo módulo.
-09:30 — Pausa 15min.
-09:45 — Sessão profunda 2 (90min): Implementar Desafio.
-11:15 — Pausa.
-11:30 — Active Recall do que estudou (30min) + Anki (30min).
-12:30 — Almoço + caminhada.
-14:00 — Sessão 3 (90min): continuar Desafio ou ler fonte canônica.
-15:30 — Pausa.
-15:45 — Sessão 4 (60-90min): codebase tour ou paper reading.
-17:00 — Reflexão 15min, journal entry, prep dia seguinte.
-17:30+ — Off (real off; cérebro consolida).
+07:00, Acordar, exercício 30min, café da manhã.
+08:00, Sessão profunda 1 (90min): Teoria Hard novo módulo.
+09:30, Pausa 15min.
+09:45, Sessão profunda 2 (90min): Implementar Desafio.
+11:15, Pausa.
+11:30, Active Recall do que estudou (30min) + Anki (30min).
+12:30, Almoço + caminhada.
+14:00, Sessão 3 (90min): continuar Desafio ou ler fonte canônica.
+15:30, Pausa.
+15:45, Sessão 4 (60-90min): codebase tour ou paper reading.
+17:00, Reflexão 15min, journal entry, prep dia seguinte.
+17:30+, Off (real off; cérebro consolida).
 ```
 
 Total: ~6h deep work/dia × 5 dias = 30h/sem.
@@ -64,7 +64,7 @@ Total full sabbatical 12-18 meses pra terminar até CAPSTONE-sistemas. Stage Sta
 
 ---
 
-## Plan B — Part-time empregado (backbone realista)
+## Plan B, Part-time empregado (backbone realista)
 
 **Premissa**: 8-15h/semana entre noite + fim-de-semana. Job tempo integral. Cadência longa: 3-7 anos pra completar até Senior.
 
@@ -76,7 +76,7 @@ Ter 19:30-21:00 (90min): Implementar Desafio.
 Qua: off (recovery).
 Qui 19:30-21:00 (90min): Active Recall + Anki + journal.
 Sex: off.
-Sáb 09:00-12:00 (3h): Sessão profunda — codebase tour OU paper OU Desafio.
+Sáb 09:00-12:00 (3h): Sessão profunda, codebase tour OU paper OU Desafio.
 Dom 09:00-11:00 (2h): Continuação Desafio ou leitura livro canônico.
 ```
 
@@ -107,7 +107,7 @@ Total: ~10h/sem deep work.
 
 ---
 
-## Plan C — Weekend warrior
+## Plan C, Weekend warrior
 
 **Premissa**: 6-10h/sem **só fim-de-semana**. Filhos pequenos / job intenso / outras demandas.
 
@@ -143,7 +143,7 @@ Multiplicar Plan B por 1.5-2x:
 
 ---
 
-## Plan D — Bootcamp graduate / iniciante real
+## Plan D, Bootcamp graduate / iniciante real
 
 **Premissa**: terminou bootcamp ou autodidata; quer profundidade que não teve. Job junior provavelmente já em curso.
 
@@ -165,7 +165,7 @@ Mesmo Plan B (10h/sem) **mas começa real do zero**.
 
 ---
 
-## Plan E — Senior consolidado mirando Staff
+## Plan E, Senior consolidado mirando Staff
 
 **Premissa**: já é Senior em job real, framework é alavanca pra Staff. 8-12h/sem.
 
@@ -191,7 +191,7 @@ Esse é o plan que mais combina com framework neste estado.
 
 ---
 
-## Plan F — Career switcher (não-tech background)
+## Plan F, Career switcher (não-tech background)
 
 **Premissa**: vem de outra área (engenharia, finanças, biology, etc.). Quer transitar pra tech.
 
@@ -208,7 +208,7 @@ Esse é o plan que mais combina com framework neste estado.
 
 ---
 
-## Plan G — Executive / busy professional
+## Plan G, Executive / busy professional
 
 **Premissa**: lidera time / startup; sem tempo pra implementar Desafios. Quer literacy técnica pra decisões.
 

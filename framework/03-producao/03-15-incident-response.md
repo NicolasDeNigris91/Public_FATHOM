@@ -1,6 +1,6 @@
 ---
 module: 03-15
-title: Incident Response & On-Call — Drills, Runbooks, Postmortems, SLO/SLA
+title: Incident Response & On-Call, Drills, Runbooks, Postmortems, SLO/SLA
 stage: producao
 prereqs: [03-07]
 gates:
@@ -10,7 +10,7 @@ gates:
 status: locked
 ---
 
-# 03-15 — Incident Response & On-Call
+# 03-15, Incident Response & On-Call
 
 ## 1. Problema de Engenharia
 
@@ -44,7 +44,7 @@ Critério deve ser **operacional, não emocional**. Documentar exemplos. SEV cre
 
 **Error budget** = `1 - SLO`. SLO 99.9% → 0.1% budget = 43min/mês. Quando queima budget, freeze releases até recuperar.
 
-SLO não deve ser 100%. 100% obriga zero risco — bloqueia mudança. 99.9-99.99% típico pra serviço crítico.
+SLO não deve ser 100%. 100% obriga zero risco, bloqueia mudança. 99.9-99.99% típico pra serviço crítico.
 
 SRE Workbook (Google) é literatura central.
 
@@ -103,7 +103,7 @@ Senior **resiste** ao impulso de "find root cause primeiro". Mitigar > investiga
 
 ### 2.8 Comms durante incidente
 
-- **Status page** atualizado a cada 15-30 min mesmo sem novidade ("Estamos investigando — próximo update às X").
+- **Status page** atualizado a cada 15-30 min mesmo sem novidade ("Estamos investigando, próximo update às X").
 - **Internal**: thread Slack pinned, IC announces decisões.
 - **Customer**: linguagem direta, sem culpar terceiros, sem promessa que não pode cumprir. Evite "investigating" indefinido.
 - **Post-incident**: comunicação detalhada (postmortem público se SaaS B2B, resumo se B2C).
@@ -143,7 +143,7 @@ Pra cada alerta, runbook acompanha. Conteúdo:
 
 Runbook desatualizado é pior que ausência (engana). Test em game days.
 
-### 2.11 Game days e chaos engineering — deep
+### 2.11 Game days e chaos engineering, deep
 
 **Game day**: simulação coordenada. Time se reúne, alguém quebra algo intencionalmente em staging (ou prod com cuidado), time pratica detection/mitigation.
 
@@ -164,20 +164,20 @@ Runbook desatualizado é pior que ausência (engana). Test em game days.
 | **Gremlin** | SaaS, agent-based | Enterprise, reporting executivo | Pago, agent footprint |
 | **AWS Fault Injection Service (FIS)** | AWS-native | Stack AWS, integra IAM/CloudWatch | Apenas AWS |
 | **Azure Chaos Studio** | Azure-native | Stack Azure | Apenas Azure |
-| **toxiproxy** (Shopify) | TCP proxy entre serviços | Network failures (latency, drop, partition) — local dev e staging | Não cobre process kill |
+| **toxiproxy** (Shopify) | TCP proxy entre serviços | Network failures (latency, drop, partition), local dev e staging | Não cobre process kill |
 | **Chaos Monkey** (legacy Netflix) | Random instance termination | Histórico, ainda usado por times maduros | Cobre só 1 dimensão |
 | **Pumba** | Docker-native | Local dev, CI | Container-only |
 | **PowerfulSeal** | K8s | Random pod kill com policies | Manutenção light |
 
 **Tipos de injeção comuns:**
-- **Process/pod kill** — testa redundância, restart logic.
-- **Network latency** — testa timeouts, circuit breakers.
-- **Network partition** — testa split-brain handling em quorum systems.
-- **Packet drop / corruption** — testa retry e checksums.
-- **CPU/memory stress** — testa autoscaling, throttling.
-- **Disk full / I/O slowdown** — testa logging behavior, fallbacks.
-- **DNS failure** — surpreendentemente comum em prod, raramente testado.
-- **Clock skew** — testa systems sensíveis a tempo (token expiration, distributed locks com TTL).
+- **Process/pod kill**: testa redundância, restart logic.
+- **Network latency**: testa timeouts, circuit breakers.
+- **Network partition**: testa split-brain handling em quorum systems.
+- **Packet drop / corruption**: testa retry e checksums.
+- **CPU/memory stress**: testa autoscaling, throttling.
+- **Disk full / I/O slowdown**: testa logging behavior, fallbacks.
+- **DNS failure**: surpreendentemente comum em prod, raramente testado.
+- **Clock skew**: testa systems sensíveis a tempo (token expiration, distributed locks com TTL).
 - **Time-of-day failure** (artificial peak load).
 
 **Pre-requisitos pra chaos engineering valer:**
@@ -194,10 +194,10 @@ Runbook desatualizado é pior que ausência (engana). Test em game days.
 
 **Anti-patterns:**
 - Chaos em prod sem **abort condition** automático (auto-rollback).
-- Chaos sem **on-call notificado** — gera incidente real.
-- Chaos só em staging — não captura coisas que **só acontecem em prod scale** (DNS quirks, CDN cache states, load balancer states).
+- Chaos sem **on-call notificado**: gera incidente real.
+- Chaos só em staging, não captura coisas que **só acontecem em prod scale** (DNS quirks, CDN cache states, load balancer states).
 - "Chaos engineering" como blame deflector ("a falha foi do experimento, não do design").
-- Single experiment, single time. Disciplina é **continuous chaos** — toolings de cima rodam programados.
+- Single experiment, single time. Disciplina é **continuous chaos**: toolings de cima rodam programados.
 
 **Maturity ladder:**
 1. **Game days manuais** em staging. Time pratica processo.
@@ -208,7 +208,7 @@ Runbook desatualizado é pior que ausência (engana). Test em game days.
 ### 2.12 Disaster Recovery (DR)
 
 Cenários de "região inteira foi" ou "DB corrompido":
-- **Backup strategy**: full + WAL/incremental, encrypted, off-site. Test restore (regularmente — backup nunca testado é assumido funcionar).
+- **Backup strategy**: full + WAL/incremental, encrypted, off-site. Test restore (regularmente, backup nunca testado é assumido funcionar).
 - **RPO** (Recovery Point Objective): quanto dado podemos perder. RPO 1h = backup hourly.
 - **RTO** (Recovery Time Objective): quanto tempo pra estar de volta. RTO 30 min exige quase-quente standby.
 - **Multi-region**: active-passive ou active-active. Custos crescem.
@@ -228,7 +228,7 @@ Tom: factual, breve, frequência alta. "Sorry, working on it" é fine; especula�
 
 - 1 canal pra coordenação (focused). Comentários laterais em outro.
 - Decisões anunciadas explicitamente.
-- Timestamp em snippets ("18:42 — observamos error rate cair").
+- Timestamp em snippets ("18:42, observamos error rate cair").
 - IC anuncia novos players entrantes.
 
 Após resolução, dump do canal vira material do postmortem.
@@ -297,10 +297,10 @@ Construir **programa de incident response da Logística** com runbooks, SLOs, al
    - Mínimo 6 alerts cobrindo p95 latency, error rate, queue lag, replica lag, disk fill, certificate expiry.
 3. **Postmortem template** em `templates/postmortem.md`.
 4. **Status page**: stub em `/status` retornando estado dos componentes (DB, cache, queue, external APIs) via real probes.
-5. **Game day 1 — DB primary down**:
+5. **Game day 1, DB primary down**:
    - Script `chaos/db-primary-down.sh` pausa container Postgres primary.
    - Equipe (você, simulando IC + SME) detecta via alert, mitiga (failover pra replica), escreve postmortem real.
-6. **Game day 2 — região indisponível**:
+6. **Game day 2, região indisponível**:
    - Block egress pra third-party (geocoder).
    - Praticar circuit breaker, fallback (cache stale), customer comm.
    - Postmortem real.
@@ -350,13 +350,13 @@ Construir **programa de incident response da Logística** com runbooks, SLOs, al
 
 ## 6. Referências
 
-- **"Site Reliability Engineering"** — Beyer et al. (Google SRE Book, gratuito).
-- **"The Site Reliability Workbook"** — Beyer et al. (gratuito).
-- **"Seeking SRE"** — David Blank-Edelman.
+- **"Site Reliability Engineering"**: Beyer et al. (Google SRE Book, gratuito).
+- **"The Site Reliability Workbook"**: Beyer et al. (gratuito).
+- **"Seeking SRE"**: David Blank-Edelman.
 - **PagerDuty Incident Response docs** ([response.pagerduty.com](https://response.pagerduty.com/)).
-- **"Chaos Engineering"** — Casey Rosenthal, Nora Jones.
-- **"Implementing Service Level Objectives"** — Alex Hidalgo.
-- **Cloudflare blog** — postmortems.
-- **GitHub Engineering** — postmortems.
-- **AWS Builders' Library** — operational excellence essays.
-- **John Allspaw** — Etsy / Adaptive Capacity Labs writings on incidents.
+- **"Chaos Engineering"**: Casey Rosenthal, Nora Jones.
+- **"Implementing Service Level Objectives"**: Alex Hidalgo.
+- **Cloudflare blog**: postmortems.
+- **GitHub Engineering**: postmortems.
+- **AWS Builders' Library**: operational excellence essays.
+- **John Allspaw**: Etsy / Adaptive Capacity Labs writings on incidents.

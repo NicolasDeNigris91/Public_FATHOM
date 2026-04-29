@@ -31,7 +31,7 @@ export async function GET() {
       const stageLabel = stage ? stage.title : '';
       const link = `${SITE_URL}/modules/${m.id}`;
       return `    <item>
-      <title>${escapeXml(`${m.rawId} — ${m.title}`)}</title>
+      <title>${escapeXml(`${m.rawId}, ${m.title}`)}</title>
       <link>${escapeXml(link)}</link>
       <guid isPermaLink="true">${escapeXml(link)}</guid>
       <category>${escapeXml(stageLabel)}</category>
@@ -44,7 +44,7 @@ export async function GET() {
   const xml = `<?xml version="1.0" encoding="UTF-8" ?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
-    <title>Fathom — Módulos concluídos</title>
+    <title>Fathom, Módulos concluídos</title>
     <link>${escapeXml(SITE_URL)}</link>
     <atom:link href="${escapeXml(`${SITE_URL}/feed.xml`)}" rel="self" type="application/rss+xml" />
     <description>Notas de estudo de engenharia de software. Módulos com status done.</description>

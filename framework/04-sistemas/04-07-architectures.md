@@ -1,6 +1,6 @@
 ---
 module: 04-07
-title: Architectures — Hexagonal, Clean, Onion, Vertical Slices
+title: Architectures, Hexagonal, Clean, Onion, Vertical Slices
 stage: sistemas
 prereqs: [04-06]
 gates:
@@ -10,7 +10,7 @@ gates:
 status: locked
 ---
 
-# 04-07 — Architectures
+# 04-07, Architectures
 
 ## 1. Problema de Engenharia
 
@@ -192,7 +192,7 @@ DDD tactical (aggregate, repository) encaixa naturalmente em hexagonal: aggregat
 
 Em projeto sério: bounded contexts (DDD strategic) + dentro de cada, hexagonal (DDD tactical) ou simpler dependendo de complexity.
 
-### 2.14 BFF — Backend for Frontend
+### 2.14 BFF, Backend for Frontend
 
 Pattern: cada frontend (web, mobile, partner) tem backend agregador próprio. Cada BFF orquestra microservices internos.
 
@@ -216,7 +216,7 @@ Front também tem patterns:
 - **Atomic Design**: atoms → molecules → organisms.
 - **Feature-Sliced Design** (FSD): pastas por feature. Vertical slices no front.
 - **MVP / MVVM**: clássicos, raramente mantidos puros em SPA.
-- **Clean Architecture** mobile (Robert Martin's) — adopted em iOS/Android.
+- **Clean Architecture** mobile (Robert Martin's), adopted em iOS/Android.
 
 Em Next/React modernos, mix entre componentização + features-sliced é comum.
 
@@ -254,21 +254,21 @@ Refatorar **Order Management** (do 04-06) com hexagonal puro; manter outros boun
 
 ### Especificação
 
-1. **Order Management — hexagonal**:
+1. **Order Management, hexagonal**:
    - Domain core sem deps externas (sem `pg`, sem `fastify`).
    - Ports: `OrderRepository`, `EventPublisher`, `Clock`, `IdGenerator`.
    - Adapters: `DrizzleOrderRepository`, `KafkaEventPublisher`, `SystemClock`, `UuidGenerator`.
    - Use cases: `CreateOrderUseCase`, `AssignCourierUseCase`, `MarkOrderDeliveredUseCase`.
    - HTTP adapter: Fastify routes que invocam use cases.
    - Tests: domain pure + use case com mocks; integration com adapter real (03-01).
-2. **Courier Management — vertical slices**:
+2. **Courier Management, vertical slices**:
    - Cada feature em pasta:
      - `register-courier/`
      - `update-location/`
      - `set-availability/`
    - Cada slice tem schema, handler, route, test em pasta própria.
    - Sem global "courier service".
-3. **Tenant Settings — transaction script**:
+3. **Tenant Settings, transaction script**:
    - CRUD trivial; controllers chamam DB direto.
    - Documente decisão de NÃO usar tactical patterns.
 4. **Composição**:
@@ -280,7 +280,7 @@ Refatorar **Order Management** (do 04-06) com hexagonal puro; manter outros boun
      - Por que Courier Management ganhou vertical slices.
      - Por que Tenant Settings ficou simples.
      - Custo de cada estilo (lines of code, mapping overhead, test setup).
-6. **Frontend — Feature-Sliced Design**:
+6. **Frontend, Feature-Sliced Design**:
    - Reorganize app Next em layers FSD: `app/`, `pages/`, `widgets/`, `features/`, `entities/`, `shared/`.
    - Imports respeitam direction (camada superior pode importar inferior, não inverso).
    - Lint rule pra enforcement.
@@ -323,12 +323,12 @@ Refatorar **Order Management** (do 04-06) com hexagonal puro; manter outros boun
 
 ## 6. Referências
 
-- **"Clean Architecture"** — Robert C. Martin.
-- **"Patterns of Enterprise Application Architecture"** — Martin Fowler.
-- **"Implementing Domain-Driven Design"** — Vaughn Vernon (capítulos sobre architecture).
+- **"Clean Architecture"**: Robert C. Martin.
+- **"Patterns of Enterprise Application Architecture"**: Martin Fowler.
+- **"Implementing Domain-Driven Design"**: Vaughn Vernon (capítulos sobre architecture).
 - **Alistair Cockburn, "Hexagonal Architecture"** ([alistair.cockburn.us/hexagonal-architecture](https://alistair.cockburn.us/hexagonal-architecture/)).
 - **Jimmy Bogard, "Vertical Slice Architecture"** ([jimmybogard.com](https://www.jimmybogard.com/vertical-slice-architecture/)).
 - **Feature-Sliced Design** ([feature-sliced.design](https://feature-sliced.design/)).
-- **Mark Seemann, ploeh.dk** — DI, architecture.
-- **"Software Architecture: The Hard Parts"** — Neal Ford et al.
-- **"Fundamentals of Software Architecture"** — Mark Richards, Neal Ford.
+- **Mark Seemann, ploeh.dk**: DI, architecture.
+- **"Software Architecture: The Hard Parts"**: Neal Ford et al.
+- **"Fundamentals of Software Architecture"**: Mark Richards, Neal Ford.

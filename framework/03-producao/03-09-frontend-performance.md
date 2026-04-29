@@ -1,6 +1,6 @@
 ---
 module: 03-09
-title: Frontend Performance — Web Vitals, Bundle, Rendering, Network
+title: Frontend Performance, Web Vitals, Bundle, Rendering, Network
 stage: producao
 prereqs: [02-04, 02-05]
 gates:
@@ -10,11 +10,11 @@ gates:
 status: locked
 ---
 
-# 03-09 — Frontend Performance
+# 03-09, Frontend Performance
 
 ## 1. Problema de Engenharia
 
-Performance front é onde mais devs se enganam. "Está rápido na minha máquina" — em MacBook M3 com fibra. Em Moto G4 com 3G, sua landing page é 14s. Lighthouse 65. Conversões caem. Você descobre quando alguém do produto reclama. Aí começa cargo cult: lazy load tudo, code split tudo, `React.memo` em todo componente — sem entender o que está custando.
+Performance front é onde mais devs se enganam. "Está rápido na minha máquina", em MacBook M3 com fibra. Em Moto G4 com 3G, sua landing page é 14s. Lighthouse 65. Conversões caem. Você descobre quando alguém do produto reclama. Aí começa cargo cult: lazy load tudo, code split tudo, `React.memo` em todo componente, sem entender o que está custando.
 
 Este módulo é perf front com método: Web Vitals (LCP, INP, CLS), Network waterfall, JS bundle, render path, hydration cost, image/font loading, caching, edge. Você sai sabendo medir, identificar bottleneck verdadeiro, e otimizar com prioridade. 03-10 cobre backend perf.
 
@@ -83,7 +83,7 @@ Meta: bundle inicial JS ≤ 100-150 KB gzipped pra apps normais. Acima disso, ju
 ### 2.5 React perf
 
 - **Re-render**: React reconcilia árvore quando state muda. Custoso em árvores grandes.
-- **`memo`, `useMemo`, `useCallback`**: skipam recálculos. Não use cego — só onde profile mostra valor.
+- **`memo`, `useMemo`, `useCallback`**: skipam recálculos. Não use cego, só onde profile mostra valor.
 - **`useTransition`** (React 18+): marca update como não-urgente, pode ser interrompido por urgentes.
 - **`useDeferredValue`**: defer derived value.
 - **List virtualization**: renderize só items visíveis. `react-window`, `tanstack/virtual`.
@@ -100,7 +100,7 @@ Static generation (SSG) > SSR > CSR em TTFB e LCP, when possible. Cache HTML no 
 
 ### 2.7 Hydration cost
 
-Após HTML render, React precisa "hidratar" — anexar event listeners. Bundle JS executa em main thread. Em apps grandes, hydration de página inteira trava interação por segundos.
+Após HTML render, React precisa "hidratar", anexar event listeners. Bundle JS executa em main thread. Em apps grandes, hydration de página inteira trava interação por segundos.
 
 Soluções:
 - **Streaming SSR + Suspense**: hidrate em pedaços.
@@ -125,7 +125,7 @@ Pra hero image: preload (`<link rel="preload" as="image" imagesrcset="...">`).
 ### 2.9 Fonts
 
 - **`font-display: swap`** evita invisibilidade durante load.
-- Self-host (next/font, fontsource) — Google Fonts via CDN custa round-trip + privacy.
+- Self-host (next/font, fontsource), Google Fonts via CDN custa round-trip + privacy.
 - Subset (latin only se for o caso).
 - Preload critical font files.
 - Variable fonts: 1 file vs N.
@@ -139,7 +139,7 @@ Pra hero image: preload (`<link rel="preload" as="image" imagesrcset="...">`).
 
 ### 2.11 Network
 
-- **HTTP/2 ou HTTP/3** (default em CDNs sérias) — multiplexing reduz overhead.
+- **HTTP/2 ou HTTP/3** (default em CDNs sérias), multiplexing reduz overhead.
 - **Brotli > gzip** quando disponível.
 - **CDN**: cache estático, edge perto do user.
 - **Preconnect / DNS-prefetch** pra origins críticas (`<link rel="preconnect" href="https://api.example.com">`).
@@ -149,7 +149,7 @@ Pra hero image: preload (`<link rel="preload" as="image" imagesrcset="...">`).
 ### 2.12 Caching strategies
 
 - **`Cache-Control: public, max-age=31536000, immutable`** pra assets com hash em nome.
-- **`Cache-Control: no-cache`** pra HTML — força revalidate, ETag pra 304.
+- **`Cache-Control: no-cache`** pra HTML, força revalidate, ETag pra 304.
 - **stale-while-revalidate**: serve stale + refetch in background.
 
 ### 2.13 Third-party scripts
@@ -178,9 +178,9 @@ Mitigações:
 
 ### 2.15 Mobile considerations
 
-- 3G simulado em DevTools — execute pelo menos 1 vez.
+- 3G simulado em DevTools, execute pelo menos 1 vez.
 - Battery: animations heavy custam.
-- Memory: SPAs grandes vazam — Chrome closes tab em low-mem.
+- Memory: SPAs grandes vazam, Chrome closes tab em low-mem.
 - Touch latency: passive listeners (`{ passive: true }`).
 
 ### 2.16 Performance budget
@@ -311,11 +311,11 @@ Auditar e otimizar **front lojista do Logística v1**.
 
 ## 6. Referências
 
-- **web.dev** ([web.dev/learn](https://web.dev/learn/)) — Web Vitals, Performance.
-- **"High Performance Browser Networking"** — Ilya Grigorik.
-- **Addy Osmani blog** ([addyosmani.com](https://addyosmani.com/)) — perf patterns.
-- **Chrome DevTools docs** — Performance, Coverage, Network.
-- **Vercel blog** — Next perf, RSC.
+- **web.dev** ([web.dev/learn](https://web.dev/learn/)), Web Vitals, Performance.
+- **"High Performance Browser Networking"**: Ilya Grigorik.
+- **Addy Osmani blog** ([addyosmani.com](https://addyosmani.com/)), perf patterns.
+- **Chrome DevTools docs**: Performance, Coverage, Network.
+- **Vercel blog**: Next perf, RSC.
 - **Astro docs** ([docs.astro.build](https://docs.astro.build/)).
 - **Qwik docs** ([qwik.builder.io/docs](https://qwik.builder.io/docs/)).
 - **Lighthouse CI** ([github.com/GoogleChrome/lighthouse-ci](https://github.com/GoogleChrome/lighthouse-ci)).

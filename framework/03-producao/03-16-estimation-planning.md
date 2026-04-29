@@ -1,6 +1,6 @@
 ---
 module: 03-16
-title: Estimation & Technical Planning — Breakdown, Risk, Sizing, Roadmaps
+title: Estimation & Technical Planning, Breakdown, Risk, Sizing, Roadmaps
 stage: producao
 prereqs: [03-04]
 gates:
@@ -10,11 +10,11 @@ gates:
 status: locked
 ---
 
-# 03-16 — Estimation & Technical Planning
+# 03-16, Estimation & Technical Planning
 
 ## 1. Problema de Engenharia
 
-Estimar é onde Plenos viram Sêniors ou ficam Plenos pra sempre. Quase todo dev odeia estimar — "não sei, vai depender", "agile não exige", "PM que decide". Mas em organização real, **ninguém te dá tempo ilimitado**. Estimar mal causa: deadlines mentirosos, retrabalho, perda de confiança da liderança, missed quarter, time queimado.
+Estimar é onde Plenos viram Sêniors ou ficam Plenos pra sempre. Quase todo dev odeia estimar, "não sei, vai depender", "agile não exige", "PM que decide". Mas em organização real, **ninguém te dá tempo ilimitado**. Estimar mal causa: deadlines mentirosos, retrabalho, perda de confiança da liderança, missed quarter, time queimado.
 
 Senior estima com **calibração**: separa unknowns de knowns, identifica riscos, faz pré-trabalho de redução de incerteza, comunica com bandas de confiança em vez de números mágicos. Sabe que estimativa não é commit; é **planejamento** que ajuda decisão. Sabe quando pedir spike, quando dividir, quando dizer "essa estória precisa de mais clareza antes de estimar".
 
@@ -84,7 +84,7 @@ Três valores:
 
 Estimativa esperada: `(O + 4M + P) / 6`. Variance: `((P-O)/6)²`.
 
-Soma de tasks com PERT dá distribuição do projeto. Útil quando alguém pede single number — você sabe que 03-10 é fantasia e P90 é cobertura.
+Soma de tasks com PERT dá distribuição do projeto. Útil quando alguém pede single number, você sabe que 03-10 é fantasia e P90 é cobertura.
 
 ### 2.7 Risk register
 
@@ -174,7 +174,7 @@ Inverte planning fallacy. Time encontra riscos que esconderiam.
 
 ### 2.17 No-estimates / NoEstimates movement
 
-Movimento: estimativas são waste; foco em flow + WIP limit + small batch. Estória < 2 dias, não estima — só faz.
+Movimento: estimativas são waste; foco em flow + WIP limit + small batch. Estória < 2 dias, não estima, só faz.
 
 Realidade: orgs maiores ainda exigem planning. Mas filosofia (small batches, flow) é correta. Se você tem disciplina, NoEstimates simplifica.
 
@@ -276,13 +276,13 @@ Conduzir **planejamento técnico do CAPSTONE-producao** (Logística v2) end-to-e
 
 ## 6. Referências
 
-- **"How Big Things Get Done"** — Bent Flyvbjerg, Dan Gardner.
-- **"Software Estimation: Demystifying the Black Art"** — Steve McConnell.
-- **"Project Management for the Unofficial Project Manager"** — Kogon, Blakemore.
-- **"Thinking in Bets"** — Annie Duke.
-- **"Slack: Getting Past Burnout, Busywork, and the Myth of Total Efficiency"** — Tom DeMarco.
-- **"NoEstimates"** — Vasco Duarte.
-- **"Actionable Agile Metrics"** — Daniel Vacanti (cycle time, throughput, WIP).
-- **"Roadmaps Are Dead, Long Live Roadmaps"** — Janna Bastow.
+- **"How Big Things Get Done"**: Bent Flyvbjerg, Dan Gardner.
+- **"Software Estimation: Demystifying the Black Art"**: Steve McConnell.
+- **"Project Management for the Unofficial Project Manager"**: Kogon, Blakemore.
+- **"Thinking in Bets"**: Annie Duke.
+- **"Slack: Getting Past Burnout, Busywork, and the Myth of Total Efficiency"**: Tom DeMarco.
+- **"NoEstimates"**: Vasco Duarte.
+- **"Actionable Agile Metrics"**: Daniel Vacanti (cycle time, throughput, WIP).
+- **"Roadmaps Are Dead, Long Live Roadmaps"**: Janna Bastow.
 - **Linear Method docs** ([linear.app/method](https://linear.app/method)).
-- **Cloudflare engineering blog** — planning posts.
+- **Cloudflare engineering blog**: planning posts.

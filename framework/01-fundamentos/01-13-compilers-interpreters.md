@@ -1,6 +1,6 @@
 ---
 module: 01-13
-title: Compilers & Interpreters Fundamentals — Lexing, Parsing, AST, Codegen, JIT
+title: Compilers & Interpreters Fundamentals, Lexing, Parsing, AST, Codegen, JIT
 stage: fundamentos
 prereqs: [01-06, 01-07]
 gates:
@@ -10,11 +10,11 @@ gates:
 status: locked
 ---
 
-# 01-13 — Compilers & Interpreters
+# 01-13, Compilers & Interpreters
 
 ## 1. Problema de Engenharia
 
-Você usa V8, Babel, TypeScript Compiler, esbuild, Webpack, Tailwind CLI, Prisma generator, GraphQL codegen, ESLint, prettier todos os dias. Cada uma dessas ferramentas é um **compiler ou interpreter** sob algum aspecto — recebe texto, parseia, transforma, emite. Entender as fases (lex → parse → analyze → optimize → emit) é o que permite ler bug em parser de TS, escrever um plugin de Babel, depurar source maps, ou desenhar uma DSL pra um problema do seu domínio.
+Você usa V8, Babel, TypeScript Compiler, esbuild, Webpack, Tailwind CLI, Prisma generator, GraphQL codegen, ESLint, prettier todos os dias. Cada uma dessas ferramentas é um **compiler ou interpreter** sob algum aspecto, recebe texto, parseia, transforma, emite. Entender as fases (lex → parse → analyze → optimize → emit) é o que permite ler bug em parser de TS, escrever um plugin de Babel, depurar source maps, ou desenhar uma DSL pra um problema do seu domínio.
 
 Este módulo é a base prática de compiladores e interpretadores: o que é tokenizer, o que é AST, como recursive descent parsing funciona, o que é semantic analysis e tipo inferência, o que é IR (intermediate representation), o que é codegen, e como JITs (V8, JVM HotSpot, .NET) escalam. Ao final você consegue escrever um interpreter completo para uma linguagem de brinquedo e entender por que TypeScript demora 30s pra typecheck repo grande.
 
@@ -177,7 +177,7 @@ Antes de escrever DSL, considere: subset de JSON, YAML com schema, ou config em 
 Você precisa, sem consultar:
 
 - Listar fases canônicas: lex → parse → semantic → IR → optimize → codegen.
-- Diferenciar AST e CST — quando cada serve.
+- Diferenciar AST e CST, quando cada serve.
 - Explicar recursive descent vs LR(1); por que TS escolheu hand-written.
 - Explicar SSA e dar uma otimização que fica trivial nele (ex: dead code).
 - Diferenciar Hindley-Milner de bidirectional + flow-based (TS).
@@ -192,7 +192,7 @@ Você precisa, sem consultar:
 
 ## 4. Desafio de Engenharia
 
-Construir uma **linguagem de brinquedo "Mini"** com lexer, parser, type-checker e interpreter — escrita em TypeScript.
+Construir uma **linguagem de brinquedo "Mini"** com lexer, parser, type-checker e interpreter, escrita em TypeScript.
 
 ### Especificação
 
@@ -213,8 +213,8 @@ Pipeline:
 ### Restrições
 
 - Sem libs de parser (sem nearley, peggy, antlr). Hand-written.
-- Sem libs de typing — implemente.
-- Programa de exemplo (`examples/quicksort.mini`) com lista, recursion, lambda, records — type-checa e roda.
+- Sem libs de typing, implemente.
+- Programa de exemplo (`examples/quicksort.mini`) com lista, recursion, lambda, records, type-checa e roda.
 
 ### Threshold
 
@@ -249,12 +249,12 @@ Pipeline:
 
 ## 6. Referências
 
-- **"Crafting Interpreters"** — Robert Nystrom. Gratuito, leitura primária.
-- **"Engineering a Compiler"** — Cooper & Torczon.
-- **"Modern Compiler Implementation in ML"** — Andrew Appel.
-- **"Compilers: Principles, Techniques, and Tools"** — Aho et al. ("Dragon Book"). Clássico.
-- **LLVM Tutorial** — kaleidoscope ([llvm.org/docs/tutorial](https://llvm.org/docs/tutorial/)).
-- **"V8: Behind the Scenes"** — series de Benedikt Meurer e Mathias Bynens.
-- **"Inside V8"** — Franziska Hinkelmann.
-- **"Pratt Parsers" — Bob Nystrom** ([journal.stuffwithstuff.com](http://journal.stuffwithstuff.com/2011/03/19/pratt-parsers-expression-parsing-made-easy/)).
+- **"Crafting Interpreters"**: Robert Nystrom. Gratuito, leitura primária.
+- **"Engineering a Compiler"**: Cooper & Torczon.
+- **"Modern Compiler Implementation in ML"**: Andrew Appel.
+- **"Compilers: Principles, Techniques, and Tools"**: Aho et al. ("Dragon Book"). Clássico.
+- **LLVM Tutorial**: kaleidoscope ([llvm.org/docs/tutorial](https://llvm.org/docs/tutorial/)).
+- **"V8: Behind the Scenes"**: series de Benedikt Meurer e Mathias Bynens.
+- **"Inside V8"**: Franziska Hinkelmann.
+- **"Pratt Parsers", Bob Nystrom** ([journal.stuffwithstuff.com](http://journal.stuffwithstuff.com/2011/03/19/pratt-parsers-expression-parsing-made-easy/)).
 - **TypeScript Compiler API docs**.

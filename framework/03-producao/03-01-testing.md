@@ -1,6 +1,6 @@
 ---
 module: 03-01
-title: Testing — Unit, Integration, E2E, Mutation, Property-Based, Load
+title: Testing, Unit, Integration, E2E, Mutation, Property-Based, Load
 stage: producao
 prereqs: [02-08, 02-09]
 gates:
@@ -10,7 +10,7 @@ gates:
 status: locked
 ---
 
-# 03-01 — Testing
+# 03-01, Testing
 
 ## 1. Problema de Engenharia
 
@@ -28,7 +28,7 @@ Este módulo é testing como disciplina. Pirâmide e troféu, unit vs integratio
 
 **Trophy/Diamond** (Kent C. Dodds): poucos unit, muitos integration, alguns E2E, ferramentas estáticas (TS, ESLint) na base. Argumento: integration test prova que partes coordenam, é onde bugs reais moram.
 
-Verdade: não é teorema, é heurística por contexto. Front-end React com hooks puros, integration domina (testando comportamento). Backend de cálculo financeiro complexo, unit ainda dominante (lógica isolada). E2E é caro mas captura regressões críticas — mantenha pequeno e estável.
+Verdade: não é teorema, é heurística por contexto. Front-end React com hooks puros, integration domina (testando comportamento). Backend de cálculo financeiro complexo, unit ainda dominante (lógica isolada). E2E é caro mas captura regressões críticas, mantenha pequeno e estável.
 
 ### 2.2 Tipos de teste
 
@@ -46,11 +46,11 @@ Verdade: não é teorema, é heurística por contexto. Front-end React com hooks
 
 ### 2.3 Test runner
 
-- **Vitest** — fast, ESM-first, compatível com Jest API. Padrão moderno em projetos TS.
-- **Jest** — clássico, ainda dominante. Slow startup mas estável.
-- **Node Test Runner** (`node:test` built-in) — leve, sem deps, suficiente pra muitos backends.
-- **Bun test** — built-in, rápido em Bun.
-- **Mocha** — clássico, flexível, requer setup.
+- **Vitest**: fast, ESM-first, compatível com Jest API. Padrão moderno em projetos TS.
+- **Jest**: clássico, ainda dominante. Slow startup mas estável.
+- **Node Test Runner** (`node:test` built-in), leve, sem deps, suficiente pra muitos backends.
+- **Bun test**: built-in, rápido em Bun.
+- **Mocha**: clássico, flexível, requer setup.
 
 Em 2026, Vitest pra projetos novos com Vite/Next; node:test pra backends puros.
 
@@ -73,11 +73,11 @@ Anti-padrão: mockar Prisma/Drizzle. Você prova que o mock se comporta como voc
 Padrão correto:
 - **Testcontainers**: spin up Postgres em container só pra teste.
 - Aplicar migrations.
-- Cada teste em **transação** que dá rollback no teardown — rápido.
-- Ou: schema/database por test worker — mais lento, melhor isolamento.
+- Cada teste em **transação** que dá rollback no teardown, rápido.
+- Ou: schema/database por test worker, mais lento, melhor isolamento.
 - Para Mongo/Redis: container similar.
 
-Vale o overhead. Bug de migration, tipo coluna, constraint, race condition — tudo aparece aqui.
+Vale o overhead. Bug de migration, tipo coluna, constraint, race condition, tudo aparece aqui.
 
 ### 2.6 React Testing Library
 
@@ -87,31 +87,31 @@ Queries por preferência:
 1. `getByRole` (acessível, semântico).
 2. `getByLabelText`, `getByPlaceholderText`.
 3. `getByText`.
-4. `getByTestId` — último recurso.
+4. `getByTestId`, último recurso.
 
 Anti-padrões:
-- `enzyme.shallow()` — testa implementação. Deprecated.
-- `wrapper.state()` — coupling à internals.
-- `act()` em todo lugar — sintoma de configuração ruim. RTL trata.
-- Snapshots pra UI inteira — frágeis. Snapshots úteis em outputs determinísticos (ASTs, schemas).
+- `enzyme.shallow()`, testa implementação. Deprecated.
+- `wrapper.state()`, coupling à internals.
+- `act()` em todo lugar, sintoma de configuração ruim. RTL trata.
+- Snapshots pra UI inteira, frágeis. Snapshots úteis em outputs determinísticos (ASTs, schemas).
 
 Hooks: `renderHook` da @testing-library/react.
 
-### 2.7 E2E web — Playwright e Cypress
+### 2.7 E2E web, Playwright e Cypress
 
-- **Playwright** (Microsoft) — multi-browser (Chromium, Firefox, WebKit), execução paralela, melhor traçabilidade. Padrão atual.
-- **Cypress** — único navegador por run (até v12), DX excelente, time travel debug. Ainda comum.
+- **Playwright** (Microsoft), multi-browser (Chromium, Firefox, WebKit), execução paralela, melhor traçabilidade. Padrão atual.
+- **Cypress**: único navegador por run (até v12), DX excelente, time travel debug. Ainda comum.
 
 Padrões E2E:
 - **Page Object Model**: encapsula seletores e ações por tela.
 - **Data-test attributes** (`data-testid`) explícitos pra estabilidade.
-- **Não use sleeps fixos** — espere por estado (`expect(locator).toBeVisible()`).
+- **Não use sleeps fixos**: espere por estado (`expect(locator).toBeVisible()`).
 - **Test user provisioning**: API direto pra criar user/state, não login pela UI.
 - **Isolation**: cada teste limpa após si ou usa dataset descartável.
 
 E2E é frágil por natureza. Mantenha pequeno, focado em fluxos críticos. Não substitui integration test.
 
-### 2.8 E2E mobile — Detox e Maestro
+### 2.8 E2E mobile, Detox e Maestro
 
 - **Detox** (Wix): grey-box, integra com app build (Native APIs). Mais rápido, mais setup.
 - **Maestro** (mobile.dev): black-box, declarativo (YAML), simples. Crescendo rápido.
@@ -120,7 +120,7 @@ Em 2026, Maestro virou default por DX. Detox ainda em uso em apps complexos.
 
 ### 2.9 Mutation testing
 
-Stryker (`@stryker-mutator/core`) muda seu código (mutations: trocar `+` por `-`, removendo `if`, etc.) e roda testes. Se testes ainda passam, eles são fracos — não pegam essa regressão.
+Stryker (`@stryker-mutator/core`) muda seu código (mutations: trocar `+` por `-`, removendo `if`, etc.) e roda testes. Se testes ainda passam, eles são fracos, não pegam essa regressão.
 
 Coverage = quantas linhas executam. Mutation score = quantas regressões os testes capturariam.
 
@@ -143,7 +143,7 @@ Casos clássicos: parsers, encoders, algoritmos.
 
 `expect(x).toMatchSnapshot()` salva output em arquivo. Próximo run compara.
 
-Quando vale: outputs estruturados estáveis (AST, schema gerado, JSON config). Frágil pra UI HTML — branca em qualquer mudança.
+Quando vale: outputs estruturados estáveis (AST, schema gerado, JSON config). Frágil pra UI HTML, branca em qualquer mudança.
 
 Snapshots são úteis mas reviewers tendem a aprovar updates sem ler. Disciplina importa.
 
@@ -168,11 +168,11 @@ Use coverage como sinal, não como gate cego. CI pode gate em "não diminuir" em
 
 ### 2.14 Load testing
 
-- **k6** (Grafana) — JS/TS scripts, executor variations (constant load, ramp-up, soak). Padrão atual.
-- **Gatling** — Scala/Java, throughput excelente.
-- **autocannon** — Node, simples, ótimo pra benchmark local.
-- **Locust** — Python.
-- **Artillery** — JS/YAML, mais leve que k6.
+- **k6** (Grafana), JS/TS scripts, executor variations (constant load, ramp-up, soak). Padrão atual.
+- **Gatling**: Scala/Java, throughput excelente.
+- **autocannon**: Node, simples, ótimo pra benchmark local.
+- **Locust**: Python.
+- **Artillery**: JS/YAML, mais leve que k6.
 
 Testar:
 - **Smoke**: 1-2 VUs, baseline.
@@ -330,9 +330,9 @@ Levar **Logística v1** a uma test suite real e disciplinada.
 
 ## 6. Referências
 
-- **Kent C. Dodds blog** ([kentcdodds.com](https://kentcdodds.com/)) — testing trophy, RTL.
-- **"Working Effectively with Unit Tests"** — Jay Fields.
-- **"Software Engineering at Google"** — capítulos sobre testes (livre online).
+- **Kent C. Dodds blog** ([kentcdodds.com](https://kentcdodds.com/)), testing trophy, RTL.
+- **"Working Effectively with Unit Tests"**: Jay Fields.
+- **"Software Engineering at Google"**: capítulos sobre testes (livre online).
 - **Vitest docs** ([vitest.dev](https://vitest.dev/)).
 - **Playwright docs** ([playwright.dev](https://playwright.dev/)).
 - **Maestro docs** ([maestro.mobile.dev](https://maestro.mobile.dev/)).

@@ -1,6 +1,6 @@
 ---
 module: 02-04
-title: React Profundo — Virtual DOM, Fiber, Hooks, Suspense, RSC
+title: React Profundo, Virtual DOM, Fiber, Hooks, Suspense, RSC
 stage: plataforma
 prereqs: [02-03, 01-07]
 gates:
@@ -10,7 +10,7 @@ gates:
 status: locked
 ---
 
-# 02-04 — React Profundo
+# 02-04, React Profundo
 
 ## 1. Problema de Engenharia
 
@@ -33,22 +33,22 @@ A diferença entre Pleno e Senior em React é profundidade do modelo: como o rec
 
 A premissa do React: você descreve **o que** deve aparecer dado um estado, não **como** chegar lá. Quando o estado muda, React reconcilia (descobre o diff) e atualiza o DOM minimamente.
 
-Esse é um dos paradigmas mais importantes do frontend moderno — e tem custo. React precisa **comparar** estado anterior vs novo pra calcular o diff. Esse processo é a "reconciliação", e é onde a maior parte das otimizações vive.
+Esse é um dos paradigmas mais importantes do frontend moderno, e tem custo. React precisa **comparar** estado anterior vs novo pra calcular o diff. Esse processo é a "reconciliação", e é onde a maior parte das otimizações vive.
 
 ### 2.2 Virtual DOM, mais ou menos
 
 "Virtual DOM" é o nome popular pra: representação em memória da árvore de UI. Em React, isso são objetos JS chamados **elementos** (criados via JSX → `React.createElement` → objetos `{ type, props, key, ref }`).
 
-Em cada render, sua função componente retorna **uma nova árvore de elements**. React compara com a árvore anterior, calcula o diff, e aplica ao DOM real (ou a outro renderer — React Native, Ink, etc.).
+Em cada render, sua função componente retorna **uma nova árvore de elements**. React compara com a árvore anterior, calcula o diff, e aplica ao DOM real (ou a outro renderer, React Native, Ink, etc.).
 
 A palavra "virtual" sugere mágica que não existe. É só **representação intermediária**.
 
-### 2.3 Fiber — a árvore real do reconciler
+### 2.3 Fiber, a árvore real do reconciler
 
 Fiber é a estrutura interna que React mantém pra cada nó da árvore. Cada Fiber contém:
 - `type`, `key`, `props`, `state`
-- ponteiros pra `child`, `sibling`, `return` (parent) — **linked tree**
-- `alternate` — versão "atual" vs "work-in-progress"
+- ponteiros pra `child`, `sibling`, `return` (parent), **linked tree**
+- `alternate`, versão "atual" vs "work-in-progress"
 - effects pendentes (commit), priority, lanes
 
 A linked tree em vez de tree-recursivo permite **interrupção e retomada**: React pode pausar a meio de um render se algo mais prioritário chega (input do usuário, p.ex.), e voltar depois. Isso é a base do **Concurrent Mode**.
@@ -62,11 +62,11 @@ Por isso effects rodam **depois** do paint, e por isso `useState` setter durante
 ### 2.4 Reconciliação e key
 
 Algoritmo de diff é heurístico, O(n) (vs O(n³) ótimo). Premissas:
-- **Tipos diferentes** geram árvores diferentes — descarta tudo, recria.
+- **Tipos diferentes** geram árvores diferentes, descarta tudo, recria.
 - **Mesmo tipo** atualiza props.
 - **Listas** dependem de `key` pra identificar mesma "entidade lógica" entre renders.
 
-Sem key (ou com index como key) em lista mutável, React assume "mesmo elemento na mesma posição" — bug clássico: você reordena, mas state interno (input value, focus) acompanha o índice, não o item.
+Sem key (ou com index como key) em lista mutável, React assume "mesmo elemento na mesma posição", bug clássico: você reordena, mas state interno (input value, focus) acompanha o índice, não o item.
 
 Use **key estável e única do domínio** (`order.id`, não `index`). Index como key só está OK em listas estáticas que nunca reordenam.
 
@@ -83,23 +83,23 @@ Um componente re-renderiza quando:
 `React.memo(Component)` pula re-render se props (shallow comparison) não mudaram. Atalho que parece grátis mas pode não ser:
 - Se props sempre mudam por referência (objeto inline), memo não ajuda.
 - Custo da comparação em si pode bater custo do render.
-- **Use seletivamente**, com profiling — não em tudo.
+- **Use seletivamente**, com profiling, não em tudo.
 
-### 2.6 Hooks — modelo mental real
+### 2.6 Hooks, modelo mental real
 
 Hooks dependem de **ordem de chamada estável**. Internamente, React mantém uma **linked list de hooks** por componente. Cada `useState` é uma "slot" na lista. Por isso:
 - Hooks só em top level (nunca dentro de if/for/return condicional).
 - Hooks só em function components ou custom hooks.
 
 `useState`:
-- Lazy initial: `useState(() => expensive())` — função roda só no mount.
-- Functional setter: `setX(prev => prev + 1)` — evita stale closures.
+- Lazy initial: `useState(() => expensive())`, função roda só no mount.
+- Functional setter: `setX(prev => prev + 1)`, evita stale closures.
 
 `useEffect`:
 - Roda **após** commit (paint).
-- Dependency array — empty `[]` é "uma vez no mount", `[a, b]` é "quando a ou b mudam".
-- Cleanup function — roda antes do próximo effect ou no unmount.
-- **Strict Mode** dispara mount-cleanup-mount em dev — força você a escrever cleanup correto.
+- Dependency array, empty `[]` é "uma vez no mount", `[a, b]` é "quando a ou b mudam".
+- Cleanup function, roda antes do próximo effect ou no unmount.
+- **Strict Mode** dispara mount-cleanup-mount em dev, força você a escrever cleanup correto.
 
 `useLayoutEffect`:
 - Roda **antes** do paint, sincronamente após DOM update.
@@ -107,8 +107,8 @@ Hooks dependem de **ordem de chamada estável**. Internamente, React mantém uma
 
 `useMemo`, `useCallback`:
 - Cache shallow baseado em deps.
-- `useMemo(() => compute(), [deps])` — pra cálculo caro **ou** referência estável (passar pra `React.memo` filho).
-- `useCallback(fn, [deps])` — açúcar pra `useMemo(() => fn, [deps])`.
+- `useMemo(() => compute(), [deps])`, pra cálculo caro **ou** referência estável (passar pra `React.memo` filho).
+- `useCallback(fn, [deps])`, açúcar pra `useMemo(() => fn, [deps])`.
 - Não memoize tudo. **Profile primeiro.**
 
 `useRef`:
@@ -122,11 +122,11 @@ Hooks dependem de **ordem de chamada estável**. Internamente, React mantém uma
 - Lê context. Re-renderiza quando o **valor** do provider muda. Cuidado: object inline no provider muda toda render.
 
 `useTransition`, `useDeferredValue` (Concurrent):
-- Marcar updates como **transitions** — não-urgentes. React pode interromper se chegar input urgente.
+- Marcar updates como **transitions**: não-urgentes. React pode interromper se chegar input urgente.
 
-`useSyncExternalStore` — para integrar stores externos (Redux, Zustand) com Concurrent Mode corretamente.
+`useSyncExternalStore`, para integrar stores externos (Redux, Zustand) com Concurrent Mode corretamente.
 
-### 2.7 Compiler (React Compiler) — deep
+### 2.7 Compiler (React Compiler), deep
 
 React Compiler (RC 2024, GA 2025-2026) automatiza memoization estática. Vale entender o **modelo mental** novo porque muda profundamente como você escreve componentes.
 
@@ -134,7 +134,7 @@ React Compiler (RC 2024, GA 2025-2026) automatiza memoization estática. Vale en
 - Analisa cada função/componente como **black box puro** (rules of React).
 - Detecta dependências reais via análise estática (sem runtime overhead extra de `useMemo` chains).
 - Insere caches de valores derivados e closures **automaticamente**, em build time.
-- Output é JS normal — não é runtime; é transformação.
+- Output é JS normal, não é runtime; é transformação.
 
 **Antes do compiler:**
 ```tsx
@@ -153,7 +153,7 @@ function Card({ user, onSelect }) {
 }
 ```
 
-Compiler detecta que `fullName` depende só de `user.first/.last`, que `onClick` depende de `onSelect/user.id`, e gera memoization equivalente. **Sem React.memo, sem useMemo, sem useCallback.** O código fica como você escreveria sem otimização — performance vem grátis.
+Compiler detecta que `fullName` depende só de `user.first/.last`, que `onClick` depende de `onSelect/user.id`, e gera memoization equivalente. **Sem React.memo, sem useMemo, sem useCallback.** O código fica como você escreveria sem otimização, performance vem grátis.
 
 **Rules of React (compiler-friendly):**
 - Componentes/hooks são **idempotentes** dado mesmas props/state.
@@ -165,12 +165,12 @@ Compiler detecta que `fullName` depende só de `user.first/.last`, que `onClick`
 `eslint-plugin-react-compiler` (build-time) avisa quando código viola e o compiler vai pular esse arquivo (bail-out).
 
 **Bail-out behavior:**
-- Compiler decide **per-component** se compila. Se viola regras, pula esse componente — código segue funcionando, só sem otimização.
+- Compiler decide **per-component** se compila. Se viola regras, pula esse componente, código segue funcionando, só sem otimização.
 - DevTools mostra ✨ "compiled" badge nos otimizados (em React 19+).
 
 **Migrações práticas:**
-- **Não rip out `useMemo` em massa**. Compiler é resiliente — manter useMemos antigos não quebra.
-- **Remova primeiro o `React.memo` redundante** depois de auditar — compiler memoiza componentes shallow-equal-prop automaticamente.
+- **Não rip out `useMemo` em massa**. Compiler é resiliente, manter useMemos antigos não quebra.
+- **Remova primeiro o `React.memo` redundante** depois de auditar, compiler memoiza componentes shallow-equal-prop automaticamente.
 - **Lints novos**: `react-compiler/cannot-be-compiled` flagsa razão exata da bail-out.
 
 **Quando ainda escrever useMemo manualmente:**
@@ -180,7 +180,7 @@ Compiler detecta que `fullName` depende só de `user.first/.last`, que `onClick`
 
 **O que muda em interview/review:**
 - Pergunta clássica "useMemo vs useCallback, quando usar?" passa a ser "como compiler decide quando memoizar; quando você ainda precisa intervir manualmente?".
-- Code review: ver `useMemo`/`useCallback` em código novo é sinal de "não confia no compiler" — questione, não copie.
+- Code review: ver `useMemo`/`useCallback` em código novo é sinal de "não confia no compiler", questione, não copie.
 
 ### 2.8 Suspense e streaming
 
@@ -216,7 +216,7 @@ Características:
 - Bundle zero pro client (componente nunca vai pro browser).
 - Pode acessar DB, env vars, FS direto.
 - Não pode usar hooks de state (`useState`, `useEffect`) nem refs nem eventos.
-- Output é "RSC payload" — formato serializado entre server e client.
+- Output é "RSC payload", formato serializado entre server e client.
 
 Componentes client (com `'use client'`) coexistem. RSC pode importar e usar Client Components; o inverso só via children/props.
 
@@ -251,7 +251,7 @@ Patterns úteis:
 Anti-patterns:
 - `React.memo` por todo lado sem medir.
 - `useCallback` por todo lado.
-- Effects pra tudo (muitos casos não precisam de effect — pode derivar de props/state direto).
+- Effects pra tudo (muitos casos não precisam de effect, pode derivar de props/state direto).
 - Estado global pra tudo (faça local primeiro).
 
 ### 2.12 Padrões de composição
@@ -290,15 +290,15 @@ Construir um **mini-React** funcional o suficiente pra rodar uma TodoApp.
 
 Implementar do zero, em TS:
 
-1. **`createElement(type, props, ...children)`** — equivalente a `React.createElement`. Retorna objeto `{ type, props, children }`.
+1. **`createElement(type, props, ...children)`**: equivalente a `React.createElement`. Retorna objeto `{ type, props, children }`.
 2. **JSX support**: configure `tsconfig` `jsxFactory: 'createElement'` ou pragma similar pra JSX virar suas chamadas.
 3. **Reconciler simples**:
-   - `render(element, container)` — mount inicial.
+   - `render(element, container)`, mount inicial.
    - Diff entre nova árvore e árvore anterior (mantenha referência).
    - Apply minimo ao DOM.
 4. **Function components** com:
-   - **`useState`** — list de hooks por componente, ordem importa.
-   - **`useEffect`** — roda após commit, com cleanup.
+   - **`useState`**: list de hooks por componente, ordem importa.
+   - **`useEffect`**: roda após commit, com cleanup.
    - **`useRef`**.
 5. **Reconciliação com keys**: lista com keys preserva instâncias.
 6. **Eventos**: `onClick`, `onInput`, etc. Adicionar/remover listeners corretamente em diff.
@@ -310,7 +310,7 @@ Implementar do zero, em TS:
 ### Restrições
 
 - Sem React real. Sem libs de UI.
-- Pode usar TS, Vite (só pra dev server e JSX) — sem outras deps.
+- Pode usar TS, Vite (só pra dev server e JSX), sem outras deps.
 
 ### Threshold
 
@@ -343,11 +343,11 @@ Implementar do zero, em TS:
 
 ## 6. Referências
 
-- **react.dev** — docs novas. Leia "You Might Not Need an Effect", "Synchronizing with Effects", "Sharing State Between Components", inteiro.
-- **Dan Abramov's blog (overreacted.io)** — esp. "A Complete Guide to useEffect", "Algebraic Effects for Library Authors", "Before You memo()".
-- **Acdlite (Andrew Clark)'s tweets/threads** — ele é um dos arquitetos. Discussões técnicas profundas.
-- **"Inside Fiber"** ([github.com/acdlite/react-fiber-architecture](https://github.com/acdlite/react-fiber-architecture)) — escrito por ele.
-- **React Server Components RFC** ([github.com/reactjs/rfcs](https://github.com/reactjs/rfcs)) — leia o original.
-- **TkDodo's blog** — bom conteúdo sobre React Query e estado.
-- **Build your own React** ([pomb.us/build-your-own-react/](https://pomb.us/build-your-own-react/)) — bom guia pro desafio.
-- **React source** — `packages/react-reconciler/src/ReactFiberWorkLoop.js` é o coração. Leia.
+- **react.dev**: docs novas. Leia "You Might Not Need an Effect", "Synchronizing with Effects", "Sharing State Between Components", inteiro.
+- **Dan Abramov's blog (overreacted.io)**: esp. "A Complete Guide to useEffect", "Algebraic Effects for Library Authors", "Before You memo()".
+- **Acdlite (Andrew Clark)'s tweets/threads**: ele é um dos arquitetos. Discussões técnicas profundas.
+- **"Inside Fiber"** ([github.com/acdlite/react-fiber-architecture](https://github.com/acdlite/react-fiber-architecture)), escrito por ele.
+- **React Server Components RFC** ([github.com/reactjs/rfcs](https://github.com/reactjs/rfcs)), leia o original.
+- **TkDodo's blog**: bom conteúdo sobre React Query e estado.
+- **Build your own React** ([pomb.us/build-your-own-react/](https://pomb.us/build-your-own-react/)), bom guia pro desafio.
+- **React source**: `packages/react-reconciler/src/ReactFiberWorkLoop.js` é o coração. Leia.

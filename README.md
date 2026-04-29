@@ -32,11 +32,11 @@ Fathom/
     │   ├── SELF-ASSESSMENT.md         # questionário inicial pra calibrar trilha
     │   ├── elite-references.md        # repos, blogs, talks, comunidades, RFCs
     │   └── reading-list.md            # livros canônicos por estágio
-    ├── 01-fundamentos/         (15 módulos + capstone — fundamentos & CS)
-    ├── 02-plataforma/     (19 módulos + capstone — aplicações)
-    ├── 03-producao/   (17 módulos + capstone — operações & qualidade)
-    ├── 04-sistemas/         (16 módulos + capstone — distribuído & arquitetura)
-    └── 05-amplitude/          (7 módulos + capstone — specialization & influence)
+    ├── 01-fundamentos/         (15 módulos + capstone, fundamentos & CS)
+    ├── 02-plataforma/     (19 módulos + capstone, aplicações)
+    ├── 03-producao/   (17 módulos + capstone, operações & qualidade)
+    ├── 04-sistemas/         (16 módulos + capstone, distribuído & arquitetura)
+    └── 05-amplitude/          (7 módulos + capstone, specialization & influence)
 ```
 
 **Total**: 5 estágios, 66 módulos, 5 capstones, 8 metas, 3 raiz.
@@ -47,13 +47,13 @@ Detalhe completo em [framework/00-meta/INDEX.md](framework/00-meta/INDEX.md).
 
 ## Os 5 estágios em uma frase cada
 
-1. **Estágio 1 — Fundamentos (Computer Science)** — quando perguntarem "por que esse loop é lento?", você raciocina sobre cache, alocação, syscalls, complexidade, branch prediction. Não chuta. [framework/01-fundamentos/](framework/01-fundamentos/README.md)
-2. **Estágio 2 — Plataforma (Aplicações Full Stack)** — você constrói e opera aplicação full-stack monolítica em produção, defendendo cada escolha técnica. [framework/02-plataforma/](framework/02-plataforma/README.md)
-3. **Estágio 3 — Produção (Ecossistema, Testes, Operações)** — você coloca em produção com qualidade de empresa séria — testes confiáveis, deploy seguro, observabilidade real, segurança defensável, performance medida, planning honesto. [framework/03-producao/](framework/03-producao/README.md)
-4. **Estágio 4 — Sistemas (Arquitetura Distribuída)** — você desenha e justifica arquitetura distribuída pra problema novo, prevendo trade-offs, modos de falha, custos operacionais, com TLA+ pra o que importa. [framework/04-sistemas/](framework/04-sistemas/README.md)
-5. **Estágio 5 — Amplitude (Specialization, Influence, Public Output)** — você multiplica via influência, especializa em eixo, publica, mentora, lê papers, constrói from-scratch, fala org, pensa business. [framework/05-amplitude/](framework/05-amplitude/README.md)
+1. **Estágio 1: Fundamentos (Computer Science)**: quando perguntarem "por que esse loop é lento?", você raciocina sobre cache, alocação, syscalls, complexidade, branch prediction. Não chuta. [framework/01-fundamentos/](framework/01-fundamentos/README.md)
+2. **Estágio 2: Plataforma (Aplicações Full Stack)**: você constrói e opera aplicação full-stack monolítica em produção, defendendo cada escolha técnica. [framework/02-plataforma/](framework/02-plataforma/README.md)
+3. **Estágio 3: Produção (Ecossistema, Testes, Operações)**: você coloca em produção com qualidade de empresa séria, testes confiáveis, deploy seguro, observabilidade real, segurança defensável, performance medida, planning honesto. [framework/03-producao/](framework/03-producao/README.md)
+4. **Estágio 4: Sistemas (Arquitetura Distribuída)**: você desenha e justifica arquitetura distribuída pra problema novo, prevendo trade-offs, modos de falha, custos operacionais, com TLA+ pra o que importa. [framework/04-sistemas/](framework/04-sistemas/README.md)
+5. **Estágio 5: Amplitude (Specialization, Influence, Public Output)**: você multiplica via influência, especializa em eixo, publica, mentora, lê papers, constrói from-scratch, fala org, pensa business. [framework/05-amplitude/](framework/05-amplitude/README.md)
 
-Cada estágio tem capstone que **evolui o mesmo produto** (Logística — sistema de roteamento de entregas multi-tenant). Você sente refactor, migration, redesign na pele. Detalhe em [CAPSTONE-EVOLUTION.md](framework/00-meta/CAPSTONE-EVOLUTION.md).
+Cada estágio tem capstone que **evolui o mesmo produto** (Logística, sistema de roteamento de entregas multi-tenant). Você sente refactor, migration, redesign na pele. Detalhe em [CAPSTONE-EVOLUTION.md](framework/00-meta/CAPSTONE-EVOLUTION.md).
 
 ---
 
@@ -61,20 +61,20 @@ Cada estágio tem capstone que **evolui o mesmo produto** (Logística — sistem
 
 Cada módulo segue 6 seções:
 
-1. **Problema de Engenharia** — por que esse módulo existe, no produto e na carreira.
-2. **Teoria Hard** — densa, com referências primárias, sem padding.
-3. **Threshold de Maestria** — lista do que você deve saber explicar **sem consultar**.
-4. **Desafio de Engenharia** — implementação não-trivial, hand-rolled, sob restrições.
-5. **Extensões e Conexões** — como o módulo se liga a outros do framework.
-6. **Referências** — livros, papers, RFCs, repos canônicos.
+1. **Problema de Engenharia**: por que esse módulo existe, no produto e na carreira.
+2. **Teoria Hard**: densa, com referências primárias, sem padding.
+3. **Threshold de Maestria**: lista do que você deve saber explicar **sem consultar**.
+4. **Desafio de Engenharia**: implementação não-trivial, hand-rolled, sob restrições.
+5. **Extensões e Conexões**: como o módulo se liga a outros do framework.
+6. **Referências**: livros, papers, RFCs, repos canônicos.
 
 Após Teoria + Desafio, você pede o **portão**:
 
-- **Portão Conceitual** — o mentor pergunta 5-8 coisas em ordem aleatória, exigindo desenho ASCII/mermaid + contraexemplo + explicação interna.
-- **Portão Prático** — o mentor faz code review profundo do desafio + 5 perguntas justificativas.
-- **Portão de Conexões** — o mentor pergunta como o módulo se conecta a 2-3 anteriores.
+- **Portão Conceitual**: o mentor pergunta 5-8 coisas em ordem aleatória, exigindo desenho ASCII/mermaid + contraexemplo + explicação interna.
+- **Portão Prático**: o mentor faz code review profundo do desafio + 5 perguntas justificativas.
+- **Portão de Conexões**: o mentor pergunta como o módulo se conecta a 2-3 anteriores.
 
-Os 3 portões devem passar pra módulo virar `done`. Falha é normal — falha bem-feita é evidência de aprendizado real (ver [STUDY-PROTOCOL.md](STUDY-PROTOCOL.md)).
+Os 3 portões devem passar pra módulo virar `done`. Falha é normal, falha bem-feita é evidência de aprendizado real (ver [STUDY-PROTOCOL.md](STUDY-PROTOCOL.md)).
 
 ---
 
@@ -82,12 +82,12 @@ Os 3 portões devem passar pra módulo virar `done`. Falha é normal — falha b
 
 Leia (em ordem):
 
-1. **[STUDY-PROTOCOL.md](STUDY-PROTOCOL.md)** — técnicas cognitivas obrigatórias (Feynman, Active Recall, Spaced Repetition, Deliberate Practice, Spaced Re-Test, Paper Reading, Public Capstone, Cohort, Journal). Sem isso, framework vira leitura passiva.
-2. **[MENTOR.md](MENTOR.md)** — protocolo do mentor. Define identidade, postura, regras de portões, o que o mentor pode/não pode fazer, e os modos válidos (self / peer / hybrid / suplemento opcional). Você não pode "burlar" porque é o seu próprio contrato.
-3. **[framework/00-meta/SELF-ASSESSMENT.md](framework/00-meta/SELF-ASSESSMENT.md)** — questionário pra calibrar onde você realmente está (e o que pode pular com prova).
-4. **[framework/00-meta/reading-list.md](framework/00-meta/reading-list.md)** + **[framework/00-meta/elite-references.md](framework/00-meta/elite-references.md)** — fontes canônicas. Não compre tudo; cada módulo aponta o que ler.
+1. **[STUDY-PROTOCOL.md](STUDY-PROTOCOL.md)**: técnicas cognitivas obrigatórias (Feynman, Active Recall, Spaced Repetition, Deliberate Practice, Spaced Re-Test, Paper Reading, Public Capstone, Cohort, Journal). Sem isso, framework vira leitura passiva.
+2. **[MENTOR.md](MENTOR.md)**: protocolo do mentor. Define identidade, postura, regras de portões, o que o mentor pode/não pode fazer, e os modos válidos (self / peer / hybrid / suplemento opcional). Você não pode "burlar" porque é o seu próprio contrato.
+3. **[framework/00-meta/SELF-ASSESSMENT.md](framework/00-meta/SELF-ASSESSMENT.md)**: questionário pra calibrar onde você realmente está (e o que pode pular com prova).
+4. **[framework/00-meta/reading-list.md](framework/00-meta/reading-list.md)** + **[framework/00-meta/elite-references.md](framework/00-meta/elite-references.md)**: fontes canônicas. Não compre tudo; cada módulo aponta o que ler.
 
-Depois, abra **01-01 — Computation Model** e leia a seção 1 + parte da Teoria Hard. Comece a tentar o desafio. Volte na teoria quando travar.
+Depois, abra **01-01, Computation Model** e leia a seção 1 + parte da Teoria Hard. Comece a tentar o desafio. Volte na teoria quando travar.
 
 ---
 
@@ -99,7 +99,7 @@ Depois, abra **01-01 — Computation Model** e leia a seção 1 + parte da Teori
 4. **Conexões > silos.** Conhecimento isolado é inútil.
 5. **Cada Desafio é não-trivial.** Construir do zero o que já existe em produção.
 6. **Referências de Elite sempre.** DDIA, SICP, OS:TEP, RFCs, specs oficiais, talks de elite. Nada de Medium clickbait.
-7. **Capstone encadeado.** Logística evolui — você sente refactor, migration, redesign na pele.
+7. **Capstone encadeado.** Logística evolui, você sente refactor, migration, redesign na pele.
 
 ---
 
@@ -111,11 +111,11 @@ Estimativa **muito** grossa pra dar ordem de magnitude (depende de horas/semana,
 
 | Estágio | Faixa típica (horas) |
 |---|---|
-| 1 — Fundamentos (15 módulos + capstone) | 400-800 |
-| 2 — Plataforma (19 módulos + capstone) | 600-1200 |
-| 3 — Produção (18 módulos + capstone) | 500-1000 |
-| 4 — Sistemas (16 módulos + capstone) | 600-1500 |
-| 5 — Amplitude (10 módulos + capstone) | 800-2000 |
+| 1, Fundamentos (15 módulos + capstone) | 400-800 |
+| 2, Plataforma (19 módulos + capstone) | 600-1200 |
+| 3, Produção (18 módulos + capstone) | 500-1000 |
+| 4, Sistemas (16 módulos + capstone) | 600-1500 |
+| 5, Amplitude (10 módulos + capstone) | 800-2000 |
 
 Total: ~3-7 mil horas. Não é "1 ano". Não é "5 anos". É **o tempo que cada estágio requer** dado seu compromisso.
 
@@ -128,7 +128,7 @@ Cortar caminho aqui é cortar maestria. Não há atalho.
 Ao terminar o estágio 5:
 
 - Logística production-grade distribuída, deployed, com 4 capstones encadeados.
-- 2 toys de baixo nível construídos do zero (DB, queue, runtime, scheduler — escolha).
+- 2 toys de baixo nível construídos do zero (DB, queue, runtime, scheduler, escolha).
 - 3 capstones em domínios distintos (fintech, real-time, ML pipeline).
 - Portfolio site próprio.
 - 6+ blog posts long-form publicados.
@@ -154,22 +154,22 @@ Licenciado sob **[Creative Commons Attribution-NonCommercial 4.0 International (
 
 O conteúdo é **synthesis + curadoria** sobre material canônico. Crédito devido a:
 
-**Livros foundationais** — todos listados em [reading-list.md](framework/00-meta/reading-list.md):
+**Livros foundationais**: todos listados em [reading-list.md](framework/00-meta/reading-list.md):
 - *Designing Data-Intensive Applications* (Martin Kleppmann)
 - *Structure and Interpretation of Computer Programs* (Abelson, Sussman)
 - *Operating Systems: Three Easy Pieces* (Arpaci-Dusseau)
 - *Computer Systems: A Programmer's Perspective* (Bryant, O'Hallaron)
 - *Database Internals* (Petrov), *Crafting Interpreters* (Nystrom), *Site Reliability Engineering* (Google), *The Staff Engineer's Path* (Tanya Reilly), entre outros.
 
-**Specs e RFCs** — IETF, W3C, WHATWG, ECMA-262, OWASP. Fontes primárias sempre que possível.
+**Specs e RFCs**: IETF, W3C, WHATWG, ECMA-262, OWASP. Fontes primárias sempre que possível.
 
-**Papers canônicos** — Lamport, Brewer, Dean, Ongaro, Chord, Dynamo, Spanner, Raft, FLP, etc. (lista completa em reading-list.md §Papers).
+**Papers canônicos**: Lamport, Brewer, Dean, Ongaro, Chord, Dynamo, Spanner, Raft, FLP, etc. (lista completa em reading-list.md §Papers).
 
-**Autores e blogs** — listados integralmente em [elite-references.md](framework/00-meta/elite-references.md): Aphyr (Jepsen), Brendan Gregg, Hillel Wayne, Julia Evans, Dan Luu, Marc Brooker, Murat Demirbas, Chip Huyen, Tanya Reilly, Will Larson, Sara Soueidan, Adrian Roselli, Patrick McKenzie, Gergely Orosz, Bartosz Ciechanowski, Lin Clark, Mathias Bynens, Preshing, entre outros.
+**Autores e blogs**: listados integralmente em [elite-references.md](framework/00-meta/elite-references.md): Aphyr (Jepsen), Brendan Gregg, Hillel Wayne, Julia Evans, Dan Luu, Marc Brooker, Murat Demirbas, Chip Huyen, Tanya Reilly, Will Larson, Sara Soueidan, Adrian Roselli, Patrick McKenzie, Gergely Orosz, Bartosz Ciechanowski, Lin Clark, Mathias Bynens, Preshing, entre outros.
 
-**Codebases canônicos** estudados — V8, Postgres, Redis, libuv, React, CockroachDB, Linux kernel, Kafka, TigerBeetle, SQLite, Bun, Tokio, etc. Reading paths em [CODEBASE-TOURS.md](framework/00-meta/CODEBASE-TOURS.md).
+**Codebases canônicos** estudados, V8, Postgres, Redis, libuv, React, CockroachDB, Linux kernel, Kafka, TigerBeetle, SQLite, Bun, Tokio, etc. Reading paths em [CODEBASE-TOURS.md](framework/00-meta/CODEBASE-TOURS.md).
 
-**Talks e conferências** — JSConf, StrangeLoop, GOTO, LeadDev, USENIX, Papers We Love. Pessoas como Rich Hickey, Joe Armstrong, Leslie Lamport, Andrej Karpathy, Jake Archibald.
+**Talks e conferências**: JSConf, StrangeLoop, GOTO, LeadDev, USENIX, Papers We Love. Pessoas como Rich Hickey, Joe Armstrong, Leslie Lamport, Andrej Karpathy, Jake Archibald.
 
 Onde uma ideia chave vem de uma fonte específica, ela é citada na subseção correspondente do módulo. Este framework é mapa; o território vive nos livros, papers, codebases e specs acima.
 
@@ -184,7 +184,7 @@ A: Porque os existentes são curtos demais (cobrem só Pleno) ou genéricos dema
 A: Domínio com complexidade técnica suficiente pra abrigar todos os patterns (multi-tenant, real-time, payments, search, graph, distributed). Ver [CAPSTONE-EVOLUTION.md](framework/00-meta/CAPSTONE-EVOLUTION.md).
 
 **Q: E se eu já sei muito de algo?**
-A: Faça o portão. 80% das vezes você falha em pelo menos parte — e essa é a evidência de que não dominava. Nas 20% restantes, módulo passa rápido. Ver SELF-ASSESSMENT.
+A: Faça o portão. 80% das vezes você falha em pelo menos parte, e essa é a evidência de que não dominava. Nas 20% restantes, módulo passa rápido. Ver SELF-ASSESSMENT.
 
 **Q: Posso pular módulo?**
 A: Pré-requisitos são bloqueantes. Mas dentro de pré-reqs satisfeitos, você pode escolher ordem. Ver INDEX trilhas paralelas.

@@ -1,4 +1,4 @@
-# Estágio 4 — Sistemas (Arquitetura Distribuída & Trade-offs)
+# Estágio 4: Sistemas (Arquitetura Distribuída & Trade-offs)
 
 ## Por que esse estágio existe
 
@@ -6,13 +6,13 @@ Senior não é "Pleno com mais experiência". Senior é **outra forma de pensar*
 
 Aqui você aprende:
 - A teoria que sustenta tudo: **CAP, PACELC, consistency models, fallacies of distributed computing**
-- **Mensageria** (Kafka, RabbitMQ) — entendendo trade-offs, não só APIs
+- **Mensageria** (Kafka, RabbitMQ), entendendo trade-offs, não só APIs
 - **Patterns event-driven** (Event Sourcing, CQRS, Saga, Outbox, Idempotência)
 - **Patterns de resiliência** (rate limiting, circuit breakers, bulkheads, retries com jitter)
 - **API design avançado** (REST maduro, GraphQL federation, gRPC)
 - **DDD** (bounded contexts, aggregates, ubiquitous language)
 - **Arquiteturas** (hexagonal, clean, vertical slice, modular monolith)
-- **Microserviços vs monólito vs serverless** — quando, por quê, quais custos reais
+- **Microserviços vs monólito vs serverless**: quando, por quê, quais custos reais
 - **Escala** (sharding, replicação, multi-region)
 - **AI/LLM em sistemas de produção** (RAG, embeddings, vector DBs, custo de tokens)
 - **Web3** (Ethereum, smart contracts, segurança Web3)
@@ -50,17 +50,17 @@ Aqui você aprende:
 - Avançados: 04-10, 04-11, 04-12 (pode ser intercalado)
 - Carreira/influência: 04-15 → 04-16 → 05-05 (já no estágio 5)
 
-04-12 pode (e deve) ser estudado em paralelo desde o início desse estágio — escrever RFCs e ADRs **enquanto** você aprende ajuda a internalizar. **04-13-04-16** alargam cobertura pra streaming, formal methods, OSS e business — gaps que cobrem o que falta pra Amplitude.
+04-12 pode (e deve) ser estudado em paralelo desde o início desse estágio, escrever RFCs e ADRs **enquanto** você aprende ajuda a internalizar. **04-13-04-16** alargam cobertura pra streaming, formal methods, OSS e business, gaps que cobrem o que falta pra Amplitude.
 
 ---
 
 ## Capstone do estágio 4
 
-[CAPSTONE-sistemas.md](CAPSTONE-sistemas.md) — **Logística v3**: redesenhar a v2 como **sistema distribuído escalável**.
+[CAPSTONE-sistemas.md](CAPSTONE-sistemas.md), **Logística v3**: redesenhar a v2 como **sistema distribuído escalável**.
 
 Entregas obrigatórias:
 - **Bounded contexts** explícitos: Pedidos, Entregas, Pagamentos, Tracking, Identidade
-- Cada bounded context vira **microserviço** (ou módulo no monolito modular — sua decisão, com ADR)
+- Cada bounded context vira **microserviço** (ou módulo no monolito modular, sua decisão, com ADR)
 - **Mensageria Kafka** entre serviços (eventos: `OrderCreated`, `DeliveryAssigned`, `OrderDelivered`)
 - **CQRS + Event Sourcing** no contexto de Pedidos (write side: stream de eventos; read side: projeções otimizadas)
 - **Sharding** de Postgres por região geográfica (regiões = shards)
@@ -68,7 +68,7 @@ Entregas obrigatórias:
 - **Rate limiting** (token bucket) por tenant
 - **Circuit breakers** com fallback nos calls inter-service
 - **ADR escrito** pra cada decisão arquitetural (mínimo 8 ADRs)
-- **Carga simulada** com `k6`: cenários de baseline, spike, kill broker, kill shard, latência alta — relatório de comportamento
+- **Carga simulada** com `k6`: cenários de baseline, spike, kill broker, kill shard, latência alta, relatório de comportamento
 
 **Opcionais (alta alavancagem):**
 - **RAG pra suporte ao cliente**: embeddings dos eventos do pedido em pgvector, perguntas como "onde está meu pedido?" respondidas via LLM com contexto recuperado
@@ -82,7 +82,7 @@ Entregas obrigatórias:
 
 - **Leia DDIA inteiro.** Não pule capítulos. Volte a ele toda decisão arquitetural.
 - **Leia papers**: GFS, MapReduce, Dynamo, Raft, "Time, Clocks". Faça anotações Q&A.
-- **Faça [Jepsen reads](https://jepsen.io/analyses)** — Aphyr destruindo DBs distribuídas. É como você aprende como sistemas falham de verdade.
+- **Faça [Jepsen reads](https://jepsen.io/analyses)**: Aphyr destruindo DBs distribuídas. É como você aprende como sistemas falham de verdade.
 - **Escreva RFCs e ADRs** desde o começo. Mesmo que pra você mesmo. A clareza de pensamento aparece quando você precisa escrever.
 - **Pratique whiteboard interview.** Pegue um problema (ex: "design Twitter timeline"), dê 45min, desenhe arquitetura, defenda escolhas, identifique gargalos.
 - **Comece a mentorar alguém em Plataforma/Produção.** Ensinar é onde você descobre o que ainda não entendeu.
@@ -97,7 +97,7 @@ Entregas obrigatórias:
 - **Tudo local com Docker Compose ou kind multi-cluster** simulando regiões
 - **Kafka cluster local** com 3 brokers via Compose
 - **Postgres com sharding** simulado via 2-3 instâncias
-- **Carga simulada local com k6** — sem precisar pagar provedor
+- **Carga simulada local com k6**: sem precisar pagar provedor
 
 Custo: $0. Aprendizado: máximo.
 
@@ -105,4 +105,4 @@ Custo: $0. Aprendizado: máximo.
 
 ## Próximo passo
 
-Estágio 5 (Amplitude) cobre especialização declarada, output público, mentoria, papers e business — dimensões que código sozinho não ensina. Ou você pode parar aqui e ir direto **especializar** — Distributed Systems, Platform, Tech Lead, Founding Engineer — ou começar suas próprias coisas.
+Estágio 5 (Amplitude) cobre especialização declarada, output público, mentoria, papers e business, dimensões que código sozinho não ensina. Ou você pode parar aqui e ir direto **especializar**: Distributed Systems, Platform, Tech Lead, Founding Engineer, ou começar suas próprias coisas.

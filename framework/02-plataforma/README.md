@@ -1,14 +1,14 @@
-# Estágio 2 — Plataforma (Aplicações)
+# Estágio 2: Plataforma (Aplicações)
 
 ## Por que esse estágio existe
 
 Com fundamentos sólidos do Fundamentos, agora você aprende a **construir aplicações**. Mas não como tutoriais ensinam. Aqui você vai entender:
 
-- React **por dentro** (Fiber, reconciliação) — não só "como usar hooks"
-- Next.js **caching layers** — não só "como criar uma rota"
-- Postgres **storage e MVCC** — não só "como escrever SELECT"
-- Redis **estruturas internas** — não só "como cachear"
-- Auth **OAuth2/JWT corretamente** — não só "copiei do tutorial e funcionou"
+- React **por dentro** (Fiber, reconciliação), não só "como usar hooks"
+- Next.js **caching layers**: não só "como criar uma rota"
+- Postgres **storage e MVCC**: não só "como escrever SELECT"
+- Redis **estruturas internas**: não só "como cachear"
+- Auth **OAuth2/JWT corretamente**: não só "copiei do tutorial e funcionou"
 
 O Plataforma é onde você consegue construir **um produto real do zero**, do frontend ao banco, com decisões técnicas justificáveis.
 
@@ -20,7 +20,7 @@ O Plataforma é onde você consegue construir **um produto real do zero**, do fr
 
 | Ordem | ID | Módulo | Prereqs |
 |-------|----|--------|---------|
-| 1 | [02-01](02-01-html-css-tailwind.md) | HTML/CSS/Tailwind | — (estágio 1 completo) |
+| 1 | [02-01](02-01-html-css-tailwind.md) | HTML/CSS/Tailwind |, (estágio 1 completo) |
 | 2 | [02-02](02-02-accessibility.md) | Acessibilidade | 02-01 |
 | 3 | [02-03](02-03-dom-web-apis.md) | DOM & Web APIs | 02-01 |
 | 4 | [02-04](02-04-react-deep.md) | React Profundo | 02-03, 01-07 |
@@ -45,13 +45,13 @@ O Plataforma é onde você consegue construir **um produto real do zero**, do fr
 - Backend: 02-07 → 02-08 → 02-13 → 02-14 → 02-18
 - Dados: 02-09 → 02-10 → 02-11 → 02-12 → 02-15 → 02-16
 
-A divisão acima é razoável pra alternar contexto e não saturar uma área só. **02-15-02-19** estendem cobertura pra search, graph, mobile native, payments e internacionalização — cada uma cobre lacuna que o framework original deixava. **02-19** especialmente é tipicamente "after-thought" caro; fazer cedo evita rewrite no Plataforma tarde.
+A divisão acima é razoável pra alternar contexto e não saturar uma área só. **02-15-02-19** estendem cobertura pra search, graph, mobile native, payments e internacionalização, cada uma cobre lacuna que o framework original deixava. **02-19** especialmente é tipicamente "after-thought" caro; fazer cedo evita rewrite no Plataforma tarde.
 
 ---
 
 ## Capstone do estágio 2
 
-[CAPSTONE-plataforma.md](CAPSTONE-plataforma.md) — **Logística v1**: sistema full-stack monolítico de roteamento de entregas.
+[CAPSTONE-plataforma.md](CAPSTONE-plataforma.md), **Logística v1**: sistema full-stack monolítico de roteamento de entregas.
 
 Stack alvo: Next.js (App Router) + Postgres + Redis + Auth OAuth2 + WebSocket pra tracking real-time + multi-tenant (lojistas, entregadores, clientes), deploy no Railway.
 
@@ -64,7 +64,7 @@ Stack alvo: Next.js (App Router) + Postgres + Redis + Auth OAuth2 + WebSocket pr
 - E2E test do fluxo crítico (criar pedido → atribuir entregador → tracking → entrega)
 - Deploy live em Railway acessível por URL pública
 
-Esse capstone vira a base que **evolui** nos próximos estágios — não jogue fora.
+Esse capstone vira a base que **evolui** nos próximos estágios, não jogue fora.
 
 ---
 
@@ -80,4 +80,4 @@ Esse capstone vira a base que **evolui** nos próximos estágios — não jogue 
 
 ## Não pule este estágio
 
-Se você acha que "já sabe React e Postgres", faça os portões mesmo assim. **Apostando 80%** que você vai falhar em pelo menos 2 deles — e essa é a evidência de que você não dominava de fato.
+Se você acha que "já sabe React e Postgres", faça os portões mesmo assim. **Apostando 80%** que você vai falhar em pelo menos 2 deles, e essa é a evidência de que você não dominava de fato.

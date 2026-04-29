@@ -1,6 +1,6 @@
 ---
 module: 02-11
-title: Redis — Data Structures, Persistence, Pub/Sub, Streams
+title: Redis, Data Structures, Persistence, Pub/Sub, Streams
 stage: plataforma
 prereqs: [02-07]
 gates:
@@ -10,11 +10,11 @@ gates:
 status: locked
 ---
 
-# 02-11 — Redis
+# 02-11, Redis
 
 ## 1. Problema de Engenharia
 
-Redis é mais usado errado do que entendido. A maioria dos devs trata como "cache key-value rápido" e ignora 80% do que ele oferece: estruturas complexas, scripts atômicos, streams, pub/sub, locks distribuídos, geo, HyperLogLog. Tratado superficialmente, vira ferramenta de cache só. Tratado bem, é a peça mais versátil de um stack distribuído — rate limit, leaderboards, queues, locks, session store, real-time fan-out, deduplicação, idempotency keys.
+Redis é mais usado errado do que entendido. A maioria dos devs trata como "cache key-value rápido" e ignora 80% do que ele oferece: estruturas complexas, scripts atômicos, streams, pub/sub, locks distribuídos, geo, HyperLogLog. Tratado superficialmente, vira ferramenta de cache só. Tratado bem, é a peça mais versátil de um stack distribuído, rate limit, leaderboards, queues, locks, session store, real-time fan-out, deduplicação, idempotency keys.
 
 Este módulo é Redis fundo: modelo single-thread, comandos por estrutura, persistence (RDB/AOF), replication, cluster, scripting, e os padrões reais (cache-aside, locks, streams como queue, pub/sub limites). Você sai sabendo escolher Redis vs banco, e explorar o que ele realmente faz.
 
@@ -34,18 +34,18 @@ Implicação: comandos lentos (ex: `KEYS *` em DB com milhões de chaves, script
 
 Não é só K/V. Cada chave tem um tipo:
 
-- **String** — bytes. Pode ser número (atomically incrementable). Até 512 MB, mas keep small.
-- **List** — linked list. Push/pop em ambas pontas. Boa pra fila simples (LPUSH + BRPOP).
-- **Hash** — campo→valor dentro de chave. Boa pra "objeto" simples sem serializar JSON inteiro.
-- **Set** — conjunto não ordenado, sem duplicatas. Operações de set (UNION, INTER, DIFF).
-- **Sorted Set (ZSet)** — set ordenado por score. Range queries por score, top-N. Backed por skip list + hash table.
-- **Stream** — log append-only com consumer groups. Pra event log.
-- **Bitmap** — string interpretada como bits. Bit-level ops.
-- **HyperLogLog** — cardinality estimation com erro ~0.81%. Conta unique values em ~12 KB para milhões.
-- **Geo** — pontos georeferenciados. Internamente sorted set com geohash.
-- **Bloom Filter, Cuckoo Filter** (RedisBloom / Redis Stack module) — probabilísticos.
+- **String**: bytes. Pode ser número (atomically incrementable). Até 512 MB, mas keep small.
+- **List**: linked list. Push/pop em ambas pontas. Boa pra fila simples (LPUSH + BRPOP).
+- **Hash**: campo→valor dentro de chave. Boa pra "objeto" simples sem serializar JSON inteiro.
+- **Set**: conjunto não ordenado, sem duplicatas. Operações de set (UNION, INTER, DIFF).
+- **Sorted Set (ZSet)**: set ordenado por score. Range queries por score, top-N. Backed por skip list + hash table.
+- **Stream**: log append-only com consumer groups. Pra event log.
+- **Bitmap**: string interpretada como bits. Bit-level ops.
+- **HyperLogLog**: cardinality estimation com erro ~0.81%. Conta unique values em ~12 KB para milhões.
+- **Geo**: pontos georeferenciados. Internamente sorted set com geohash.
+- **Bloom Filter, Cuckoo Filter** (RedisBloom / Redis Stack module), probabilísticos.
 - **Time Series** (RedisTimeSeries module).
-- **JSON** (RedisJSON) — JSON nativo.
+- **JSON** (RedisJSON), JSON nativo.
 
 Cada estrutura tem comandos específicos. `SET`, `GET` são string. `HGET`, `HSET` hash. `ZADD`, `ZRANGEBYSCORE` zset. Etc.
 
@@ -97,7 +97,7 @@ Failover manual ou via **Redis Sentinel**: monitora primary, promove replica em 
 
 **Pipelining**: cliente manda N comandos sem esperar response de cada um, depois lê todos. Reduz round-trips. Comum em libs.
 
-**Transactions** via `MULTI`/`EXEC`: enfileira comandos, executa atomicamente. **Sem rollback** se um falhar — Redis entende como erro de cliente. Outros comandos no MULTI ainda rodam.
+**Transactions** via `MULTI`/`EXEC`: enfileira comandos, executa atomicamente. **Sem rollback** se um falhar, Redis entende como erro de cliente. Outros comandos no MULTI ainda rodam.
 
 **Optimistic locking** via `WATCH`: marca chaves; se mudarem antes de `EXEC`, txn aborta. Padrão "check-and-set".
 
@@ -186,7 +186,7 @@ Lib `redis-rate-limiter` ou implementação própria com Lua. Em microservices, 
 
 API que aceita `Idempotency-Key` header pra evitar processamento duplicado:
 1. `SET idem:<key> "processing" NX EX 600`.
-2. Se `NX` falha, key já em uso — busca resultado anterior em outra chave ou retorna conflict.
+2. Se `NX` falha, key já em uso, busca resultado anterior em outra chave ou retorna conflict.
 3. Após processar, atualiza `SET idem:<key>:result <json>`.
 
 Stripe, payment gateways, etc. usam.
@@ -201,7 +201,7 @@ Vantagens: stateless app server (pode escalar horizontal), fácil revogar (DEL k
 
 `INFO memory`:
 - `used_memory` (bytes em uso lógico).
-- `used_memory_rss` (bytes alocados pelo OS — pode incluir fragmentação).
+- `used_memory_rss` (bytes alocados pelo OS, pode incluir fragmentação).
 - `mem_fragmentation_ratio` (rss/used).
 
 Frag > 1.5 sugere fragmentação. `MEMORY DOCTOR` dá análise. Reset via restart ou `MEMORY PURGE` (libs jemalloc).
@@ -214,11 +214,11 @@ Reduzir uso:
 
 ### 2.17 Operação
 
-- **`MONITOR`** — vê todos comandos em real-time. **Custoso, não use em prod.**
-- **`SLOWLOG`** — comandos > threshold. Critical em prod.
-- **`LATENCY DOCTOR`**, **`LATENCY HISTORY`** — diagnostico latência.
-- **`CLIENT LIST`** — clients conectados.
-- **`CONFIG GET`/`SET`** — configurações.
+- **`MONITOR`**: vê todos comandos em real-time. **Custoso, não use em prod.**
+- **`SLOWLOG`**: comandos > threshold. Critical em prod.
+- **`LATENCY DOCTOR`**, **`LATENCY HISTORY`**: diagnostico latência.
+- **`CLIENT LIST`**: clients conectados.
+- **`CONFIG GET`/`SET`**: configurações.
 
 Em managed Redis (Railway, Upstash, ElastiCache, Memorystore, Redis Cloud), parte de tunning fica no provider.
 
@@ -260,24 +260,24 @@ Adicionar **Redis ao Logística API** com 4 padrões reais.
    - Continuação do projeto (Fastify + Drizzle + Postgres do 02-08-02-10).
    - Adicionar Redis 7 ou Valkey, local (Docker) ou Railway plug-in.
    - Lib: `ioredis` ou `node-redis`.
-2. **Padrão 1 — Cache-aside em queries pesadas**:
+2. **Padrão 1, Cache-aside em queries pesadas**:
    - Endpoint `GET /reports/dashboard` agrega pedidos por status (count + sum total).
    - Resultado cached por 60s. Invalida quando `POST /orders/:id/events` muda status.
    - Demonstre stampede protection: simule 1000 requests simultâneos após expiration; verifique que apenas 1 vai ao DB.
-3. **Padrão 2 — Rate limit distribuído**:
+3. **Padrão 2, Rate limit distribuído**:
    - Substitua o rate limit in-memory do 02-08 por Redis-based (sliding window com Lua atômico).
    - 100 req/min por (IP + tenant).
    - 2 instâncias do app rodando dividem o limite (não 100 cada).
-4. **Padrão 3 — Idempotency keys**:
+4. **Padrão 3, Idempotency keys**:
    - `POST /orders` aceita header `Idempotency-Key`.
    - Mesma key reusada em 10 min retorna response anterior.
    - TTL do registro: 24h.
-5. **Padrão 4 — Real-time courier location via Streams**:
+5. **Padrão 4, Real-time courier location via Streams**:
    - Endpoint `POST /courier/location` recebe `{lat, lng, timestamp}` do entregador.
    - Adiciona em stream `courier:<id>:locations`.
    - Endpoint `GET /courier/:id/locations?since=<id>` lê do stream.
    - Stream limitado a 1000 entries (`XADD ... MAXLEN ~ 1000`).
-6. **Bonus — Distributed lock**:
+6. **Bonus, Distributed lock**:
    - Job que recalcula índices de roteamento (CPU-bound) deve rodar em apenas 1 worker mesmo com cluster.
    - Lock SETNX com fencing token.
 7. **Observability**:
@@ -288,7 +288,7 @@ Adicionar **Redis ao Logística API** com 4 padrões reais.
 
 - Sem persistir dados primários no Redis (DB é Postgres). Redis é cache/lock/queue/stream.
 - Sem `KEYS *` em código.
-- Pub/sub não vale aqui — use Streams.
+- Pub/sub não vale aqui, use Streams.
 
 ### Threshold
 
@@ -324,11 +324,11 @@ Adicionar **Redis ao Logística API** com 4 padrões reais.
 
 ## 6. Referências
 
-- **Redis docs** ([redis.io/docs](https://redis.io/docs/)) — leia data types, persistence, replication, cluster.
-- **"Redis in Action"** — Josiah Carlson.
-- **Salvatore Sanfilippo (antirez)**, blog antigo — explicações originais.
+- **Redis docs** ([redis.io/docs](https://redis.io/docs/)), leia data types, persistence, replication, cluster.
+- **"Redis in Action"**: Josiah Carlson.
+- **Salvatore Sanfilippo (antirez)**, blog antigo, explicações originais.
 - **Martin Kleppmann, "How to do distributed locking"** ([martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html](https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html)).
-- **DDIA** — capítulo 11 (stream processing) cruza com Streams.
+- **DDIA**: capítulo 11 (stream processing) cruza com Streams.
 - **Valkey docs** ([valkey.io](https://valkey.io/)).
-- **Redis University** (free courses) — útil pra Streams, Cluster.
+- **Redis University** (free courses), útil pra Streams, Cluster.
 - **DragonflyDB blog posts** comparando arquitetura.

@@ -1,6 +1,6 @@
 ---
 module: 04-01
-title: Distributed Systems Theory — CAP, Consensus, Time, Consistency
+title: Distributed Systems Theory, CAP, Consensus, Time, Consistency
 stage: sistemas
 prereqs: [02-09, 03-07]
 gates:
@@ -10,11 +10,11 @@ gates:
 status: locked
 ---
 
-# 04-01 — Distributed Systems Theory
+# 04-01, Distributed Systems Theory
 
 ## 1. Problema de Engenharia
 
-A maioria dos engenheiros que se diz "distributed systems engineer" sabe usar Kafka e Postgres replicado — não entende os teoremas que governam o comportamento desses sistemas. Quando o sistema falha de forma sutil (split brain, replication lag aparecendo como bug, message loss aparente), a falta de modelo mental cobra preço. O engenheiro chuta, troca tecnologia, ou aceita "é bug do Postgres". Não.
+A maioria dos engenheiros que se diz "distributed systems engineer" sabe usar Kafka e Postgres replicado, não entende os teoremas que governam o comportamento desses sistemas. Quando o sistema falha de forma sutil (split brain, replication lag aparecendo como bug, message loss aparente), a falta de modelo mental cobra preço. O engenheiro chuta, troca tecnologia, ou aceita "é bug do Postgres". Não.
 
 Este módulo é teoria pra engenharia distribuída. Não é PhD; é o **subset que você precisa pra projetar e debugar sistemas distribuídos sem se enganar**: CAP/PACELC, modelos de consistência, time e ordering (Lamport, vector clocks, hybrid logical clocks), quorum, consensus (Paxos/Raft em alto nível), failure detectors, replication models, e como tudo isso aparece no Postgres, Kafka, Redis, 04-03 que você já usa.
 
@@ -36,7 +36,7 @@ Em sistema distribuído:
 - Falhas parciais: node responde lento, alguns mas não outros, partitions de rede.
 - Ordering é negociado, não garantido.
 
-Isso não é detalhe — é a fonte de toda complexidade.
+Isso não é detalhe, é a fonte de toda complexidade.
 
 ### 2.2 Modelos de falha
 
@@ -71,7 +71,7 @@ Brewer, 2000. Em sistema distribuído com **partição de rede (P)**, você esco
 - **C**onsistency: todo node retorna mesmo valor.
 - **A**vailability: cada request recebe resposta.
 
-Não pode ter ambos durante partition. CAP não é "escolha 2 de 3" — partições acontecem; você escolha CP ou AP no momento de partition.
+Não pode ter ambos durante partition. CAP não é "escolha 2 de 3", partições acontecem; você escolha CP ou AP no momento de partition.
 
 Exemplos:
 - Postgres com synchronous replication → CP (rejeita writes durante partition).
@@ -150,7 +150,7 @@ Raft é base de etcd, Consul, CockroachDB, MongoDB (com variações). Em apps vo
 
 Fischer, Lynch, Paterson (1985): em rede async com 1 falha, **não há algoritmo determinístico de consensus garantido a terminar**.
 
-Isso não bloqueia consensus — Paxos/Raft conseguem **liveness** sob suposições parciais (eventually synchronous network, leader stable). Mas explica por que consensus sempre tem riscos em casos extremos (pode entrar em loop de election).
+Isso não bloqueia consensus, Paxos/Raft conseguem **liveness** sob suposições parciais (eventually synchronous network, leader stable). Mas explica por que consensus sempre tem riscos em casos extremos (pode entrar em loop de election).
 
 ### 2.13 Two Generals Problem
 
@@ -200,18 +200,18 @@ Em rede async, "exactly-once delivery" não existe. O que existe:
 
 Kafka claims "exactly-once" via transações across producer + consumer + offset commit. Mesmo assim, é "exactly-once processing".
 
-### 2.18 CRDT — Conflict-free Replicated Data Types (deep)
+### 2.18 CRDT, Conflict-free Replicated Data Types (deep)
 
-CRDTs são estruturas de dados onde **merge é automatic e determinístico** — independente de ordem ou duplicação de mensagens, todas as réplicas convergem pro mesmo state. Strong eventual consistency sem coordination.
+CRDTs são estruturas de dados onde **merge é automatic e determinístico**: independente de ordem ou duplicação de mensagens, todas as réplicas convergem pro mesmo state. Strong eventual consistency sem coordination.
 
 **Por que importam em 2026:**
-- **Linear, Figma, Notion** sync collaboration via CRDT (cada um com variant). Não é academic — é production de billion-dollar product.
+- **Linear, Figma, Notion** sync collaboration via CRDT (cada um com variant). Não é academic, é production de billion-dollar product.
 - Edge-first apps (Local-first software, Ink & Switch): CRDT viabiliza apps que funcionam offline e sync sem central server.
 - Multi-region writes sem leader election: write em qualquer região, eventual converge.
 
 **Famílias:**
 
-**State-based (CvRDT)** — replicas trocam state inteiro; merge é função associativa, comutativa, idempotente (ACI).
+**State-based (CvRDT)**: replicas trocam state inteiro; merge é função associativa, comutativa, idempotente (ACI).
 - **G-Counter**: vetor de counters per-replica, increment-only. Merge = element-wise max.
 - **PN-Counter**: 2 G-Counters (positive, negative). Permite decrement.
 - **G-Set**: union-only set. Merge = set union.
@@ -219,24 +219,24 @@ CRDTs são estruturas de dados onde **merge é automatic e determinístico** —
 - **LWW-Element-Set**: cada elemento tem timestamp; merge mantém o de timestamp maior. Requer wall-clock sane.
 - **OR-Set (Observed-Remove)**: cada add carrega tag única; remove só remove tags observadas. Permite re-add limpo. Mais complexa, mais correta.
 
-**Operation-based (CmRDT)** — replicas propagam operações. Exige causal delivery (geralmente via vector clock).
+**Operation-based (CmRDT)**: replicas propagam operações. Exige causal delivery (geralmente via vector clock).
 - Mais eficiente em bandwidth (não manda state inteiro).
 - Mais frágil: ops podem ser duplicadas/perdidas; channel precisa garantir.
 
-**Delta-state CRDTs** (modernas) — estado mas só **delta** desde último sync. Mistura vantagens.
+**Delta-state CRDTs** (modernas), estado mas só **delta** desde último sync. Mistura vantagens.
 
-**Sequence/Text CRDTs** — gerenciam ordering em streams editáveis.
+**Sequence/Text CRDTs**: gerenciam ordering em streams editáveis.
 - **Treedoc**: árvore de IDs hierárquicos.
 - **Logoot**: posições densas (entre cada par de elementos cabe outro).
 - **WOOT**: 1ª geração, lenta.
 - **RGA (Replicated Growable Array)**: timestamp-based ordering, usa em Figma e similar.
 - **Yjs / Automerge** (libs): RGA-like otimizado, primary choice em 2025-2026 pra apps colaborativos.
 
-**Yjs em particular** dominou — biblioteca JS que serializa CRDT pra binary compact, integra com WebRTC/WebSocket pra sync, e tem bindings pra ProseMirror, Quill, Slate, etc. Linear e várias ferramentas SaaS usam.
+**Yjs em particular** dominou, biblioteca JS que serializa CRDT pra binary compact, integra com WebRTC/WebSocket pra sync, e tem bindings pra ProseMirror, Quill, Slate, etc. Linear e várias ferramentas SaaS usam.
 
 **Limitações reais:**
-- **State cresce**: tombstones de removes (em OR-Set, RGA) acumulam. Garbage collection precisa de coordination — perde "pure" CRDT-ness.
-- **Merge é commutativo, não comutativo em significado**: se replicas concorrentes editam mesmo objeto de forma "incompatível semanticamente", CRDT converge pra **algum** state, não necessariamente o **certo** semanticamente. Ex: 2 users movem um item pro mesmo slot — quem ganha? CRDT decide via tiebreaker (lexicographic ID); user pode ver inconsistência.
+- **State cresce**: tombstones de removes (em OR-Set, RGA) acumulam. Garbage collection precisa de coordination, perde "pure" CRDT-ness.
+- **Merge é commutativo, não comutativo em significado**: se replicas concorrentes editam mesmo objeto de forma "incompatível semanticamente", CRDT converge pra **algum** state, não necessariamente o **certo** semanticamente. Ex: 2 users movem um item pro mesmo slot, quem ganha? CRDT decide via tiebreaker (lexicographic ID); user pode ver inconsistência.
 - **Performance**: sync em árvore-de-mil-elementos tem overhead. Não é zero-cost.
 
 **Calm Theorem** (relacionado): programa é monotônico (set-only-grows) → pode ser implementado sem coordination. CRDTs são corollary prático.
@@ -248,9 +248,9 @@ CRDTs são estruturas de dados onde **merge é automatic e determinístico** —
 - **Sistemas com leader único viável**: leader + Raft/Paxos é mais simples e dá strong consistency. CRDT só vale se coordination custa caro.
 
 Refs canônicas:
-- "A comprehensive study of Convergent and Commutative Replicated Data Types" (Shapiro et al, 2011) — paper original.
+- "A comprehensive study of Convergent and Commutative Replicated Data Types" (Shapiro et al, 2011), paper original.
 - "CRDTs: The Hard Parts" (Martin Kleppmann talks).
-- crdt.tech — catálogo curado.
+- crdt.tech, catálogo curado.
 
 ### 2.19 Backpressure cross-system
 
@@ -311,10 +311,10 @@ Construir uma **simulação de sistema distribuído** explorando os conceitos.
    - Cliente conecta a qualquer node; non-leader redireciona.
    - Read consistency level (linearizable via leader, ou stale via local).
 4. **Test scenarios**:
-   - Mate o leader durante write — write deve completar (em majority surviving) ou abortar.
-   - Particione minoria — minoria deve recusar writes.
-   - Partição completa (split brain) — verifique que apenas majority commits.
-   - Recover node — deve catch up via log replication.
+   - Mate o leader durante write, write deve completar (em majority surviving) ou abortar.
+   - Particione minoria, minoria deve recusar writes.
+   - Partição completa (split brain), verifique que apenas majority commits.
+   - Recover node, deve catch up via log replication.
 5. **Time and ordering**:
    - Compare Lamport clock e HLC em log de eventos.
    - Demonstre cenário onde wall clock falharia (clock skew) e HLC funciona.
@@ -368,13 +368,13 @@ Construir uma **simulação de sistema distribuído** explorando os conceitos.
 
 ## 6. Referências
 
-- **"Designing Data-Intensive Applications"** — Martin Kleppmann. Bíblia.
-- **"Distributed Systems"** — Maarten van Steen e Andrew Tanenbaum (livre online).
-- **MIT 6.824 lectures** ([pdos.csail.mit.edu/6.824](https://pdos.csail.mit.edu/6.824/)) — labs em Go.
-- **"Time, Clocks, and the Ordering of Events"** — Leslie Lamport (paper original).
-- **"Paxos Made Simple"** — Lamport.
-- **"In Search of an Understandable Consensus Algorithm"** — Ongaro, Ousterhout (Raft).
+- **"Designing Data-Intensive Applications"**: Martin Kleppmann. Bíblia.
+- **"Distributed Systems"**: Maarten van Steen e Andrew Tanenbaum (livre online).
+- **MIT 6.824 lectures** ([pdos.csail.mit.edu/6.824](https://pdos.csail.mit.edu/6.824/)), labs em Go.
+- **"Time, Clocks, and the Ordering of Events"**: Leslie Lamport (paper original).
+- **"Paxos Made Simple"**: Lamport.
+- **"In Search of an Understandable Consensus Algorithm"**: Ongaro, Ousterhout (Raft).
 - **"Spanner: Google's Globally-Distributed Database"** (paper).
-- **Jepsen** ([jepsen.io](https://jepsen.io/)) — analyses de DBs reais.
+- **Jepsen** ([jepsen.io](https://jepsen.io/)), analyses de DBs reais.
 - **The Raft visualization** ([thesecretlivesofdata.com/raft](https://thesecretlivesofdata.com/raft/)).
-- **Distributed Systems for Fun and Profit** — Mikito Takada (livre online).
+- **Distributed Systems for Fun and Profit**: Mikito Takada (livre online).

@@ -2,7 +2,7 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Fathom — Notas de engenharia de software',
+    name: 'Fathom, Notas de engenharia de software',
     short_name: 'Fathom',
     description:
       'Minhas notas de estudo de engenharia de software, organizadas por estágio.',

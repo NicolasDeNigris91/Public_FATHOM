@@ -1,6 +1,6 @@
 ---
 module: 03-18
-title: Cognitive Accessibility — Plain Language, Reading Load, Memory, Attention, Time
+title: Cognitive Accessibility, Plain Language, Reading Load, Memory, Attention, Time
 stage: producao
 prereqs: [02-02, 03-17]
 gates:
@@ -10,11 +10,11 @@ gates:
 status: locked
 ---
 
-# 03-18 — Cognitive Accessibility
+# 03-18, Cognitive Accessibility
 
 ## 1. Problema de Engenharia
 
-A11y técnica (02-02) e testing (03-17) cobrem cegueira, baixa visão, surdez, mobilidade reduzida. Mas há um espectro maior — **disabilities cognitivas**: dyslexia, ADHD, autism, anxiety, low literacy, working memory limitations, post-trauma fog. WHO estima 15-20% da população tem alguma diferença cognitiva relevante. WCAG 2.1 cobre superficialmente; WCAG 2.2 expande; WCAG 3 (draft) será central.
+A11y técnica (02-02) e testing (03-17) cobrem cegueira, baixa visão, surdez, mobilidade reduzida. Mas há um espectro maior, **disabilities cognitivas**: dyslexia, ADHD, autism, anxiety, low literacy, working memory limitations, post-trauma fog. WHO estima 15-20% da população tem alguma diferença cognitiva relevante. WCAG 2.1 cobre superficialmente; WCAG 2.2 expande; WCAG 3 (draft) será central.
 
 Engineering ignora porque é difícil testar com tooling. Não há `axe-cognitive`. Métricas são qualitativas: leitura clara, instruções compreensíveis, time limits razoáveis, error messages humanos, redundância de canais. Mas o impacto é massivo: usuário com ADHD que abandona checkout porque tela bagunçada custa revenue real; pessoa com dyslexia que falha em entender política de cancelamento gera churn + ticket de suporte; idoso que se confunde com microcopy enviesado vira reclamação de mídia.
 
@@ -90,11 +90,11 @@ Pattern:
 - "Apagar este pedido?" + "Sim, apagar" / "Cancelar" (specific + reversibility).
 - Inline error em campo: "Email parece incompleto: faltou @" (specific).
 
-UX writing é discipline — alguns times têm role dedicado (Stripe, Shopify).
+UX writing é discipline, alguns times têm role dedicado (Stripe, Shopify).
 
 ### 2.5 Working memory budget
 
-Miller's Law (1956): "magic number 7 ± 2" — short-term memory holds ~5-9 items. Modern revision: closer to 4 chunks.
+Miller's Law (1956): "magic number 7 ± 2", short-term memory holds ~5-9 items. Modern revision: closer to 4 chunks.
 
 Implicações UI:
 - Forms longas dividir em steps (≤ 5 fields per step).
@@ -120,7 +120,7 @@ Mitigations:
 - 1 primary CTA por screen.
 - Notifications batching ou opt-in.
 
-ADHD specifically beneficia. Mas todos beneficiam — efeito curb-cut.
+ADHD specifically beneficia. Mas todos beneficiam, efeito curb-cut.
 
 ### 2.7 Time pressure e timeouts
 
@@ -167,7 +167,7 @@ Don't rely só em color, sound, motion, language. Combine:
 - Loading: spinner + "Aguardando..." + atualização de aria-live.
 - Sucess: checkmark + cor + texto + announcement.
 
-Pessoa color-blind, com aphasia, com cognitive overload — cada um perde um canal. Redundância protege todos.
+Pessoa color-blind, com aphasia, com cognitive overload, cada um perde um canal. Redundância protege todos.
 
 ### 2.11 Visual design pra cognitive
 
@@ -391,16 +391,16 @@ Refactor da Logística pra **cognitive accessibility**.
 - **WCAG 2.1 / 2.2 cognitive criteria**.
 - **WCAG 3 draft** ([w3.org/TR/wcag-3.0](https://www.w3.org/TR/wcag-3.0/)).
 - **plainlanguage.gov** + **GOV.UK design system docs**.
-- **"Cognitive Accessibility Roadmap"** — W3C Cognitive Accessibility Task Force.
-- **"Don't Make Me Think"** — Steve Krug.
-- **"Forms that Work"** — Caroline Jarrett, Gerry Gaffney.
-- **"Strategic Writing for UX"** — Torrey Podmajersky.
-- **"Inclusive Design Patterns"** — Heydon Pickering (re-leitura cognitive).
-- **NN/g (Nielsen Norman Group)** — research articles em cognitive UX.
-- **"The Inclusive Design Toolkit"** — Cambridge Engineering Design Centre.
+- **"Cognitive Accessibility Roadmap"**: W3C Cognitive Accessibility Task Force.
+- **"Don't Make Me Think"**: Steve Krug.
+- **"Forms that Work"**: Caroline Jarrett, Gerry Gaffney.
+- **"Strategic Writing for UX"**: Torrey Podmajersky.
+- **"Inclusive Design Patterns"**: Heydon Pickering (re-leitura cognitive).
+- **NN/g (Nielsen Norman Group)**: research articles em cognitive UX.
+- **"The Inclusive Design Toolkit"**: Cambridge Engineering Design Centre.
 - **Microsoft Inclusive Design Toolkit**.
-- **"Accessibility for Cognitive Disabilities"** — Deque University course.
+- **"Accessibility for Cognitive Disabilities"**: Deque University course.
 - **Hemingway Editor**, **textstat** lib.
-- **"Calm Technology"** — Amber Case.
-- **"Trauma-Informed Design"** — Melissa Eggleston.
-- **GOV.BR design system** — exemplo brasileiro.
+- **"Calm Technology"**: Amber Case.
+- **"Trauma-Informed Design"**: Melissa Eggleston.
+- **GOV.BR design system**: exemplo brasileiro.

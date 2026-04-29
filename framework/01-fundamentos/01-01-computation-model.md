@@ -1,6 +1,6 @@
 ---
 module: 01-01
-title: Modelo de Computação — CPU, Memória, Cache, Stack vs Heap
+title: Modelo de Computação, CPU, Memória, Cache, Stack vs Heap
 stage: fundamentos
 prereqs: []
 gates:
@@ -10,11 +10,11 @@ gates:
 status: locked
 ---
 
-# 01-01 — Modelo de Computação
+# 01-01, Modelo de Computação
 
 ## 1. Problema de Engenharia
 
-Todo software roda em hardware. Entender **como** o hardware executa código é a diferença entre escrever "código que funciona" e "código que escala". Sem este módulo, conceitos posteriores (event loop, garbage collection, cache strategies, performance, concurrency) não fazem sentido — são abstrações em cima de um modelo que você não conhece.
+Todo software roda em hardware. Entender **como** o hardware executa código é a diferença entre escrever "código que funciona" e "código que escala". Sem este módulo, conceitos posteriores (event loop, garbage collection, cache strategies, performance, concurrency) não fazem sentido, são abstrações em cima de um modelo que você não conhece.
 
 Exemplos concretos onde desconhecimento custa caro:
 - Você escreve um loop que "deveria ser O(n)" mas roda 10x mais lento que um loop "equivalente". Causa: **cache misses**. Você não tem o conceito de **memory hierarchy** (L1/L2/L3/RAM), então não percebe que estruturas de dados com layout não-contíguo destroem performance.
@@ -45,7 +45,7 @@ Um computador moderno, simplificado, é:
 └──────────────────┘
 ```
 
-A CPU executa instruções uma por vez (conceitualmente — superscalar/pipelined na prática). Cada instrução faz coisas como:
+A CPU executa instruções uma por vez (conceitualmente, superscalar/pipelined na prática). Cada instrução faz coisas como:
 - Ler valor da memória pra um registrador
 - Operar em registradores (somar, comparar)
 - Escrever valor de registrador na memória
@@ -53,7 +53,7 @@ A CPU executa instruções uma por vez (conceitualmente — superscalar/pipeline
 
 **Registradores** são a memória **dentro** da CPU. Há poucos (~16-32 de propósito geral em x86_64), mas são acessados em **1 ciclo de clock** (ordem de **0.3ns** numa CPU de 3GHz). Tudo o mais é mais lento.
 
-### 2.2 Memory hierarchy — ordens de grandeza
+### 2.2 Memory hierarchy, ordens de grandeza
 
 A "memória" não é uma coisa única. É uma **hierarquia** com trade-offs entre **velocidade**, **capacidade** e **custo**:
 
@@ -81,20 +81,20 @@ Isso explica por quê:
 - **Bater no disco** é desastre pra qualquer hot path.
 - **Round-trip de rede** define o budget de latência de qualquer feature.
 
-### 2.3 Como cache funciona — cache lines, locality, prefetch
+### 2.3 Como cache funciona, cache lines, locality, prefetch
 
-A CPU **não** lê 1 byte por vez da RAM. Lê em **cache lines** de 64 bytes (em x86_64 moderno). Quando você acessa um endereço de memória, **64 bytes contíguos** são copiados pra L1 — porque é provável que você acesse os bytes adjacentes em seguida.
+A CPU **não** lê 1 byte por vez da RAM. Lê em **cache lines** de 64 bytes (em x86_64 moderno). Quando você acessa um endereço de memória, **64 bytes contíguos** são copiados pra L1, porque é provável que você acesse os bytes adjacentes em seguida.
 
 Isso explica **spatial locality**: estruturas contíguas (arrays) são radicalmente mais rápidas que estruturas espalhadas (linked lists), porque um acesso já carrega vizinhos no cache.
 
-E **temporal locality**: dados acessados recentemente provavelmente serão acessados de novo — então cache mantém eles.
+E **temporal locality**: dados acessados recentemente provavelmente serão acessados de novo, então cache mantém eles.
 
 **Cache miss types** (3 C's):
-- **Compulsory**: primeira vez que você acessa um endereço — sempre miss.
+- **Compulsory**: primeira vez que você acessa um endereço, sempre miss.
 - **Capacity**: working set não cabe no cache.
 - **Conflict**: dois endereços mapeiam pro mesmo conjunto no cache (em caches set-associative).
 
-A CPU também tem **prefetcher** — hardware que detecta padrões de acesso (ex: você acessa `arr[0]`, `arr[1]`, `arr[2]`...) e antecipa carregando os próximos. **Acesso linear é amigo do prefetcher**; acesso aleatório (linked list) destrói ele.
+A CPU também tem **prefetcher**: hardware que detecta padrões de acesso (ex: você acessa `arr[0]`, `arr[1]`, `arr[2]`...) e antecipa carregando os próximos. **Acesso linear é amigo do prefetcher**; acesso aleatório (linked list) destrói ele.
 
 ### 2.4 Stack vs Heap
 
@@ -145,7 +145,7 @@ Em JavaScript:
 - Objects, arrays, strings, closures **moram no heap**.
 - O **V8 GC** gerencia o heap (ver 01-07).
 
-### 2.5 Virtual memory — endereços virtuais vs físicos
+### 2.5 Virtual memory, endereços virtuais vs físicos
 
 Cada processo "vê" um espaço de endereços de **64 bits** (em x86_64), aparentemente próprio. Mas a RAM física é compartilhada e finita. Como?
 
@@ -168,9 +168,9 @@ Quando o processo acessa um endereço virtual:
 
 ### 2.6 Pipeline, branch prediction, speculative execution
 
-CPUs modernas **não** executam uma instrução de cada vez. Têm um **pipeline** com 10-20 estágios — cada instrução passa por: fetch → decode → execute → memory → writeback (simplificado).
+CPUs modernas **não** executam uma instrução de cada vez. Têm um **pipeline** com 10-20 estágios, cada instrução passa por: fetch → decode → execute → memory → writeback (simplificado).
 
-Várias instruções estão em estágios diferentes simultaneamente — paralelismo de instrução. Isso requer:
+Várias instruções estão em estágios diferentes simultaneamente, paralelismo de instrução. Isso requer:
 - **Branch prediction**: quando há `if`, a CPU **adivinha** qual ramo será tomado e começa a executá-lo especulativamente. Se acertar: zero custo. Se errar (branch misprediction): pipeline é descartado, custa ~10-20 ciclos.
 - **Out-of-order execution**: a CPU reordena instruções pra manter o pipeline cheio.
 - **Speculative execution**: executa código antes de saber se ele realmente deve rodar.
@@ -219,13 +219,13 @@ Em TypeScript (Node), construa um benchmark que mede o impacto de cache locality
 
 1. Crie duas estruturas de dados equivalentes em conteúdo:
    - **Array contíguo** (`Float64Array`) com 10 milhões de números aleatórios.
-   - **Linked list** equivalente (cada nó é `{ value: number, next: Node | null }`), com os mesmos números, mas alocados em ordem aleatória no heap (pra forçar não-contiguidade — alterne com outras alocações descartáveis pra fragmentar).
+   - **Linked list** equivalente (cada nó é `{ value: number, next: Node | null }`), com os mesmos números, mas alocados em ordem aleatória no heap (pra forçar não-contiguidade, alterne com outras alocações descartáveis pra fragmentar).
 
 2. Faça 4 benchmarks:
    - **A:** soma de todos os elementos do `Float64Array`, iteração linear (`for (let i=0; i<n; i++) sum += arr[i]`).
    - **B:** soma de todos os elementos da linked list, percorrendo `next`.
    - **C:** soma do `Float64Array` em ordem aleatória (acesso a índices aleatórios pré-computados).
-   - **D:** soma do `Float64Array`, mas com salto de **stride 16** (i.e., acessa só `arr[0], arr[16], arr[32], ...`) — força carregar uma cache line por elemento.
+   - **D:** soma do `Float64Array`, mas com salto de **stride 16** (i.e., acessa só `arr[0], arr[16], arr[32], ...`), força carregar uma cache line por elemento.
 
 3. Use `process.hrtime.bigint()` pra medir cada um. Rode cada benchmark 5x, pegue mediana.
 
@@ -245,7 +245,7 @@ Em TypeScript (Node), construa um benchmark que mede o impacto de cache locality
 
 ### Threshold
 
-Pra passar o portão prático: você deve conseguir **explicar verbalmente cada resultado** com base nos conceitos da Teoria Hard. Se a ordem dos resultados surpreender você, **investigue até entender** — não passe o portão sem explicação.
+Pra passar o portão prático: você deve conseguir **explicar verbalmente cada resultado** com base nos conceitos da Teoria Hard. Se a ordem dos resultados surpreender você, **investigue até entender**: não passe o portão sem explicação.
 
 ### Stretch goal (opcional)
 
@@ -258,11 +258,11 @@ Faça o mesmo benchmark em C ou Rust e compare com Node. Discuta no README quant
 
 ## 5. Extensões e Conexões
 
-- **Conecta com [01-02 — OS](01-02-operating-systems.md):** virtual memory, page faults, mmap, working set são gerenciados pelo kernel. Cache locality também depende de scheduler (mover thread entre cores invalida cache local).
-- **Conecta com [01-04 — Data Structures](01-04-data-structures.md):** escolha de estrutura (array vs linked list vs hash table) é em grande parte decisão de **layout de memória** e **acesso pattern**. Hash tables com open addressing > chaining em muitos casos por cache locality.
-- **Conecta com [01-05 — Algorithms](01-05-algorithms.md):** análise de complexidade ignora cache; mas na prática, um algoritmo O(n²) cache-friendly pode bater um O(n log n) cache-hostile pra n moderado.
-- **Conecta com [01-07 — JavaScript Deep](01-07-javascript-deep.md):** o V8 GC opera no heap. Hidden classes do V8 fazem objetos com mesma "shape" terem layout previsível, melhorando cache.
-- **Conecta com [02-09 — Postgres Deep](../02-plataforma/02-09-postgres-deep.md):** o Postgres mantém um **buffer cache** (default `shared_buffers`) na RAM. Quando query precisa de página fora do cache, vira I/O. Latência de query muda de microssegundos pra milissegundos.
+- **Conecta com [01-02, OS](01-02-operating-systems.md):** virtual memory, page faults, mmap, working set são gerenciados pelo kernel. Cache locality também depende de scheduler (mover thread entre cores invalida cache local).
+- **Conecta com [01-04, Data Structures](01-04-data-structures.md):** escolha de estrutura (array vs linked list vs hash table) é em grande parte decisão de **layout de memória** e **acesso pattern**. Hash tables com open addressing > chaining em muitos casos por cache locality.
+- **Conecta com [01-05, Algorithms](01-05-algorithms.md):** análise de complexidade ignora cache; mas na prática, um algoritmo O(n²) cache-friendly pode bater um O(n log n) cache-hostile pra n moderado.
+- **Conecta com [01-07, JavaScript Deep](01-07-javascript-deep.md):** o V8 GC opera no heap. Hidden classes do V8 fazem objetos com mesma "shape" terem layout previsível, melhorando cache.
+- **Conecta com [02-09, Postgres Deep](../02-plataforma/02-09-postgres-deep.md):** o Postgres mantém um **buffer cache** (default `shared_buffers`) na RAM. Quando query precisa de página fora do cache, vira I/O. Latência de query muda de microssegundos pra milissegundos.
 
 ### Ferramentas satélites
 
@@ -276,30 +276,30 @@ Faça o mesmo benchmark em C ou Rust e compare com Node. Discuta no README quant
 ## 6. Referências de Elite
 
 ### Livros (canônicos)
-- **Computer Systems: A Programmer's Perspective** (Bryant & O'Hallaron, 3rd ed) — "CS:APP". Capítulos 1, 5 (optimizing program performance), 6 (memory hierarchy), 7 (linking) são essenciais.
-- **What Every Programmer Should Know About Memory** (Ulrich Drepper, 2007) — paper de ~100 páginas, free em [people.freebsd.org/~lstewart/articles/cpumemory.pdf](https://people.freebsd.org/~lstewart/articles/cpumemory.pdf). Denso, mas é a referência absoluta sobre memória.
+- **Computer Systems: A Programmer's Perspective** (Bryant & O'Hallaron, 3rd ed), "CS:APP". Capítulos 1, 5 (optimizing program performance), 6 (memory hierarchy), 7 (linking) são essenciais.
+- **What Every Programmer Should Know About Memory** (Ulrich Drepper, 2007), paper de ~100 páginas, free em [people.freebsd.org/~lstewart/articles/cpumemory.pdf](https://people.freebsd.org/~lstewart/articles/cpumemory.pdf). Denso, mas é a referência absoluta sobre memória.
 
 ### Artigos e papers
-- **["What scientists must know about hardware to write fast code"](https://biojulia.dev/post/hardware/)** — Jakob Nybo Nissen. Excelente intro prática.
-- **["Latency Numbers Every Programmer Should Know"](https://gist.github.com/jboner/2841832)** — Jeff Dean (Google). Memorize.
-- **["Mythbusting modern hardware to gain 'mechanical sympathy'"](https://www.youtube.com/watch?v=MC1EKLQ2Wmg)** — Martin Thompson. Talk excelente sobre como entender hardware moderno.
+- **["What scientists must know about hardware to write fast code"](https://biojulia.dev/post/hardware/)**: Jakob Nybo Nissen. Excelente intro prática.
+- **["Latency Numbers Every Programmer Should Know"](https://gist.github.com/jboner/2841832)**: Jeff Dean (Google). Memorize.
+- **["Mythbusting modern hardware to gain 'mechanical sympathy'"](https://www.youtube.com/watch?v=MC1EKLQ2Wmg)**: Martin Thompson. Talk excelente sobre como entender hardware moderno.
 
 ### Talks
-- **["The Rust Performance Book — Profiling"](https://nnethercote.github.io/perf-book/profiling.html)** — Nicholas Nethercote. Aplica conceitos a Rust mas universal.
-- **["Mechanical Sympathy: Hardware and Software Working Together"](https://mechanical-sympathy.blogspot.com/)** — Martin Thompson, blog inteiro.
+- **["The Rust Performance Book, Profiling"](https://nnethercote.github.io/perf-book/profiling.html)**: Nicholas Nethercote. Aplica conceitos a Rust mas universal.
+- **["Mechanical Sympathy: Hardware and Software Working Together"](https://mechanical-sympathy.blogspot.com/)**: Martin Thompson, blog inteiro.
 
 ### Repos
-- **[V8 source](https://github.com/v8/v8)** — `src/heap/` pra ver GC; `src/objects/` pra ver layout de objects.
-- **[mimalloc](https://github.com/microsoft/mimalloc)** — allocator moderno, código bem comentado.
+- **[V8 source](https://github.com/v8/v8)**: `src/heap/` pra ver GC; `src/objects/` pra ver layout de objects.
+- **[mimalloc](https://github.com/microsoft/mimalloc)**: allocator moderno, código bem comentado.
 
 ### Specs
-- **[Intel Software Developer Manuals](https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html)** — referência absoluta de x86_64. Volume 1 é o que importa pra começar.
-- **[ARM Architecture Reference Manual](https://developer.arm.com/documentation/ddi0487/latest)** — equivalente pra ARM.
+- **[Intel Software Developer Manuals](https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html)**: referência absoluta de x86_64. Volume 1 é o que importa pra começar.
+- **[ARM Architecture Reference Manual](https://developer.arm.com/documentation/ddi0487/latest)**: equivalente pra ARM.
 
 ### Comunidade
-- **[r/programming weekly hot](https://www.reddit.com/r/programming/top/?t=week)** — frequentemente tem discussões sobre performance hardware-aware.
+- **[r/programming weekly hot](https://www.reddit.com/r/programming/top/?t=week)**: frequentemente tem discussões sobre performance hardware-aware.
 - **[Performance on Twitter/X]**: siga Brendan Gregg, Andrei Alexandrescu, Aleksey Shipilëv, Mike Acton.
 
 ---
 
-**Encerramento:** ao terminar este módulo, você passa a ler "performance" com olhos diferentes. Toda decisão posterior — escolher Array vs Map, usar Buffer ou string, fazer query com índice ou sequential scan, decidir cache strategy — vai ter como pano de fundo o que você aprendeu aqui.
+**Encerramento:** ao terminar este módulo, você passa a ler "performance" com olhos diferentes. Toda decisão posterior, escolher Array vs Map, usar Buffer ou string, fazer query com índice ou sequential scan, decidir cache strategy, vai ter como pano de fundo o que você aprendeu aqui.

@@ -39,7 +39,7 @@ export function buildTechArticleLd(args: {
     '@context': 'https://schema.org',
     '@type': 'TechArticle',
     headline: args.title,
-    name: `${args.rawId} — ${args.title}`,
+    name: `${args.rawId}, ${args.title}`,
     url: `${SITE_URL}${args.url}`,
     description: args.description,
     inLanguage: 'pt-BR',
@@ -62,7 +62,7 @@ export function buildWebSiteLd() {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
     name: 'Fathom',
-    alternateName: 'Fathom — Notas de engenharia de software',
+    alternateName: 'Fathom, Notas de engenharia de software',
     url: SITE_URL,
     description:
       'Minhas notas de estudo de engenharia de software, organizadas por estágio.',

@@ -1,6 +1,6 @@
-# STACK-COMPARISONS — Patterns Cross-Stack (Node, Java, Python, Ruby, Go, .NET, PHP)
+# STACK-COMPARISONS, Patterns Cross-Stack (Node, Java, Python, Ruby, Go, .NET, PHP)
 
-> Framework é heavy em Node/TypeScript/React/Postgres/Redis. Realidade tem Java/Spring, Python/Django/FastAPI, Ruby/Rails, Go, .NET, PHP/Laravel. Patterns canônicos atravessam — só idioms divergem.
+> Framework é heavy em Node/TypeScript/React/Postgres/Redis. Realidade tem Java/Spring, Python/Django/FastAPI, Ruby/Rails, Go, .NET, PHP/Laravel. Patterns canônicos atravessam, só idioms divergem.
 >
 > Este doc lista os mesmos patterns dos módulos do framework, traduzidos pra cada stack. Use quando: 1) você trabalha em stack diferente do default; 2) você se prepara pra entrevista em empresa Java/Python; 3) quer ver que conceitos são universais e o que é idiom-specific.
 >
@@ -14,7 +14,7 @@
 
 Stack não muda **o que entender**. Muda **a sintaxe + biblioteca canônica**.
 
-Se você sabe Postgres MVCC, sabe Postgres MVCC sob qualquer linguagem. Se você sabe pattern Outbox, implementa em Kotlin do mesmo jeito que em TypeScript — diferentes libs, mesma essência.
+Se você sabe Postgres MVCC, sabe Postgres MVCC sob qualquer linguagem. Se você sabe pattern Outbox, implementa em Kotlin do mesmo jeito que em TypeScript, diferentes libs, mesma essência.
 
 ---
 
@@ -32,7 +32,7 @@ Se você sabe Postgres MVCC, sabe Postgres MVCC sob qualquer linguagem. Se você
 | DI container | NestJS, tsyringe | Spring, Quarkus DI, Guice | dependency-injector, FastAPI Depends | dry-system | wire, fx | built-in MS.Extensions.DI | Symfony DI, Laravel container |
 | Test framework | Vitest, Jest, Mocha | JUnit 5, Spock | pytest, unittest | RSpec, Minitest | testing, ginkgo, testify | xUnit, NUnit, MSTest | PHPUnit, Pest |
 
-**Conexão 02-07/02-08**: cada stack tem seu equivalent direto. Pleno bom em Node + Express equivalent é Pleno bom em Java + Spring Boot — mesmas decisões de design (middleware/filters/interceptors), apenas vocabulário muda.
+**Conexão 02-07/02-08**: cada stack tem seu equivalent direto. Pleno bom em Node + Express equivalent é Pleno bom em Java + Spring Boot, mesmas decisões de design (middleware/filters/interceptors), apenas vocabulário muda.
 
 ---
 
@@ -196,9 +196,9 @@ Idioms de Dockerfile e K8s manifests são universais. Diferenças:
 |---|---|---|
 | React Native | Swift + UIKit/SwiftUI | Kotlin + Compose / Views |
 | Flutter (Dart) | Objective-C legacy | Java legacy |
-| .NET MAUI | — | — |
-| Kotlin Multiplatform Mobile | — | — |
-| Capacitor / Ionic | — | — |
+| .NET MAUI | - |, |
+| Kotlin Multiplatform Mobile | - |, |
+| Capacitor / Ionic | - |, |
 
 **Conceitos universais**: lifecycle, threading, memory, permissions, push notifications, deep links, store policies.
 
@@ -241,7 +241,7 @@ Senior+ com 1-2 stacks profundas + literacy em outras é position resilient.
 
 ---
 
-## 14. Rosetta Stone — same code em todos
+## 14. Rosetta Stone, same code em todos
 
 Pequeno exemplo: HTTP server retornando JSON com 1 endpoint:
 
@@ -331,7 +331,7 @@ Não tente cobrir **todas** as stacks. Foco no top 8-10 com market share real.
 
 Excluído explicitamente:
 - COBOL (legacy, mas hire pool restrito a banks).
-- Erlang/Elixir além de menção (nicho mas powerful — dedicado se virar foco).
+- Erlang/Elixir além de menção (nicho mas powerful, dedicado se virar foco).
 - Lisp / Scheme / Haskell além de 01-06 (academic relevance, low job market).
 - Crystal, Nim, V, Zig (early adoption).
 

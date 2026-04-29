@@ -1,4 +1,4 @@
-# STUDY-PROTOCOL — Como Estudar Para Maestria
+# STUDY-PROTOCOL, Como Estudar Para Maestria
 
 > Leitura obrigatória **antes de qualquer módulo do framework**. Estas técnicas são a infraestrutura cognitiva do aprendizado profundo. Sem elas, o framework vira leitura passiva e maestria não acontece.
 
@@ -6,13 +6,13 @@
 
 ## Por que esse protocolo importa
 
-A maioria das pessoas que se diz "estudou X" só **leu** sobre X. Reconhecer ≠ saber. O cérebro confunde fluência de leitura com domínio. Você acha que entende o `event loop` porque já leu o conceito 3 vezes — mas se eu te peço pra desenhar o fluxo numa folha em branco sem consultar nada, você trava.
+A maioria das pessoas que se diz "estudou X" só **leu** sobre X. Reconhecer ≠ saber. O cérebro confunde fluência de leitura com domínio. Você acha que entende o `event loop` porque já leu o conceito 3 vezes, mas se eu te peço pra desenhar o fluxo numa folha em branco sem consultar nada, você trava.
 
 Maestria é a capacidade de **reproduzir o conhecimento sob estresse**, **explicá-lo a outro humano**, e **aplicá-lo em problemas novos**. Isso exige técnicas específicas, baseadas em pesquisa de psicologia cognitiva e neurociência da aprendizagem.
 
 ---
 
-## 1. Feynman Technique — o teste mais honesto
+## 1. Feynman Technique, o teste mais honesto
 
 **Princípio:** se você não consegue explicar um conceito em palavras simples, **você não entendeu**.
 
@@ -20,7 +20,7 @@ Maestria é a capacidade de **reproduzir o conhecimento sob estresse**, **explic
 1. Escolha um conceito do módulo (ex: "como funciona MVCC no Postgres").
 2. **Pegue uma folha em branco** ou abra um doc vazio.
 3. **Escreva uma explicação** como se fosse pra um júnior que nunca ouviu falar do assunto.
-4. **Identifique os pontos onde travou** — esses são seus buracos.
+4. **Identifique os pontos onde travou**: esses são seus buracos.
 5. **Volte na fonte** (livro, doc, código) **só nos pontos travados**, não no tópico inteiro.
 6. **Reescreva**.
 
@@ -30,7 +30,7 @@ Se você precisou usar termos sem explicar (ex: escreveu "MVCC garante consisten
 
 ---
 
-## 2. Active Recall — não releia, recupere
+## 2. Active Recall, não releia, recupere
 
 **Princípio:** o cérebro consolida memória pelo **esforço de buscar**, não pelo esforço de ler. Releitura passiva é a técnica mais popular e a menos eficiente.
 
@@ -39,7 +39,7 @@ Se você precisou usar termos sem explicar (ex: escreveu "MVCC garante consisten
 2. **Feche o material.**
 3. **De cabeça**, escreva ou fale (em voz alta) os pontos-chave.
 4. Compare com o original. **Anote o que esqueceu.**
-5. **Não releia tudo** — releia só o que esqueceu.
+5. **Não releia tudo**: releia só o que esqueceu.
 
 **Sinal forte:** se ao fechar a página você consegue lembrar o nome do conceito mas não consegue reproduzir o mecanismo interno, você ainda não aprendeu. Você reconheceu.
 
@@ -47,9 +47,9 @@ Se você precisou usar termos sem explicar (ex: escreveu "MVCC garante consisten
 
 ---
 
-## 3. Spaced Repetition — combate ao esquecimento
+## 3. Spaced Repetition, combate ao esquecimento
 
-**Princípio:** memória de longo prazo se forma com **revisões espaçadas no tempo**, não com revisões massivas. A curva de esquecimento de Ebbinghaus é real — você esquece ~70% do que aprendeu em 24h se não revisitar.
+**Princípio:** memória de longo prazo se forma com **revisões espaçadas no tempo**, não com revisões massivas. A curva de esquecimento de Ebbinghaus é real, você esquece ~70% do que aprendeu em 24h se não revisitar.
 
 **Ferramenta:** [Anki](https://apps.ankiweb.net/) (free, open-source, multi-plataforma).
 
@@ -68,7 +68,7 @@ Se você precisou usar termos sem explicar (ex: escreveu "MVCC garante consisten
 
 ---
 
-## 4. Deliberate Practice — prática estruturada, hard mode
+## 4. Deliberate Practice, prática estruturada, hard mode
 
 **Princípio:** prática ≠ repetição. **Deliberate Practice** é prática focada em pontos de atrito, com feedback imediato, no limite da sua capacidade. Foi a técnica estudada por [Anders Ericsson](https://en.wikipedia.org/wiki/K._Anders_Ericsson) em mestres de xadrez, músicos e atletas de elite.
 
@@ -76,26 +76,26 @@ Se você precisou usar termos sem explicar (ex: escreveu "MVCC garante consisten
 - Os **Desafios de Engenharia** dos módulos são deliberate practice. Eles foram desenhados pra ser desconfortáveis.
 - **Sem tutorial.** Não assista vídeos resolvendo. Não copie código de Stack Overflow.
 - **Sem "deixa eu ver como fulano fez".** Olhar a solução pronta destrói a sessão de aprendizado.
-- **Trava de 1h:** se você travou num ponto específico por 1h documentado (escreva: "estou travado em X, tentei Y e Z, falhou em W"), aí pode pedir uma **dica conceitual** ao mentor (você mesmo, peer, ou suplemento opcional de produtividade) — nunca a resposta.
+- **Trava de 1h:** se você travou num ponto específico por 1h documentado (escreva: "estou travado em X, tentei Y e Z, falhou em W"), aí pode pedir uma **dica conceitual** ao mentor (você mesmo, peer, ou suplemento opcional de produtividade), nunca a resposta.
 - **Falha boa:** terminar o desafio com 30% de erros que você consegue identificar e corrigir é melhor que copiar 100% certo.
 
 **Sinal de prática mal-feita:** você consegue fazer o desafio, mas não conseguiria fazer um desafio similar com restrições levemente diferentes. Maestria é generalização.
 
 ---
 
-## 5. Construir Antes de Ler Tudo — aprendizado situado
+## 5. Construir Antes de Ler Tudo, aprendizado situado
 
-**Princípio:** ler 100% da teoria antes de codar é um anti-padrão. O cérebro retém o que tem **gancho situado** — você só sabe o que perguntar depois de ter batido a cabeça em algo concreto.
+**Princípio:** ler 100% da teoria antes de codar é um anti-padrão. O cérebro retém o que tem **gancho situado**: você só sabe o que perguntar depois de ter batido a cabeça em algo concreto.
 
 **Procedimento sugerido por módulo:**
 1. Leia o **Problema de Engenharia** (seção 1) do módulo.
 2. Leia **Teoria Hard até a primeira subseção** (~30%).
 3. **Comece a tentar o Desafio de Engenharia**. Vai travar. Bom.
-4. **Use o trava como bússola** — volte na seção da Teoria que responde ao trava.
+4. **Use o trava como bússola**: volte na seção da Teoria que responde ao trava.
 5. Cicle: ler suficiente → tentar → travar → ler específico.
 6. Termine a Teoria Hard depois que você implementou o suficiente pra ter intuição.
 
-Isso aplica especialmente a módulos práticos (`02-04 React`, `02-09 Postgres`, `03-02 Docker`). Pra módulos puramente conceituais (`04-01 Distributed Systems Theory`), leia mais primeiro — não tem o que codar até entender a teoria.
+Isso aplica especialmente a módulos práticos (`02-04 React`, `02-09 Postgres`, `03-02 Docker`). Pra módulos puramente conceituais (`04-01 Distributed Systems Theory`), leia mais primeiro, não tem o que codar até entender a teoria.
 
 ---
 
@@ -141,7 +141,7 @@ Após a sessão:
 
 1. **Reescreva o que aprendeu** em 5 frases (review ativo).
 2. **Crie 2-3 cards Anki** dos pontos centrais.
-3. **Anote dúvidas pendentes** num arquivo "open questions" — vira material pra próxima sessão.
+3. **Anote dúvidas pendentes** num arquivo "open questions", vira material pra próxima sessão.
 
 ---
 
@@ -170,23 +170,23 @@ Quando esses sinais aparecerem, **pare** e volte ao Feynman + Active Recall.
 
 Mantenha, no seu repo pessoal de estudos:
 
-- **`notes/`** — notas Q&A por módulo
-- **`anki-decks/`** — exports de decks por estágio
-- **`open-questions.md`** — dúvidas pendentes
-- **`failures-log.md`** — onde você travou em cada Desafio, o que aprendeu
-- **`journal.md`** — descobertas não-óbvias por módulo (lições que você não vai re-derivar)
-- **`papers/`** — Q&A notes por paper (05-04 protocolo, mas começa cedo)
-- **`code/`** — implementações dos Desafios de Engenharia (cada um seu próprio repo git, idealmente)
+- **`notes/`**: notas Q&A por módulo
+- **`anki-decks/`**: exports de decks por estágio
+- **`open-questions.md`**: dúvidas pendentes
+- **`failures-log.md`**: onde você travou em cada Desafio, o que aprendeu
+- **`journal.md`**: descobertas não-óbvias por módulo (lições que você não vai re-derivar)
+- **`papers/`**: Q&A notes por paper (05-04 protocolo, mas começa cedo)
+- **`code/`**: implementações dos Desafios de Engenharia (cada um seu próprio repo git, idealmente)
 
 ---
 
-## 12. Spaced Re-Test — combate ao decay pós-portão
+## 12. Spaced Re-Test, combate ao decay pós-portão
 
 **Princípio:** passar portão **não é endpoint**. Conhecimento decai sem revisão. O Anki cuida de fatos atômicos; mas mecanismos inteiros (TLS handshake, MVCC end-to-end, Raft) precisam de re-prova periódica.
 
 **Procedimento:**
 - A cada 90 dias após passar um portão, o mentor (você mesmo, peer, ou suplemento opcional) pode te re-testar com 2-3 perguntas conceituais aleatórias do módulo (mini-portão).
-- Se você não passa, módulo vira `needs_refresh` em `PROGRESS.md`. Não é falha — é manutenção.
+- Se você não passa, módulo vira `needs_refresh` em `PROGRESS.md`. Não é falha, é manutenção.
 - Você revisa subseções específicas (não o módulo inteiro) e re-passa.
 
 **Cadência sugerida:**
@@ -227,7 +227,7 @@ Spaced re-test transforma o framework de **certificado pontual** em **manutenç�
 
 ---
 
-## 14. Public Capstone Protocol — output público multiplica retorno
+## 14. Public Capstone Protocol, output público multiplica retorno
 
 **Princípio:** projeto privado é prática; projeto público é investigação. Audiência (mesmo pequena) força clarity, gera feedback inesperado, e cria histórico verificável.
 
@@ -250,7 +250,7 @@ Spaced re-test transforma o framework de **certificado pontual** em **manutenç�
 
 ---
 
-## 15. Cohort / Peer Protocol — sozinho é mais lento
+## 15. Cohort / Peer Protocol, sozinho é mais lento
 
 **Princípio:** estudar solo é viável; estudar com 1+ peer dobra retenção. Discussão expõe gaps invisíveis em Feynman solo.
 
@@ -267,7 +267,7 @@ Spaced re-test transforma o framework de **certificado pontual** em **manutenç�
 
 **Cadência:**
 - Calls regulares (semana/quinzena), short (30-60 min), com agenda.
-- Não vire "amigos que falam de outras coisas" — mantenha foco técnico.
+- Não vire "amigos que falam de outras coisas", mantenha foco técnico.
 
 **Anti-pattern:** group chat sem estrutura. Sem cadence + agenda, dies.
 
@@ -275,9 +275,9 @@ Spaced re-test transforma o framework de **certificado pontual** em **manutenç�
 
 ---
 
-## 16. Journal — lições não-óbvias por módulo
+## 16. Journal, lições não-óbvias por módulo
 
-**Princípio:** Anki captura fatos. Mas **lições que você descobriu** (não estão no livro) somem se você não anotar. "Achei que MVCC e VACUUM eram ortogonais até descobrir o jeito errado em prod" é insight pessoal — não está em doc oficial.
+**Princípio:** Anki captura fatos. Mas **lições que você descobriu** (não estão no livro) somem se você não anotar. "Achei que MVCC e VACUUM eram ortogonais até descobrir o jeito errado em prod" é insight pessoal, não está em doc oficial.
 
 **Procedimento:**
 - Após cada módulo, escreva 3-5 frases em `journal.md` cobrindo:
@@ -285,13 +285,13 @@ Spaced re-test transforma o framework de **certificado pontual** em **manutenç�
   - Conexão com módulo anterior que não foi óbvia.
   - Onde você travou e por que.
   - Que conceito você previu errado antes de estudar.
-- Releia journal **antes** de entrar em portão de conexões — frequentemente as conexões são as que você documentou.
+- Releia journal **antes** de entrar em portão de conexões, frequentemente as conexões são as que você documentou.
 
 **Não:** journal não é diary. É registro de descoberta técnica.
 
 ---
 
-## 17. Quarterly Review — audit honesto trimestral
+## 17. Quarterly Review, audit honesto trimestral
 
 Sem revisão periódica, mastery-based vira drift. Quarter sem revisão = 3 meses sem calibração de rumo. Crio template fixo, repetível, durando 1-2h por trimestre.
 
@@ -340,7 +340,7 @@ Crie arquivo `quarterly-review-YYYY-Qn.md` no seu repo pessoal de estudos, com s
 - Sleep regular >= 7h: [sim/não]
 - Exercise 3x/semana: [sim/não]
 - Contato técnico com peer nas últimas 4 semanas: [sim/não]
-- Sintoma de queima detectável: [sim/não — descrição]
+- Sintoma de queima detectável: [sim/não, descrição]
 
 Se 2+ vermelhos: pause 1-2 semanas mandatório.
 ```
@@ -362,7 +362,7 @@ Se 2+ vermelhos: pause 1-2 semanas mandatório.
 
 - Quarterly review como ritual sem ação. Apenas listar não basta.
 - Score inflado por orgulho ("4/5 disciplina" quando você sabe ser 2/5).
-- Pular um trimestre porque "foi ruim" — exatamente quando review é necessário.
+- Pular um trimestre porque "foi ruim", exatamente quando review é necessário.
 
 ---
 

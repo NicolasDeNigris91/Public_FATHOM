@@ -16,11 +16,11 @@ export async function generateMetadata({ params }: { params: Promise<{ stage: st
   const stage = getStage(stageId);
   if (!stage) return { title: 'Stage' };
   return {
-    title: `${stage.title} — ${stage.subtitle}`,
+    title: `${stage.title}, ${stage.subtitle}`,
     description: stage.tagline,
     alternates: { canonical: `/stages/${stage.id}` },
     openGraph: {
-      title: `${stage.title} — Estágio ${String(stage.number).padStart(2, '0')}`,
+      title: `${stage.title}, Estágio ${String(stage.number).padStart(2, '0')}`,
       description: stage.tagline,
       url: `/stages/${stage.id}`,
     },

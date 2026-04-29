@@ -1,6 +1,6 @@
 ---
 module: 01-07
-title: JavaScript Profundo — V8, Event Loop, Closures, Prototype, Coerção
+title: JavaScript Profundo, V8, Event Loop, Closures, Prototype, Coerção
 stage: fundamentos
 prereqs: [01-02, 01-06]
 gates:
@@ -10,11 +10,11 @@ gates:
 status: locked
 ---
 
-# 01-07 — JavaScript Profundo
+# 01-07, JavaScript Profundo
 
 ## 1. Problema de Engenharia
 
-JavaScript é a linguagem mais usada no mundo, e a mais **mal-entendida** — porque a maioria dos devs aprende sintaxe sem nunca olhar o que está embaixo. Você usa `Promise`, `async/await`, `setTimeout`, `closure`, `this`, `class`, mas se eu te perguntar:
+JavaScript é a linguagem mais usada no mundo, e a mais **mal-entendida**: porque a maioria dos devs aprende sintaxe sem nunca olhar o que está embaixo. Você usa `Promise`, `async/await`, `setTimeout`, `closure`, `this`, `class`, mas se eu te perguntar:
 
 - "Quem executa primeiro: `setTimeout(fn, 0)` ou `Promise.resolve().then(fn)`?"
 - "O que `this` aponta dentro de um arrow function?"
@@ -30,7 +30,7 @@ Este módulo te dá o JS de verdade. Depois dele, **TypeScript ([01-08](01-08-ty
 
 ## 2. Teoria Hard
 
-### 2.1 V8 — Pipeline de execução
+### 2.1 V8, Pipeline de execução
 
 O V8 (engine do Chrome/Node) executa JS em **5 passos** simplificados:
 
@@ -48,7 +48,7 @@ O V8 (engine do Chrome/Node) executa JS em **5 passos** simplificados:
 
 **Inline caches (ICs):** ao chamar `obj.foo`, V8 cacheia "shape do obj + offset do foo". Próximas chamadas com mesma shape são quase grátis. Diferentes shapes → IC vira "polymorphic" (3-4 shapes) → "megamorphic" (>4) → cai pra slow path.
 
-**GC (Garbage Collector) do V8 — generational:**
+**GC (Garbage Collector) do V8, generational:**
 - **New space (young generation)**: ~16 MB. Aloca objetos novos. Coletado com **Scavenge** (cheap, frequente). Sobrevivente em 2 ciclos é promovido pra old space.
 - **Old space (old generation)**: maior. Coletado com **Mark-Sweep-Compact** (caro, raro).
 - **Concurrent/incremental marking** evita pauses longas.
@@ -116,7 +116,7 @@ function outer() {
   return inner;
 }
 const fn = outer();
-fn(); // 30, mesmo que `outer` já retornou — `inner` capturou o ambiente
+fn(); // 30, mesmo que `outer` já retornou, `inner` capturou o ambiente
 ```
 
 **Closure** = função + ambiente léxico capturado.
@@ -137,7 +137,7 @@ Esse é o motor de:
 for (var i = 0; i < 3; i++) {
   setTimeout(() => console.log(i), 0);
 }
-// imprime: 3, 3, 3 — todas as closures compartilham `i` (function-scoped)
+// imprime: 3, 3, 3, todas as closures compartilham `i` (function-scoped)
 ```
 
 Soluções:
@@ -145,7 +145,7 @@ Soluções:
 2. IIFE: `setTimeout((function(j){ return () => console.log(j); })(i), 0);`
 3. `Array.from`/`forEach` com index.
 
-### 2.5 `this` — o bicho de 7 cabeças
+### 2.5 `this`, o bicho de 7 cabeças
 
 `this` é o **contexto** de uma chamada. Determinado por **como a função é chamada**, não onde definida.
 
@@ -209,7 +209,7 @@ Dog.prototype.bark = function() { return 'woof'; };
 
 **`instanceof`** anda na chain procurando `Class.prototype`.
 
-**`Object.create(proto)`** cria objeto com `[[Prototype]]` específico — útil pra criar inheritance "manual".
+**`Object.create(proto)`** cria objeto com `[[Prototype]]` específico, útil pra criar inheritance "manual".
 
 ### 2.7 Event loop
 
@@ -276,7 +276,7 @@ function fn() {
 
 **Cuidado:** `await` em loop sequencializa.
 ```javascript
-// SEQUENCIAL — lento se calls são independentes:
+// SEQUENCIAL, lento se calls são independentes:
 for (const url of urls) await fetch(url);
 
 // PARALELO:
@@ -319,9 +319,9 @@ JS é managed. Você não dá `free`. Mas leaks acontecem:
 - **Detached DOM**: nó removido do DOM mas referenciado em JS.
 - **Caches sem evicção**: `Map` que cresce indefinidamente.
 
-**Ferramentas:** Chrome DevTools Memory tab — heap snapshot, allocation timeline.
+**Ferramentas:** Chrome DevTools Memory tab, heap snapshot, allocation timeline.
 
-**`WeakMap` / `WeakSet`**: keys são fracas — não impedem GC. Útil pra cache associada a objetos.
+**`WeakMap` / `WeakSet`**: keys são fracas, não impedem GC. Útil pra cache associada a objetos.
 
 **`WeakRef`** (ES2021): referência fraca a objeto, GC pode coletar. Use com `FinalizationRegistry` pra cleanup.
 
@@ -340,7 +340,7 @@ import fn from './foo.mjs';
 
 ESM é **estático** (imports resolvidos no parse, não em runtime). Permite tree-shaking.
 
-**CommonJS (CJS)** — `require/module.exports` — é o modelo legacy do Node, dinâmico.
+**CommonJS (CJS)**: `require/module.exports`, é o modelo legacy do Node, dinâmico.
 
 Em Node, `package.json` `"type": "module"` faz `.js` ser ESM. ESM importa CJS, mas CJS importa ESM **só com `await import()`** (dinâmico).
 
@@ -389,10 +389,10 @@ Você vai construir uma reimplementação de `Promise` que passa o test suite of
 3. Métodos estáticos:
    - `MyPromise.resolve(value)`
    - `MyPromise.reject(reason)`
-   - `MyPromise.all(iterable)` — todos resolvem ou primeiro reject.
-   - `MyPromise.allSettled(iterable)` — espera todos, retorna array de `{status, value/reason}`.
-   - `MyPromise.race(iterable)` — primeiro a settle (resolve ou reject).
-   - `MyPromise.any(iterable)` — primeiro a resolve, ou `AggregateError` se todos reject.
+   - `MyPromise.all(iterable)`, todos resolvem ou primeiro reject.
+   - `MyPromise.allSettled(iterable)`, espera todos, retorna array de `{status, value/reason}`.
+   - `MyPromise.race(iterable)`, primeiro a settle (resolve ou reject).
+   - `MyPromise.any(iterable)`, primeiro a resolve, ou `AggregateError` se todos reject.
 4. Suite de testes oficial: rode `promises-aplus-tests` com adapter (instruções em [github.com/promises-aplus/promises-tests](https://github.com/promises-aplus/promises-tests)). **Todos os testes têm que passar.**
 
 ### Restrições
@@ -404,7 +404,7 @@ Você vai construir uma reimplementação de `Promise` que passa o test suite of
 ### Threshold
 
 - **Promise A+ test suite passa 100%**.
-- Você consegue **explicar o algoritmo** de `[[Resolve]]` (a parte mais sutil — quando callback retorna outra Promise/thenable, precisa unwrap recursivamente sem loop infinito).
+- Você consegue **explicar o algoritmo** de `[[Resolve]]` (a parte mais sutil, quando callback retorna outra Promise/thenable, precisa unwrap recursivamente sem loop infinito).
 - Documenta no README:
   - Diagrama da state machine.
   - Como evita memory leak quando muitas `.then` em chain.
@@ -421,12 +421,12 @@ Você vai construir uma reimplementação de `Promise` que passa o test suite of
 
 ## 5. Extensões e Conexões
 
-- **Conecta com [01-02 — OS](01-02-operating-systems.md):** event loop é construído sobre `epoll`/`kqueue`/`IOCP` via libuv. Microtasks rodam em user space; macrotasks são frequentemente acionadas por syscalls completas.
-- **Conecta com [01-04 — Data Structures](01-04-data-structures.md):** queues de tasks são FIFO. V8 usa hash maps internos, hidden classes são layout structs.
-- **Conecta com [01-06 — Paradigmas](01-06-programming-paradigms.md):** closures = núcleo de FP em JS. Promises são monads. Classes ES6 são açúcar sobre prototypes.
-- **Conecta com [01-08 — TypeScript](01-08-typescript-type-system.md):** TS adiciona tipos sobre tudo aqui. Generics, conditional types, type guards.
-- **Conecta com [02-04 — React Deep](../02-plataforma/02-04-react-deep.md):** Hooks dependem de closures. Reconciliação roda em microtasks. Suspense joga com Promise/throw conventions.
-- **Conecta com [02-07 — Node.js Internals](../02-plataforma/02-07-nodejs-internals.md):** event loop fases, libuv, streams, buffers — extensão deste módulo.
+- **Conecta com [01-02, OS](01-02-operating-systems.md):** event loop é construído sobre `epoll`/`kqueue`/`IOCP` via libuv. Microtasks rodam em user space; macrotasks são frequentemente acionadas por syscalls completas.
+- **Conecta com [01-04, Data Structures](01-04-data-structures.md):** queues de tasks são FIFO. V8 usa hash maps internos, hidden classes são layout structs.
+- **Conecta com [01-06, Paradigmas](01-06-programming-paradigms.md):** closures = núcleo de FP em JS. Promises são monads. Classes ES6 são açúcar sobre prototypes.
+- **Conecta com [01-08, TypeScript](01-08-typescript-type-system.md):** TS adiciona tipos sobre tudo aqui. Generics, conditional types, type guards.
+- **Conecta com [02-04, React Deep](../02-plataforma/02-04-react-deep.md):** Hooks dependem de closures. Reconciliação roda em microtasks. Suspense joga com Promise/throw conventions.
+- **Conecta com [02-07, Node.js Internals](../02-plataforma/02-07-nodejs-internals.md):** event loop fases, libuv, streams, buffers, extensão deste módulo.
 
 ### Ferramentas satélites
 
@@ -441,34 +441,34 @@ Você vai construir uma reimplementação de `Promise` que passa o test suite of
 ## 6. Referências de Elite
 
 ### Livros canônicos
-- **You Don't Know JS Yet** (Kyle Simpson, 2nd ed) — free em [github.com/getify/You-Dont-Know-JS](https://github.com/getify/You-Dont-Know-JS). Vols 1, 2 (Scope & Closures), 4 (Sync & Async). **Obrigatório.**
-- **JavaScript: The Definitive Guide** (Flanagan, 7th ed) — referência completa.
-- **Effective TypeScript** (Vanderkam) — pra 02-08 mas relevante.
+- **You Don't Know JS Yet** (Kyle Simpson, 2nd ed), free em [github.com/getify/You-Dont-Know-JS](https://github.com/getify/You-Dont-Know-JS). Vols 1, 2 (Scope & Closures), 4 (Sync & Async). **Obrigatório.**
+- **JavaScript: The Definitive Guide** (Flanagan, 7th ed), referência completa.
+- **Effective TypeScript** (Vanderkam), pra 02-08 mas relevante.
 
 ### Specs
-- **[ECMA-262](https://tc39.es/ecma262/)** — spec JS. Seções 6 (types), 8 (executable code), 25 (control abstraction).
-- **[TC39 Proposals](https://github.com/tc39/proposals)** — futuro JS.
+- **[ECMA-262](https://tc39.es/ecma262/)**: spec JS. Seções 6 (types), 8 (executable code), 25 (control abstraction).
+- **[TC39 Proposals](https://github.com/tc39/proposals)**: futuro JS.
 
 ### V8 / engine internals
-- **[V8 blog](https://v8.dev/blog)** — esp. posts de Mathias Bynens, Benedikt Meurer.
-- **[Hidden Classes](https://v8.dev/blog/hidden-classes)** — official V8 explainer.
-- **[Inline Caches](https://mathiasbynens.be/notes/shapes-ics)** — Mathias Bynens.
+- **[V8 blog](https://v8.dev/blog)**: esp. posts de Mathias Bynens, Benedikt Meurer.
+- **[Hidden Classes](https://v8.dev/blog/hidden-classes)**: official V8 explainer.
+- **[Inline Caches](https://mathiasbynens.be/notes/shapes-ics)**: Mathias Bynens.
 
 ### Talks
-- **["What the heck is the event loop anyway?"](https://www.youtube.com/watch?v=8aGhZQkoFbQ)** — Philip Roberts, JSConf EU 2014. **Obrigatória.**
-- **["In The Loop"](https://www.youtube.com/watch?v=cCOL7MC4Pl0)** — Jake Archibald, JSConf.Asia 2018. Mais profunda.
-- **["JavaScript Engines: The Good Parts"](https://www.youtube.com/watch?v=5nmpokoRaZI)** — Mathias Bynens & Marja Hölttä.
+- **["What the heck is the event loop anyway?"](https://www.youtube.com/watch?v=8aGhZQkoFbQ)**: Philip Roberts, JSConf EU 2014. **Obrigatória.**
+- **["In The Loop"](https://www.youtube.com/watch?v=cCOL7MC4Pl0)**: Jake Archibald, JSConf.Asia 2018. Mais profunda.
+- **["JavaScript Engines: The Good Parts"](https://www.youtube.com/watch?v=5nmpokoRaZI)**: Mathias Bynens & Marja Hölttä.
 
 ### Repos
-- **[V8](https://github.com/v8/v8)** — `src/builtins/`, `src/objects/`.
-- **[Node](https://github.com/nodejs/node)** — `lib/internal/`.
-- **[promises-aplus-tests](https://github.com/promises-aplus/promises-tests)** — suite pra você passar.
-- **[type-challenges](https://github.com/type-challenges/type-challenges)** — exercitar TS.
+- **[V8](https://github.com/v8/v8)**: `src/builtins/`, `src/objects/`.
+- **[Node](https://github.com/nodejs/node)**: `lib/internal/`.
+- **[promises-aplus-tests](https://github.com/promises-aplus/promises-tests)**: suite pra você passar.
+- **[type-challenges](https://github.com/type-challenges/type-challenges)**: exercitar TS.
 
 ### Comunidade
 - **[JavaScript Weekly](https://javascriptweekly.com/)**.
 - **r/javascript** filtro 'top week'.
-- **[Frontend Masters Blog](https://frontendmasters.com/blog/)** — alguns posts de elite.
+- **[Frontend Masters Blog](https://frontendmasters.com/blog/)**: alguns posts de elite.
 
 ---
 

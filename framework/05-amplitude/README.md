@@ -1,4 +1,4 @@
-# Estágio 5 — Amplitude (Specialization, Influence, Public Output)
+# Estágio 5: Amplitude (Specialization, Influence, Public Output)
 
 ## Por que esse estágio existe
 
@@ -8,7 +8,7 @@ A diferença é qualitativa: aqui você **multiplica via influência** (não só
 
 Este estágio é o **gap closer**. Não é "mais um capstone"; é a integração + posicionamento de tudo o que veio antes, com módulos que cobrem dimensões fora do que código sozinho ensina.
 
-**Promessa de saída:** você consegue articular evidência multidimensional — código, escrita pública, mentoria, comunidade, papers, e um eixo de profundidade declarado.
+**Promessa de saída:** você consegue articular evidência multidimensional, código, escrita pública, mentoria, comunidade, papers, e um eixo de profundidade declarado.
 
 ---
 
@@ -28,7 +28,7 @@ Este estágio é o **gap closer**. Não é "mais um capstone"; é a integração
 | [05-10](05-10-game-development-pipeline.md) | Game Development Pipeline (opcional) | 03-14 |
 | [CAPSTONE-amplitude](CAPSTONE-amplitude.md) | Specialization Track + Portfolio + Promo Case | 05-01-05-06 |
 
-**05-07-05-10 são opcionais — specialty tracks**. Faça apenas se eixo de carreira aponta:
+**05-07-05-10 são opcionais, specialty tracks**. Faça apenas se eixo de carreira aponta:
 - 05-07 Embedded: IoT, robotics, automotive, hardware-software co-design.
 - 05-08 Hardware Design: profundidade em devices, hardware startup, ASIC/FPGA.
 - 05-09 Bioinformatics / Scientific Computing: biotech, pharma, healthcare AI, climate, research.
@@ -39,13 +39,13 @@ Pra 95% das trajetórias SaaS / cloud / web, 05-07-05-10 são **skip seguro**. I
 Os outros 6 (05-01-05-06) são **núcleo**. Pode atacar em paralelo:
 - 05-01 + 05-04 são heavy lift técnico. Atacar weekends durante meses.
 - 05-02 é série de capstones; cada um 6-10 semanas.
-- 05-03 + 05-05 + 05-06 são mais "running disciplines" — começam logo, mantêm cadência.
+- 05-03 + 05-05 + 05-06 são mais "running disciplines", começam logo, mantêm cadência.
 
 ---
 
 ## Capstone
 
-[CAPSTONE-amplitude.md](CAPSTONE-amplitude.md) — **Especialização + Portfolio + Promo Case**.
+[CAPSTONE-amplitude.md](CAPSTONE-amplitude.md), **Especialização + Portfolio + Promo Case**.
 
 Pick uma das 6 tracks (Distributed Systems, Platform, Frontend, Data/ML, Security, Founding) e produza output integrando tudo do framework + 05-01-05-07. Output: track-specific capstone showcase, portfolio site, promo case, 1 talk, OSS lib com tração, paper habit consolidada, 3 mentees acompanhados.
 
@@ -57,7 +57,7 @@ Esse é o **fim do framework**. Não há estágio 6.
 
 - **Specialization é escolha ativa**. Default = generalist; declare specialist se deliberada.
 - **Public output não é vanity**. Write-to-think + audience compounds.
-- **Mentoria não é favor — é prática**. Time budget allocated, disciplined.
+- **Mentoria não é favor, é prática**. Time budget allocated, disciplined.
 - **Paper reading sustainable**. 1/semana, 12 semanas mínimo pra forma habit.
 - **Promo case é currículo do trabalho técnico**. Document evidence à medida que produz.
 - **Multi-domain capstones forçam transferência**. Stay out of comfort zone Logística.
@@ -74,7 +74,7 @@ Igualmente: nem todo mundo precisa fazer este estágio. IC consolidado no estág
 
 ---
 
-## Tempo? Não — outra vez
+## Tempo? Não, outra vez
 
 Como demais estágios: **leva o que precisar**. Mas atenção: 6 módulos núcleo + capstone é 12-24 meses de trabalho real, depois de estágio 4 completo. Esse é o estágio mais longo. Comprometa-se com cadência, não calendário.
 

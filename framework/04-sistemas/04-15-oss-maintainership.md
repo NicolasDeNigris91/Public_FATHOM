@@ -1,6 +1,6 @@
 ---
 module: 04-15
-title: Open Source Maintainership — Governance, RFCs, Semver, Releases, Community
+title: Open Source Maintainership, Governance, RFCs, Semver, Releases, Community
 stage: sistemas
 prereqs: [04-12]
 gates:
@@ -10,11 +10,11 @@ gates:
 status: locked
 ---
 
-# 04-15 — Open Source Maintainership
+# 04-15, Open Source Maintainership
 
 ## 1. Problema de Engenharia
 
-Contribuir pra OSS é fácil — abre PR, espera merge. **Manter OSS** é outro nível: você responde issues, modera community, decide o que entra e o que não, escreve roadmap, evita breaking changes mal pensadas, gerencia security disclosures, lida com burnout, e às vezes monetiza o projeto sem trair valores.
+Contribuir pra OSS é fácil, abre PR, espera merge. **Manter OSS** é outro nível: você responde issues, modera community, decide o que entra e o que não, escreve roadmap, evita breaking changes mal pensadas, gerencia security disclosures, lida com burnout, e às vezes monetiza o projeto sem trair valores.
 
 Senior técnico que aspira a Staff/Principal precisa **entender maintainership** mesmo se nunca for maintainer full-time, porque:
 - Empresas avaliam impacto além do empregador. Maintainer de projeto popular ≈ peer review público, multiplicador de carreira.
@@ -118,7 +118,7 @@ Process:
 5. Release fix + CVE + advisory.
 6. Public disclosure.
 
-GitHub has Private Vulnerability Reporting + Security Advisories — use.
+GitHub has Private Vulnerability Reporting + Security Advisories, use.
 
 ### 2.8 Code of Conduct e moderation
 
@@ -337,14 +337,14 @@ Lançar **biblioteca OSS extraída da Logística** + montar todo o aparato de ma
 
 ## 6. Referências
 
-- **"Producing Open Source Software"** — Karl Fogel. Gratuito, bíblia.
-- **"Working in Public: The Making and Maintenance of Open Source"** — Nadia Eghbal.
-- **"Roads and Bridges"** — Nadia Eghbal (foundation report).
+- **"Producing Open Source Software"**: Karl Fogel. Gratuito, bíblia.
+- **"Working in Public: The Making and Maintenance of Open Source"**: Nadia Eghbal.
+- **"Roads and Bridges"**: Nadia Eghbal (foundation report).
 - **GitHub OSS docs** ([opensource.guide](https://opensource.guide/)).
 - **Contributor Covenant**.
 - **Keep a Changelog**.
 - **Semver spec** ([semver.org](https://semver.org/)).
 - **Diataxis** ([diataxis.fr](https://diataxis.fr/)).
-- **"How to Run a Successful Free Software Project"** — Karl Fogel talks.
-- **CHAOSS metrics** — community health analytics.
-- **Sustain podcast** — sustainability in OSS.
+- **"How to Run a Successful Free Software Project"**: Karl Fogel talks.
+- **CHAOSS metrics**: community health analytics.
+- **Sustain podcast**: sustainability in OSS.

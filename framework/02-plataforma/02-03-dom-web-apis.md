@@ -1,6 +1,6 @@
 ---
 module: 02-03
-title: DOM e Web APIs — Eventos, Storage, Workers, Observers
+title: DOM e Web APIs, Eventos, Storage, Workers, Observers
 stage: plataforma
 prereqs: [02-01]
 gates:
@@ -10,13 +10,13 @@ gates:
 status: locked
 ---
 
-# 02-03 — DOM e Web APIs
+# 02-03, DOM e Web APIs
 
 ## 1. Problema de Engenharia
 
-A "web platform" virou enorme. O browser hoje oferece umas 500 APIs — fetch, eventos, storage, workers, observers, streaming, crypto, audio, gamepad, push notifications, web bluetooth, file system access, etc. Entender DOM e Web APIs significa parar de tratar o browser como mistério e começar a usar de verdade o que ele já te dá de graça.
+A "web platform" virou enorme. O browser hoje oferece umas 500 APIs, fetch, eventos, storage, workers, observers, streaming, crypto, audio, gamepad, push notifications, web bluetooth, file system access, etc. Entender DOM e Web APIs significa parar de tratar o browser como mistério e começar a usar de verdade o que ele já te dá de graça.
 
-Frameworks (React, Vue, Svelte) abstraem boa parte do DOM, mas vazam constantemente. Quando o ref não funciona, quando o effect roda em ordem errada, quando um listener não dispara, quando IntersectionObserver dispara duplicado — você precisa do modelo abaixo do framework. E vários problemas têm solução muito mais limpa em Web API nativa do que no nível do framework.
+Frameworks (React, Vue, Svelte) abstraem boa parte do DOM, mas vazam constantemente. Quando o ref não funciona, quando o effect roda em ordem errada, quando um listener não dispara, quando IntersectionObserver dispara duplicado, você precisa do modelo abaixo do framework. E vários problemas têm solução muito mais limpa em Web API nativa do que no nível do framework.
 
 ---
 
@@ -27,15 +27,15 @@ Frameworks (React, Vue, Svelte) abstraem boa parte do DOM, mas vazam constanteme
 O DOM (Document Object Model) é a representação em árvore do documento, exposta como objetos JS. Cada elemento HTML vira um Node do tipo Element, com propriedades, métodos, eventos.
 
 Operações cruciais:
-- `document.querySelector(sel)`, `querySelectorAll(sel)` — selectors CSS retornando elemento(s).
-- `element.closest(sel)` — sobe ancestrais até match.
-- `element.matches(sel)` — testa selector.
-- `element.children`, `firstElementChild`, `nextElementSibling` — navegação.
-- `element.append(child)` (modern), `appendChild(child)` (legacy, pode adicionar 1 só), `before/after/replaceWith/remove` — manipulação.
-- `element.classList.add/remove/toggle/contains` — classes.
-- `element.dataset` — `data-*` attributes como objeto. `<div data-user-id="42">` → `el.dataset.userId === "42"`.
+- `document.querySelector(sel)`, `querySelectorAll(sel)`, selectors CSS retornando elemento(s).
+- `element.closest(sel)`, sobe ancestrais até match.
+- `element.matches(sel)`, testa selector.
+- `element.children`, `firstElementChild`, `nextElementSibling`, navegação.
+- `element.append(child)` (modern), `appendChild(child)` (legacy, pode adicionar 1 só), `before/after/replaceWith/remove`, manipulação.
+- `element.classList.add/remove/toggle/contains`, classes.
+- `element.dataset`, `data-*` attributes como objeto. `<div data-user-id="42">` → `el.dataset.userId === "42"`.
 
-DOM e CSSOM se cruzam em `element.getBoundingClientRect()` (posição/tamanho calculado), `getComputedStyle(el)` (todos os estilos resolvidos). Ambos forçam **layout sync**: se você ler bbox depois de escrever style, browser tem que recalcular layout no meio do JS — penalidade real. Padrão é separar leitura (read) de escrita (write) em frames diferentes.
+DOM e CSSOM se cruzam em `element.getBoundingClientRect()` (posição/tamanho calculado), `getComputedStyle(el)` (todos os estilos resolvidos). Ambos forçam **layout sync**: se você ler bbox depois de escrever style, browser tem que recalcular layout no meio do JS, penalidade real. Padrão é separar leitura (read) de escrita (write) em frames diferentes.
 
 ### 2.2 Eventos
 
@@ -45,14 +45,14 @@ Modelo de eventos do browser tem três fases:
 3. **Bubble**: do target subindo até root.
 
 `addEventListener(type, handler, options)`:
-- `options.capture` (default false) — registra na capture phase.
-- `options.once` — auto-remove após primeiro fire.
-- `options.passive` — promete que handler não vai chamar `preventDefault`. Crítico em scroll/touch — habilita scroll suave em mobile.
-- `options.signal: AbortSignal` — cancelamento moderno (vinculável a AbortController).
+- `options.capture` (default false), registra na capture phase.
+- `options.once`, auto-remove após primeiro fire.
+- `options.passive`, promete que handler não vai chamar `preventDefault`. Crítico em scroll/touch, habilita scroll suave em mobile.
+- `options.signal: AbortSignal`, cancelamento moderno (vinculável a AbortController).
 
-`event.preventDefault()` — cancela ação default (submit do form, link navegando, scroll).
-`event.stopPropagation()` — para bubble. Use raríssimo, geralmente é cheiro de mal arquitetar.
-`event.stopImmediatePropagation()` — para outros listeners no mesmo target também.
+`event.preventDefault()`, cancela ação default (submit do form, link navegando, scroll).
+`event.stopPropagation()`, para bubble. Use raríssimo, geralmente é cheiro de mal arquitetar.
+`event.stopImmediatePropagation()`, para outros listeners no mesmo target também.
 
 **Event delegation** é padrão valioso: em vez de N listeners (1 por linha de tabela), 1 listener no parent. Bubble traz o evento, você usa `event.target.closest('.row')` pra identificar:
 
@@ -65,18 +65,18 @@ table.addEventListener('click', (e) => {
 
 Tipos importantes pra dominar: `click`, `pointerdown/move/up`, `keydown/keyup`, `input`, `change`, `submit`, `focus/blur` (não bubble; tem versões `focusin/focusout` que sim), `scroll`, `resize`, `wheel`, `touchstart/move/end`, `dragstart/over/drop`, `visibilitychange`, `beforeunload`, `online/offline`.
 
-`pointer*` events unificam mouse + touch + caneta — prefira sobre `mouse*`/`touch*` em código novo.
+`pointer*` events unificam mouse + touch + caneta, prefira sobre `mouse*`/`touch*` em código novo.
 
 ### 2.3 Custom events e EventTarget
 
-Você pode emitir e ouvir eventos próprios — útil pra desacoplar componentes vanilla.
+Você pode emitir e ouvir eventos próprios, útil pra desacoplar componentes vanilla.
 
 ```js
 const ev = new CustomEvent('order:created', { detail: { id: 42 }, bubbles: true });
 element.dispatchEvent(ev);
 ```
 
-`EventTarget` é a base — qualquer objeto pode estender e virar um event emitter no estilo browser. Útil pra design de SDKs JS.
+`EventTarget` é a base, qualquer objeto pode estender e virar um event emitter no estilo browser. Útil pra design de SDKs JS.
 
 ### 2.4 Fetch e ergonomia moderna
 
@@ -95,10 +95,10 @@ const json = await res.json();
 ```
 
 Detalhes importantes:
-- `fetch` **não** rejeita em status 4xx/5xx — só em erro de rede. Cheque `res.ok` ou `res.status`.
-- `credentials: 'omit' | 'same-origin' (default) | 'include'` — controla envio de cookies.
-- `mode: 'cors' | 'no-cors' | 'same-origin'` — controle de CORS.
-- `Response.body` é um ReadableStream — você pode consumir incremental (importante pra streaming de LLMs).
+- `fetch` **não** rejeita em status 4xx/5xx, só em erro de rede. Cheque `res.ok` ou `res.status`.
+- `credentials: 'omit' | 'same-origin' (default) | 'include'`, controla envio de cookies.
+- `mode: 'cors' | 'no-cors' | 'same-origin'`, controle de CORS.
+- `Response.body` é um ReadableStream, você pode consumir incremental (importante pra streaming de LLMs).
 
 **AbortController**:
 ```js
@@ -111,17 +111,17 @@ c.abort(); // cancela em qualquer momento
 
 ### 2.5 Storage APIs
 
-- **Cookies**: ~4 KB, vão em cada request. Use pra session token (`HttpOnly; Secure; SameSite=Lax`) — sem JS access. Detalhes em [01-03](../01-fundamentos/01-03-networking.md) e [02-13](02-13-auth.md).
+- **Cookies**: ~4 KB, vão em cada request. Use pra session token (`HttpOnly; Secure; SameSite=Lax`), sem JS access. Detalhes em [01-03](../01-fundamentos/01-03-networking.md) e [02-13](02-13-auth.md).
 - **localStorage**: ~5-10 MB, sync, pares string-string, persiste indefinidamente. Não use pra dados sensíveis (XSS rouba). Não use pra dados grandes (sync = bloqueia main thread).
 - **sessionStorage**: igual a localStorage mas dura só a session da aba.
-- **IndexedDB**: KV store assíncrono, suporta transações, índices, ~50 MB+ (varia). Pra dados estruturados grandes em offline-first apps. API verbose — use wrapper como [`idb`](https://github.com/jakearchibald/idb).
+- **IndexedDB**: KV store assíncrono, suporta transações, índices, ~50 MB+ (varia). Pra dados estruturados grandes em offline-first apps. API verbose, use wrapper como [`idb`](https://github.com/jakearchibald/idb).
 - **Cache API** (relacionada a Service Worker): cache de requests/responses HTTP. Foundation de PWAs offline.
 
 Limitações de quota: browsers podem evictar storage de origens não-utilizadas. `navigator.storage.persist()` pede persistência permanente (browser pode aceitar ou não baseado em uso).
 
 ### 2.6 Web Workers
 
-JavaScript é single-threaded por origin. Pra rodar código pesado sem travar UI, você precisa de **Web Worker** — outra thread, sem acesso a DOM, comunicação por message passing.
+JavaScript é single-threaded por origin. Pra rodar código pesado sem travar UI, você precisa de **Web Worker**: outra thread, sem acesso a DOM, comunicação por message passing.
 
 ```js
 // main.js
@@ -147,7 +147,7 @@ w.postMessage(arrayBuffer, [arrayBuffer]); // transfer ownership; original fica 
 
 **Worklets** (Audio Worklet, Paint Worklet, Animation Worklet) são threads especializadas pra audio em tempo real, custom paint em CSS, animações declarativas.
 
-### 2.7 Observers — substitutos modernos de hacks de scroll/resize
+### 2.7 Observers, substitutos modernos de hacks de scroll/resize
 
 Quatro observers pra dominar. Todos têm pattern semelhante: criar com callback, observar elementos, callback é chamado em batch.
 
@@ -166,7 +166,7 @@ Use cases: lazy load imagens (já é nativo via `loading="lazy"`, mas IO dá mai
 
 **ResizeObserver**: dispara quando tamanho do elemento muda (não só viewport). Substitui listeners de window resize pra elementos individuais. Usar pra responsivos baseados em container ou pra reagir a mudanças via flexbox/grid.
 
-**MutationObserver**: dispara quando DOM muda (filhos adicionados, attrs alterados). Caro — use só quando precisa observar mudanças de terceiros. Em código próprio, geralmente você sabe quando muda.
+**MutationObserver**: dispara quando DOM muda (filhos adicionados, attrs alterados). Caro, use só quando precisa observar mudanças de terceiros. Em código próprio, geralmente você sabe quando muda.
 
 **PerformanceObserver**: notifica eventos de performance (LCP, FID, CLS, long tasks, fetch entries). Pra observabilidade frontend. Veremos mais em [03-09](../03-producao/03-09-frontend-performance.md).
 
@@ -196,9 +196,9 @@ u.toString();
 ```
 
 History API:
-- `history.pushState(state, '', '/new-url')` — muda URL sem reload.
-- `history.replaceState(...)` — substitui entry atual.
-- `popstate` event — dispara em back/forward.
+- `history.pushState(state, '', '/new-url')`, muda URL sem reload.
+- `history.replaceState(...)`, substitui entry atual.
+- `popstate` event, dispara em back/forward.
 
 Esse é o motor de SPAs vanilla. Frameworks usam por baixo.
 
@@ -208,9 +208,9 @@ Esse é o motor de SPAs vanilla. Frameworks usam por baixo.
 
 - **Clipboard API**: `navigator.clipboard.readText()` / `writeText()`. Async, com permissions.
 - **File API**: `<input type="file">` + `File`/`Blob` + `FileReader`. Drag-and-drop integra.
-- **Crypto API**: `crypto.subtle` — hash, encrypt, sign. Use pra ETags client-side, key derivation.
+- **Crypto API**: `crypto.subtle`, hash, encrypt, sign. Use pra ETags client-side, key derivation.
 - **Web Push**: notificações push em PWA via service worker.
-- **Geolocation**: `navigator.geolocation.getCurrentPosition` — só com user gesture + permissions.
+- **Geolocation**: `navigator.geolocation.getCurrentPosition`, só com user gesture + permissions.
 - **WebRTC**: comunicação peer-to-peer, video/audio + DataChannel. Detalhes em [02-14](02-14-realtime.md).
 - **WebSocket / EventSource (SSE)**: real-time. Também em 02-14.
 - **WebAuthn**: autenticação por chave assimétrica (passkeys). Vale leitura conforme passkeys virarem padrão.
@@ -231,7 +231,7 @@ Lendo `offsetWidth` força browser a re-calcular layout porque sabe que mudou. L
 
 DevTools Performance tab mostra forced reflow como warning. Pratique abrir Performance tab, gravar 5s de uso da app, e ler o flame graph.
 
-`requestAnimationFrame(cb)` agenda cb pra próximo frame, ajuda batching. `requestIdleCallback(cb)` roda em idle entre frames — bom pra trabalho não-urgente (analytics, prefetch).
+`requestAnimationFrame(cb)` agenda cb pra próximo frame, ajuda batching. `requestIdleCallback(cb)` roda em idle entre frames, bom pra trabalho não-urgente (analytics, prefetch).
 
 ---
 
@@ -312,18 +312,18 @@ A app permite registrar entregas localmente quando offline e sincronizar com ser
 - Liga com **01-07**: Web APIs disparam eventos no event loop. `requestAnimationFrame` é macrotask especial. Microtasks (Promise) precedem rAF.
 - Liga com **02-04** (React): React abstrai DOM mas eventos sintéticos têm comportamento próprio (event pooling histórico, delegação no root). Refs vazam pra DOM real. Effects rodam após paint.
 - Liga com **02-05** (Next): Service Worker em RSC tem nuances de hydration. PWA com Next exige plugin (`next-pwa`).
-- Liga com **02-07** (Node): Node moderno tem `fetch`, `URL`, `WebStreams`, `AbortController` — mesma API. Reuso de conhecimento.
+- Liga com **02-07** (Node): Node moderno tem `fetch`, `URL`, `WebStreams`, `AbortController`, mesma API. Reuso de conhecimento.
 - Liga com **03-09** (perf): observers + DevTools Performance + Web Vitals dependem deste módulo.
 
 ---
 
 ## 6. Referências
 
-- **MDN Web APIs** — fonte primária pra qualquer API. Aprenda a buscar lá direto.
-- **High Performance Browser Networking** (Ilya Grigorik) — referência ainda válida pra como browser, rede e APIs interagem.
-- **Resilient Web Design** (Jeremy Keith) — princípios.
-- **PWA Builder** ([pwabuilder.com](https://www.pwabuilder.com/)) — checks + scaffolding.
-- **Jake Archibald's blog** ([jakearchibald.com](https://jakearchibald.com/)) — Service Worker, streams, offline. Leitura obrigatória.
-- **web.dev** ([web.dev](https://web.dev/)) — Google's playbook moderno.
-- **whatwg specs** — quando precisar do detalhe.
-- **Surma's blog** ([surma.dev](https://surma.dev/)) — Web Workers, performance, low-level web.
+- **MDN Web APIs**: fonte primária pra qualquer API. Aprenda a buscar lá direto.
+- **High Performance Browser Networking** (Ilya Grigorik), referência ainda válida pra como browser, rede e APIs interagem.
+- **Resilient Web Design** (Jeremy Keith), princípios.
+- **PWA Builder** ([pwabuilder.com](https://www.pwabuilder.com/)), checks + scaffolding.
+- **Jake Archibald's blog** ([jakearchibald.com](https://jakearchibald.com/)), Service Worker, streams, offline. Leitura obrigatória.
+- **web.dev** ([web.dev](https://web.dev/)), Google's playbook moderno.
+- **whatwg specs**: quando precisar do detalhe.
+- **Surma's blog** ([surma.dev](https://surma.dev/)), Web Workers, performance, low-level web.

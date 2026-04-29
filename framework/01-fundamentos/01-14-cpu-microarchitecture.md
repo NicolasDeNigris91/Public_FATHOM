@@ -1,6 +1,6 @@
 ---
 module: 01-14
-title: CPU Microarchitecture — Pipelining, Cache Hierarchies, Branch Prediction, NUMA
+title: CPU Microarchitecture, Pipelining, Cache Hierarchies, Branch Prediction, NUMA
 stage: fundamentos
 prereqs: [01-01, 01-02]
 gates:
@@ -10,11 +10,11 @@ gates:
 status: locked
 ---
 
-# 01-14 — CPU Microarchitecture
+# 01-14, CPU Microarchitecture
 
 ## 1. Problema de Engenharia
 
-01-01 cobriu modelo de computação de alto nível. Mas decisões reais de performance — por que esse loop é 10x mais lento, por que o profiler aponta cache misses, por que threads parecem rápidas em um core e lentas em outro — exigem entender CPU **por dentro**. Pipelining, branch prediction, out-of-order execution, store buffers, MESI, NUMA não são tópicos acadêmicos: governam latência de toda linha de código que você escreve.
+01-01 cobriu modelo de computação de alto nível. Mas decisões reais de performance, por que esse loop é 10x mais lento, por que o profiler aponta cache misses, por que threads parecem rápidas em um core e lentas em outro, exigem entender CPU **por dentro**. Pipelining, branch prediction, out-of-order execution, store buffers, MESI, NUMA não são tópicos acadêmicos: governam latência de toda linha de código que você escreve.
 
 Engenheiro Pleno geralmente trata CPU como caixa-preta. Senior+ que trabalha com performance, sistemas, baixo nível, ou ML inference precisa entender. Sem isso, profiler é caixa de caracteres incompreensível, e otimizações ficam superstição. Com isso, você lê flamegraph e sabe **por quê** sua hot loop não vetoriza.
 
@@ -124,7 +124,7 @@ Implicação prática: código C++ que "funciona" em x86 frequentemente quebra e
 
 Stores não vão direto a cache. Store buffer (10-50 entries) coalesce e escreve em batch.
 
-Implicação: thread A store, thread B load same address — A pode estar no store buffer, B vê stale do cache. (Origem do exemplo §2.2 01-11.)
+Implicação: thread A store, thread B load same address, A pode estar no store buffer, B vê stale do cache. (Origem do exemplo §2.2 01-11.)
 
 ### 2.12 NUMA (Non-Uniform Memory Access)
 
@@ -295,15 +295,15 @@ Linguagem: Rust ou C (acesso direto a intrinsics).
 
 ## 6. Referências
 
-- **"Computer Architecture: A Quantitative Approach"** — Hennessy & Patterson. Bíblia.
-- **"Computer Systems: A Programmer's Perspective"** — Bryant & O'Hallaron (CS:APP). Capítulos 5-6.
-- **"What Every Programmer Should Know About Memory"** — Ulrich Drepper.
+- **"Computer Architecture: A Quantitative Approach"**: Hennessy & Patterson. Bíblia.
+- **"Computer Systems: A Programmer's Perspective"**: Bryant & O'Hallaron (CS:APP). Capítulos 5-6.
+- **"What Every Programmer Should Know About Memory"**: Ulrich Drepper.
 - **Intel Optimization Reference Manual**, **Software Developer's Manual**.
 - **ARM Architecture Reference Manual**.
 - **Brendan Gregg's "Systems Performance"** (2nd ed).
 - **Brendan Gregg's blog** ([brendangregg.com](https://www.brendangregg.com/)).
 - **Agner Fog's optimization manuals** ([agner.org/optimize](https://www.agner.org/optimize/)).
-- **"The Microarchitecture of Intel, AMD, and VIA CPUs"** — Agner Fog.
-- **"Mechanical Sympathy" by Martin Thompson** — talks e blog.
-- **LMAX Disruptor** — caso real de cache-aware design.
+- **"The Microarchitecture of Intel, AMD, and VIA CPUs"**: Agner Fog.
+- **"Mechanical Sympathy" by Martin Thompson**: talks e blog.
+- **LMAX Disruptor**: caso real de cache-aware design.
 - **Linux `perf` docs**, **eBPF docs**.

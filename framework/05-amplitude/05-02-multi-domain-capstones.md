@@ -1,6 +1,6 @@
 ---
 module: 05-02
-title: Multi-Domain Capstones — Fintech, Real-Time, ML Pipeline, Marketplace
+title: Multi-Domain Capstones, Fintech, Real-Time, ML Pipeline, Marketplace
 stage: amplitude
 prereqs: [senior-complete]
 gates:
@@ -10,7 +10,7 @@ gates:
 status: locked
 ---
 
-# 05-02 — Multi-Domain Capstones
+# 05-02, Multi-Domain Capstones
 
 ## 1. Problema de Engenharia
 
@@ -33,12 +33,12 @@ Os capstones são intencionalmente diferentes uns dos outros pra forçar movimen
 
 Trade-off: 3 mais shallow > 1 mais deep. No nível Staff, você precisa mais de **breadth + transferência** do que mais um deep dive.
 
-### 2.2 Capstone 1: Fintech — Personal Finance Tracker com Open Banking
+### 2.2 Capstone 1: Fintech, Personal Finance Tracker com Open Banking
 
 Shape: high correctness, regulated, multi-currency, double-entry, audit trail.
 
 Escopo:
-- Conexão a banks via aggregator (Plaid/Belvo/Pluggy sandbox) — pull transactions.
+- Conexão a banks via aggregator (Plaid/Belvo/Pluggy sandbox), pull transactions.
 - Categorização automática + regras user-defined.
 - **Ledger** (revisita 02-18) com double-entry.
 - Multi-currency com FX rates daily.
@@ -63,7 +63,7 @@ ADRs:
 
 Out of scope: real bank credentials (use sandbox), full regulatory compliance (LGPD pesa, simulate).
 
-### 2.3 Capstone 2: Real-Time — Collab Whiteboard (Excalidraw-clone)
+### 2.3 Capstone 2: Real-Time, Collab Whiteboard (Excalidraw-clone)
 
 Shape: low-latency, OT/CRDT, peer awareness, multimedia.
 
@@ -92,7 +92,7 @@ ADRs:
 
 Out of scope: production-grade rendering perf, SSO enterprise.
 
-### 2.4 Capstone 3: ML Pipeline — Document Q&A com RAG
+### 2.4 Capstone 3: ML Pipeline, Document Q&A com RAG
 
 Shape: data pipeline, feature engineering, model serving, evaluation, feedback loop.
 
@@ -129,7 +129,7 @@ Se um dos 3 não atrai:
 - **Marketplace social** (Etsy/Airbnb-like): mas cuidado de não duplicar Logística.
 - **Real-time multiplayer game**: networking, prediction, lag compensation.
 - **Healthcare records**: HIPAA-style compliance, FHIR.
-- **Logistics differente**: otimização (VRP — Vehicle Routing Problem) com OR-Tools.
+- **Logistics differente**: otimização (VRP, Vehicle Routing Problem) com OR-Tools.
 - **Devtool**: IDE plugin, CLI tool, observability sidecar.
 - **Edge**: deploy em CDN/edge runtimes (Cloudflare Workers).
 
@@ -250,13 +250,13 @@ Cross:
 
 ## 6. Referências
 
-- **"The Pragmatic Programmer"** — Hunt, Thomas. Generalist mindset.
+- **"The Pragmatic Programmer"**: Hunt, Thomas. Generalist mindset.
 - **Excalidraw codebase** ([github.com/excalidraw/excalidraw](https://github.com/excalidraw/excalidraw)).
 - **Yjs docs** ([yjs.dev](https://yjs.dev/)).
-- **"Designing Data-Intensive Applications"** — repeatedly.
-- **"Building LLM Applications for Production"** — Chip Huyen.
-- **"Practical MLOps"** — Noah Gift.
+- **"Designing Data-Intensive Applications"**: repeatedly.
+- **"Building LLM Applications for Production"**: Chip Huyen.
+- **"Practical MLOps"**: Noah Gift.
 - **OpenBB / GoCardless / Pluggy** docs (open banking).
-- **"Real-World Cryptography"** — Wong (fintech security).
-- **"The Phoenix Project"** — Gene Kim. DevOps mindset.
+- **"Real-World Cryptography"**: Wong (fintech security).
+- **"The Phoenix Project"**: Gene Kim. DevOps mindset.
 - **Engineering blogs**: Stripe, Notion, Figma, Replit, Vercel.

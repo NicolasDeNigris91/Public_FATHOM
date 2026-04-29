@@ -1,6 +1,6 @@
 ---
 capstone: apprentice
-title: Logística v1 — Full-Stack Monolith
+title: Logística v1, Full-Stack Monolith
 stage: plataforma
 prereqs: [02-01, 02-02, 02-03, 02-04, 02-05, 02-06, 02-07, 02-08, 02-09, 02-10, 02-11, 02-12, 02-13, 02-14]
 status: locked
@@ -8,11 +8,11 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
 ---
 
-# CAPSTONE Plataforma — Logística v1
+# CAPSTONE Plataforma, Logística v1
 
 ## 1. Por que esse capstone existe
 
-Ao final do Plataforma, você passou por 14 módulos com desafios isolados. Cada um arranhou um pedaço da Logística (web, mobile, backend, DB, cache, auth, real-time). O capstone **junta tudo num produto coerente** — multi-tenant real, deployável em Railway, usado por três personas (lojista, courier, cliente). É a primeira vez que você ship um sistema fim-a-fim.
+Ao final do Plataforma, você passou por 14 módulos com desafios isolados. Cada um arranhou um pedaço da Logística (web, mobile, backend, DB, cache, auth, real-time). O capstone **junta tudo num produto coerente**: multi-tenant real, deployável em Railway, usado por três personas (lojista, courier, cliente). É a primeira vez que você ship um sistema fim-a-fim.
 
 Isso força você a integrar:
 - **02-01-02-05**: front-end web acessível, performante, em Next.
@@ -20,13 +20,13 @@ Isso força você a integrar:
 - **02-07-02-08**: backend Node estruturado.
 - **02-09-02-10**: schema relacional + ORM disciplinado.
 - **02-11**: Redis pra cache, rate limit, idempotency, fan-out real-time.
-- **02-12**: opcional — Mongo pra eventos heterogêneos. Documente decisão de incluir ou não.
+- **02-12**: opcional, Mongo pra eventos heterogêneos. Documente decisão de incluir ou não.
 - **02-13**: auth completa, MFA, RBAC, multi-tenant.
 - **02-14**: tracking real-time courier ↔ lojista ↔ cliente.
 
 Não é demo. É um sistema com fluxos reais, persistência durável, e operação manualmente correta.
 
-Versões posteriores (v2 no Professional, v3 no Senior) **evoluem o mesmo projeto** — não recomeçar. Por isso decisões aqui têm consequência.
+Versões posteriores (v2 no Professional, v3 no Senior) **evoluem o mesmo projeto**: não recomeçar. Por isso decisões aqui têm consequência.
 
 ---
 
@@ -42,7 +42,7 @@ Sistema de **roteamento de entregas multi-tenant**. Lojistas (pequenos comercian
 
 ### Tenant model
 
-Cada lojista é um tenant. Couriers podem operar em N tenants (com onboarding por tenant). Clientes não são contas — são sujeitos de pedido (telefone, email, endereço).
+Cada lojista é um tenant. Couriers podem operar em N tenants (com onboarding por tenant). Clientes não são contas, são sujeitos de pedido (telefone, email, endereço).
 
 ### Fluxos críticos
 
@@ -74,7 +74,7 @@ Reusar/expandir do 02-09:
 - `orders`, `order_events`, `order_assignments`.
 - `couriers` (perfil), `courier_locations` (efêmero, principalmente Redis).
 - `auth_sessions`, `auth_passkeys`, `auth_audit`, `mfa_secrets`.
-- `outbox_events` (pra próximo capstone — opcional aqui mas plante).
+- `outbox_events` (pra próximo capstone, opcional aqui mas plante).
 
 Migrations em Drizzle Kit, todas testadas em CI (mesmo que CI seja modesto aqui).
 
@@ -90,7 +90,7 @@ Lista mínima:
 - `WS /ws/lojista` (notifications).
 - `GET /healthz`, `/metrics`.
 
-Não defina tudo aqui. Defina contratos claros antes de implementar — OpenAPI auto-gerado em `/docs`.
+Não defina tudo aqui. Defina contratos claros antes de implementar, OpenAPI auto-gerado em `/docs`.
 
 ### 3.4 Front lojista (Next)
 
@@ -104,7 +104,7 @@ Lighthouse mobile ≥ 90. Web Vitals decentes. Acessível com keyboard, screen-r
 
 ### 3.5 Front cliente (rota pública Next)
 
-- `/track/:token` — minimalista. Status atual, ETA estimada, posição em mapa, contato do courier.
+- `/track/:token`, minimalista. Status atual, ETA estimada, posição em mapa, contato do courier.
 - Sem login. Sem coletar mais dados que o necessário.
 
 ### 3.6 App courier (Expo)
@@ -168,13 +168,13 @@ Sem o threshold, fica em pendência. **v2 (Professional) não começa enquanto v
 
 ## 5. Anti-padrões a evitar
 
-- "Vou usar uma biblioteca pronta de auth" — não. Você passou por 02-13 pra implementar.
-- "Vou usar Socket.io porque é mais fácil" — só se justificar tecnicamente vs WS bruto.
-- "Vou pular SSE e usar WS pra tudo" — não, decida por canal.
-- "Vou deixar tracking pro v2" — não. Tracking é flagship do v1.
-- "Vou usar Tailwind UI / shadcn cego" — pode usar, mas saiba o que está colando. Sem componentes inacessíveis.
-- "Multi-tenant via subdomain dinâmico só no v2" — você decide; mas se escolher path/header, deixe claro e consistente.
-- "Vou subir DB e Redis na mesma máquina sem TLS" — Railway gerencia; não toque em segredo em código.
+- "Vou usar uma biblioteca pronta de auth", não. Você passou por 02-13 pra implementar.
+- "Vou usar Socket.io porque é mais fácil", só se justificar tecnicamente vs WS bruto.
+- "Vou pular SSE e usar WS pra tudo", não, decida por canal.
+- "Vou deixar tracking pro v2", não. Tracking é flagship do v1.
+- "Vou usar Tailwind UI / shadcn cego", pode usar, mas saiba o que está colando. Sem componentes inacessíveis.
+- "Multi-tenant via subdomain dinâmico só no v2", você decide; mas se escolher path/header, deixe claro e consistente.
+- "Vou subir DB e Redis na mesma máquina sem TLS", Railway gerencia; não toque em segredo em código.
 
 ---
 
@@ -192,8 +192,8 @@ Sem o threshold, fica em pendência. **v2 (Professional) não começa enquanto v
 
 ## 7. Critério de finalização
 
-Quando você abre o app, cria pedido, abre tracking público em outra aba (ou em telefone amigo), liga app courier, aceita, anda com GPS streaming → e tudo flui sem você tocar em nada — está vivo.
+Quando você abre o app, cria pedido, abre tracking público em outra aba (ou em telefone amigo), liga app courier, aceita, anda com GPS streaming → e tudo flui sem você tocar em nada, está vivo.
 
-Tire 1 print de cada flow rodando. Anote em `journal.md` o que apareceu de problema (não pra `PROGRESS.md` do framework — pro repo do projeto). Esse journal vira fonte de revisão pro v2.
+Tire 1 print de cada flow rodando. Anote em `journal.md` o que apareceu de problema (não pra `PROGRESS.md` do framework, pro repo do projeto). Esse journal vira fonte de revisão pro v2.
 
 Após o capstone passar, atualize `PROGRESS.md` deste framework e o frontmatter.

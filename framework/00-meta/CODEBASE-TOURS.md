@@ -1,6 +1,6 @@
-# CODEBASE-TOURS — Guided Reading de Repos Canônicos
+# CODEBASE-TOURS, Guided Reading de Repos Canônicos
 
-> Ler **código de produção de classe mundial** é uma das atividades de maior alavancagem em engineering. Mas repos grandes são intimidantes — V8 tem 5M+ linhas; Linux kernel tem 30M+. Sem mapa, abrir GitHub é overwhelming.
+> Ler **código de produção de classe mundial** é uma das atividades de maior alavancagem em engineering. Mas repos grandes são intimidantes, V8 tem 5M+ linhas; Linux kernel tem 30M+. Sem mapa, abrir GitHub é overwhelming.
 >
 > Este doc é o **mapa**: para cada repo canônico, exatamente quais arquivos abrir, em qual ordem, e o que procurar. Cada tour estima 4-12 horas de leitura ativa (não passive scroll).
 >
@@ -17,13 +17,13 @@ Antes de qualquer tour:
 3. **Anote em journal**: pattern visto, surpresa, dúvida. Entries pra Anki + journal de descobertas.
 4. **Compile e rode local** quando possível. Quebra mental "código mágico" → "código que roda no meu PC".
 5. **Use IDE com goto-definition**, não browser. Navigation matters em codebase grande.
-6. **Assista talks** dos autores antes/depois — frequentemente explicam por que decisions, que código não diz.
+6. **Assista talks** dos autores antes/depois, frequentemente explicam por que decisions, que código não diz.
 7. **Não leia testes em vez de código** (tests são specs, não implementation).
 8. **Aceite buracos**: você não vai entender 80% do repo. Pega 20% que importa.
 
 ---
 
-## Tour 1: V8 (engine JavaScript) — para 01-07, 01-13, 01-14
+## Tour 1: V8 (engine JavaScript), para 01-07, 01-13, 01-14
 
 **Repo**: [github.com/v8/v8](https://github.com/v8/v8)
 **Linguagem**: C++, alguns assembly.
@@ -37,7 +37,7 @@ Antes de qualquer tour:
 1. **`src/parsing/parser.cc`** (parser top-level). Skim. Identifique recursive descent. Compare com 01-13.
 2. **`src/parsing/scanner.cc`** (lexer). Veja state machine de tokens.
 3. **`src/ast/ast.h`** (AST nodes). Hierarchy.
-4. **`src/interpreter/interpreter.cc`** + **`bytecode/bytecode-generator.cc`** (Ignition — interpretador bytecode). Como AST → bytecode.
+4. **`src/interpreter/interpreter.cc`** + **`bytecode/bytecode-generator.cc`** (Ignition, interpretador bytecode). Como AST → bytecode.
 5. **`src/objects/objects.h`** + **`map.h`** (V8 hidden classes ≡ Maps). Where shapes live. Crítico pra 01-14 perf.
 6. **`src/compiler/turbofan.cc`** (otimizador). Não tente entender; só veja escala. JIT optimizing tier.
 7. **`src/heap/heap.cc`** + **`mark-compact.cc`** (GC). Generational + mark-compact. Connecta com 01-13 §2.10.
@@ -49,8 +49,8 @@ Antes de qualquer tour:
 - Generational hypothesis em código.
 
 ### Talks complementares:
-- "Inside V8" — Franziska Hinkelmann.
-- "V8 internals: Things you do not want to forget" — Sigmund Cherem.
+- "Inside V8", Franziska Hinkelmann.
+- "V8 internals: Things you do not want to forget", Sigmund Cherem.
 
 ### Notes pra journal:
 - Hidden class transitions tracked como Map → Map links.
@@ -59,7 +59,7 @@ Antes de qualquer tour:
 
 ---
 
-## Tour 2: PostgreSQL — para 02-09, 03-13, 04-09, 04-14
+## Tour 2: PostgreSQL, para 02-09, 03-13, 04-09, 04-14
 
 **Repo**: [github.com/postgres/postgres](https://github.com/postgres/postgres)
 **Linguagem**: C.
@@ -89,7 +89,7 @@ Antes de qualquer tour:
 - pg_stat_statements: `contrib/pg_stat_statements/`.
 
 ### Talks complementares:
-- Bruce Momjian — series sobre Postgres internals.
+- Bruce Momjian, series sobre Postgres internals.
 - Egor Rogov "PostgreSQL 14 Internals" book (gratuito).
 
 ### Notes pra journal:
@@ -99,7 +99,7 @@ Antes de qualquer tour:
 
 ---
 
-## Tour 3: Redis — para 02-11
+## Tour 3: Redis, para 02-11
 
 **Repo**: [github.com/redis/redis](https://github.com/redis/redis)
 **Linguagem**: C.
@@ -133,7 +133,7 @@ Antes de qualquer tour:
 
 ---
 
-## Tour 4: libuv — para 02-07, 01-02
+## Tour 4: libuv, para 02-07, 01-02
 
 **Repo**: [github.com/libuv/libuv](https://github.com/libuv/libuv)
 **Linguagem**: C.
@@ -160,12 +160,12 @@ Antes de qualquer tour:
 - File watcher.
 
 ### Talks complementares:
-- "What the heck is the event loop anyway?" — Philip Roberts.
-- "In The Loop" — Jake Archibald.
+- "What the heck is the event loop anyway?", Philip Roberts.
+- "In The Loop", Jake Archibald.
 
 ---
 
-## Tour 5: React reconciler (Fiber) — para 02-04
+## Tour 5: React reconciler (Fiber), para 02-04
 
 **Repo**: [github.com/facebook/react](https://github.com/facebook/react)
 **Linguagem**: JS (Flow types).
@@ -193,12 +193,12 @@ Antes de qualquer tour:
 - Como hook state é stored (linked list per fiber).
 
 ### Talks:
-- "A Cartoon Intro to Fiber" — Lin Clark.
-- "React Without Memo" — Xuan Huang.
+- "A Cartoon Intro to Fiber", Lin Clark.
+- "React Without Memo", Xuan Huang.
 
 ---
 
-## Tour 6: CockroachDB — para 04-01, 04-09, 04-14
+## Tour 6: CockroachDB, para 04-01, 04-09, 04-14
 
 **Repo**: [github.com/cockroachdb/cockroach](https://github.com/cockroachdb/cockroach)
 **Linguagem**: Go.
@@ -226,12 +226,12 @@ Antes de qualquer tour:
 - TPC-C benchmark code.
 
 ### Talks:
-- "Cockroach Labs Engineering YouTube" — series.
+- "Cockroach Labs Engineering YouTube", series.
 - Aphyr Jepsen analysis (revealing).
 
 ---
 
-## Tour 7: Kubernetes scheduler — para 03-03, 05-01
+## Tour 7: Kubernetes scheduler, para 03-03, 05-01
 
 **Repo**: [github.com/kubernetes/kubernetes](https://github.com/kubernetes/kubernetes)
 **Linguagem**: Go.
@@ -263,7 +263,7 @@ Antes de qualquer tour:
 
 ---
 
-## Tour 8: Linux Kernel (mini-tour) — para 01-02
+## Tour 8: Linux Kernel (mini-tour), para 01-02
 
 **Repo**: [github.com/torvalds/linux](https://github.com/torvalds/linux)
 **Linguagem**: C.
@@ -290,12 +290,12 @@ Antes de qualquer tour:
 - O_DIRECT path bypassing page cache.
 
 ### Talks:
-- "Linux scheduler internals" — Brendan Gregg.
+- "Linux scheduler internals", Brendan Gregg.
 - Linux Foundation talks.
 
 ---
 
-## Tour 9: Apache Kafka — para 04-02, 04-13
+## Tour 9: Apache Kafka, para 04-02, 04-13
 
 **Repo**: [github.com/apache/kafka](https://github.com/apache/kafka)
 **Linguagem**: Scala (legacy) + Java (newer).
@@ -322,12 +322,12 @@ Antes de qualquer tour:
 - Exactly-once via transactional producer.
 
 ### Talks:
-- "Kafka Internals" — Jun Rao + others.
+- "Kafka Internals", Jun Rao + others.
 - Confluent blog deep dives.
 
 ---
 
-## Tour 10: TigerBeetle (financial DB) — para 02-18, 04-14
+## Tour 10: TigerBeetle (financial DB), para 02-18, 04-14
 
 **Repo**: [github.com/tigerbeetle/tigerbeetle](https://github.com/tigerbeetle/tigerbeetle)
 **Linguagem**: Zig.
@@ -351,12 +351,12 @@ Antes de qualquer tour:
 - VSR consensus.
 
 ### Talks:
-- TigerBeetle YouTube — Joran Dirk Greef explica devirtualization.
+- TigerBeetle YouTube, Joran Dirk Greef explica devirtualization.
 - Will Wilson "Why Are You Lying?" (DST).
 
 ---
 
-## Tour 11: Bevy ECS — para 05-10
+## Tour 11: Bevy ECS, para 05-10
 
 **Repo**: [github.com/bevyengine/bevy](https://github.com/bevyengine/bevy)
 **Linguagem**: Rust.
@@ -382,7 +382,7 @@ Antes de qualquer tour:
 
 ---
 
-## Tour 12: Stripe SDK Node — para 02-18
+## Tour 12: Stripe SDK Node, para 02-18
 
 **Repo**: [github.com/stripe/stripe-node](https://github.com/stripe/stripe-node)
 **Linguagem**: TypeScript.
@@ -406,7 +406,7 @@ Antes de qualquer tour:
 
 ---
 
-## Tour 13: TLA+ Examples — para 04-14
+## Tour 13: TLA+ Examples, para 04-14
 
 **Repo**: [github.com/tlaplus/Examples](https://github.com/tlaplus/Examples)
 **Linguagem**: TLA+, PlusCal.
@@ -429,7 +429,7 @@ Antes de qualquer tour:
 
 ---
 
-## Tour 14: Tokio (Rust async runtime) — para 03-11, 01-11
+## Tour 14: Tokio (Rust async runtime), para 03-11, 01-11
 
 **Repo**: [github.com/tokio-rs/tokio](https://github.com/tokio-rs/tokio)
 **Linguagem**: Rust.
@@ -451,12 +451,12 @@ Antes de qualquer tour:
 
 ---
 
-## Tour 15: Caddy / nginx — para 02-14, 04-05
+## Tour 15: Caddy / nginx, para 02-14, 04-05
 
 Para entender HTTP server e reverse proxy real.
 
-**Caddy** ([github.com/caddyserver/caddy](https://github.com/caddyserver/caddy)) — Go, mais legível.
-**nginx** ([github.com/nginx/nginx](https://github.com/nginx/nginx)) — C, classic.
+**Caddy** ([github.com/caddyserver/caddy](https://github.com/caddyserver/caddy)), Go, mais legível.
+**nginx** ([github.com/nginx/nginx](https://github.com/nginx/nginx)), C, classic.
 
 **Pergunta**: como reverse proxy multiplexa connections, cache, terminação TLS?
 
@@ -464,7 +464,7 @@ Para entender HTTP server e reverse proxy real.
 
 ---
 
-## Tour 16: Excalidraw — para 05-02 (CRDT capstone)
+## Tour 16: Excalidraw, para 05-02 (CRDT capstone)
 
 **Repo**: [github.com/excalidraw/excalidraw](https://github.com/excalidraw/excalidraw)
 **Linguagem**: TypeScript.
@@ -483,7 +483,7 @@ Para entender HTTP server e reverse proxy real.
 
 ---
 
-## Tour 17: SQLite (mini-DB) — para 05-01, 02-09
+## Tour 17: SQLite (mini-DB), para 05-01, 02-09
 
 **Repo**: [sqlite.org](https://sqlite.org/) (não GitHub direto; trunk em fossil).
 **Linguagem**: C.
@@ -501,7 +501,7 @@ SQLite é referência **mais legível** que Postgres pra entender DB internals. 
 
 ---
 
-## Tour 18: io_uring / Linux async — para 03-10, 01-02 advanced
+## Tour 18: io_uring / Linux async, para 03-10, 01-02 advanced
 
 **Repo**: [github.com/axboe/liburing](https://github.com/axboe/liburing) + linux kernel `io_uring/`.
 **Linguagem**: C.
@@ -509,13 +509,13 @@ SQLite é referência **mais legível** que Postgres pra entender DB internals. 
 
 **Path**:
 - liburing examples first.
-- Kernel `io_uring/io_uring.c` — submission queue, completion queue.
+- Kernel `io_uring/io_uring.c`, submission queue, completion queue.
 
 io_uring é onde Linux async vai. Vale entender.
 
 ---
 
-## Tour 19: Bun runtime — para 02-07, 01-13
+## Tour 19: Bun runtime, para 02-07, 01-13
 
 **Repo**: [github.com/oven-sh/bun](https://github.com/oven-sh/bun)
 **Linguagem**: Zig + JS.
@@ -526,11 +526,11 @@ io_uring é onde Linux async vai. Vale entender.
 2. `src/bundler/`: bundler.
 3. `src/install/`: package manager.
 
-Bun mostra alternative architecture pra Node — JavaScriptCore vs V8, Zig vs C++.
+Bun mostra alternative architecture pra Node, JavaScriptCore vs V8, Zig vs C++.
 
 ---
 
-## Tour 20: Anthropic Cookbook + LangGraph — para 04-10
+## Tour 20: Anthropic Cookbook + LangGraph, para 04-10
 
 **Repos**:
 - [github.com/anthropics/anthropic-cookbook](https://github.com/anthropics/anthropic-cookbook)

@@ -1,6 +1,6 @@
 ---
 module: 02-18
-title: Payments & Billing — Stripe-Level Integration, Idempotency, Reconciliation, Subscriptions
+title: Payments & Billing, Stripe-Level Integration, Idempotency, Reconciliation, Subscriptions
 stage: plataforma
 prereqs: [02-13]
 gates:
@@ -10,15 +10,15 @@ gates:
 status: locked
 ---
 
-# 02-18 — Payments & Billing
+# 02-18, Payments & Billing
 
 ## 1. Problema de Engenharia
 
 Pagamento é um dos domains mais densos de engenharia em qualquer produto. **Money is hard**: idempotência, double-charge, partial failures, refunds, chargebacks, taxas, multiple currencies, FX, tax (IVA/ICMS/sales tax), invoicing, dunning, subscriptions, prorations, webhooks duplicados, reconciliation com PSP, ledgers, accounting compliance (ASC 606, PCI-DSS escopo). Erros aqui custam dinheiro real e podem virar fraude/processo.
 
-Quase todo dev que tenta integrar Stripe/Adyen/Mercado Pago "do jeito tutorial" produz código que funciona no happy path e quebra na primeira retry, webhook duplicado, ou reembolso parcial. Senior conhece o **modelo correto** — payment intent, idempotency key, ledger imutável, webhook signature verification, reconciliation diária.
+Quase todo dev que tenta integrar Stripe/Adyen/Mercado Pago "do jeito tutorial" produz código que funciona no happy path e quebra na primeira retry, webhook duplicado, ou reembolso parcial. Senior conhece o **modelo correto**: payment intent, idempotency key, ledger imutável, webhook signature verification, reconciliation diária.
 
-Este módulo é payments **por dentro**: anatomia de cobrança, PSP arquitetura, idempotência forte, double-entry ledger, webhooks e replay safety, subscriptions com prorations, tax calculation, refund/chargeback flows, multi-tenant marketplace, e PCI-DSS escopo. Logística monetiza entregas e split entre lojistas/entregadores — esse módulo materializa isso.
+Este módulo é payments **por dentro**: anatomia de cobrança, PSP arquitetura, idempotência forte, double-entry ledger, webhooks e replay safety, subscriptions com prorations, tax calculation, refund/chargeback flows, multi-tenant marketplace, e PCI-DSS escopo. Logística monetiza entregas e split entre lojistas/entregadores, esse módulo materializa isso.
 
 ---
 
@@ -27,7 +27,7 @@ Este módulo é payments **por dentro**: anatomia de cobrança, PSP arquitetura,
 ### 2.1 Anatomia de uma cobrança no cartão
 
 Fluxo simplificado:
-1. **Customer** entra dados no client (Stripe Elements/Checkout — você nunca vê PAN cru, escopo PCI reduzido).
+1. **Customer** entra dados no client (Stripe Elements/Checkout, você nunca vê PAN cru, escopo PCI reduzido).
 2. **Tokenization**: PSP retorna token (`pm_xxx`). Você guarda token, não cartão.
 3. **Authorization**: PSP envia ao acquirer → rede (Visa/Mastercard) → issuer. Resposta: approve/decline. Funds **reservados**, não capturados.
 4. **Capture**: comita o auth (até 7 dias). Funds saem do cartão.
@@ -56,13 +56,13 @@ Janela de validade: 24h-7d típico. TTL via `created_at`.
 
 ### 2.4 Webhooks: o nervo central
 
-PSP envia eventos (`payment_intent.succeeded`, `charge.refunded`, `customer.subscription.updated`) pro seu endpoint via HTTP POST. **Síncronos não substituem webhooks** — webhook é a fonte de verdade.
+PSP envia eventos (`payment_intent.succeeded`, `charge.refunded`, `customer.subscription.updated`) pro seu endpoint via HTTP POST. **Síncronos não substituem webhooks**: webhook é a fonte de verdade.
 
 Regras:
 - **Verifique signature** (HMAC com secret). Sem isso, atacante forja eventos.
 - **At-least-once delivery**: pode chegar duplicado. Idempotente. Use event ID + dedupe em DB.
 - **Out of order**: evento mais novo pode chegar primeiro. Compare timestamps; ignore stale.
-- **Resposta 2xx rápida**: PSP retry se você demora ou retorna 5xx. Faça trabalho async — receba, persista, ack, processe em background.
+- **Resposta 2xx rápida**: PSP retry se você demora ou retorna 5xx. Faça trabalho async, receba, persista, ack, processe em background.
 - **Replay protection**: tolerância de timestamp (Stripe: 5 min) pra evitar replay attack.
 
 ### 2.5 Estados consistentes: state machine
@@ -87,7 +87,7 @@ event: refund $30
 
 Implementação: tabela `ledger_entries (id, txn_id, account_id, amount, direction, currency, posted_at)`. Sums por account = saldo. Imutável (sem update/delete; correções via reversal entry).
 
-Em produto, ledger é a **fonte de verdade** financeira; `orders.status='paid'` é cache/read model. Reconciliation cruza ledger com extrato PSP — diferenças investigadas.
+Em produto, ledger é a **fonte de verdade** financeira; `orders.status='paid'` é cache/read model. Reconciliation cruza ledger com extrato PSP, diferenças investigadas.
 
 ### 2.7 Refunds e partial refunds
 
@@ -101,7 +101,7 @@ Cuidados:
 
 ### 2.8 Disputes/chargebacks
 
-Customer reclama; issuer reverte fundos preventivamente. Você precisa **responder com evidência** (Stripe Dashboard) — fotos de delivery, logs, tracking. Win/lose.
+Customer reclama; issuer reverte fundos preventivamente. Você precisa **responder com evidência** (Stripe Dashboard), fotos de delivery, logs, tracking. Win/lose.
 
 Impacto operacional: reservar contingência, reduzir taxa de chargeback (alvo < 1%), implementar 3DS pra shift de liability.
 
@@ -280,12 +280,12 @@ Adicionar **billing** à Logística: pagamento de pedidos com split entre lojist
 ## 6. Referências
 
 - **Stripe API docs** + Stripe Engineering blog ([stripe.com/blog/engineering](https://stripe.com/blog/engineering)).
-- **"Idempotency, retries, and the 'unique' problem"** — Stripe blog.
-- **"Online Payments at Stripe Scale"** — várias talks.
-- **"Designing Money"** — Stripe Press essays.
+- **"Idempotency, retries, and the 'unique' problem"**: Stripe blog.
+- **"Online Payments at Stripe Scale"**: várias talks.
+- **"Designing Money"**: Stripe Press essays.
 - **PCI-DSS v4.0 quick reference**.
-- **"Patterns for Distributed Transactions Without 2PC"** — Caitie McCaffrey.
+- **"Patterns for Distributed Transactions Without 2PC"**: Caitie McCaffrey.
 - **PSD2/SCA EU regulations**.
-- **Mercado Pago developer docs** — Pix, boleto, marketplace.
-- **"Accounting for Computer Scientists"** — Martin Kleppmann (post).
-- **Open Banking and ISO 20022** — para quem vai pra fintech.
+- **Mercado Pago developer docs**: Pix, boleto, marketplace.
+- **"Accounting for Computer Scientists"**: Martin Kleppmann (post).
+- **Open Banking and ISO 20022**: para quem vai pra fintech.

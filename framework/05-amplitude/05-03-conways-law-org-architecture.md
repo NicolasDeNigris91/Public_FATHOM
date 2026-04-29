@@ -1,6 +1,6 @@
 ---
 module: 05-03
-title: Conway's Law & Org Architecture — Team Topology, Bounded Contexts, Stream-Aligned
+title: Conway's Law & Org Architecture, Team Topology, Bounded Contexts, Stream-Aligned
 stage: amplitude
 prereqs: [04-12]
 gates:
@@ -10,15 +10,15 @@ gates:
 status: locked
 ---
 
-# 05-03 — Conway's Law & Org Architecture
+# 05-03, Conway's Law & Org Architecture
 
 ## 1. Problema de Engenharia
 
 "Sistemas refletem a estrutura organizacional que os criou." Conway (1967). Esta lei é evidência crua: monolitos vêm de teams sem contratos; microsserviços que viram distributed monolith vêm de teams sem ownership claro; APIs ruins vêm de teams sem cliente interno.
 
-Staff/Principal **desenha o time**, não só o código. Recommend split do time em squads aligned com bounded contexts (DDD, 04-06). Argumenta com VP/CTO sobre quando decompor, quando consolidate, quando criar platform team. Reduz dependency hell entre teams. Identifica quando "a arquitetura é ruim porque o org chart é ruim" — frequentemente o caso.
+Staff/Principal **desenha o time**, não só o código. Recommend split do time em squads aligned com bounded contexts (DDD, 04-06). Argumenta com VP/CTO sobre quando decompor, quando consolidate, quando criar platform team. Reduz dependency hell entre teams. Identifica quando "a arquitetura é ruim porque o org chart é ruim", frequentemente o caso.
 
-Este módulo é organizational design pro engineer técnico. Não vira manager — mas precisa **falar a língua** de manager pra negociar reorganization. Conway's Law, Inverse Conway Maneuver, Team Topologies (stream-aligned, platform, complicated subsystem, enabling), bus factor org-wide, hiring strategy, levels (IC ladder), career frameworks.
+Este módulo é organizational design pro engineer técnico. Não vira manager, mas precisa **falar a língua** de manager pra negociar reorganization. Conway's Law, Inverse Conway Maneuver, Team Topologies (stream-aligned, platform, complicated subsystem, enabling), bus factor org-wide, hiring strategy, levels (IC ladder), career frameworks.
 
 Pra Staff, isto não é overhead: é a alavanca real que move sistema grande. "Vamos refatorar microservice X" não funciona se 3 teams compartilham X sem owner. Resolve org primeiro, código depois.
 
@@ -182,7 +182,7 @@ Time homogêneo é frágil:
 
 Diversity (gender, race, age, neurodiversity) melhora outcomes mensuráveis. Mas DEI exige hiring deliberado, retention work, sponsorship.
 
-Não vira política; é engineering reliability — reduz blind spots.
+Não vira política; é engineering reliability, reduz blind spots.
 
 ### 2.16 Leveling consistency entre orgs
 
@@ -283,7 +283,7 @@ Escreva `MY-PATH.md`:
 
 - **Conway analyzed** em codebase real: `git log` + ownership stats vs current arch.
 - **Comparative org table**: 4 empresas público side-by-side.
-- **Brag doc**: setup teu próprio (sem mostrar pra mim — esse é teu).
+- **Brag doc**: setup teu próprio (sem mostrar pra mim, esse é teu).
 - **Mentor talk**: apresente proposta pra colega ou meetup.
 
 ---
@@ -304,14 +304,14 @@ Escreva `MY-PATH.md`:
 
 ## 6. Referências
 
-- **"Team Topologies"** — Skelton, Pais. Bíblia.
-- **"The Mythical Man-Month"** — Brooks. Conway era.
-- **"An Elegant Puzzle"** — Will Larson.
-- **"Staff Engineer: Leadership Beyond the Management Track"** — Tanya Reilly.
-- **"The Manager's Path"** — Camille Fournier.
-- **"Accelerate"** — Forsgren, Humble, Kim. DORA metrics + org.
-- **"Empowered"** — Marty Cagan.
-- **"Patterns of Enterprise Application Architecture"** — Fowler.
+- **"Team Topologies"**: Skelton, Pais. Bíblia.
+- **"The Mythical Man-Month"**: Brooks. Conway era.
+- **"An Elegant Puzzle"**: Will Larson.
+- **"Staff Engineer: Leadership Beyond the Management Track"**: Tanya Reilly.
+- **"The Manager's Path"**: Camille Fournier.
+- **"Accelerate"**: Forsgren, Humble, Kim. DORA metrics + org.
+- **"Empowered"**: Marty Cagan.
+- **"Patterns of Enterprise Application Architecture"**: Fowler.
 - **levels.fyi**, **Pragmatic Engineer** newsletter (Gergely Orosz).
 - **"How Spotify Builds Products"** + critique by Jeremiah Lee ("Spotify Doesn't Use the Spotify Model").
 - **Marty Cagan / SVPG** product team writings.

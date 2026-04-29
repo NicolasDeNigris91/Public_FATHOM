@@ -1,6 +1,6 @@
 ---
 module: 03-03
-title: Kubernetes — Pods, Services, Ingress, HPA, Operators
+title: Kubernetes, Pods, Services, Ingress, HPA, Operators
 stage: producao
 prereqs: [03-02]
 gates:
@@ -10,13 +10,13 @@ gates:
 status: locked
 ---
 
-# 03-03 — Kubernetes
+# 03-03, Kubernetes
 
 ## 1. Problema de Engenharia
 
-Kubernetes é o orquestrador padrão de produção em empresas, e também a fonte mais comum de complexidade não-justificada. Times rodam clusters caros pra projetos que caberiam em Railway. Outros, com necessidade real de K8s, tratam como "Docker Compose com mais YAML" — não entendem control loops, declaration vs reality, scheduler decisions, resource pressure, ingress paths.
+Kubernetes é o orquestrador padrão de produção em empresas, e também a fonte mais comum de complexidade não-justificada. Times rodam clusters caros pra projetos que caberiam em Railway. Outros, com necessidade real de K8s, tratam como "Docker Compose com mais YAML", não entendem control loops, declaration vs reality, scheduler decisions, resource pressure, ingress paths.
 
-Este módulo é K8s real: arquitetura (control plane, kubelet, etcd), modelo declarativo, primitives (Pod, Deployment, StatefulSet, Service, Ingress, ConfigMap, Secret), scheduling, autoscaling, observability, helm/kustomize, operators. Você sai sabendo decidir **se** K8s, e — quando sim — operar com competência.
+Este módulo é K8s real: arquitetura (control plane, kubelet, etcd), modelo declarativo, primitives (Pod, Deployment, StatefulSet, Service, Ingress, ConfigMap, Secret), scheduling, autoscaling, observability, helm/kustomize, operators. Você sai sabendo decidir **se** K8s, e, quando sim, operar com competência.
 
 ---
 
@@ -76,7 +76,7 @@ spec:
         limits: { cpu: 500m, memory: 512Mi }
 ```
 
-Em geral você não cria Pod direto — usa Deployment.
+Em geral você não cria Pod direto, usa Deployment.
 
 Pods são efêmeros: caem, IP some, novo Pod nasce com IP novo.
 
@@ -270,7 +270,7 @@ Em projetos pequenos, mesh é overkill. Em microservices ≥ 10 com necessidade 
 
 Pod monta via PVC. PV pode sobreviver Pod morte e ser remontado.
 
-Modos de acesso: ReadWriteOnce (1 node), ReadWriteMany (vários nodes — só alguns drivers, EFS), ReadOnlyMany.
+Modos de acesso: ReadWriteOnce (1 node), ReadWriteMany (vários nodes, só alguns drivers, EFS), ReadOnlyMany.
 
 ### 2.17 Helm e Kustomize
 
@@ -280,11 +280,11 @@ Configuration management:
 
 Em 2026 muitos projetos preferem Helm pra installs de terceiros (charts oficiais) e Kustomize pra config própria. Outros preferem Helm pra tudo.
 
-**Argo CD** / **Flux**: GitOps — repo Git é fonte de verdade; controller syncs cluster com repo. Padrão moderno em times maduros.
+**Argo CD** / **Flux**: GitOps, repo Git é fonte de verdade; controller syncs cluster com repo. Padrão moderno em times maduros.
 
-### 2.18 Operators — pattern deep
+### 2.18 Operators, pattern deep
 
-CRD (Custom Resource Definition) + Controller. Permite estender K8s com objetos custom. É o pattern que torna K8s extensível além de "container orchestrator" — vira plataforma onde stateful systems se autoadministram.
+CRD (Custom Resource Definition) + Controller. Permite estender K8s com objetos custom. É o pattern que torna K8s extensível além de "container orchestrator", vira plataforma onde stateful systems se autoadministram.
 
 **Anatomia de um operator:**
 1. **CRD** define schema do recurso novo (`PostgresCluster`, `KafkaTopic`).
@@ -322,22 +322,22 @@ for event := range watch(api, "PostgresCluster") {
 - **Crossplane**: declara cloud resources como K8s resources (RDS, 04-03, GKE clusters via YAML).
 
 **Operators famosos em produção:**
-- **CloudNativePG** (Postgres) — provavelmente o melhor operator de DB existente em 2026.
+- **CloudNativePG** (Postgres), provavelmente o melhor operator de DB existente em 2026.
 - **Strimzi** (Kafka).
 - **cert-manager** (TLS).
 - **Prometheus Operator** + **kube-prometheus-stack**.
 - **External Secrets Operator** (puxa de AWS SM, Vault, GCP Secret Manager).
-- **ArgoCD** (GitOps — operator que reconcila git → cluster).
+- **ArgoCD** (GitOps, operator que reconcila git → cluster).
 - **Velero** (backup/restore).
 - **OpenTelemetry Operator** (instrumenta apps automaticamente).
 
 **Anti-patterns conhecidos:**
-- Operator que faz scheduling logic próprio (concorre com kube-scheduler — perde sempre).
-- Reconcile loop que cria recursos sem `ownerReferences` — leak ao deletar CR.
+- Operator que faz scheduling logic próprio (concorre com kube-scheduler, perde sempre).
+- Reconcile loop que cria recursos sem `ownerReferences`, leak ao deletar CR.
 - Operator que faz blocking I/O em reconcile (bloqueia outros eventos).
-- Status update sem retry — perdas silenciosas.
+- Status update sem retry, perdas silenciosas.
 
-### 2.18.1 Alternativas a Kubernetes — quando NÃO usar
+### 2.18.1 Alternativas a Kubernetes, quando NÃO usar
 
 K8s é poderoso, é caro de manter. Senior real escolhe consciente. Stack atual em 2026:
 
@@ -401,7 +401,7 @@ Você precisa, sem consultar:
 
 ## 4. Desafio de Engenharia
 
-Migrar **Logística v1** pra K8s. Não significa abandonar Railway — significa demonstrar competência. Pode rodar em K3s local ou GKE Autopilot free tier.
+Migrar **Logística v1** pra K8s. Não significa abandonar Railway, significa demonstrar competência. Pode rodar em K3s local ou GKE Autopilot free tier.
 
 ### Especificação
 
@@ -485,13 +485,13 @@ Migrar **Logística v1** pra K8s. Não significa abandonar Railway — significa
 ## 6. Referências
 
 - **Kubernetes docs** ([kubernetes.io/docs](https://kubernetes.io/docs/)).
-- **"Kubernetes in Action"** — Marko Lukša (livro de referência).
-- **"Kubernetes: Up & Running"** — Brendan Burns et al.
+- **"Kubernetes in Action"**: Marko Lukša (livro de referência).
+- **"Kubernetes: Up & Running"**: Brendan Burns et al.
 - **Helm docs** ([helm.sh/docs](https://helm.sh/docs/)).
 - **Kustomize docs** ([kubectl.docs.kubernetes.io/references/kustomize](https://kubectl.docs.kubernetes.io/references/kustomize/)).
 - **Argo CD docs** ([argo-cd.readthedocs.io](https://argo-cd.readthedocs.io/)).
 - **CloudNativePG docs** ([cloudnative-pg.io](https://cloudnative-pg.io/)).
 - **KEDA docs** ([keda.sh](https://keda.sh/)).
 - **Cilium / Linkerd docs**.
-- **CNCF landscape** ([landscape.cncf.io](https://landscape.cncf.io/)) — overview do ecossistema.
+- **CNCF landscape** ([landscape.cncf.io](https://landscape.cncf.io/)), overview do ecossistema.
 - **Kelsey Hightower, "Kubernetes the Hard Way"** ([github.com/kelseyhightower/kubernetes-the-hard-way](https://github.com/kelseyhightower/kubernetes-the-hard-way)).

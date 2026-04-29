@@ -1,6 +1,6 @@
 ---
 module: 04-12
-title: Tech Leadership — Decisions, Reviews, Mentorship, Roadmap
+title: Tech Leadership, Decisions, Reviews, Mentorship, Roadmap
 stage: sistemas
 prereqs: [04-07, 04-08]
 gates:
@@ -10,7 +10,7 @@ gates:
 status: locked
 ---
 
-# 04-12 — Tech Leadership
+# 04-12, Tech Leadership
 
 ## 1. Problema de Engenharia
 
@@ -32,7 +32,7 @@ Em 2026 a maioria de empresas grandes tem dual ladder (IC pode ir até VP-equiva
 
 Sendo TL: 60-80% código ainda, 20-40% leadership. Quando vira manager, código vira < 20%.
 
-### 2.2 ADR — Architecture Decision Records
+### 2.2 ADR, Architecture Decision Records
 
 Documento curto (1-2 páginas) registrando decisões arquitetônicas importantes:
 ```
@@ -54,7 +54,7 @@ Vantagens:
 
 Use Michael Nygard format ou MADR.
 
-### 2.3 RFC — Request for Comments
+### 2.3 RFC, Request for Comments
 
 Doc mais longo proponente uma mudança significativa. Distribui pra time, recolhe feedback async, decide.
 
@@ -79,7 +79,7 @@ Exemplos vivos:
 - "Vamos pra microservices" → contexto: time de 30 devs, 5 áreas independentes, scale comprovada. Não pra 5 devs em MVP.
 - "Vamos pra Postgres" → contexto: relacional, ACID, time conhece SQL. Não em fluxo onde document nested justifica Mongo.
 
-### 2.5 Code review — purpose
+### 2.5 Code review, purpose
 
 Review faz 4 coisas:
 1. **Catch bugs**.
@@ -136,7 +136,7 @@ Custo: 2x dev time. Retorno: knowledge + quality. Use seletivamente.
 
 ### 2.10 Roadmap técnico
 
-Roadmap não é "lista de features" — é narrativa de **trajetória** do sistema:
+Roadmap não é "lista de features", é narrativa de **trajetória** do sistema:
 - Próximos 1-3 meses: detalhado.
 - 3-6 meses: dirigido.
 - 6-12 meses: visão.
@@ -261,7 +261,7 @@ Como engenheiro full-stack chegando em senior:
 - **Write**: blog, internal docs. Forces clarity.
 - **Speak**: meetups, internal talks.
 - **Network**: comunidade open-source, eventos.
-- **Mentor outros** — ensina-você-melhor.
+- **Mentor outros**: ensina-você-melhor.
 
 Promotion não é linear. Janelas abrem/fecham. Senior+ é compounding: cada ano de boa decisão constrói capital.
 
@@ -364,13 +364,13 @@ Document **leadership artifacts** do Logística + executar 1 ciclo real.
 
 ## 6. Referências
 
-- **"The Manager's Path"** — Camille Fournier.
-- **"Staff Engineer"** — Will Larson. Bíblia do IC senior+.
-- **"An Elegant Puzzle"** — Will Larson.
-- **"The Phoenix Project"** + **"The Unicorn Project"** — Gene Kim.
-- **"Team Topologies"** — Skelton, Pais.
-- **"Crucial Conversations"** — Patterson et al.
-- **"Radical Candor"** — Kim Scott.
+- **"The Manager's Path"**: Camille Fournier.
+- **"Staff Engineer"**: Will Larson. Bíblia do IC senior+.
+- **"An Elegant Puzzle"**: Will Larson.
+- **"The Phoenix Project"** + **"The Unicorn Project"**: Gene Kim.
+- **"Team Topologies"**: Skelton, Pais.
+- **"Crucial Conversations"**: Patterson et al.
+- **"Radical Candor"**: Kim Scott.
 - **Camille Fournier blog** ([skamille.medium.com](https://skamille.medium.com/)).
 - **Charity Majors blog** ([charity.wtf](https://charity.wtf/)).
 - **Will Larson blog** ([lethain.com](https://lethain.com/)).

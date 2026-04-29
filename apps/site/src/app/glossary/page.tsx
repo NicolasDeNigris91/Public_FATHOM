@@ -24,7 +24,7 @@ export default async function GlossaryPage() {
         <EyebrowHeading
           eyebrow={`${terms.length} Termos Canônicos`}
           title="Glossary"
-          subtitle="Vocabulário técnico do framework. Termos em EN original, definição curta. Use a busca pra desambiguar ou refrescar — não substitui leitura do módulo onde o termo aparece."
+          subtitle="Vocabulário técnico do framework. Termos em EN original, definição curta. Use a busca pra desambiguar ou refrescar, não substitui leitura do módulo onde o termo aparece."
         />
         <div className="mt-16">
           <GlossaryClient terms={terms} sections={sections} />

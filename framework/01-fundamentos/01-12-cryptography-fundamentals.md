@@ -1,6 +1,6 @@
 ---
 module: 01-12
-title: Cryptography Fundamentals — Hashes, MAC, AEAD, Key Exchange, PKI
+title: Cryptography Fundamentals, Hashes, MAC, AEAD, Key Exchange, PKI
 stage: fundamentos
 prereqs: [01-03]
 gates:
@@ -10,13 +10,13 @@ gates:
 status: locked
 ---
 
-# 01-12 — Cryptography Fundamentals
+# 01-12, Cryptography Fundamentals
 
 ## 1. Problema de Engenharia
 
-A maioria dos devs trata crypto como caixa-preta: chama `bcrypt`, copia trecho de OAuth2, usa HTTPS, e nunca pensa de novo. Resultado: vulnerabilidades clássicas continuam aparecendo — senhas em SHA-256 sem salt, AES-CBC sem MAC vulnerável a padding oracle, JWT com `alg:none`, comparações de tokens com `==` em tempo não-constante, GCM com nonce reutilizado destruindo confidencialidade, certificate pinning ausente em mobile.
+A maioria dos devs trata crypto como caixa-preta: chama `bcrypt`, copia trecho de OAuth2, usa HTTPS, e nunca pensa de novo. Resultado: vulnerabilidades clássicas continuam aparecendo, senhas em SHA-256 sem salt, AES-CBC sem MAC vulnerável a padding oracle, JWT com `alg:none`, comparações de tokens com `==` em tempo não-constante, GCM com nonce reutilizado destruindo confidencialidade, certificate pinning ausente em mobile.
 
-Você não precisa **inventar** primitives — isso é missão de criptógrafos. Mas precisa entender o **que cada primitive garante**, **quando usar qual**, **quais são os modos de falha**. Sem essa base, 02-13 (Auth — JWT/OAuth2/OIDC), 03-08 (OWASP), 04-11 (Web3) viram cargo cult e você vai escrever código inseguro com confiança.
+Você não precisa **inventar** primitives, isso é missão de criptógrafos. Mas precisa entender o **que cada primitive garante**, **quando usar qual**, **quais são os modos de falha**. Sem essa base, 02-13 (Auth, JWT/OAuth2/OIDC), 03-08 (OWASP), 04-11 (Web3) viram cargo cult e você vai escrever código inseguro com confiança.
 
 Este módulo é o vocabulário e os princípios. Hash function, MAC, signature, symmetric vs asymmetric, AEAD, key derivation, key exchange, PKI, randomness. Plus os pitfalls clássicos.
 
@@ -60,7 +60,7 @@ Construção principal: **HMAC** (RFC 2104), baseado em hash. `HMAC-SHA256` é d
 Padrões:
 - **RSA-PSS** (não use PKCS#1 v1.5 em código novo).
 - **ECDSA** (curva P-256/P-384). Determinismo importante (RFC 6979) pra evitar reuse de nonce que vaza chave.
-- **EdDSA** (Ed25519, Ed448) — escolha moderna preferida. Determinístico por design.
+- **EdDSA** (Ed25519, Ed448), escolha moderna preferida. Determinístico por design.
 
 Falhas clássicas: nonce reuse em ECDSA recupera privkey (Sony PS3, 2010). Use libs sérias.
 
@@ -69,7 +69,7 @@ Falhas clássicas: nonce reuse em ECDSA recupera privkey (Sony PS3, 2010). Use l
 Cifra de bloco: AES (128/192/256 bits). Opera em blocos de 128 bits.
 
 **Modos** dizem como encadear blocos pra cifrar mensagem maior:
-- **ECB** (Electronic Codebook): cada bloco independente. **Nunca use** — leaks de patterns (a imagem do pinguim com ECB virou meme técnico).
+- **ECB** (Electronic Codebook): cada bloco independente. **Nunca use**: leaks de patterns (a imagem do pinguim com ECB virou meme técnico).
 - **CBC** (Cipher Block Chaining): XOR com bloco anterior. Precisa IV aleatório. Vulnerável a padding oracle (POODLE) se mal implementado.
 - **CTR** (Counter): transforma cifra de bloco em stream cipher; precisa nonce único.
 - **GCM** (Galois/Counter Mode): CTR + autenticação (GMAC). É **AEAD**.
@@ -110,13 +110,13 @@ Senha em DB: nunca SHA-256. Sempre Argon2id (ou bcrypt se libs limitam). Sal ale
 
 **ECC** (Elliptic Curve Cryptography): segurança em discrete log em curvas. Chaves muito menores (256 bits ECC ≈ 3072 RSA). Curvas: P-256 (NIST), Curve25519 (Bernstein, mais segura por design).
 
-Asymmetric é caro — você raramente cifra dados grandes com ele. Padrão: usar asymmetric pra **estabelecer** chave simétrica, então cifrar dados com simétrico (hybrid encryption).
+Asymmetric é caro, você raramente cifra dados grandes com ele. Padrão: usar asymmetric pra **estabelecer** chave simétrica, então cifrar dados com simétrico (hybrid encryption).
 
 ### 2.9 Key exchange: Diffie-Hellman
 
 DH permite que dois lados gerem **shared secret** sem nunca enviá-lo. Hoje, **ECDH** (DH em curva elíptica) é padrão.
 
-Em TLS 1.3 e Signal, key exchange é **ephemeral** (DHE/ECDHE) — gera chaves novas por sessão. Garante **forward secrecy**: se chave de longo prazo é comprometida no futuro, sessões antigas continuam seguras.
+Em TLS 1.3 e Signal, key exchange é **ephemeral** (DHE/ECDHE), gera chaves novas por sessão. Garante **forward secrecy**: se chave de longo prazo é comprometida no futuro, sessões antigas continuam seguras.
 
 ### 2.10 PKI e certificados X.509
 
@@ -167,9 +167,9 @@ Nunca use timestamp como token. Nunca use sequencial.
 
 ### 2.14 Crypto agility
 
-Algoritmos viram ruins (MD5, SHA-1, RC4). Sistema deve ser capaz de **trocar** sem rewrite — versionar formato (`v1$argon2id$...`, `v2$...`), suportar múltiplos algorithms em paralelo, ter rotation plan de chaves.
+Algoritmos viram ruins (MD5, SHA-1, RC4). Sistema deve ser capaz de **trocar** sem rewrite, versionar formato (`v1$argon2id$...`, `v2$...`), suportar múltiplos algorithms em paralelo, ter rotation plan de chaves.
 
-### 2.15 Pós-quântico — NIST standards 2024+
+### 2.15 Pós-quântico, NIST standards 2024+
 
 Computadores quânticos teóricos quebram **RSA, DH, ECC** via algoritmo de Shor. Hash e simétrico (AES) sobrevivem com chaves maiores (Grover dá speedup quadrático em busca, não exponencial).
 
@@ -202,7 +202,7 @@ Computadores quânticos teóricos quebram **RSA, DH, ECC** via algoritmo de Shor
 - **Próximos 2-3 anos**: PKI corporativa começa a emitir certificates híbridos. Code signing migra.
 - **5-10 anos**: assinaturas legacy (RSA 2048) em firmware/devices viram passivo de risco real.
 
-Não implemente PQ crypto você mesmo — use **liboqs** (Open Quantum Safe), **AWS-LC**, **OpenSSL 3.5+**, ou **BoringSSL**. Cripto pós-quântica é especialmente sensível a side-channels novos (timing em lattice ops).
+Não implemente PQ crypto você mesmo, use **liboqs** (Open Quantum Safe), **AWS-LC**, **OpenSSL 3.5+**, ou **BoringSSL**. Cripto pós-quântica é especialmente sensível a side-channels novos (timing em lattice ops).
 
 ### 2.16 Constant-time programming
 
@@ -225,7 +225,7 @@ Implementações sérias usam mascaramento, instruções constant-time, hardware
 
 Você precisa, sem consultar:
 
-- Diferenciar hash, MAC, signature — quando usar cada e por quê.
+- Diferenciar hash, MAC, signature, quando usar cada e por quê.
 - Listar 3 propriedades de hash (pre-image, second pre-image, collision) e dar caso onde collision basta atacante.
 - Explicar por que ECB nunca; mostrar imagem do pinguim e justificar.
 - Explicar AEAD e regra de nonce não-reutilizado em GCM.
@@ -246,15 +246,15 @@ Construir uma **biblioteca mínima de utilitários crypto seguros** em TypeScrip
 ### Especificação
 
 1. **Lib `safe_crypto`**:
-   - `hashPassword(password)` / `verifyPassword(password, hash)` — Argon2id via `argon2` package.
-   - `aeadEncrypt(key, plaintext, ad)` / `aeadDecrypt(key, ciphertext, ad)` — XChaCha20-Poly1305 (libsodium via `sodium-native`), nonce random embutido.
-   - `signHmac(key, msg)` / `verifyHmac(key, msg, tag)` — HMAC-SHA256 com `timingSafeEqual`.
+   - `hashPassword(password)` / `verifyPassword(password, hash)`, Argon2id via `argon2` package.
+   - `aeadEncrypt(key, plaintext, ad)` / `aeadDecrypt(key, ciphertext, ad)`, XChaCha20-Poly1305 (libsodium via `sodium-native`), nonce random embutido.
+   - `signHmac(key, msg)` / `verifyHmac(key, msg, tag)`, HMAC-SHA256 com `timingSafeEqual`.
    - `signEd25519(privkey, msg)` / `verifyEd25519(pubkey, msg, sig)`.
-   - `deriveKey(masterKey, info, len)` — HKDF.
-   - `randomToken(bytes)` — CSPRNG.
+   - `deriveKey(masterKey, info, len)`, HKDF.
+   - `randomToken(bytes)`, CSPRNG.
 2. **Demos de ataque** (em testes que falham na versão "ingênua" e passam na "segura"):
    - **Timing attack** em compareHmac com `===` vs `timingSafeEqual`.
-   - **Padding oracle** em AES-CBC manual (educativo) — depois mostre que AEAD elimina.
+   - **Padding oracle** em AES-CBC manual (educativo), depois mostre que AEAD elimina.
    - **Nonce reuse** em AES-GCM: cifre 2 mensagens diferentes com mesmo nonce, mostre XOR de ciphertexts revela XOR de plaintexts.
    - **Senha SHA-256 vs Argon2id**: brute force `hashcat`-style em set de 100 senhas comuns; mostre ratio de cracking.
    - **JWT `alg:none`** em parser ingênuo vs `jose` lib.
@@ -293,19 +293,19 @@ Construir uma **biblioteca mínima de utilitários crypto seguros** em TypeScrip
 - Liga com **02-13** (Auth): senhas, JWT, OAuth2, OIDC dependem disso.
 - Liga com **03-08** (OWASP): 02-02 cryptographic failures.
 - Liga com **04-05** (API design): mTLS entre serviços.
-- Liga com **04-11** (Web3): hash, signatures, Merkle, BLS — toda a base.
+- Liga com **04-11** (Web3): hash, signatures, Merkle, BLS, toda a base.
 
 ---
 
 ## 6. Referências
 
-- **"Cryptography Engineering"** — Ferguson, Schneier, Kohno. Livro de referência prática.
-- **"Serious Cryptography"** — Jean-Philippe Aumasson. Moderno, denso.
-- **"A Graduate Course in Applied Cryptography"** — Boneh, Shoup. Gratuito, profundo.
-- **RFC 8446** — TLS 1.3.
-- **RFC 5869** — HKDF.
-- **RFC 7693** — BLAKE2; **BLAKE3** spec.
-- **NIST SP 800-63B** — Authentication guidelines.
+- **"Cryptography Engineering"**: Ferguson, Schneier, Kohno. Livro de referência prática.
+- **"Serious Cryptography"**: Jean-Philippe Aumasson. Moderno, denso.
+- **"A Graduate Course in Applied Cryptography"**: Boneh, Shoup. Gratuito, profundo.
+- **RFC 8446**: TLS 1.3.
+- **RFC 5869**: HKDF.
+- **RFC 7693**: BLAKE2; **BLAKE3** spec.
+- **NIST SP 800-63B**: Authentication guidelines.
 - **libsodium docs** ([doc.libsodium.org](https://doc.libsodium.org/)).
-- **Cryptographic Right Answers** — Latacora ([latacora.micro.blog/2018/04/03/cryptographic-right-answers.html](https://latacora.micro.blog/2018/04/03/cryptographic-right-answers.html)).
+- **Cryptographic Right Answers**: Latacora ([latacora.micro.blog/2018/04/03/cryptographic-right-answers.html](https://latacora.micro.blog/2018/04/03/cryptographic-right-answers.html)).
 - **"Real World Crypto" talks** (rwc.iacr.org).

@@ -54,7 +54,7 @@ export function ModuleRow({ module: mod }: { module: ModuleSummary }) {
       </Link>
 
       <span className="hidden md:block font-mono text-caption text-chrome tracking-wide text-right truncate">
-        {mod.prereqs.length > 0 ? mod.prereqs.join(', ') : '—'}
+        {mod.prereqs.length > 0 ? mod.prereqs.join(', ') : ', '}
       </span>
 
       <span className="flex items-center justify-end text-mist group-hover:text-gold-leaf transition-colors duration-300">

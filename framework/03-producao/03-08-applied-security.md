@@ -1,6 +1,6 @@
 ---
 module: 03-08
-title: Applied Security — OWASP Top 10, Threat Modeling, AppSec Pipeline
+title: Applied Security, OWASP Top 10, Threat Modeling, AppSec Pipeline
 stage: producao
 prereqs: [02-13, 03-04]
 gates:
@@ -10,11 +10,11 @@ gates:
 status: locked
 ---
 
-# 03-08 — Applied Security
+# 03-08, Applied Security
 
 ## 1. Problema de Engenharia
 
-Security é tratado como "pessoa do time security cuida". Quando você é o time, você é a pessoa. E quando há time security, eles olham PRs reativamente — não escrevem o código com você. A maioria dos bugs reportados em bug bounty são triviais: SSRF em uploader, IDOR cruzando tenant, XSS em render de markdown, header de CORS errado, JWT alg: none, rate limit ausente em endpoint sensível.
+Security é tratado como "pessoa do time security cuida". Quando você é o time, você é a pessoa. E quando há time security, eles olham PRs reativamente, não escrevem o código com você. A maioria dos bugs reportados em bug bounty são triviais: SSRF em uploader, IDOR cruzando tenant, XSS em render de markdown, header de CORS errado, JWT alg: none, rate limit ausente em endpoint sensível.
 
 Este módulo é AppSec aplicado: OWASP Top 10 (atual), Top 10 API, threat modeling (STRIDE), input validation, secrets, supply chain, AppSec pipeline (SAST/DAST/SCA), pentesting básico, secure SDLC. Você sai escrevendo código defensivo por default e revisando PRs com olho de atacante.
 
@@ -22,19 +22,19 @@ Este módulo é AppSec aplicado: OWASP Top 10 (atual), Top 10 API, threat modeli
 
 ## 2. Teoria Hard
 
-### 2.1 OWASP Top 10 (2021/2025) — web
+### 2.1 OWASP Top 10 (2021/2025), web
 
 Ordenado por incidência:
-1. **Broken Access Control** — IDOR, lack of authz check, force browse.
-2. **Cryptographic Failures** — weak crypto, secret leak, missing TLS.
-3. **Injection** — SQL, NoSQL, LDAP, command, ORM injection.
-4. **Insecure Design** — falhas arquitetônicas (lack of rate limit, expose internals).
-5. **Security Misconfiguration** — default creds, verbose errors, headers ausentes.
-6. **Vulnerable & Outdated Components** — deps com CVE.
-7. **Identification & Authentication Failures** — weak passwords, session fixation, MFA bypass.
-8. **Software & Data Integrity Failures** — supply chain, deserialization, missing signature.
-9. **Security Logging & Monitoring Failures** — sem audit log, sem detecção.
-10. **Server-Side Request Forgery (SSRF)** — server faz request a URL controlada.
+1. **Broken Access Control**: IDOR, lack of authz check, force browse.
+2. **Cryptographic Failures**: weak crypto, secret leak, missing TLS.
+3. **Injection**: SQL, NoSQL, LDAP, command, ORM injection.
+4. **Insecure Design**: falhas arquitetônicas (lack of rate limit, expose internals).
+5. **Security Misconfiguration**: default creds, verbose errors, headers ausentes.
+6. **Vulnerable & Outdated Components**: deps com CVE.
+7. **Identification & Authentication Failures**: weak passwords, session fixation, MFA bypass.
+8. **Software & Data Integrity Failures**: supply chain, deserialization, missing signature.
+9. **Security Logging & Monitoring Failures**: sem audit log, sem detecção.
+10. **Server-Side Request Forgery (SSRF)**: server faz request a URL controlada.
 
 ### 2.2 OWASP API Top 10 (2023)
 
@@ -50,7 +50,7 @@ Aplicações modernas viram APIs. Top 10 específico:
 - **API9: Improper Inventory Management** (zombie endpoints).
 - **API10: Unsafe Consumption of APIs** (trustar resposta de upstream sem validar).
 
-### 2.3 Threat modeling — STRIDE
+### 2.3 Threat modeling, STRIDE
 
 Sistemático: pra cada componente, pergunte:
 - **S**poofing: pode alguém personificar?
@@ -71,7 +71,7 @@ Princípio: **trust no input**, valide em fronteira.
 - Schema validation (Zod, TypeBox, AJV) em entrada HTTP.
 - Tipos restritivos (não `string` quando é UUID).
 - Limites (max length, max count em arrays).
-- Sanitize quando serve em HTML/SQL/shell — mas prefere parametrizar (prepared statements).
+- Sanitize quando serve em HTML/SQL/shell, mas prefere parametrizar (prepared statements).
 - File uploads: tipo MIME (verificado, não trustando header), tamanho, scanning antivirus se aplicável.
 
 ### 2.5 Output encoding
@@ -88,7 +88,7 @@ Prevenção:
 - ORMs param por default; mas `raw` exige cuidado.
 - Mongo: nunca `eval`; cuidado com `$where` e operators que aceitam função.
 
-Test: input com `'; DROP TABLE--` etc. — produção deve responder erro de validation, não erro de DB.
+Test: input com `'; DROP TABLE--` etc., produção deve responder erro de validation, não erro de DB.
 
 ### 2.7 SSRF
 
@@ -181,13 +181,13 @@ Em pipeline: SAST barato em PR, DAST nightly.
 ### 2.17 Compliance
 
 - **SOC 2**: framework comum em SaaS B2B. Controls: access, change management, encryption, monitoring, incident response.
-- **GDPR / LGPD**: dados pessoais — direito ao esquecimento, consent, DPA.
+- **GDPR / LGPD**: dados pessoais, direito ao esquecimento, consent, DPA.
 - **PCI-DSS**: cartão de crédito.
 - **HIPAA**: saúde nos EUA.
 
 Compliance acelera com infra que já incorpora controls (audit log, encryption at rest, RBAC, logs imutáveis).
 
-### 2.17.1 Privacy engineering — disciplina, não compliance checklist
+### 2.17.1 Privacy engineering, disciplina, não compliance checklist
 
 GDPR/LGPD aparecem como compliance ("o que jurídico exige"). Privacy engineering é diferente: **discipline de design** que coloca privacy como restrição técnica primária, não atenuação posterior.
 
@@ -195,7 +195,7 @@ GDPR/LGPD aparecem como compliance ("o que jurídico exige"). Privacy engineerin
 - **Privacy by design** (Cavoukian, 2009): privacy é default, end-to-end, não trade-off.
 - **Data minimization**: colete só o que precisa. Cada campo PII tem custo (storage, breach impact, compliance overhead).
 - **Purpose limitation**: dado coletado pra X não migra pra Y sem consent novo.
-- **Storage limitation**: TTL em dado pessoal. Logs, eventos, sessões — todos com expiry.
+- **Storage limitation**: TTL em dado pessoal. Logs, eventos, sessões, todos com expiry.
 - **Pseudonymization**: substitui PII por token reversível (mantido em vault separado). Eventos podem usar tokens.
 - **Anonymization**: irreversível (k-anonymity, differential privacy). Aceitável pra analytics.
 
@@ -241,16 +241,16 @@ GDPR/LGPD aparecem como compliance ("o que jurídico exige"). Privacy engineerin
 - Address: country/state em analytics, full address só onde shipping precisa.
 
 **Tools de privacy engineering:**
-- **Datafold**, **Bigeye** — data lineage incluindo PII flow.
-- **Privacy Dynamics**, **Skyflow** — vaults de PII.
-- **Transcend**, **OneTrust** — automation de DSARs (Data Subject Access Requests).
-- **Syft** (federated) e **OpenDP** — differential privacy libs.
+- **Datafold**, **Bigeye**: data lineage incluindo PII flow.
+- **Privacy Dynamics**, **Skyflow**: vaults de PII.
+- **Transcend**, **OneTrust**: automation de DSARs (Data Subject Access Requests).
+- **Syft** (federated) e **OpenDP**: differential privacy libs.
 
 **Antipatterns comuns:**
-- "Vamos coletar X agora, decidir uso depois." — viola purpose limitation. Coleta sem necessidade é débito legal e técnico.
-- "Logamos full request pra debug" — logs com PII = breach quando logs vazarem.
-- "Anonimizado = `name = 'redacted'`" — quasi-identifiers (CEP+idade+gênero) podem re-id em datasets pequenos.
-- "Backup encrypted = privacy" — backup encrypted ainda contém PII. Right-to-be-forgotten exige tocar backups.
+- "Vamos coletar X agora, decidir uso depois.", viola purpose limitation. Coleta sem necessidade é débito legal e técnico.
+- "Logamos full request pra debug", logs com PII = breach quando logs vazarem.
+- "Anonimizado = `name = 'redacted'`", quasi-identifiers (CEP+idade+gênero) podem re-id em datasets pequenos.
+- "Backup encrypted = privacy", backup encrypted ainda contém PII. Right-to-be-forgotten exige tocar backups.
 
 ### 2.18 Incident response
 
@@ -316,10 +316,10 @@ Hardening de **Logística v1** com pipeline AppSec real.
    - Audit de cada endpoint pra mass assignment. Use DTOs `strict()` em Zod.
    - Sanitize markdown/HTML em qualquer campo que renderiza no front (`DOMPurify` server-side).
 6. **SSRF guard**:
-   - Endpoint que aceita URL pra scrap (mock) — bloqueia IPs privados, localhost, allowlist domains.
+   - Endpoint que aceita URL pra scrap (mock), bloqueia IPs privados, localhost, allowlist domains.
 7. **Secrets**:
    - gitleaks rodando em pre-commit + CI.
-   - Demonstre que cleaning history se um secret leak (cuidado com rewrite — em projetos próprios ok).
+   - Demonstre que cleaning history se um secret leak (cuidado com rewrite, em projetos próprios ok).
 8. **Pipeline**:
    - **SAST**: Semgrep com regras OWASP + custom (proibir `eval`, `dangerouslySetInnerHTML` sem allowlist, raw SQL).
    - **SCA**: Trivy/Snyk fs em PR.
@@ -347,7 +347,7 @@ Hardening de **Logística v1** com pipeline AppSec real.
   - Resultado SAST/SCA/DAST com triagem (ignorar com motivo se for falso-positivo).
   - Pentest report com 5 tentativas, fixes aplicados.
   - LGPD: demo de `DELETE /me` mostrando anonimização.
-  - 1 incident response simulado (descobriu credential leak — runbook).
+  - 1 incident response simulado (descobriu credential leak, runbook).
 
 ### Stretch
 
@@ -379,11 +379,11 @@ Hardening de **Logística v1** com pipeline AppSec real.
 - **OWASP Top 10** ([owasp.org/Top10](https://owasp.org/Top10/)).
 - **OWASP API Security Top 10** ([owasp.org/API-Security](https://owasp.org/API-Security/)).
 - **OWASP Cheat Sheets** ([cheatsheetseries.owasp.org](https://cheatsheetseries.owasp.org/)).
-- **OWASP ASVS** — verification standard.
-- **"The Web Application Hacker's Handbook"** — Stuttard, Pinto.
-- **"Real-World Cryptography"** — David Wong.
-- **"Threat Modeling: Designing for Security"** — Adam Shostack.
+- **OWASP ASVS**: verification standard.
+- **"The Web Application Hacker's Handbook"**: Stuttard, Pinto.
+- **"Real-World Cryptography"**: David Wong.
+- **"Threat Modeling: Designing for Security"**: Adam Shostack.
 - **OWASP ZAP docs**.
 - **Semgrep rules** ([semgrep.dev/r](https://semgrep.dev/r)).
-- **HackerOne / Bugcrowd disclosed reports** — lições com bugs reais.
-- **Project Zero blog** — Google's research.
+- **HackerOne / Bugcrowd disclosed reports**: lições com bugs reais.
+- **Project Zero blog**: Google's research.

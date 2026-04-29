@@ -1,6 +1,6 @@
 ---
 module: 02-05
-title: Next.js — App Router, RSC, Caching Layers, Edge vs Node
+title: Next.js, App Router, RSC, Caching Layers, Edge vs Node
 stage: plataforma
 prereqs: [02-04]
 gates:
@@ -10,11 +10,11 @@ gates:
 status: locked
 ---
 
-# 02-05 — Next.js
+# 02-05, Next.js
 
 ## 1. Problema de Engenharia
 
-Next.js é o framework de fato pra apps React em produção. Mas o que ele faz vai além de "React com SSR" — é um sistema de roteamento, render híbrido (server/client/edge), múltiplas camadas de cache, otimização automática de assets, primitivas de RSC. Cada uma dessas peças tem regras sutis, e times perdem dias debugando comportamento esperado de cache, hydration mismatches, ou diferenças entre runtimes.
+Next.js é o framework de fato pra apps React em produção. Mas o que ele faz vai além de "React com SSR", é um sistema de roteamento, render híbrido (server/client/edge), múltiplas camadas de cache, otimização automática de assets, primitivas de RSC. Cada uma dessas peças tem regras sutis, e times perdem dias debugando comportamento esperado de cache, hydration mismatches, ou diferenças entre runtimes.
 
 Este módulo não é "tutorial Next". É o modelo mental do que acontece em cada request, como o cache decide servir HTML estático ou re-renderizar, e quando vale o trade-off de Edge runtime vs Node.
 
@@ -27,7 +27,7 @@ Este módulo não é "tutorial Next". É o modelo mental do que acontece em cada
 Pages Router (`/pages`) foi o padrão até 2022. Modelo: cada arquivo em `pages/` é uma rota; `getStaticProps`/`getServerSideProps`/`getStaticPaths` controlam fetch.
 
 App Router (`/app`, default desde Next 13.4 stable) é uma reescrita baseada em RSC. Mudanças principais:
-- **Server components por default** — componentes são server-only a menos que marcados `'use client'`.
+- **Server components por default**: componentes são server-only a menos que marcados `'use client'`.
 - **Layouts compartilhados** persistem entre navigations no mesmo segmento.
 - **Streaming SSR** com Suspense.
 - **Loading e Error boundaries** automáticos por convenção (`loading.tsx`, `error.tsx`).
@@ -64,14 +64,14 @@ app/
 ```
 
 Convenções de arquivos:
-- `page.tsx` — UI da rota.
-- `layout.tsx` — wrapper. `children` é a rota.
-- `loading.tsx` — Suspense fallback automático.
-- `error.tsx` — Error boundary.
-- `not-found.tsx` — 404.
-- `template.tsx` — como layout mas re-cria a cada navegação (perde state).
-- `route.ts` — API endpoint (GET, POST, etc. exportados).
-- `middleware.ts` (na raiz, não em app/) — roda antes de todo request.
+- `page.tsx`, UI da rota.
+- `layout.tsx`, wrapper. `children` é a rota.
+- `loading.tsx`, Suspense fallback automático.
+- `error.tsx`, Error boundary.
+- `not-found.tsx`, 404.
+- `template.tsx`, como layout mas re-cria a cada navegação (perde state).
+- `route.ts`, API endpoint (GET, POST, etc. exportados).
+- `middleware.ts` (na raiz, não em app/), roda antes de todo request.
 
 Parênteses (`(group)`) agrupam sem afetar URL. Colchetes duplos (`[[...slug]]`) são catch-all opcional.
 
@@ -81,7 +81,7 @@ Cada componente em `app/` é Server Component por default. Comportamento:
 - Roda no servidor (Node ou Edge runtime, depende da config).
 - Pode ser `async` e usar `await`.
 - Tem acesso a env vars, FS, DB drivers direto.
-- Não vai pro bundle do cliente — só seu output (RSC payload) viaja.
+- Não vai pro bundle do cliente, só seu output (RSC payload) viaja.
 - Não pode usar hooks de state (`useState`, `useEffect`) nem listeners (`onClick`).
 
 Pra ser Client Component, **a primeira linha** do arquivo deve ter:
@@ -95,7 +95,7 @@ Marca o componente e tudo o que ele importa como client. RSCs podem importar Cli
 
 ### 2.4 Caching layers (a parte que mais dói)
 
-Next 14/15 tem várias camadas de cache. Em Next 15, Turbopack/refactor mudou defaults — sempre confirme version. Os layers são:
+Next 14/15 tem várias camadas de cache. Em Next 15, Turbopack/refactor mudou defaults, sempre confirme version. Os layers são:
 
 1. **Request Memoization**: dentro de uma única request (server-side), `fetch` com mesma URL retorna cache. Mecanismo do React, não Next.
 
@@ -108,12 +108,12 @@ Next 14/15 tem várias camadas de cache. Em Next 15, Turbopack/refactor mudou de
 5. **CDN/edge cache** (deployment): Vercel/Cloudflare/etc. cacheiam respostas conforme headers.
 
 Como controlar:
-- `fetch(url, { cache: 'force-cache' | 'no-store' })` — Data Cache.
-- `fetch(url, { next: { revalidate: 60, tags: ['orders'] } })` — TTL e tag-based invalidation.
-- `export const dynamic = 'force-dynamic' | 'force-static' | 'auto'` em layout/page — força comportamento da rota.
-- `export const revalidate = 60` — TTL pra rota inteira.
-- `revalidatePath('/orders')` ou `revalidateTag('orders')` em Server Action — invalida.
-- `cookies()`, `headers()` em RSC — torna a rota dinâmica.
+- `fetch(url, { cache: 'force-cache' | 'no-store' })`, Data Cache.
+- `fetch(url, { next: { revalidate: 60, tags: ['orders'] } })`, TTL e tag-based invalidation.
+- `export const dynamic = 'force-dynamic' | 'force-static' | 'auto'` em layout/page, força comportamento da rota.
+- `export const revalidate = 60`, TTL pra rota inteira.
+- `revalidatePath('/orders')` ou `revalidateTag('orders')` em Server Action, invalida.
+- `cookies()`, `headers()` em RSC, torna a rota dinâmica.
 
 Mental model: **toda decisão de cache é "qual camada serve essa response, e quando ela invalida"**. Se você não consegue responder isso pra cada rota, vai apanhar.
 
@@ -187,7 +187,7 @@ Cada rota pode escolher runtime via `export const runtime = 'nodejs' | 'edge'`.
 - Boa pra middleware, geo-routing, streaming responses simples.
 
 Limitações Edge:
-- Sem drivers nativos Postgres (`pg`) — use HTTP-based (`@vercel/postgres`, `@neondatabase/serverless`, Supabase REST, etc.).
+- Sem drivers nativos Postgres (`pg`), use HTTP-based (`@vercel/postgres`, `@neondatabase/serverless`, Supabase REST, etc.).
 - Sem libs Node-only (`fs`, `crypto` clássico, etc.).
 - Bundle size limit (~1 MB).
 
@@ -219,14 +219,14 @@ Otimização que mais impacta Core Web Vitals em projetos típicos.
 ### 2.11 Configuração e build
 
 `next.config.js` (ou `.ts`) configura tudo. Pontos importantes:
-- `images.domains` ou `remotePatterns` — quais hosts são permitidos pra `next/image`.
-- `experimental` flags — features pré-stable.
-- `headers()`, `redirects()`, `rewrites()` — configuração de routing fora do file system.
-- `output` — `'standalone'` pra Docker images mínimas.
+- `images.domains` ou `remotePatterns`, quais hosts são permitidos pra `next/image`.
+- `experimental` flags, features pré-stable.
+- `headers()`, `redirects()`, `rewrites()`, configuração de routing fora do file system.
+- `output`, `'standalone'` pra Docker images mínimas.
 
 Build:
 - `next build` gera `.next/`.
-- Output mostra cada rota e tipo (`○ Static`, `λ Dynamic`, `ƒ ISR`, `Middleware`, etc.). **Sempre revise build output** — entender o que ficou estático vs dinâmico evita surpresas em produção.
+- Output mostra cada rota e tipo (`○ Static`, `λ Dynamic`, `ƒ ISR`, `Middleware`, etc.). **Sempre revise build output**: entender o que ficou estático vs dinâmico evita surpresas em produção.
 
 ### 2.12 Padrões em projetos reais
 
@@ -238,7 +238,7 @@ Build:
 - **Intercepting routes** pra modal sobre outra rota (Instagram-like photo viewer).
 - **`generateStaticParams`** + `revalidate` pra híbrido SSG + ISR.
 
-### 2.13 Server Components mental model — limite client/server
+### 2.13 Server Components mental model, limite client/server
 
 A separação entre Server e Client Components é o conceito central do App Router:
 
@@ -268,7 +268,7 @@ export default function ClientShell({ children }) {
 - **Não** pass functions de Server pra Client (exceto Server Actions).
 - **Não** pass class instances; use plain objects.
 
-### 2.14 RSC payload — o que viaja entre servidor e client
+### 2.14 RSC payload, o que viaja entre servidor e client
 
 RSC produz **árvore serializada** especial (não HTML, não JSON puro):
 - Server Components renderizados em uma representação posicional + props.
@@ -305,7 +305,7 @@ app/
 - **Sequential await em RSC**: cuidado, await encadeado serializa. Use `Promise.all`.
 - **Out-of-order streaming**: Suspense permite que children resolvam fora de ordem.
 
-### 2.16 Server Actions deep — revalidation, optimistic, transitions
+### 2.16 Server Actions deep, revalidation, optimistic, transitions
 
 Server Action é função `async` marcada com `'use server'`. Pode ser invocada de:
 - Form `action={fn}`.
@@ -384,7 +384,7 @@ Patterns:
 - Full Route Cache: build-time HTML stored.
 - Router Cache: client-side, in-memory.
 
-Mismatches comuns: `dynamic = 'force-dynamic'` desliga Data Cache, mas Router Cache ainda existe — user pode ver dado antigo até `router.refresh()`.
+Mismatches comuns: `dynamic = 'force-dynamic'` desliga Data Cache, mas Router Cache ainda existe, user pode ver dado antigo até `router.refresh()`.
 
 ### 2.19 Turbopack vs Webpack
 
@@ -456,12 +456,12 @@ Migrar **Logística (versão 02-01/02-02 vanilla)** pra Next.js App Router, com 
    - TypeScript strict.
    - Tailwind config compartilhado com versão 02-01.
 2. **Rotas**:
-   - `/` — landing.
-   - `/dashboard` — server-side aggregations (mockadas com sleep pra forçar streaming).
-   - `/orders` — lista server-side com Suspense progressivo.
-   - `/orders/[id]` — detalhe via `await` em RSC.
-   - `/orders/new` — form com Server Action.
-   - `/settings/(account|preferences)` — parallel/intercepting opcional.
+   - `/`, landing.
+   - `/dashboard`, server-side aggregations (mockadas com sleep pra forçar streaming).
+   - `/orders`, lista server-side com Suspense progressivo.
+   - `/orders/[id]`, detalhe via `await` em RSC.
+   - `/orders/new`, form com Server Action.
+   - `/settings/(account|preferences)`, parallel/intercepting opcional.
 3. **Caching**:
    - `/dashboard`: rota com `revalidate: 60`, tag `dashboard`.
    - `/orders`: força dynamic (lista pode mudar a qualquer momento).
@@ -517,10 +517,10 @@ Migrar **Logística (versão 02-01/02-02 vanilla)** pra Next.js App Router, com 
 
 ## 6. Referências
 
-- **Next.js docs** ([nextjs.org/docs](https://nextjs.org/docs)) — leia App Router e Caching inteiro. Mude para versão atual antes de aplicar.
-- **Vercel blog** — explica decisões de arquitetura.
+- **Next.js docs** ([nextjs.org/docs](https://nextjs.org/docs)), leia App Router e Caching inteiro. Mude para versão atual antes de aplicar.
+- **Vercel blog**: explica decisões de arquitetura.
 - **React docs** sobre RSC.
-- **"Understanding React Server Components"** — Lee Robinson e outros explicações longas.
-- **Lee Robinson's blog** ([leerob.io](https://leerob.io/)) — Vercel, Next deep dives.
-- **Theo's YouTube** (t3.gg) — análises de Next + alternativas.
-- **OpenNext** ([open-next.js.org](https://open-next.js.org/)) — deploy Next em AWS sem Vercel.
+- **"Understanding React Server Components"**: Lee Robinson e outros explicações longas.
+- **Lee Robinson's blog** ([leerob.io](https://leerob.io/)), Vercel, Next deep dives.
+- **Theo's YouTube** (t3.gg), análises de Next + alternativas.
+- **OpenNext** ([open-next.js.org](https://open-next.js.org/)), deploy Next em AWS sem Vercel.

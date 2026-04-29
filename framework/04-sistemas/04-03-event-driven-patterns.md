@@ -1,6 +1,6 @@
 ---
 module: 04-03
-title: Event-Driven Patterns — Event Sourcing, CQRS, Outbox, Saga
+title: Event-Driven Patterns, Event Sourcing, CQRS, Outbox, Saga
 stage: sistemas
 prereqs: [04-02]
 gates:
@@ -10,7 +10,7 @@ gates:
 status: locked
 ---
 
-# 04-03 — Event-Driven Patterns
+# 04-03, Event-Driven Patterns
 
 ## 1. Problema de Engenharia
 
@@ -124,7 +124,7 @@ CDC alternativa via Debezium: source of truth é Postgres directly. Sem outbox; 
 
 ### 2.9 Schema evolution
 
-Eventos são contratos — evolução exige cuidado.
+Eventos são contratos, evolução exige cuidado.
 
 Padrões:
 - **Additive only**: adicionar campo opcional. Consumers antigos ignoram.
@@ -174,7 +174,7 @@ UI precisa lidar com:
 - WS/SSE pra push de novidade.
 - Loading states durante delay.
 
-Pattern: "read your writes" — após write, cliente caches imediato; backend confirma async; UI consistent enough.
+Pattern: "read your writes", após write, cliente caches imediato; backend confirma async; UI consistent enough.
 
 ### 2.13 Anti-corruption layer (ACL)
 
@@ -256,8 +256,8 @@ Aplicar **CQRS + Event Sourcing parcial** em um subdomain do Logística.
    - Code TS: `Order.create`, `Order.assign`, `Order.markPickedUp`, `Order.markDelivered`. Cada um valida invariants e emite event.
    - Reconstrução: `Order.fromEvents(events)`.
 4. **Projections**:
-   - Read model `orders_view` (tabela Postgres) — atualizada por consumer de events.
-   - Read model `dashboard_aggregate` (Postgres ou Redis) — counts por tenant.
+   - Read model `orders_view` (tabela Postgres), atualizada por consumer de events.
+   - Read model `dashboard_aggregate` (Postgres ou Redis), counts por tenant.
    - 1 projection nova adicionada APÓS deploy: rebuild from start, sem downtime.
 5. **Saga**:
    - Implementar saga "AssignOrderToCourier" via **orchestration** (Temporal local ou state machine própria).
@@ -314,11 +314,11 @@ Aplicar **CQRS + Event Sourcing parcial** em um subdomain do Logística.
 
 ## 6. Referências
 
-- **"Designing Event-Driven Systems"** — Ben Stopford (free Confluent).
-- **"Event Sourcing"** — Martin Fowler ([martinfowler.com/eaaDev/EventSourcing.html](https://martinfowler.com/eaaDev/EventSourcing.html)).
-- **"Microservices Patterns"** — Chris Richardson (sagas, CQRS, outbox).
-- **"Implementing Domain-Driven Design"** — Vaughn Vernon.
-- **"Versioning in an Event Sourced System"** — Greg Young (livro/posts).
+- **"Designing Event-Driven Systems"**: Ben Stopford (free Confluent).
+- **"Event Sourcing"**: Martin Fowler ([martinfowler.com/eaaDev/EventSourcing.html](https://martinfowler.com/eaaDev/EventSourcing.html)).
+- **"Microservices Patterns"**: Chris Richardson (sagas, CQRS, outbox).
+- **"Implementing Domain-Driven Design"**: Vaughn Vernon.
+- **"Versioning in an Event Sourced System"**: Greg Young (livro/posts).
 - **Temporal docs** ([docs.temporal.io](https://docs.temporal.io/)).
 - **Camunda docs**.
 - **Vlingo, EventStoreDB** ([eventstore.com](https://www.eventstore.com/)).

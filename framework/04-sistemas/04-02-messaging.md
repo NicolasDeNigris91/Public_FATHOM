@@ -1,6 +1,6 @@
 ---
 module: 04-02
-title: Messaging — Kafka, RabbitMQ, NATS, SQS
+title: Messaging, Kafka, RabbitMQ, NATS, SQS
 stage: sistemas
 prereqs: [04-01]
 gates:
@@ -10,11 +10,11 @@ gates:
 status: locked
 ---
 
-# 04-02 — Messaging
+# 04-02, Messaging
 
 ## 1. Problema de Engenharia
 
-Sistema síncrono escala até dor: latência cresce com cada hop, falha encadeia. Messaging desacopla. Mas escolher errado é caro: Kafka pra workload trivial vira sledgehammer; RabbitMQ pra event log de altíssima volume estrangula; SQS sem partições força workarounds. Cada broker tem semantics próprias — durability, ordering, delivery guarantees, ack model — e treats de operação distintos.
+Sistema síncrono escala até dor: latência cresce com cada hop, falha encadeia. Messaging desacopla. Mas escolher errado é caro: Kafka pra workload trivial vira sledgehammer; RabbitMQ pra event log de altíssima volume estrangula; SQS sem partições força workarounds. Cada broker tem semantics próprias, durability, ordering, delivery guarantees, ack model, e treats de operação distintos.
 
 Este módulo dissecca os principais brokers (Kafka, RabbitMQ, NATS, SQS) com profundidade técnica: como armazenam, como replicam, como deliver, custos operacionais. Você sai sabendo escolher e operar.
 
@@ -133,7 +133,7 @@ Managed queue service.
 - Ordering global (FIFO é por group, não global).
 - Retention longa (max 14 dias).
 
-### 2.7 Outros — Pulsar, Redpanda, NATS JetStream deep
+### 2.7 Outros, Pulsar, Redpanda, NATS JetStream deep
 
 Em 2025-2026 esses três viraram alternativas sérias a Kafka pra cenários específicos. Vale conhecer pra escolher consciente.
 
@@ -144,8 +144,8 @@ Arquitetura **separada de storage e serving**: brokers stateless, **BookKeeper**
 - **Multi-tenancy first-class**: tenants → namespaces → topics. Quotas, isolation, separação real.
 - **Geo-replication built-in**: replicação cross-region como configuração, não DIY.
 - **Tiered storage**: dados antigos vão pra 04-03/GCS automatically. Reduz custo storage drasticamente.
-- **Functions**: serverless inside Pulsar — process events sem deploy externo (similar a Kafka Streams mas in-process no broker).
-- **Kafka API compatibility**: Pulsar oferece KoP (Kafka-on-Pulsar) — clients Kafka conectam direto.
+- **Functions**: serverless inside Pulsar, process events sem deploy externo (similar a Kafka Streams mas in-process no broker).
+- **Kafka API compatibility**: Pulsar oferece KoP (Kafka-on-Pulsar), clients Kafka conectam direto.
 
 **Quando vale Pulsar:**
 - Setup multi-tenant pesado (B2B SaaS multi-customer com isolation real).
@@ -160,24 +160,24 @@ Arquitetura **separada de storage e serving**: brokers stateless, **BookKeeper**
 
 **Kafka-compatible** binary-único em **C++**. Sem JVM, sem ZooKeeper, sem KRaft. Implementação from-scratch do protocolo Kafka.
 
-- **Latência muito menor**: sub-ms p99 vs Kafka ~5-50ms. Atinge 10x throughput em mesmo hardware em vários benchmarks (mantidos pela própria Redpanda — verificar com cuidado, mas tendência é real).
+- **Latência muito menor**: sub-ms p99 vs Kafka ~5-50ms. Atinge 10x throughput em mesmo hardware em vários benchmarks (mantidos pela própria Redpanda, verificar com cuidado, mas tendência é real).
 - **Single binary**: deploy trivial. SystemD service ou container. Sem 50 JVM flags.
 - **Tiered storage** com 04-03.
 - **Schema Registry compatível** integrado.
 
 **Quando vale Redpanda:**
 - Latência crítica (financial trading, real-time bidding, gaming).
-- Times que adoraram Kafka API mas operam Kafka mal — custo operacional cai.
+- Times que adoraram Kafka API mas operam Kafka mal, custo operacional cai.
 - Edge / on-prem com hardware limitado (sem JVM ajuda).
 
 **Trade-off:**
-- Source available license (Business Source License) — não é open source pure. Free pra uso comum, restricted em certos casos comerciais. Ler license.
+- Source available license (Business Source License), não é open source pure. Free pra uso comum, restricted em certos casos comerciais. Ler license.
 - Ecossistema (Kafka Connect, ksqlDB) funciona mas com asterisks. Verificar caso a caso.
 - Vendor (Redpanda Data) é único. Comunidade de contribuição menor que Kafka.
 
 #### NATS JetStream
 
-NATS Core é pub/sub efêmero ultra-rápido. **JetStream** (2021+) adiciona persistence — streams + consumers + retention.
+NATS Core é pub/sub efêmero ultra-rápido. **JetStream** (2021+) adiciona persistence, streams + consumers + retention.
 
 - **Streams**: subject filter, retention policy (limits, work queue, interest-based), replication (RAFT entre N nodes).
 - **Consumers**: durable ou ephemeral, push ou pull, com ack semantics (none, all, explicit).
@@ -187,10 +187,10 @@ NATS Core é pub/sub efêmero ultra-rápido. **JetStream** (2021+) adiciona pers
 
 **Quando vale NATS JetStream:**
 - Setup small-to-medium (pra throughput muito alto, Kafka domina).
-- Dev experience prioridade — `nats-server` single binary, CLI excelente, latência sub-ms.
+- Dev experience prioridade, `nats-server` single binary, CLI excelente, latência sub-ms.
 - Microservices internal communication onde você não precisa retention longa nem replay massivo.
-- Edge / IoT — leaf nodes funcionam disconnected e sync quando reconectam.
-- Serverless — consumir mensagem é HTTP-like simples, não precisa client lib heavy Kafka.
+- Edge / IoT, leaf nodes funcionam disconnected e sync quando reconectam.
+- Serverless, consumir mensagem é HTTP-like simples, não precisa client lib heavy Kafka.
 
 **Trade-off:**
 - Throughput max menor que Kafka tunado (Kafka dedicado top-tier ainda vence em pure ingest >1M msg/s).
@@ -287,7 +287,7 @@ Mensagem que sempre falha bloqueia consumer ou repete forever. DLQ separa pra in
 
 ### 2.15 Operação Kafka
 
-- **Partitions**: sizing — cada partition é arquivo no disk; muitas partitions = file descriptor pressure.
+- **Partitions**: sizing, cada partition é arquivo no disk; muitas partitions = file descriptor pressure.
 - **Brokers**: 3+ pra HA. Disk IOPS importa.
 - **Compaction**: pra topics como state log.
 - **Retention**: storage cost.
@@ -415,13 +415,13 @@ Adicionar **camada de eventos** ao Logística com Kafka (ou Redpanda) + outbox +
 
 ## 6. Referências
 
-- **"Kafka: The Definitive Guide"** — Narkhede, Shapira, Palino.
+- **"Kafka: The Definitive Guide"**: Narkhede, Shapira, Palino.
 - **Confluent docs** ([docs.confluent.io](https://docs.confluent.io/)).
 - **Redpanda docs** ([docs.redpanda.com](https://docs.redpanda.com/)).
 - **RabbitMQ docs** ([rabbitmq.com/docs](https://www.rabbitmq.com/docs)).
 - **NATS docs** ([docs.nats.io](https://docs.nats.io/)).
 - **Debezium docs** ([debezium.io](https://debezium.io/)).
 - **CloudEvents spec** ([cloudevents.io](https://cloudevents.io/)).
-- **"Microservices Patterns"** — Chris Richardson (sagas, CQRS).
-- **"Designing Event-Driven Systems"** — Ben Stopford (Confluent ebook).
+- **"Microservices Patterns"**: Chris Richardson (sagas, CQRS).
+- **"Designing Event-Driven Systems"**: Ben Stopford (Confluent ebook).
 - **DDIA** capítulos 11 (stream processing).

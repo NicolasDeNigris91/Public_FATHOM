@@ -1,6 +1,6 @@
 ---
 module: 04-13
-title: Streaming & Batch Data Processing — Spark, Flink, dbt, Airflow, Lakehouse
+title: Streaming & Batch Data Processing, Spark, Flink, dbt, Airflow, Lakehouse
 stage: sistemas
 prereqs: [04-02]
 gates:
@@ -10,7 +10,7 @@ gates:
 status: locked
 ---
 
-# 04-13 — Streaming & Batch Data Processing
+# 04-13, Streaming & Batch Data Processing
 
 ## 1. Problema de Engenharia
 
@@ -26,7 +26,7 @@ Este módulo é **data processing por dentro**: lambda vs kappa architectures, s
 
 ### 2.1 Lambda vs Kappa
 
-**Lambda** (Marz): dois caminhos paralelos — batch layer (correto, lento) + speed layer (rápido, aproximado), unidos em serving layer. Complexidade alta (dois codebases).
+**Lambda** (Marz): dois caminhos paralelos, batch layer (correto, lento) + speed layer (rápido, aproximado), unidos em serving layer. Complexidade alta (dois codebases).
 
 **Kappa** (Kreps): só streaming. Re-process via re-read do log. Reprocessing batch-style sobre stream histórico.
 
@@ -36,16 +36,16 @@ Kappa simplifica e tem ganho com Kafka log retention longa. Lambda persiste em a
 
 - **Apache Flink**: stateful, exactly-once, low latency (ms). State backends (RocksDB), savepoints, event-time semantics. Padrão pra streaming sério.
 - **Kafka Streams**: lib JVM, embeds em app. Sem cluster separado. Ok pra apps simples.
-- **Spark Structured Streaming**: micro-batch (default) ou continuous (alpha). Mesma API que batch — vantagem.
+- **Spark Structured Streaming**: micro-batch (default) ou continuous (alpha). Mesma API que batch, vantagem.
 - **Apache Beam**: SDK unificado batch+stream; runners (Flink, Spark, Dataflow, Direct).
 - **ksqlDB**: SQL streaming sobre Kafka.
 - **Materialize / RisingWave**: streaming SQL incremental.
 
 Flink é "default sério"; ksqlDB e Materialize ganham em DX.
 
-### 2.2.1 Streaming SQL incremental — Materialize, RisingWave
+### 2.2.1 Streaming SQL incremental, Materialize, RisingWave
 
-Categoria que cresceu 2023-2025: você escreve SQL como em Postgres, engine mantém **materialized view incrementalmente atualizada** conforme dados chegam. Não é micro-batch — é update real-time conforme cada change.
+Categoria que cresceu 2023-2025: você escreve SQL como em Postgres, engine mantém **materialized view incrementalmente atualizada** conforme dados chegam. Não é micro-batch, é update real-time conforme cada change.
 
 **Modelo conceitual:**
 - Conecta **sources** (Kafka, Postgres CDC via Debezium, Kinesis, 04-03).
@@ -79,19 +79,19 @@ SELECT * FROM revenue_per_user WHERE user_id = 42;
 **RisingWave:**
 - Open-source streaming database em Rust.
 - SQL Postgres-compatible.
-- State em **shared storage** (04-03) com cache local — escala melhor que Materialize em workloads grandes.
+- State em **shared storage** (04-03) com cache local, escala melhor que Materialize em workloads grandes.
 - Apache 2.0 license.
 - Maturidade crescendo; menos battle-tested que Flink em 2026.
 
 **Quando vale streaming SQL incremental sobre Flink:**
-- Time não tem expertise JVM/Flink — SQL é universal.
+- Time não tem expertise JVM/Flink, SQL é universal.
 - Queries são predominantemente **agregação + join + filter** (não custom Java function complexa).
 - Latência sub-segundo importa, não ms.
-- Você quer **interactive** — `psql` no engine, descobrir queries iterativamente.
+- Você quer **interactive**: `psql` no engine, descobrir queries iterativamente.
 
 **Quando NÃO vale:**
-- Custom processing complex (ML inference, custom enrichment com APIs externas) — Flink dá flexibility.
-- Throughput extremo (10M events/s sustained) — Flink ainda vence em workloads massive.
+- Custom processing complex (ML inference, custom enrichment com APIs externas), Flink dá flexibility.
+- Throughput extremo (10M events/s sustained), Flink ainda vence em workloads massive.
 - Stack já tem Flink expert e roda bem.
 
 **Padrões de uso emergentes:**
@@ -345,13 +345,13 @@ Adicionar **pipeline de processamento full** à Logística: streaming real-time 
 
 ## 6. Referências
 
-- **"Designing Data-Intensive Applications"** — Kleppmann, capítulos 10-12.
-- **"Streaming Systems"** — Akidau, Chernyak, Lax. Bíblia do streaming.
-- **"Fundamentals of Data Engineering"** — Reis, Housley.
-- **Apache Flink docs** + **"Stream Processing with Apache Flink"** — Hueske, Kalavri.
-- **dbt docs** + **"The dbt Book"** — Tristan Handy et al.
-- **"Apache Iceberg: The Definitive Guide"** — Tomer Shiran et al.
-- **Confluent blog** — exactly-once, schema registry.
-- **Netflix Tech Blog** — data platform posts.
-- **Materialize blog** — streaming SQL deep dives.
+- **"Designing Data-Intensive Applications"**: Kleppmann, capítulos 10-12.
+- **"Streaming Systems"**: Akidau, Chernyak, Lax. Bíblia do streaming.
+- **"Fundamentals of Data Engineering"**: Reis, Housley.
+- **Apache Flink docs** + **"Stream Processing with Apache Flink"**: Hueske, Kalavri.
+- **dbt docs** + **"The dbt Book"**: Tristan Handy et al.
+- **"Apache Iceberg: The Definitive Guide"**: Tomer Shiran et al.
+- **Confluent blog**: exactly-once, schema registry.
+- **Netflix Tech Blog**: data platform posts.
+- **Materialize blog**: streaming SQL deep dives.
 - **MIT 6.5840 (Distributed Systems)** course.

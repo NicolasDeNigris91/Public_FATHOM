@@ -1,6 +1,6 @@
 ---
 module: 02-12
-title: MongoDB — Document Model, Indexes, Aggregations, Replica Sets
+title: MongoDB, Document Model, Indexes, Aggregations, Replica Sets
 stage: plataforma
 prereqs: [02-09]
 gates:
@@ -10,13 +10,13 @@ gates:
 status: locked
 ---
 
-# 02-12 — MongoDB
+# 02-12, MongoDB
 
 ## 1. Problema de Engenharia
 
-Mongo virou meme — "use Postgres" é o conselho default e correto pra maioria dos casos. Mas Mongo continua relevante: workloads com schema flexível (eventos heterogêneos, ingestão de dados de múltiplas fontes), agregações complexas em coleções grandes, modelos hierárquicos onde JOIN seria custoso. Saber Mongo bem te dá clareza sobre **quando relacional não é o ajuste certo** e como pensar em modelagem orientada a documento sem cair nos antipadrões.
+Mongo virou meme, "use Postgres" é o conselho default e correto pra maioria dos casos. Mas Mongo continua relevante: workloads com schema flexível (eventos heterogêneos, ingestão de dados de múltiplas fontes), agregações complexas em coleções grandes, modelos hierárquicos onde JOIN seria custoso. Saber Mongo bem te dá clareza sobre **quando relacional não é o ajuste certo** e como pensar em modelagem orientada a documento sem cair nos antipadrões.
 
-Este módulo é Mongo de fato: storage engine (WiredTiger), modelo BSON, schema de fato implícito, índices (single, compound, text, geo, wildcard), aggregation pipeline, transações multi-documento, replica sets, sharding, e os trade-offs reais com Postgres + jsonb. Não é "Mongo é melhor que SQL" — é entender onde encaixa.
+Este módulo é Mongo de fato: storage engine (WiredTiger), modelo BSON, schema de fato implícito, índices (single, compound, text, geo, wildcard), aggregation pipeline, transações multi-documento, replica sets, sharding, e os trade-offs reais com Postgres + jsonb. Não é "Mongo é melhor que SQL", é entender onde encaixa.
 
 ---
 
@@ -58,16 +58,16 @@ Default desde 3.2. B+Tree, compressão por block, MVCC.
 Tipos:
 - **Single field**: `{ status: 1 }`.
 - **Compound**: `{ tenantId: 1, status: 1, createdAt: -1 }`. Order matters (mesma regra de B-Tree).
-- **Multikey**: índice em array — Mongo cria entry por elemento. Cuidado: índice multikey em arrays grandes infla.
+- **Multikey**: índice em array, Mongo cria entry por elemento. Cuidado: índice multikey em arrays grandes infla.
 - **Text**: full-text. Limitado vs Elasticsearch/Postgres tsvector. Usado pra search simples.
 - **2dsphere**: geoespacial.
 - **Hashed**: pra sharding por hash key.
 - **Wildcard**: `{ "$**": 1 }` indexa todos os fields (cuidado, custoso).
 - **Partial**: `{ partialFilterExpression: { status: 'active' } }`.
-- **TTL**: `{ expireAfterSeconds: N }` em campo date — Mongo deleta docs após.
+- **TTL**: `{ expireAfterSeconds: N }` em campo date, Mongo deleta docs após.
 - **Unique**: garante unicidade. Em multikey unique, garante que o array não tem entries duplicadas globalmente.
 
-Sempre crie index em background (default em versões modernas — não bloqueia).
+Sempre crie index em background (default em versões modernas, não bloqueia).
 
 ### 2.5 Query e projection
 
@@ -168,7 +168,7 @@ try {
 }
 ```
 
-**Custo**: txns multi-doc são mais lentas (locks, MVCC overhead). Mongo recomenda design que minimize txns multi-doc — embed quando possível.
+**Custo**: txns multi-doc são mais lentas (locks, MVCC overhead). Mongo recomenda design que minimize txns multi-doc, embed quando possível.
 
 ### 2.10 Replica sets
 
@@ -210,7 +210,7 @@ Shard key: campo (ou compound) que define como docs se distribuem. Decisões:
 - **Ranged**: ordem natural, range queries focadas, mas hotspots em valores monotônicos (ObjectId, timestamp).
 - **Compound** com hash em parte: equilíbrio.
 
-Escolha errada: re-shard é trabalhoso. Em projetos < 1 TB, não shardar — replica set comum sustenta.
+Escolha errada: re-shard é trabalhoso. Em projetos < 1 TB, não shardar, replica set comum sustenta.
 
 ### 2.12 Atlas, Mongo self-hosted, e alternativas
 
@@ -273,7 +273,7 @@ Você precisa, sem consultar:
 
 - Diferenciar embed e reference, com 3 casos pra cada.
 - Listar 4 tipos de index além de single field, com caso pra cada.
-- Diagnosticar query lenta com `explain('executionStats')` — quais campos olhar.
+- Diagnosticar query lenta com `explain('executionStats')`, quais campos olhar.
 - Explicar aggregation pipeline com 5 stages e regra "filter early".
 - Distinguir read concern e write concern, e dizer quando subir cada.
 - Explicar custo de transações multi-doc e como design evita.
@@ -286,7 +286,7 @@ Você precisa, sem consultar:
 
 ## 4. Desafio de Engenharia
 
-Adicionar **MongoDB pra eventos de Logística** — não substitui Postgres, complementa.
+Adicionar **MongoDB pra eventos de Logística**: não substitui Postgres, complementa.
 
 ### Especificação
 
@@ -301,19 +301,19 @@ Adicionar **MongoDB pra eventos de Logística** — não substitui Postgres, com
    - `external_events` tem `$jsonSchema` exigindo `source`, `tenantId`, `receivedAt`, `payload`.
    - `payload` pode ser qualquer shape (intencional).
 4. **Indexes**:
-   - `{ tenantId: 1, source: 1, receivedAt: -1 }` — listagem por tenant + source.
+   - `{ tenantId: 1, source: 1, receivedAt: -1 }`, listagem por tenant + source.
    - TTL: docs vivem 90 dias (`{ receivedAt: 1 }, expireAfterSeconds: 7776000`).
    - Multikey index em `payload.tags` (quando existe).
 5. **Endpoints**:
-   - `POST /webhooks/:source` — recebe e armazena evento.
-   - `GET /events?tenant=X&source=Y&from=&to=` — paginated listing.
-   - `GET /events/stats` — aggregation:
+   - `POST /webhooks/:source`, recebe e armazena evento.
+   - `GET /events?tenant=X&source=Y&from=&to=`, paginated listing.
+   - `GET /events/stats`, aggregation:
      - Por dia, por source: count, taxa de erro.
      - Top 10 tenants por volume.
      - Distribuição de latência receivedAt → processedAt.
 6. **Worker de processamento**:
    - Lê eventos `processedAt: null`, processa (lógica fictícia: parse, atualizar order em Postgres se aplicável), marca `processedAt` e `result`.
-   - **Atualizar order no Postgres + marcar evento processado no Mongo** — sem 2PC. Aplique outbox-ish: escreve resultado em coleção temp; só após order atualizado em Postgres, seta `processedAt`.
+   - **Atualizar order no Postgres + marcar evento processado no Mongo**: sem 2PC. Aplique outbox-ish: escreve resultado em coleção temp; só após order atualizado em Postgres, seta `processedAt`.
 7. **Aggregation real**:
    - Pipeline com `$match` → `$group` → `$facet` → `$project` que produz dashboard com 3 métricas em 1 query.
 8. **Replica set**:
@@ -323,7 +323,7 @@ Adicionar **MongoDB pra eventos de Logística** — não substitui Postgres, com
 ### Restrições
 
 - Sem Mongoose. Driver oficial direto.
-- Sem `$lookup` na aggregation principal — denormalize se precisar (anote a decisão).
+- Sem `$lookup` na aggregation principal, denormalize se precisar (anote a decisão).
 - Sem armazenar dados primários (orders, users) no Mongo. Mongo é storage de eventos heterogêneos.
 
 ### Threshold
@@ -358,9 +358,9 @@ Adicionar **MongoDB pra eventos de Logística** — não substitui Postgres, com
 
 ## 6. Referências
 
-- **MongoDB docs** ([mongodb.com/docs](https://www.mongodb.com/docs/)) — leia Data Modeling, Indexes, Aggregation, Replication.
-- **"MongoDB: The Definitive Guide"** — Kristina Chodorow.
-- **MongoDB University** — courses gratuitos, especialmente M001, M201, M320 (data modeling).
-- **DDIA** — capítulos sobre document model e replication.
-- **Daniel Coupal, "Building with Patterns"** ([mongodb.com/developer/patterns](https://www.mongodb.com/developer/patterns)) — design patterns Mongo.
-- **MongoDB blog** — Atlas Search, Time Series, Vector Search.
+- **MongoDB docs** ([mongodb.com/docs](https://www.mongodb.com/docs/)), leia Data Modeling, Indexes, Aggregation, Replication.
+- **"MongoDB: The Definitive Guide"**: Kristina Chodorow.
+- **MongoDB University**: courses gratuitos, especialmente M001, M201, M320 (data modeling).
+- **DDIA**: capítulos sobre document model e replication.
+- **Daniel Coupal, "Building with Patterns"** ([mongodb.com/developer/patterns](https://www.mongodb.com/developer/patterns)), design patterns Mongo.
+- **MongoDB blog**: Atlas Search, Time Series, Vector Search.

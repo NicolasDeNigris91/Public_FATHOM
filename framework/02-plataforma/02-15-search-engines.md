@@ -1,6 +1,6 @@
 ---
 module: 02-15
-title: Search Engines & Information Retrieval — Inverted Index, BM25, Vector Search
+title: Search Engines & Information Retrieval, Inverted Index, BM25, Vector Search
 stage: plataforma
 prereqs: [02-09]
 gates:
@@ -10,13 +10,13 @@ gates:
 status: locked
 ---
 
-# 02-15 — Search Engines & Information Retrieval
+# 02-15, Search Engines & Information Retrieval
 
 ## 1. Problema de Engenharia
 
-Quase todo produto sério tem busca. Listagem de pedidos, catálogo, base de conhecimento, suporte ao cliente, descobrimento de produto. `LIKE '%foo%'` em Postgres não escala — sem índice apropriado, vira full scan; com `pg_trgm` vai um pouco; full-text com `tsvector` vai melhor; mas pra ranking sério, distância de edit, sinônimos, multilingual, faceting, autocomplete, fuzzy match, relevance tuning — você precisa de **search engine dedicado**.
+Quase todo produto sério tem busca. Listagem de pedidos, catálogo, base de conhecimento, suporte ao cliente, descobrimento de produto. `LIKE '%foo%'` em Postgres não escala, sem índice apropriado, vira full scan; com `pg_trgm` vai um pouco; full-text com `tsvector` vai melhor; mas pra ranking sério, distância de edit, sinônimos, multilingual, faceting, autocomplete, fuzzy match, relevance tuning, você precisa de **search engine dedicado**.
 
-E hoje, busca semântica (vector search via embeddings) entrou no mainstream — não substitui keyword, complementa. RAG (04-10) e busca híbrida BM25+vetor são padrão.
+E hoje, busca semântica (vector search via embeddings) entrou no mainstream, não substitui keyword, complementa. RAG (04-10) e busca híbrida BM25+vetor são padrão.
 
 Este módulo é **information retrieval por dentro**: o que é inverted index, como tokenizer afeta tudo, o que é TF-IDF, BM25, vector embeddings, ANN search (HNSW), e como Elasticsearch/OpenSearch/Meilisearch/Typesense funcionam por baixo. Plus quando NÃO usar search engine (Postgres FTS basta) e quando obrigatório.
 
@@ -190,7 +190,7 @@ Chunking pra RAG: tamanho 200-800 tokens, overlap 10-20%, respeita boundaries (p
 Você precisa, sem consultar:
 
 - Desenhar inverted index com postings lists e position info.
-- Explicar BM25 — papel de `k1`, `b`, e por que TF satura.
+- Explicar BM25, papel de `k1`, `b`, e por que TF satura.
 - Diferenciar tokenizer e token filter; mostrar exemplo de stemmer português afetando recall vs precisão.
 - Explicar HNSW conceitualmente (grafos em camadas, busca log).
 - Justificar híbrido BM25+vector via RRF.
@@ -220,12 +220,12 @@ Estender a Logística com **busca de pedidos full-text + híbrida** usando Meili
 4. **Semantic search**:
    - Embedding (OpenAI text-embedding-3-small ou Cohere embed-multilingual) pra `notes` + `items`. Persiste vetor em pgvector.
    - Query semantic: "entregas atrasadas para cliente reclamando" via vector search.
-5. **Hybrid**: combine BM25 (Meilisearch) com vector (pgvector) via RRF — top 50 cada, rerank.
+5. **Hybrid**: combine BM25 (Meilisearch) com vector (pgvector) via RRF, top 50 cada, rerank.
 6. **API REST**:
    - `GET /search?q=...&filters=...&hybrid=true` retorna { hits, facets, query_id, latency_ms }.
 7. **Relevance harness**:
    - 30 queries rotuladas (relevance 0-3 por hit).
-   - CLI `npm run eval` calcula precision@10, MRR, NDCG@10. Roda contra Meilisearch puro, vector puro, híbrido — compara.
+   - CLI `npm run eval` calcula precision@10, MRR, NDCG@10. Roda contra Meilisearch puro, vector puro, híbrido, compara.
 8. **Reindex zero-downtime**:
    - Cria index `orders_v2`, popula, troca alias. Demonstre.
 
@@ -266,13 +266,13 @@ Estender a Logística com **busca de pedidos full-text + híbrida** usando Meili
 
 ## 6. Referências
 
-- **"Introduction to Information Retrieval"** — Manning, Raghavan, Schütze. Gratuito, bíblia.
-- **"Relevant Search"** — Doug Turnbull, John Berryman.
-- **"Deep Learning for Search"** — Tommaso Teofili.
-- **Elasticsearch: The Definitive Guide** — Clinton Gormley.
-- **BM25 paper** — Robertson, Zaragoza ("The Probabilistic Relevance Framework").
-- **HNSW paper** — Malkov, Yashunin (2018).
-- **Lucene docs** — base de Elasticsearch/OpenSearch/Solr.
+- **"Introduction to Information Retrieval"**: Manning, Raghavan, Schütze. Gratuito, bíblia.
+- **"Relevant Search"**: Doug Turnbull, John Berryman.
+- **"Deep Learning for Search"**: Tommaso Teofili.
+- **Elasticsearch: The Definitive Guide**: Clinton Gormley.
+- **BM25 paper**: Robertson, Zaragoza ("The Probabilistic Relevance Framework").
+- **HNSW paper**: Malkov, Yashunin (2018).
+- **Lucene docs**: base de Elasticsearch/OpenSearch/Solr.
 - **Meilisearch / Typesense / Vespa docs**.
 - **pgvector docs**.
-- **Sebastian Raschka's "Understanding Encoder And Decoder LLMs"** — embeddings, dense retrieval.
+- **Sebastian Raschka's "Understanding Encoder And Decoder LLMs"**: embeddings, dense retrieval.

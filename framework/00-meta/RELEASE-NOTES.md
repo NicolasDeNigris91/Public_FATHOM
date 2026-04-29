@@ -1,4 +1,4 @@
-# RELEASE-NOTES — Framework v1.0
+# RELEASE-NOTES, Framework v1.0
 
 **Status**: Shipping-ready (2026-04-28).
 
@@ -21,28 +21,28 @@
 - `PROGRESS.md` como dashboard único de estado, com seções pra Spaced Re-Test Log, Paper Reading Log, Journal, Public Output, Mentorship, Personal Stack.
 
 ### Meta documentação (14 docs em `00-meta/`)
-- `INDEX.md` — mapa global com DAG cross-stage.
-- `CAPSTONE-EVOLUTION.md` — Logística v0→v4 consolidado.
-- `CHANGELOG.md` — registro append-only de mudanças.
-- `DECISION-LOG.md` — 16 decisões de design do framework com alternativas e trade-offs.
-- `SPRINT-NEXT.md` — backlog priorizado pra iterações futuras.
-- `GLOSSARY.md` — 250+ termos canônicos.
-- `MODULE-TEMPLATE.md` — template oficial pra adições.
-- `SELF-ASSESSMENT.md` — questionário de calibração inicial (66 perguntas).
-- `INTERVIEW-PREP.md` — mapping módulos → entrevistas tier-1.
-- `ANTIPATTERNS.md` — 200+ anti-patterns cross-cutting com referência aos módulos.
-- `CODEBASE-TOURS.md` — 20 guided reading tours (V8, Postgres, Redis, libuv, React, CockroachDB, K8s, Linux kernel, Kafka, TigerBeetle, Bevy, Stripe SDK, TLA+ Examples, Tokio, Caddy/nginx, Excalidraw, SQLite, io_uring, Bun, Anthropic Cookbook).
-- `STACK-COMPARISONS.md` — patterns cross-stack (Node/Java/Python/Ruby/Go/.NET/PHP/Rust/Elixir/Swift/Kotlin).
-- `STUDY-PLANS.md` — 7 templates de plano por cenário (full-time, part-time, weekend, bootcamp grad, Senior→Staff, career switcher, executive).
-- `RELEASE-NOTES.md` — este arquivo.
-- `elite-references.md` — repos, blogs, talks, comunidades, RFCs canônicos.
-- `reading-list.md` — livros canônicos por estágio + papers.
+- `INDEX.md`, mapa global com DAG cross-stage.
+- `CAPSTONE-EVOLUTION.md`, Logística v0→v4 consolidado.
+- `CHANGELOG.md`, registro append-only de mudanças.
+- `DECISION-LOG.md`, 16 decisões de design do framework com alternativas e trade-offs.
+- `SPRINT-NEXT.md`, backlog priorizado pra iterações futuras.
+- `GLOSSARY.md`, 250+ termos canônicos.
+- `MODULE-TEMPLATE.md`, template oficial pra adições.
+- `SELF-ASSESSMENT.md`, questionário de calibração inicial (66 perguntas).
+- `INTERVIEW-PREP.md`, mapping módulos → entrevistas tier-1.
+- `ANTIPATTERNS.md`, 200+ anti-patterns cross-cutting com referência aos módulos.
+- `CODEBASE-TOURS.md`, 20 guided reading tours (V8, Postgres, Redis, libuv, React, CockroachDB, K8s, Linux kernel, Kafka, TigerBeetle, Bevy, Stripe SDK, TLA+ Examples, Tokio, Caddy/nginx, Excalidraw, SQLite, io_uring, Bun, Anthropic Cookbook).
+- `STACK-COMPARISONS.md`, patterns cross-stack (Node/Java/Python/Ruby/Go/.NET/PHP/Rust/Elixir/Swift/Kotlin).
+- `STUDY-PLANS.md`, 7 templates de plano por cenário (full-time, part-time, weekend, bootcamp grad, Senior→Staff, career switcher, executive).
+- `RELEASE-NOTES.md`, este arquivo.
+- `elite-references.md`, repos, blogs, talks, comunidades, RFCs canônicos.
+- `reading-list.md`, livros canônicos por estágio + papers.
 
 ### Estrutura de raiz
-- `README.md` — overview pra leitor novo.
-- `MENTOR.md` — protocolo do mentor.
-- `PROGRESS.md` — estado.
-- `STUDY-PROTOCOL.md` — disciplinas cognitivas.
+- `README.md`, overview pra leitor novo.
+- `MENTOR.md`, protocolo do mentor.
+- `PROGRESS.md`, estado.
+- `STUDY-PROTOCOL.md`, disciplinas cognitivas.
 
 ### Profundidade
 Sprint 1 batch 1 elevou 6 módulos chave (01-04, 01-15, 02-02, 02-05, 04-05, 04-04) com 1.100+ linhas adicionais. Total framework: ~28.000 linhas de conteúdo técnico denso.
@@ -88,7 +88,7 @@ Sprint 1 batch 1 elevou 6 módulos chave (01-04, 01-15, 02-02, 02-05, 04-05, 04-
 ## Como começar
 
 1. Leia `README.md` (raiz).
-2. Leia `STUDY-PROTOCOL.md` integralmente — sem isso, framework vira leitura passiva.
+2. Leia `STUDY-PROTOCOL.md` integralmente, sem isso, framework vira leitura passiva.
 3. Leia `MENTOR.md` (protocolo do mentor).
 4. Faça `framework/00-meta/SELF-ASSESSMENT.md` honestamente.
 5. Escolha plan em `framework/00-meta/STUDY-PLANS.md`.

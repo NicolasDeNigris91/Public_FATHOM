@@ -1,6 +1,6 @@
 ---
 module: 01-04
-title: Estruturas de Dados — Arrays, Listas, Hash Tables, Trees, Heaps, Graphs
+title: Estruturas de Dados, Arrays, Listas, Hash Tables, Trees, Heaps, Graphs
 stage: fundamentos
 prereqs: [01-01]
 gates:
@@ -10,17 +10,17 @@ gates:
 status: locked
 ---
 
-# 01-04 — Estruturas de Dados
+# 01-04, Estruturas de Dados
 
 ## 1. Problema de Engenharia
 
 Estrutura de dados é como você **organiza** dados na memória pra otimizar **as operações que você vai fazer mais**. Escolher errado significa código N vezes mais lento do que o necessário, ou usando N vezes mais memória, ou ambos.
 
 Exemplos onde desconhecimento custa caro:
-- Você usa `Array.includes()` num array de 100k items pra verificar duplicatas — O(n) por verificação, O(n²) total. Com `Set`, vira O(1) e O(n).
-- Você quer "top 10 mais frequentes" — implementa com `sort()` ordenando 1M items (O(n log n)) quando um **min-heap** de tamanho 10 resolve em O(n log 10).
-- Você usa `Array.shift()` pra implementar fila e a aplicação fica lenta — `shift` é O(n) (desloca todos elementos). Use linked list (deque) ou índice circular.
-- Você consulta hierarquia de organização recursivamente no banco — sem índice de adjacência ou closure table. **Trees** mal modeladas viram pesadelo de SQL.
+- Você usa `Array.includes()` num array de 100k items pra verificar duplicatas, O(n) por verificação, O(n²) total. Com `Set`, vira O(1) e O(n).
+- Você quer "top 10 mais frequentes", implementa com `sort()` ordenando 1M items (O(n log n)) quando um **min-heap** de tamanho 10 resolve em O(n log 10).
+- Você usa `Array.shift()` pra implementar fila e a aplicação fica lenta, `shift` é O(n) (desloca todos elementos). Use linked list (deque) ou índice circular.
+- Você consulta hierarquia de organização recursivamente no banco, sem índice de adjacência ou closure table. **Trees** mal modeladas viram pesadelo de SQL.
 
 E quando você for estudar Postgres (02-09), B-Trees são índice. Quando estudar Redis (02-11), Skip Lists são sorted sets. Quando estudar Kafka (04-02), particionamento usa hashing consistente. **Estruturas de dados estão em todo lugar do stack moderno.**
 
@@ -28,17 +28,17 @@ E quando você for estudar Postgres (02-09), B-Trees são índice. Quando estuda
 
 ## 2. Teoria Hard
 
-### 2.1 Análise — Big-O e o que ela esconde
+### 2.1 Análise, Big-O e o que ela esconde
 
 **Big-O** mede crescimento assintótico. `O(n)` significa "tempo cresce proporcional a n quando n é grande".
 
 Hierarquia comum:
-- `O(1)` — constante (hash lookup)
-- `O(log n)` — logarítmico (busca binária, B-Tree)
-- `O(n)` — linear
-- `O(n log n)` — quase linear (sorting comparativo)
-- `O(n²)` — quadrático (nested loops)
-- `O(2ⁿ)`, `O(n!)` — exponencial (sem solução pra n grande)
+- `O(1)`, constante (hash lookup)
+- `O(log n)`, logarítmico (busca binária, B-Tree)
+- `O(n)`, linear
+- `O(n log n)`, quase linear (sorting comparativo)
+- `O(n²)`, quadrático (nested loops)
+- `O(2ⁿ)`, `O(n!)`, exponencial (sem solução pra n grande)
 
 **Big-O esconde:**
 - **Constantes**: O(n) com constante 1000 perde pra O(n²) com constante 1 quando n é pequeno.
@@ -55,9 +55,9 @@ Hierarquia comum:
 |----------|--------------|
 | Acesso por índice | O(1) |
 | Append (com capacidade) | O(1) amortizado |
-| Append (cheio, realoca) | O(n) — copia todos |
-| Insert no meio | O(n) — desloca |
-| Delete no meio | O(n) — desloca |
+| Append (cheio, realoca) | O(n), copia todos |
+| Insert no meio | O(n), desloca |
+| Delete no meio | O(n), desloca |
 | Busca linear | O(n) |
 | Busca binária (ordenado) | O(log n) |
 
@@ -83,7 +83,7 @@ Hierarquia comum:
 | Insert/delete no meio (com ref) | O(1) |
 | Busca | O(n) |
 
-**Cache locality:** **horrível**. Cada `next` é potencialmente cache miss. Em prática, linked list pode ser **10-50x mais lento** que array contíguo pra iteração — mesmo Big-O igual.
+**Cache locality:** **horrível**. Cada `next` é potencialmente cache miss. Em prática, linked list pode ser **10-50x mais lento** que array contíguo pra iteração, mesmo Big-O igual.
 
 **Quando usar:** raramente. Casos legítimos:
 - Inserções/deletes frequentes em meio com referências persistentes.
@@ -105,7 +105,7 @@ hash("foo") % 8 = 3 → slot 3 = [("foo", value)]
 - **Open addressing**: se slot ocupado, procurar próximo livre. Variantes:
   - **Linear probing**: próximo, próximo+1, próximo+2... Cache-friendly. Sofre "clustering".
   - **Quadratic probing**: próximo+1, próximo+4, próximo+9...
-  - **Robin Hood**: ao colidir, "rouba" slot de quem tem menor distância — equaliza distâncias.
+  - **Robin Hood**: ao colidir, "rouba" slot de quem tem menor distância, equaliza distâncias.
 
 **Load factor (α):** elementos / slots. Acima de ~0.7, performance degrada → **rehash** (cresce a tabela, redistribui).
 
@@ -119,7 +119,7 @@ hash("foo") % 8 = 3 → slot 3 = [("foo", value)]
 
 **No V8:** `Object` com **shape estável** vira hidden class (otimizado, virtually struct). Adicionar/remover propriedades em runtime quebra otimização.
 
-### 2.5 Trees — visão geral
+### 2.5 Trees, visão geral
 
 Estrutura hierárquica: nó com filhos.
 
@@ -147,7 +147,7 @@ BST auto-balanceada. Cada insert/delete pode disparar **rotação** pra manter `
 
 #### Red-Black Tree
 
-BST balanceada com regras de cor (cada nó é vermelho ou preto). Menos estrita que AVL — menos rotações em escrita, ligeiramente mais profunda. **Usada em**: Linux kernel CFS scheduler, Java `TreeMap`, C++ `std::map`.
+BST balanceada com regras de cor (cada nó é vermelho ou preto). Menos estrita que AVL, menos rotações em escrita, ligeiramente mais profunda. **Usada em**: Linux kernel CFS scheduler, Java `TreeMap`, C++ `std::map`.
 
 #### B-Tree e B+ Tree
 
@@ -159,7 +159,7 @@ BST balanceada com regras de cor (cada nó é vermelho ou preto). Menos estrita 
    [...]  [11..19] [21..29] [31..]
 ```
 
-Operações: insert/search/delete em O(log n), mas com **base muito alta** (ex: B-Tree de ordem 100 com 1M elementos tem altura ~3 — só 3 page reads).
+Operações: insert/search/delete em O(log n), mas com **base muito alta** (ex: B-Tree de ordem 100 com 1M elementos tem altura ~3, só 3 page reads).
 
 **B+ Tree** (variação): só leaves armazenam dados; internos só keys de roteamento. Leaves linkadas em lista pra range scans.
 
@@ -208,7 +208,7 @@ Conjunto de nós (vértices) e arestas. Pode ser **dirigido** ou não, **pondera
 - **Adjacency matrix**: matrix V×V. Espaço O(V²). Bom pra grafos densos ou queries "tem aresta entre A e B?".
 - **Edge list**: lista de tuplas `[(A,B), (B,C), ...]`. Compacta, ruim pra queries.
 
-Algoritmos clássicos vivem aqui (BFS, DFS, Dijkstra, A*) — ver [01-05](01-05-algorithms.md).
+Algoritmos clássicos vivem aqui (BFS, DFS, Dijkstra, A*), ver [01-05](01-05-algorithms.md).
 
 **Em produção web:** grafos sociais (Facebook, LinkedIn), grafo de routing (Google Maps, sistema de logística!), grafo de dependências (npm), grafo de conhecimento (Google).
 
@@ -227,7 +227,7 @@ Algoritmos clássicos vivem aqui (BFS, DFS, Dijkstra, A*) — ver [01-05](01-05-
 - **B-Tree clássico**: keys e values em todos nodes (internal + leaf). Range scan exige in-order traversal completo.
 - **B+Tree**: keys em internal, values só em leaf. Leaves linkados (linked list duplo). Range scan = walk leaves. Postgres, MySQL InnoDB, SQLite usam B+Tree-like.
 - **B*-Tree**: B+Tree com fill factor mínimo 2/3 (vs 1/2). Menos splits, menos espaço wasted. Visto em IBM DB2, Symbian.
-- **B-link Tree** (Lehman-Yao): cada node tem pointer pra "right sibling". Permite **concurrent reads sem lock** durante splits — readers que entrem em node antigo seguem o link. Postgres usa B-link em índices.
+- **B-link Tree** (Lehman-Yao): cada node tem pointer pra "right sibling". Permite **concurrent reads sem lock** durante splits, readers que entrem em node antigo seguem o link. Postgres usa B-link em índices.
 - **Fractal Tree** (TokuDB): adiciona buffers em internal nodes. Writes batched, melhor pra HDD. Substituído por LSM em maioria dos workloads.
 
 Trade-off de fan-out: B-Tree com page de 8KB e key 16 bytes tem fan-out ~500. Árvore com 1B keys precisa só ~4 níveis (log_500(10^9) ≈ 3.4). Cada lookup = 4 page reads. Por isso indices crescem devagar em altura.
@@ -277,7 +277,7 @@ Desvantagens: pior cache locality que B-Tree, overhead per node maior.
 
 Uso: Redis sorted set (ZSET), LevelDB MemTable, Cassandra MemTable, RocksDB MemTable.
 
-### 2.13 HAMT (Hash Array Mapped Trie) — concreto
+### 2.13 HAMT (Hash Array Mapped Trie), concreto
 
 Estrutura: trie com fan-out 32, indexed por bits do hash da key.
 - Cada node tem bitmap (32 bits) + array compacto.
@@ -407,29 +407,29 @@ Pra passar o **Portão Conceitual**, sem consultar:
 
 `class LRUCache<K, V>` com:
 - `constructor(capacity: number)`
-- `get(key: K): V | undefined` — O(1). Marca como recém-usado.
-- `set(key: K, value: V): void` — O(1). Se cheio, remove o least-recently-used.
-- `has(key: K): boolean` — O(1).
-- `size: number` — getter.
+- `get(key: K): V | undefined`, O(1). Marca como recém-usado.
+- `set(key: K, value: V): void`, O(1). Se cheio, remove o least-recently-used.
+- `has(key: K): boolean`, O(1).
+- `size: number`, getter.
 - `clear(): void`
 - Iterável (`Symbol.iterator`) percorrendo do mais recente ao menos.
 
 ### Restrições
 
-- **Não use** `Map` do JS (que tem ordering garantido) — você implementa o ordering.
+- **Não use** `Map` do JS (que tem ordering garantido), você implementa o ordering.
 - Use **doubly linked list** + **hash map** internos. Esse é o padrão de LRU O(1).
 - Sem libs externas.
 - Suite de testes:
   - Operações básicas
   - Eviction quando cheio
-  - Atualização de valor não muda ordem (ou muda, sua decisão — documente)
+  - Atualização de valor não muda ordem (ou muda, sua decisão, documente)
   - 1 milhão de operações em <2s no seu hardware
   - Property-based test (gerar sequências aleatórias de get/set, verificar invariantes: size ≤ capacity, key recém-acessada nunca é a próxima a ser evicted).
 
 ### Threshold
 
 - Todos testes passam.
-- Você consegue **explicar passo a passo** o que acontece em `get('foo')` quando `foo` está no meio da lista — quais ponteiros são atualizados.
+- Você consegue **explicar passo a passo** o que acontece em `get('foo')` quando `foo` está no meio da lista, quais ponteiros são atualizados.
 - Documenta no README:
   - Por que doubly linked list (e não singly)?
   - Por que `Map` interno (e não objeto plain)?
@@ -439,25 +439,25 @@ Pra passar o **Portão Conceitual**, sem consultar:
 
 - **TTL por entrada** (`set(key, value, ttlMs)`).
 - **Métricas internas** (hits, misses, hit ratio).
-- **LFU variant** (least-frequently-used) — diferente algoritmo, mais complexo.
+- **LFU variant** (least-frequently-used), diferente algoritmo, mais complexo.
 
 ---
 
 ## 5. Extensões e Conexões
 
-- **Conecta com [01-01 — Computation Model](01-01-computation-model.md):** layout (contíguo vs não) determina cache behavior.
-- **Conecta com [01-05 — Algorithms](01-05-algorithms.md):** algoritmos operam sobre estruturas. Dijkstra usa heap, BFS usa queue, DFS usa stack.
-- **Conecta com [01-07 — JavaScript Deep](01-07-javascript-deep.md):** `Map`, `Set`, `WeakMap`, `WeakRef`, hidden classes.
-- **Conecta com [02-09 — Postgres Deep](../02-plataforma/02-09-postgres-deep.md):** índices B-Tree, GIN (inverted index), GiST (generalized search tree), BRIN. Hash join, merge join.
-- **Conecta com [02-11 — Redis](../02-plataforma/02-11-redis.md):** sorted sets via skip list, sets via hash table, lists via quicklist (linked list de listas), streams via radix tree.
-- **Conecta com [02-12 — MongoDB](../02-plataforma/02-12-mongodb.md):** índices B-Tree.
-- **Conecta com [01-09 — Git Internals](01-09-git-internals.md):** Merkle DAG, packfiles indexados.
-- **Conecta com [04-03 — Event-Driven Patterns](../04-sistemas/04-03-event-driven-patterns.md):** event store é frequentemente append-log + index estruturado.
-- **Conecta com [04-11 — Web3](../04-sistemas/04-11-web3.md):** Merkle trees em blockchains, Patricia tries em Ethereum.
+- **Conecta com [01-01, Computation Model](01-01-computation-model.md):** layout (contíguo vs não) determina cache behavior.
+- **Conecta com [01-05, Algorithms](01-05-algorithms.md):** algoritmos operam sobre estruturas. Dijkstra usa heap, BFS usa queue, DFS usa stack.
+- **Conecta com [01-07, JavaScript Deep](01-07-javascript-deep.md):** `Map`, `Set`, `WeakMap`, `WeakRef`, hidden classes.
+- **Conecta com [02-09, Postgres Deep](../02-plataforma/02-09-postgres-deep.md):** índices B-Tree, GIN (inverted index), GiST (generalized search tree), BRIN. Hash join, merge join.
+- **Conecta com [02-11, Redis](../02-plataforma/02-11-redis.md):** sorted sets via skip list, sets via hash table, lists via quicklist (linked list de listas), streams via radix tree.
+- **Conecta com [02-12, MongoDB](../02-plataforma/02-12-mongodb.md):** índices B-Tree.
+- **Conecta com [01-09, Git Internals](01-09-git-internals.md):** Merkle DAG, packfiles indexados.
+- **Conecta com [04-03, Event-Driven Patterns](../04-sistemas/04-03-event-driven-patterns.md):** event store é frequentemente append-log + index estruturado.
+- **Conecta com [04-11, Web3](../04-sistemas/04-11-web3.md):** Merkle trees em blockchains, Patricia tries em Ethereum.
 
 ### Ferramentas satélites
 
-- **[VisuAlgo](https://visualgo.net/en)** — visualização interativa de várias estruturas.
+- **[VisuAlgo](https://visualgo.net/en)**: visualização interativa de várias estruturas.
 - **[USFCA Visualizations](https://www.cs.usfca.edu/~galles/visualization/Algorithms.html)**.
 - **Anki**: crie deck "data structures Big-O" e revise diariamente.
 
@@ -466,13 +466,13 @@ Pra passar o **Portão Conceitual**, sem consultar:
 ## 6. Referências de Elite
 
 ### Livros canônicos
-- **Introduction to Algorithms** (CLRS, 4th ed) — Capítulos 10-22 (estruturas).
-- **Algorithms** (Sedgewick & Wayne, 4th ed) — alternativa mais didática.
-- **The Algorithm Design Manual** (Skiena) — pragmatismo + war stories.
-- **Database Internals** (Alex Petrov) — capítulos sobre B-Tree, LSM, esp. relevantes.
+- **Introduction to Algorithms** (CLRS, 4th ed), Capítulos 10-22 (estruturas).
+- **Algorithms** (Sedgewick & Wayne, 4th ed), alternativa mais didática.
+- **The Algorithm Design Manual** (Skiena), pragmatismo + war stories.
+- **Database Internals** (Alex Petrov), capítulos sobre B-Tree, LSM, esp. relevantes.
 
 ### Repos
-- **[Redis source](https://github.com/redis/redis)** — `src/dict.c` (hash table), `src/t_zset.c` (skip list), `src/quicklist.c`, `src/intset.c`.
+- **[Redis source](https://github.com/redis/redis)**: `src/dict.c` (hash table), `src/t_zset.c` (skip list), `src/quicklist.c`, `src/intset.c`.
 - **[V8 hidden classes](https://v8.dev/blog/hidden-classes)**.
 - **[Postgres B-Tree code](https://github.com/postgres/postgres/tree/master/src/backend/access/nbtree)**.
 
@@ -482,12 +482,12 @@ Pra passar o **Portão Conceitual**, sem consultar:
 - **["B-Trees vs LSM-Trees"](https://www.scylladb.com/2018/07/31/scylla-and-the-rocksdb-iterator/)**.
 
 ### Talks
-- **["Algorithms with Predictions"](https://www.youtube.com/watch?v=MdcLiB_J7zg)** — frontier de estruturas com ML.
+- **["Algorithms with Predictions"](https://www.youtube.com/watch?v=MdcLiB_J7zg)**: frontier de estruturas com ML.
 - **["Designing the Mental Model of a B-Tree"](https://www.youtube.com/results?search_query=B-Tree+mental+model)**.
 
 ### Comunidade
-- **[type-challenges](https://github.com/type-challenges/type-challenges)** — desafios TS com algoritmos.
-- **[Leetcode](https://leetcode.com/)** — pra exercitar (use as discussões, não só "passei nos testes").
+- **[type-challenges](https://github.com/type-challenges/type-challenges)**: desafios TS com algoritmos.
+- **[Leetcode](https://leetcode.com/)**: pra exercitar (use as discussões, não só "passei nos testes").
 
 ---
 

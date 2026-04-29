@@ -1,6 +1,6 @@
 ---
 module: 01-15
-title: Math Foundations for Computing — Discrete, Linear Algebra, Probability, Information Theory
+title: Math Foundations for Computing, Discrete, Linear Algebra, Probability, Information Theory
 stage: fundamentos
 prereqs: [01-01]
 gates:
@@ -10,14 +10,14 @@ gates:
 status: locked
 ---
 
-# 01-15 — Math Foundations for Computing
+# 01-15, Math Foundations for Computing
 
 ## 1. Problema de Engenharia
 
-Engenheiros que dizem "matemática não é necessária pra programar" estão certos pra CRUD app. Mas ML, criptografia, distributed systems consensus, performance analysis, search ranking, graphics, blockchain, type systems — todos exigem **base matemática**. Sem ela:
+Engenheiros que dizem "matemática não é necessária pra programar" estão certos pra CRUD app. Mas ML, criptografia, distributed systems consensus, performance analysis, search ranking, graphics, blockchain, type systems, todos exigem **base matemática**. Sem ela:
 - 01-12 (cripto): você não entende discrete log nem por que Curve25519 é segura.
-- 04-10 (AI/LLM): vector embeddings, gradient descent, attention — opacos.
-- 04-01 (distributed): probabilistic guarantees, FLP, Byzantine, gossip — só intuição.
+- 04-10 (AI/LLM): vector embeddings, gradient descent, attention, opacos.
+- 04-01 (distributed): probabilistic guarantees, FLP, Byzantine, gossip, só intuição.
 - 02-15 (search): TF-IDF, BM25 são fórmulas, HyperLogLog é probabilístico.
 - 01-13 (compilers): type systems usam logic; correção via teorema.
 - 04-14 (formal methods): impossível.
@@ -235,11 +235,11 @@ Não precisa dominar todos. NumPy + Jupyter cobre 90% das experimentações.
 - Backend sem ranking/search/cripto.
 - Maioria do trabalho de Pleno em SaaS B2B.
 
-Honest: 60% dos engenheiros saem da carreira sem aplicar matemática profunda. **Mas** ela é o gate pra ML, cripto, distributed correctness, performance — domínios crescentes.
+Honest: 60% dos engenheiros saem da carreira sem aplicar matemática profunda. **Mas** ela é o gate pra ML, cripto, distributed correctness, performance, domínios crescentes.
 
 Don't avoid; learn enough to transition quando preciso.
 
-### 2.19 Linear algebra deep — para ML, graphics, embeddings
+### 2.19 Linear algebra deep, para ML, graphics, embeddings
 
 Conteúdo de §2.5 expandido com casos de uso concretos.
 
@@ -270,7 +270,7 @@ Conteúdo de §2.5 expandido com casos de uso concretos.
 - L2-normalize antes pra usar dot product.
 - ANN (HNSW, 02-15) escala busca.
 
-### 2.20 Probability deep — distribuições com casos
+### 2.20 Probability deep, distribuições com casos
 
 §2.7 expansão com formulae úteis.
 
@@ -298,7 +298,7 @@ Conteúdo de §2.5 expandido com casos de uso concretos.
 - Reportar percentis P50/P95/P99/P999, **não média** (média mascara cauda).
 - Use t-digest (03-13) ou HDR Histogram pra estimar percentis em streaming.
 
-### 2.21 Information theory deep — para compression, ML loss, channels
+### 2.21 Information theory deep, para compression, ML loss, channels
 
 §2.9 expansão.
 
@@ -325,7 +325,7 @@ Conteúdo de §2.5 expandido com casos de uso concretos.
 - Feature selection: I(feature, label) alto = feature informativa.
 - Decision trees usam information gain.
 
-### 2.22 Graphs avançado — para social, web, ML
+### 2.22 Graphs avançado, para social, web, ML
 
 §2.4 expansion concreto.
 
@@ -356,7 +356,7 @@ Conteúdo de §2.5 expandido com casos de uso concretos.
 - **Label propagation**: cada node herda label majoritário dos vizinhos. Fast, frágil.
 - **Spectral clustering**: eigenvectors do Laplaciano.
 
-### 2.23 Numerical computing — float, stability
+### 2.23 Numerical computing, float, stability
 
 §2.10 expansion.
 
@@ -421,7 +421,7 @@ eigvals, eigvecs = np.linalg.eig(A)
 
 NumPy (BLAS-backed) é canônico. Em GPU: cupy (drop-in replacement), JAX (composable transforms), PyTorch tensors.
 
-### 2.25 Optimization concrete — gradient descent
+### 2.25 Optimization concrete, gradient descent
 
 ```
 loss = f(theta)
@@ -564,15 +564,15 @@ Implementar **5 algoritmos matemáticos** em TypeScript ou Python.
 
 ## 6. Referências
 
-- **"Mathematics for Machine Learning"** — Deisenroth, Faisal, Ong. Gratuito.
-- **"3Blue1Brown" YouTube channel** — Essence of Linear Algebra, Calculus.
-- **"Concrete Mathematics"** — Graham, Knuth, Patashnik.
-- **"Introduction to Probability"** — Blitzstein, Hwang.
-- **"Probability and Statistics for Computer Scientists"** — Baron.
-- **"Information Theory, Inference, and Learning Algorithms"** — David MacKay (gratuito, brilhante).
-- **"Numerical Recipes"** — Press et al.
-- **"Convex Optimization"** — Boyd, Vandenberghe (gratuito).
-- **"The Art of Computer Programming"** — Knuth (vols 1-4, dense).
-- **MIT OCW 18.06 Linear Algebra** — Gilbert Strang.
-- **Khan Academy** — fundações lacunares.
-- **3Blue1Brown e StatQuest** — visualizações.
+- **"Mathematics for Machine Learning"**: Deisenroth, Faisal, Ong. Gratuito.
+- **"3Blue1Brown" YouTube channel**: Essence of Linear Algebra, Calculus.
+- **"Concrete Mathematics"**: Graham, Knuth, Patashnik.
+- **"Introduction to Probability"**: Blitzstein, Hwang.
+- **"Probability and Statistics for Computer Scientists"**: Baron.
+- **"Information Theory, Inference, and Learning Algorithms"**: David MacKay (gratuito, brilhante).
+- **"Numerical Recipes"**: Press et al.
+- **"Convex Optimization"**: Boyd, Vandenberghe (gratuito).
+- **"The Art of Computer Programming"**: Knuth (vols 1-4, dense).
+- **MIT OCW 18.06 Linear Algebra**: Gilbert Strang.
+- **Khan Academy**: fundações lacunares.
+- **3Blue1Brown e StatQuest**: visualizações.

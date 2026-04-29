@@ -1,6 +1,6 @@
 ---
 module: 02-17
-title: Native Mobile — iOS Swift, Android Kotlin, Platform APIs, Build Pipelines
+title: Native Mobile, iOS Swift, Android Kotlin, Platform APIs, Build Pipelines
 stage: plataforma
 prereqs: [02-06]
 gates:
@@ -10,15 +10,15 @@ gates:
 status: locked
 ---
 
-# 02-17 — Native Mobile (iOS / Android)
+# 02-17, Native Mobile (iOS / Android)
 
 ## 1. Problema de Engenharia
 
-React Native esconde plataforma. Você consegue construir apps razoáveis sem entender o que **está embaixo** — UIKit/SwiftUI no iOS, Android Framework + Compose no Android, lifecycles, threading, energy management, permissions, store policies. Mas quando precisa de feature platform-specific (Apple Pay nativo, ARKit, foreground service, push provisioning, MDM, deep linking confiável, biometric com Secure Enclave), ou quando RN bridge engasga sob carga, você precisa **saber ler/escrever código nativo**.
+React Native esconde plataforma. Você consegue construir apps razoáveis sem entender o que **está embaixo**: UIKit/SwiftUI no iOS, Android Framework + Compose no Android, lifecycles, threading, energy management, permissions, store policies. Mas quando precisa de feature platform-specific (Apple Pay nativo, ARKit, foreground service, push provisioning, MDM, deep linking confiável, biometric com Secure Enclave), ou quando RN bridge engasga sob carga, você precisa **saber ler/escrever código nativo**.
 
-E em entrevista de Senior mobile, "construí com RN" é fraco. Senior conhece o que está abaixo da abstração. Apple e Google atualizam APIs todo ano; quem não acompanha as plataformas viver de SO do passado. Reactive frameworks (SwiftUI, Compose) mudaram completamente o paradigma vs imperative (UIKit, Views) — entender o porquê é fundamental.
+E em entrevista de Senior mobile, "construí com RN" é fraco. Senior conhece o que está abaixo da abstração. Apple e Google atualizam APIs todo ano; quem não acompanha as plataformas viver de SO do passado. Reactive frameworks (SwiftUI, Compose) mudaram completamente o paradigma vs imperative (UIKit, Views), entender o porquê é fundamental.
 
-Este módulo é um **mergulho seletivo em iOS Swift e Android Kotlin** — não pretende formar dev nativo full-time, e sim fechar o gap entre "useo RN" e "entendo o sistema". Lifecycle, threading, memory, UI frameworks modernos, networking, persistence, permissions, push, build, app store realities.
+Este módulo é um **mergulho seletivo em iOS Swift e Android Kotlin**: não pretende formar dev nativo full-time, e sim fechar o gap entre "useo RN" e "entendo o sistema". Lifecycle, threading, memory, UI frameworks modernos, networking, persistence, permissions, push, build, app store realities.
 
 ---
 
@@ -48,13 +48,13 @@ Swift Concurrency (Swift 5.5+):
 - **Sendable**: protocolo de tipos seguros pra cruzar boundaries.
 - **TaskGroup**, **AsyncSequence**.
 
-Antes: GCD (Grand Central Dispatch) — `DispatchQueue.main.async`, `.global(qos: .userInitiated)`. Ainda muito código legado.
+Antes: GCD (Grand Central Dispatch), `DispatchQueue.main.async`, `.global(qos: .userInitiated)`. Ainda muito código legado.
 
 Threads em iOS: **main thread** pra UI. Off-main pra trabalho. Bloquear main = ANR-equivalent (watchdog mata após ~20s).
 
 ### 2.4 Memory management iOS
 
-ARC (Automatic Reference Counting): compiler insere retain/release. Reference cycles são vazamentos — `weak`/`unowned` quebram (closures que capturam `self`). Patterns: `[weak self] in guard let self else { return }`.
+ARC (Automatic Reference Counting): compiler insere retain/release. Reference cycles são vazamentos, `weak`/`unowned` quebram (closures que capturam `self`). Patterns: `[weak self] in guard let self else { return }`.
 
 Instruments (Xcode tool): Leaks, Allocations, Time Profiler. Sample app pra encontrar retain cycle e pegar memory growth.
 
@@ -242,25 +242,25 @@ Construir **app nativo iOS + Android** que consome a API da Logística (do CAPST
 
 - Liga com **01-02** (OS): Android = Linux. iOS = Darwin.
 - Liga com **01-03** (networking): TLS, pinning, HTTP/2 (APNs).
-- Liga com **01-07** (JS): RN bridge — agora você sabe o que está abaixo.
+- Liga com **01-07** (JS): RN bridge, agora você sabe o que está abaixo.
 - Liga com **02-06** (RN): contraste arquitetural.
 - Liga com **02-13** (auth): OAuth2 mobile-specific (PKCE obrigatório).
 - Liga com **02-14** (real-time): WebSocket em mobile, reconnect agressivo, energy.
 - Liga com **01-12** (crypto): Keychain/Keystore baseiam em hardware secure enclave.
-- Liga com **03-08** (security): mobile threats — root/jailbreak detection, anti-tamper.
+- Liga com **03-08** (security): mobile threats, root/jailbreak detection, anti-tamper.
 - Liga com **03-09** (perf frontend): Core Web Vitals → mobile equivalent (energy, frame time).
 
 ---
 
 ## 6. Referências
 
-- **"iOS App Distribution & Best Practices"** — Apple Developer.
-- **Apple WWDC sessions** — anuais; busque "What's new in SwiftUI", "Swift Concurrency".
-- **"Hacking with Swift"** — Paul Hudson.
-- **"Functional Swift"** — objc.io.
+- **"iOS App Distribution & Best Practices"**: Apple Developer.
+- **Apple WWDC sessions**: anuais; busque "What's new in SwiftUI", "Swift Concurrency".
+- **"Hacking with Swift"**: Paul Hudson.
+- **"Functional Swift"**: objc.io.
 - **Android Architecture Components / Jetpack docs** ([developer.android.com/jetpack](https://developer.android.com/jetpack)).
-- **"Compose Cookbook"** — Google.
-- **"Kotlin Coroutines: Deep Dive"** — Marcin Moskała.
-- **Google I/O sessions** — anuais.
-- **"Effective Kotlin"** — Marcin Moskała.
-- **"Designing Mobile Apps"** — Apple HIG, Google Material 3 guidelines.
+- **"Compose Cookbook"**: Google.
+- **"Kotlin Coroutines: Deep Dive"**: Marcin Moskała.
+- **Google I/O sessions**: anuais.
+- **"Effective Kotlin"**: Marcin Moskała.
+- **"Designing Mobile Apps"**: Apple HIG, Google Material 3 guidelines.

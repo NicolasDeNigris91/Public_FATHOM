@@ -39,7 +39,7 @@ describe('extractToc', () => {
   });
 
   it('produces a slug compatible with rehype-slug', () => {
-    const md = `## TLS Handshake — clientHello!`;
+    const md = `## TLS Handshake, clientHello!`;
     const toc = extractToc(md);
     expect(toc[0].slug).toBe('tls-handshake-clienthello');
   });

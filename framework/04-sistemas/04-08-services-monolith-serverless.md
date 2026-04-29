@@ -10,7 +10,7 @@ gates:
 status: locked
 ---
 
-# 04-08 — Services vs Monolith vs Serverless
+# 04-08, Services vs Monolith vs Serverless
 
 ## 1. Problema de Engenharia
 
@@ -264,7 +264,7 @@ Você precisa, sem consultar:
 
 ### Especificação
 
-1. **Decision Document — `ARCHITECTURE-DECISION.md`**:
+1. **Decision Document, `ARCHITECTURE-DECISION.md`**:
    - Análise honesta: quantos devs hipotéticos? Tráfego alvo? Bounded contexts?
    - Decision matrix preenchido pra Logística.
    - Justificativa final: modular monolith principal + 2 extractions justificadas (Routing → Rust, Webhook ingestor → Go).
@@ -335,13 +335,13 @@ Você precisa, sem consultar:
 
 ## 6. Referências
 
-- **"Building Microservices"** — Sam Newman (2nd ed).
-- **"Monolith to Microservices"** — Sam Newman.
-- **"Microservices Patterns"** — Chris Richardson.
+- **"Building Microservices"**: Sam Newman (2nd ed).
+- **"Monolith to Microservices"**: Sam Newman.
+- **"Microservices Patterns"**: Chris Richardson.
 - **Martin Fowler, "Microservices"** ([martinfowler.com/microservices](https://martinfowler.com/microservices/)).
 - **Martin Fowler, "Strangler Fig"** ([martinfowler.com/bliki/StranglerFigApplication.html](https://martinfowler.com/bliki/StranglerFigApplication.html)).
 - **DDIA** capítulos sobre distributed systems.
-- **"Team Topologies"** — Skelton, Pais (Conway's Law moderno).
-- **"Software Architecture: The Hard Parts"** — Neal Ford et al.
-- **AWS Well-Architected — Serverless Lens**.
-- **Charity Majors blog** — operational reality.
+- **"Team Topologies"**: Skelton, Pais (Conway's Law moderno).
+- **"Software Architecture: The Hard Parts"**: Neal Ford et al.
+- **AWS Well-Architected, Serverless Lens**.
+- **Charity Majors blog**: operational reality.

@@ -1,6 +1,6 @@
 ---
 module: 05-08
-title: Hardware Design Fundamentals — PCB, Schematics, Chip-Level, FPGA
+title: Hardware Design Fundamentals, PCB, Schematics, Chip-Level, FPGA
 stage: amplitude
 prereqs: [05-07]
 gates:
@@ -10,11 +10,11 @@ gates:
 status: locked
 ---
 
-# 05-08 — Hardware Design Fundamentals (Optional)
+# 05-08, Hardware Design Fundamentals (Optional)
 
 ## 1. Problema de Engenharia
 
-05-07 cobriu firmware (software rodando em microcontroller). Mas Logística pode crescer pra criar **hardware próprio** — tracker custom com sensores específicos, leitor de barcode integrado, smart locker, beacon BLE proprietary. Aí entra hardware design: schematics, PCB layout, BOM, manufacturing.
+05-07 cobriu firmware (software rodando em microcontroller). Mas Logística pode crescer pra criar **hardware próprio**: tracker custom com sensores específicos, leitor de barcode integrado, smart locker, beacon BLE proprietary. Aí entra hardware design: schematics, PCB layout, BOM, manufacturing.
 
 Software engineer raramente vira hardware engineer full-time. Mas Senior+ que **fala a linguagem** de hardware engineer multiplica capacidade do time. Saber ler schematic é como saber ler SQL: você não precisa escrever, mas precisa entender o que outra pessoa fez. Senior conhece power delivery, decoupling, signal integrity, EMC, DFM enough pra colaborar com EE sem virar gargalo.
 
@@ -290,7 +290,7 @@ Você precisa, sem consultar:
 1. **Schematic** (KiCad):
    - MCU (STM32L4 ou ESP32).
    - GPS module (NEO-M9N, breakout ok).
-   - Cellular module (NB-IoT) — ou WiFi se cell module fora de escopo.
+   - Cellular module (NB-IoT), ou WiFi se cell module fora de escopo.
    - LiPo battery management.
    - Power tree: charger + boost + LDO.
    - USB-C pra power + CDC debug.
@@ -361,16 +361,16 @@ Você precisa, sem consultar:
 
 ## 6. Referências
 
-- **"The Art of Electronics"** — Horowitz, Hill (3rd ed). Bíblia.
-- **"PCB Design for Real-World EMI Control"** — Bruce Archambeault.
-- **"High-Speed Digital Design"** — Howard Johnson, Martin Graham.
-- **"Practical Electronics for Inventors"** — Paul Scherz.
+- **"The Art of Electronics"**: Horowitz, Hill (3rd ed). Bíblia.
+- **"PCB Design for Real-World EMI Control"**: Bruce Archambeault.
+- **"High-Speed Digital Design"**: Howard Johnson, Martin Graham.
+- **"Practical Electronics for Inventors"**: Paul Scherz.
 - **KiCad docs** ([kicad.org/help](https://www.kicad.org/help/)).
-- **EEVblog** (Dave Jones) — YouTube + forum.
-- **Phil's Lab** — YouTube, design sessions práticos.
+- **EEVblog** (Dave Jones), YouTube + forum.
+- **Phil's Lab**: YouTube, design sessions práticos.
 - **Texas Instruments / Microchip / STMicro datasheets + app notes**.
-- **Sparkfun / Adafruit tutorials** — accessible intro.
-- **"Open Circuits"** — Eric Schlaepfer, Windell Oskay (foto-essays de chip teardowns).
-- **Hackaday** — community, projects.
-- **Skywater PDK + Efabless** — open-source ASIC.
-- **Ben Eater's videos** — 8-bit computer from scratch.
+- **Sparkfun / Adafruit tutorials**: accessible intro.
+- **"Open Circuits"**: Eric Schlaepfer, Windell Oskay (foto-essays de chip teardowns).
+- **Hackaday**: community, projects.
+- **Skywater PDK + Efabless**: open-source ASIC.
+- **Ben Eater's videos**: 8-bit computer from scratch.

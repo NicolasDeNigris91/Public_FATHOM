@@ -1,6 +1,6 @@
 ---
 module: 02-09
-title: Postgres Deep — MVCC, Indexes, Query Planner, Replication
+title: Postgres Deep, MVCC, Indexes, Query Planner, Replication
 stage: plataforma
 prereqs: [01-04]
 gates:
@@ -10,11 +10,11 @@ gates:
 status: locked
 ---
 
-# 02-09 — Postgres Deep
+# 02-09, Postgres Deep
 
 ## 1. Problema de Engenharia
 
-Postgres é o DB relacional mais respeitado em backend moderno. ORMs e cloud providers o tornam acessível, e por isso desenvolvedores tratam ele como caixa-preta — escrevem queries que "funcionam" e descobrem em produção que escaneiam tabelas inteiras, que transações bloqueiam workers, que migrations matam tráfego, que `count(*)` é caro, que índices errados crescem o disco sem ajudar.
+Postgres é o DB relacional mais respeitado em backend moderno. ORMs e cloud providers o tornam acessível, e por isso desenvolvedores tratam ele como caixa-preta, escrevem queries que "funcionam" e descobrem em produção que escaneiam tabelas inteiras, que transações bloqueiam workers, que migrations matam tráfego, que `count(*)` é caro, que índices errados crescem o disco sem ajudar.
 
 Este módulo é Postgres em camadas: storage físico (heap, pages, TOAST), MVCC (a chave de quase tudo), índices (B-Tree, GIN, BRIN, expression, partial), query planner (statistics, EXPLAIN ANALYZE), transações e isolation levels reais, lock granularity, replication, autovacuum, e operação. Ao final você sabe ler `EXPLAIN` e fazer schema decisions com base.
 
@@ -29,7 +29,7 @@ Postgres armazena dados em **heap files** (arquivos por tabela), divididos em **
 - Cada **tuple** (linha) tem header com `xmin` (xid de inserção), `xmax` (xid de delete/update), `ctid` (page + offset).
 - **Free Space Map (FSM)** rastreia espaço disponível.
 - **Visibility Map (VM)** marca pages com tuples todos visíveis (otimização de vacuum).
-- Tabelas grandes podem ter **TOAST** (The Oversized-Attribute Storage Technique) — colunas grandes (text, bytea) movidas pra tabela secundária com compressão.
+- Tabelas grandes podem ter **TOAST** (The Oversized-Attribute Storage Technique), colunas grandes (text, bytea) movidas pra tabela secundária com compressão.
 
 Implicação: row update **não atualiza in-place**. Cria nova versão, marca antiga como expirada, volta vacuum pra limpar. Isso é base do MVCC.
 
@@ -120,7 +120,7 @@ Sinais a procurar:
 - `actual rows` muito diferente de `rows` (estimado) → stats desatualizadas.
 - `Nested Loop` com loop count enorme → join sem índice.
 - `Sort` em memória vs `Sort Method: external merge Disk` → work_mem baixo demais.
-- `Buffers: shared hit/read/written` (`EXPLAIN (ANALYZE, BUFFERS)`) — quanto veio de cache vs disco.
+- `Buffers: shared hit/read/written` (`EXPLAIN (ANALYZE, BUFFERS)`), quanto veio de cache vs disco.
 
 Use `EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)` como padrão.
 
@@ -161,9 +161,9 @@ Em serverless, sem pooler, cada Lambda invoca conexão nova → conexão storm �
 
 Failover manual ou via tools (Patroni, repmgr, cloud manager). RPO/RTO depende dos SLAs.
 
-### 2.13.1 Logical replication deep — uso real
+### 2.13.1 Logical replication deep, uso real
 
-Streaming replication é simples: réplica é cópia exata. Logical é onde Senior real distingue de Pleno — habilita patterns que streaming não permite.
+Streaming replication é simples: réplica é cópia exata. Logical é onde Senior real distingue de Pleno, habilita patterns que streaming não permite.
 
 **Como funciona internamente:**
 1. WAL é decodificado por **logical decoder** num formato lógico (INSERT/UPDATE/DELETE com valores).
@@ -173,7 +173,7 @@ Streaming replication é simples: réplica é cópia exata. Logical é onde Seni
 
 **Patterns viabilizados:**
 - **Zero-downtime major version upgrade**: Postgres 15 → 17 sem dump/restore. Logical replication mantém réplica nova em sync; cutover é segundos.
-- **CDC pra event bus**: Debezium consome `pgoutput` plugin (logical decoding) e empurra pra Kafka. Base de outbox pattern (04-03). Sem dual-write — single source of truth.
+- **CDC pra event bus**: Debezium consome `pgoutput` plugin (logical decoding) e empurra pra Kafka. Base de outbox pattern (04-03). Sem dual-write, single source of truth.
 - **Multi-region partial**: réplica regional só com tabelas relevantes. Streaming não consegue (cópia bit-a-bit, all-or-nothing).
 - **Database-per-tenant consolidation**: agregar N DBs lógicas pra um warehouse via subscriptions seletivas.
 
@@ -186,9 +186,9 @@ Streaming replication é simples: réplica é cópia exata. Logical é onde Seni
 
 **Postgres 17 (set/2024) features novas:**
 - **Failover de logical slots**: réplica streaming preserva logical slots pra failover automatic. Antes era manual.
-- **`pg_createsubscriber`**: converte streaming standby em subscriber de logical replication com 1 comando — mata o gap "preciso ressincar tudo do zero pra mudar pra logical".
+- **`pg_createsubscriber`**: converte streaming standby em subscriber de logical replication com 1 comando, mata o gap "preciso ressincar tudo do zero pra mudar pra logical".
 
-### 2.14 Postgres 17/18 — features que mudam o jogo
+### 2.14 Postgres 17/18, features que mudam o jogo
 
 Postgres ciclo anual; vale acompanhar releases recentes porque mudam patterns operacionais.
 
@@ -205,14 +205,14 @@ Postgres ciclo anual; vale acompanhar releases recentes porque mudam patterns op
 - **Logical replication failover** (acima).
 
 **Postgres 18 (set/2025):**
-- **Skip locked em WITH RECURSIVE** — ergonomia em queues SQL.
+- **Skip locked em WITH RECURSIVE**: ergonomia em queues SQL.
 - **OAuth2/OIDC client authentication** built-in.
 - **Optimizações em planner** pra queries com `IN (subquery)` e correlated subqueries.
 - **`pg_stat_io`** mais detalhado (visibilidade fina de operação por tablespace/relation).
-- **Connection pinning melhorado** — facilita session-level pooling em PgBouncer transaction mode.
+- **Connection pinning melhorado**: facilita session-level pooling em PgBouncer transaction mode.
 
 **Como acompanhar:**
-- Release notes oficiais (`https://www.postgresql.org/docs/current/release.html`) — leia mesmo, são curtos.
+- Release notes oficiais (`https://www.postgresql.org/docs/current/release.html`), leia mesmo, são curtos.
 - **Postgres Weekly** newsletter.
 - Posts da Crunchy Data, Cybertec, EDB pra deep dives.
 
@@ -243,9 +243,9 @@ Postgres ciclo anual; vale acompanhar releases recentes porque mudam patterns op
 - **Domains**: tipos custom (ex: email com check).
 
 Multi-tenant em Postgres:
-- **Discriminator** (`tenant_id` em cada tabela) — simples, ok pra tenants similares.
-- **Schema per tenant** — médio isolamento, gerenciamento mais complexo.
-- **Database per tenant** — máximo isolamento, mas operação pesada com muitos tenants.
+- **Discriminator** (`tenant_id` em cada tabela), simples, ok pra tenants similares.
+- **Schema per tenant**: médio isolamento, gerenciamento mais complexo.
+- **Database per tenant**: máximo isolamento, mas operação pesada com muitos tenants.
 
 ### 2.17 Migrations seguras
 
@@ -310,8 +310,8 @@ Construir o **schema Postgres da Logística** + provar entendimento via análise
    - `order_events(id bigserial pk, order_id fk, event_type, payload jsonb, created_by_user_id fk, created_at)`.
    - `couriers(user_id fk pk, vehicle_type enum, current_location point, last_seen_at)`.
 3. **Indexes**:
-   - `orders(tenant_id, status, created_at desc)` — listagem por tenant filtrando status.
-   - `order_events(order_id, created_at)` — histórico por pedido.
+   - `orders(tenant_id, status, created_at desc)`, listagem por tenant filtrando status.
+   - `order_events(order_id, created_at)`, histórico por pedido.
    - GIN em `orders.delivery_address` (queries em jsonb).
    - Partial index em `orders(courier_user_id) WHERE status IN ('picked_up','en_route')`.
 4. **Constraints**:
@@ -327,7 +327,7 @@ Construir o **schema Postgres da Logística** + provar entendimento via análise
      - Tamanho de cada tabela e índice (`pg_total_relation_size`).
 7. **Migrations**:
    - Cada mudança em arquivo numerado (`001_initial.sql`, `002_add_courier.sql`, ...).
-   - Migration `003_add_priority_column.sql` adiciona `orders.priority int NOT NULL DEFAULT 0` — explique por que ele não trava prod no Postgres 11+.
+   - Migration `003_add_priority_column.sql` adiciona `orders.priority int NOT NULL DEFAULT 0`, explique por que ele não trava prod no Postgres 11+.
 8. **Operação**:
    - Configure `pg_stat_statements`. Após gerar load, mostre top 5 queries.
    - Mostre saída de `pg_stat_user_tables` e identifique tabelas com bloat ou n_dead_tup alto.
@@ -348,7 +348,7 @@ Construir o **schema Postgres da Logística** + provar entendimento via análise
 ### Stretch
 
 - Configure réplica streaming local e mostre lag.
-- Configure pgBouncer em transaction mode na frente, e demonstre limitação (tente prepared statements e veja quebrar — depois ajuste).
+- Configure pgBouncer em transaction mode na frente, e demonstre limitação (tente prepared statements e veja quebrar, depois ajuste).
 - Use `pg_repack` pra eliminar bloat numa tabela inflada de propósito.
 - Implemente full-text search com tsvector + trigger pra `orders.customer_name` e GIN index.
 
@@ -360,7 +360,7 @@ Construir o **schema Postgres da Logística** + provar entendimento via análise
 - Liga com **01-02** (OS): Postgres é multi-process, fsync, file descriptors, page cache do kernel.
 - Liga com **02-07** (Node): pool de conexões, drivers `pg`, behavior em event loop.
 - Liga com **02-08** (frameworks): integration via plugins (`@fastify/postgres`).
-- Liga com **02-10** (ORMs): Drizzle/Prisma geram SQL — você precisa saber ler o que sai.
+- Liga com **02-10** (ORMs): Drizzle/Prisma geram SQL, você precisa saber ler o que sai.
 - Liga com **02-11** (Redis): cache de queries pesadas, rate limit store.
 - Liga com **03-02/03-05** (Docker, AWS): rodar PG em RDS/Aurora vs container; PG operator no Kubernetes.
 - Liga com **03-10** (perf backend): EXPLAIN ANALYZE é base.
@@ -371,11 +371,11 @@ Construir o **schema Postgres da Logística** + provar entendimento via análise
 
 ## 6. Referências
 
-- **Postgres docs** ([postgresql.org/docs/current](https://www.postgresql.org/docs/current/)) — leia chapters 11 (indexes), 13 (concurrency), 14 (performance), 25 (backups), 27 (replication).
-- **"PostgreSQL Internals"** — Egor Rogov (e-book gratuito da Postgres Pro). Excelente.
-- **"The Art of PostgreSQL"** — Dimitri Fontaine.
-- **"Designing Data-Intensive Applications"** (DDIA) — Martin Kleppmann, capítulos 3 (storage), 7 (transactions).
-- **Use The Index, Luke** ([use-the-index-luke.com](https://use-the-index-luke.com/)) — Markus Winand, indexação em SQL.
+- **Postgres docs** ([postgresql.org/docs/current](https://www.postgresql.org/docs/current/)), leia chapters 11 (indexes), 13 (concurrency), 14 (performance), 25 (backups), 27 (replication).
+- **"PostgreSQL Internals"**: Egor Rogov (e-book gratuito da Postgres Pro). Excelente.
+- **"The Art of PostgreSQL"**: Dimitri Fontaine.
+- **"Designing Data-Intensive Applications"** (DDIA), Martin Kleppmann, capítulos 3 (storage), 7 (transactions).
+- **Use The Index, Luke** ([use-the-index-luke.com](https://use-the-index-luke.com/)), Markus Winand, indexação em SQL.
 - **PostgreSQL Wiki**: páginas sobre Don't, Slow Query Questions, Lock Monitoring.
-- **`explain.depesz.com`** — visualizador de EXPLAIN.
+- **`explain.depesz.com`**: visualizador de EXPLAIN.
 - **Bruce Momjian's talks** ([momjian.us/presentations](https://momjian.us/main/presentations/)).

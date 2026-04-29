@@ -1,6 +1,6 @@
 ---
 module: 01-03
-title: Redes — OSI, TCP/IP, DNS, HTTP, TLS
+title: Redes, OSI, TCP/IP, DNS, HTTP, TLS
 stage: fundamentos
 prereqs: [01-02]
 gates:
@@ -10,7 +10,7 @@ gates:
 status: locked
 ---
 
-# 01-03 — Redes
+# 01-03, Redes
 
 ## 1. Problema de Engenharia
 
@@ -23,7 +23,7 @@ Toda aplicação web roda sobre uma pilha de protocolos que vai desde sinais el�
 - Por que CORS dói (e por que as soluções de Stack Overflow são quase todas erradas)
 
 Exemplos onde desconhecimento custa caro:
-- Você adiciona `Cache-Control: no-cache` achando que desabilita cache. Não desabilita — só força revalidação. Pra desabilitar é `no-store`. Pequeno detalhe que custou caro.
+- Você adiciona `Cache-Control: no-cache` achando que desabilita cache. Não desabilita, só força revalidação. Pra desabilitar é `no-store`. Pequeno detalhe que custou caro.
 - Sua API tem latência alta em conexões de mobile. Causa: TLS handshake (~300ms+ em cold start) + você não habilitou HTTP/2 (que reusa conexão).
 - Seu WebSocket "cai" após 60 segundos em produção, mas funciona localmente. Causa: NAT timeout do load balancer + você não configurou ping/pong.
 
@@ -53,11 +53,11 @@ Cada camada **encapsula** a anterior: pacote IP carrega segmento TCP, que carreg
 [Ethernet header | [IP header | [TCP header | [HTTP request]]]]
 ```
 
-### 2.2 IP — Internet Protocol
+### 2.2 IP, Internet Protocol
 
 **IP é roteamento.** Cada interface de rede tem um endereço IP (IPv4 32-bit, IPv6 128-bit). Pacote IP tem destino → roteadores encaminham.
 
-**IPv4** (`192.168.1.10`): 4 octetos, ~4 bilhões de endereços. Esgotado — usamos NAT.
+**IPv4** (`192.168.1.10`): 4 octetos, ~4 bilhões de endereços. Esgotado, usamos NAT.
 **IPv6** (`2001:0db8::1`): 8 grupos de 4 hex, virtualmente infinitos endereços. Adoção crescente mas ainda parcial.
 
 **IP é stateless e sem garantia.** Pacotes podem:
@@ -74,7 +74,7 @@ Cada camada **encapsula** a anterior: pacote IP carrega segmento TCP, que carreg
 
 **ICMP**: protocolo de controle. `ping` usa ICMP echo request/reply. `traceroute` usa TTL incrementado.
 
-### 2.3 TCP — Transmission Control Protocol
+### 2.3 TCP, Transmission Control Protocol
 
 **TCP** é a camada que dá garantias em cima do IP não-confiável:
 - **Confiabilidade**: pacotes perdidos são retransmitidos.
@@ -115,18 +115,18 @@ Existe estado **TIME_WAIT** (~2 minutos) onde a conexão fica "fantasma" pra evi
 
 **Nagle's algorithm**: agrupa pequenas escritas em um segmento maior. Útil pra throughput, ruim pra latência. Pode ser desabilitado com `TCP_NODELAY` (Node: `socket.setNoDelay(true)`).
 
-### 2.4 UDP — User Datagram Protocol
+### 2.4 UDP, User Datagram Protocol
 
 **UDP é IP + portas + checksum**. Sem garantias. Sem ordem. Sem retransmissão. Sem controle de fluxo.
 
 **Por que existe:**
 - **Latência crítica** (DNS, jogos, VoIP, streaming): perdas são preferíveis a esperar retransmissão.
 - **Broadcast/multicast**: TCP é point-to-point.
-- **Sem state**: servidor não mantém conexão aberta — útil pra carga massiva.
+- **Sem state**: servidor não mantém conexão aberta, útil pra carga massiva.
 
 **QUIC** (sobre UDP, usado em HTTP/3) implementa as garantias do TCP **em user space**, mais flexível e com features novas (0-RTT, conexão persistente em mudança de IP).
 
-### 2.5 DNS — Domain Name System
+### 2.5 DNS, Domain Name System
 
 DNS resolve nomes (`example.com`) em IPs.
 
@@ -134,16 +134,16 @@ DNS resolve nomes (`example.com`) em IPs.
 - **Root servers** (`a.root-servers.net` ... `m.`)
 - **TLD servers** (`.com`, `.org`, `.br`)
 - **Authoritative servers** (DNS do dominio)
-- **Recursive resolvers** (provedor, 1.1.1.1, 8.8.8.8) — fazem o trabalho pesado
+- **Recursive resolvers** (provedor, 1.1.1.1, 8.8.8.8), fazem o trabalho pesado
 
 **Tipos de record:**
-- `A` — IPv4
-- `AAAA` — IPv6
-- `CNAME` — alias pra outro nome
-- `MX` — mail server
-- `TXT` — texto livre (SPF, DMARC, verificações)
-- `NS` — name server autoritativo
-- `SOA` — start of authority
+- `A`, IPv4
+- `AAAA`, IPv6
+- `CNAME`, alias pra outro nome
+- `MX`, mail server
+- `TXT`, texto livre (SPF, DMARC, verificações)
+- `NS`, name server autoritativo
+- `SOA`, start of authority
 
 **Cache e TTL:** cada resposta tem TTL. Resolvers e clientes cacheiam até expirar. Por isso mudanças de DNS demoram a propagar.
 
@@ -162,36 +162,36 @@ DNS resolve nomes (`example.com`) em IPs.
 
 **HTTP/2** (2015, RFC 9113):
 - Binário (não textual).
-- **Multiplexing**: muitos streams numa conexão TCP — paralelismo sem TIME_WAIT.
+- **Multiplexing**: muitos streams numa conexão TCP, paralelismo sem TIME_WAIT.
 - **Header compression** (HPACK).
 - **Server push** (raramente usado, sendo deprecated).
 - Ainda sofre **TCP head-of-line blocking**: 1 pacote perdido bloqueia todos os streams.
 
 **HTTP/3** (2022, RFC 9114):
 - Roda sobre **QUIC** (UDP, com criptografia integrada).
-- Sem TCP HOL blocking — perdas em um stream não afetam outros.
+- Sem TCP HOL blocking, perdas em um stream não afetam outros.
 - **0-RTT** em conexões repetidas (envia dado no primeiro pacote se conhece o servidor).
 - Migração de IP transparente (útil em mobile que muda de Wi-Fi pra 4G).
 
-### 2.6.1 QUIC deep — por que é o transport de 2025+
+### 2.6.1 QUIC deep, por que é o transport de 2025+
 
 QUIC (RFC 9000, 9001, 9002) é o substrato de HTTP/3 mas tem importância autônoma. Em 2026 já é majoritário em CDN traffic (Cloudflare, Akamai, Fastly reportam 30-50% das requests). Vale entender pra design de protocolos novos.
 
 **Por que UDP em vez de TCP:**
-- TCP é **kernel space** e protocolo concreto — mudar exige patch de OS, deploy lento.
-- UDP é primitivo. QUIC roda em user space — bibliotecas atualizam por release de aplicação. Isso destrava velocidade de evolução do transport.
-- TCP fast open exige cooperação de kernel + middleboxes; muitos NATs descartam. QUIC encripta cabeçalho de transport — middleboxes não têm o que mexer.
+- TCP é **kernel space** e protocolo concreto, mudar exige patch de OS, deploy lento.
+- UDP é primitivo. QUIC roda em user space, bibliotecas atualizam por release de aplicação. Isso destrava velocidade de evolução do transport.
+- TCP fast open exige cooperação de kernel + middleboxes; muitos NATs descartam. QUIC encripta cabeçalho de transport, middleboxes não têm o que mexer.
 
 **Connection vs streams:**
 - 1 conexão QUIC = N streams independentes. Stream individual tem ordering garantida; entre streams, **sem HOL blocking**.
-- Stream IDs são tipados (client-initiated bidirecional, server-initiated unidirecional, etc.) — base de WebTransport (02-14).
+- Stream IDs são tipados (client-initiated bidirecional, server-initiated unidirecional, etc.), base de WebTransport (02-14).
 
 **0-RTT na prática:**
 - Cliente cacheia "session ticket" do servidor. Próxima conexão envia request **junto com handshake**. Latência: 0 RTT extra vs 1-2 RTT do TLS 1.3 sobre TCP.
-- Risco: **replay attack** em requests não-idempotentes. POST de pagamento via 0-RTT é furada — aceite só GET/idempotent em 0-RTT (NGINX faz isso por default).
+- Risco: **replay attack** em requests não-idempotentes. POST de pagamento via 0-RTT é furada, aceite só GET/idempotent em 0-RTT (NGINX faz isso por default).
 
 **Connection migration:**
-- Conexão identificada por **Connection ID** (não por 5-tuple IP/port). Mudar de Wi-Fi pra 4G mantém conexão viva — útil em apps mobile, vídeo conferência.
+- Conexão identificada por **Connection ID** (não por 5-tuple IP/port). Mudar de Wi-Fi pra 4G mantém conexão viva, útil em apps mobile, vídeo conferência.
 - Cuidado: alguns load balancers velhos hash em 5-tuple e quebram migration.
 
 **Trade-offs reais:**
@@ -213,13 +213,13 @@ QUIC (RFC 9000, 9001, 9002) é o substrato de HTTP/3 mas tem importância autôn
 - `HEAD`, `OPTIONS` (metadados, CORS preflight)
 
 **Status codes (categorias):**
-- `1xx` — Informational (raro)
-- `2xx` — Success (`200 OK`, `201 Created`, `204 No Content`)
-- `3xx` — Redirect (`301`, `302`, `304 Not Modified`)
-- `4xx` — Client error (`400`, `401`, `403`, `404`, `409`, `429`)
-- `5xx` — Server error (`500`, `502`, `503`, `504`)
+- `1xx`, Informational (raro)
+- `2xx`, Success (`200 OK`, `201 Created`, `204 No Content`)
+- `3xx`, Redirect (`301`, `302`, `304 Not Modified`)
+- `4xx`, Client error (`400`, `401`, `403`, `404`, `409`, `429`)
+- `5xx`, Server error (`500`, `502`, `503`, `504`)
 
-### 2.7 TLS — Transport Layer Security
+### 2.7 TLS, Transport Layer Security
 
 TLS adiciona **confidencialidade**, **integridade** e **autenticação** sobre TCP. HTTPS = HTTP sobre TLS.
 
@@ -255,14 +255,14 @@ Cliente                                    Servidor
 
 **mTLS (mutual TLS)**: cliente também apresenta certificado. Usado em service mesh (Istio), zero-trust networking.
 
-### 2.8 HTTP avançado — caching, cookies, CORS
+### 2.8 HTTP avançado, caching, cookies, CORS
 
 **Caching (RFC 9111):**
-- `Cache-Control: max-age=3600` — cache por 1h
-- `Cache-Control: no-cache` — usa cache mas valida primeiro com servidor (ETag/Last-Modified)
-- `Cache-Control: no-store` — **não cacheia** (use pra dados sensíveis)
-- `Cache-Control: private` — só cliente cacheia, não proxies/CDN
-- `ETag: "abc123"` — fingerprint de conteúdo. Cliente envia `If-None-Match` em revalidação; servidor responde `304 Not Modified` se igual.
+- `Cache-Control: max-age=3600`, cache por 1h
+- `Cache-Control: no-cache`, usa cache mas valida primeiro com servidor (ETag/Last-Modified)
+- `Cache-Control: no-store`, **não cacheia** (use pra dados sensíveis)
+- `Cache-Control: private`, só cliente cacheia, não proxies/CDN
+- `ETag: "abc123"`, fingerprint de conteúdo. Cliente envia `If-None-Match` em revalidação; servidor responde `304 Not Modified` se igual.
 
 **Cookies:**
 - `Set-Cookie: session=abc; HttpOnly; Secure; SameSite=Lax; Max-Age=3600`
@@ -271,13 +271,13 @@ Cliente                                    Servidor
 - `SameSite=Strict|Lax|None`: defesa contra CSRF.
 - `Domain`, `Path`: escopo do cookie.
 
-**CORS — Cross-Origin Resource Sharing:**
+**CORS, Cross-Origin Resource Sharing:**
 - Browsers bloqueiam requests cross-origin (origin = scheme + host + port) por default.
 - Servidor pode permitir com headers: `Access-Control-Allow-Origin: https://my.com`, `Allow-Methods`, `Allow-Headers`, `Allow-Credentials`.
 - Requests "complexos" (PUT, custom headers, etc) disparam **preflight OPTIONS** antes do request real.
-- Erros comuns: `*` com `credentials: 'include'` (não funciona — Origin tem que ser explícito).
+- Erros comuns: `*` com `credentials: 'include'` (não funciona, Origin tem que ser explícito).
 
-### 2.9 Sockets em Node — código que mostra tudo
+### 2.9 Sockets em Node, código que mostra tudo
 
 ```typescript
 import net from 'node:net';
@@ -357,13 +357,13 @@ Você vai construir um servidor TCP que:
 
 ## 5. Extensões e Conexões
 
-- **Conecta com [01-02 — OS](01-02-operating-systems.md):** sockets são FDs; `epoll` é o que sustenta servidores high-concurrency. Acceptar conexão é syscall.
-- **Conecta com [01-07 — JavaScript Deep](01-07-javascript-deep.md):** todos eventos de socket entram no event loop como callbacks. Backpressure em streams TCP/HTTP é gerenciado pela API de streams do Node.
-- **Conecta com [02-07 — Node.js Internals](../02-plataforma/02-07-nodejs-internals.md):** `net` e `http` são thin wrappers em libuv + parsing TS.
-- **Conecta com [02-13 — Auth](../02-plataforma/02-13-auth.md):** OAuth2 e JWT dependem de TLS pra confidencialidade. Cookies SameSite são defesa CSRF.
-- **Conecta com [02-14 — Real-time](../02-plataforma/02-14-realtime.md):** WebSocket é upgrade HTTP → protocolo binário sobre TCP. SSE usa HTTP normal com `Content-Type: text/event-stream`.
-- **Conecta com [03-05 — AWS Core](../03-producao/03-05-aws-core.md):** Route53 (DNS), CloudFront (CDN), Application Load Balancer (TLS termination), Security Groups (firewalls em IP/porta).
-- **Conecta com [03-08 — Applied Security](../03-producao/03-08-applied-security.md):** mTLS, CSP, CORS, rate limiting baseado em IP.
+- **Conecta com [01-02, OS](01-02-operating-systems.md):** sockets são FDs; `epoll` é o que sustenta servidores high-concurrency. Acceptar conexão é syscall.
+- **Conecta com [01-07, JavaScript Deep](01-07-javascript-deep.md):** todos eventos de socket entram no event loop como callbacks. Backpressure em streams TCP/HTTP é gerenciado pela API de streams do Node.
+- **Conecta com [02-07, Node.js Internals](../02-plataforma/02-07-nodejs-internals.md):** `net` e `http` são thin wrappers em libuv + parsing TS.
+- **Conecta com [02-13, Auth](../02-plataforma/02-13-auth.md):** OAuth2 e JWT dependem de TLS pra confidencialidade. Cookies SameSite são defesa CSRF.
+- **Conecta com [02-14, Real-time](../02-plataforma/02-14-realtime.md):** WebSocket é upgrade HTTP → protocolo binário sobre TCP. SSE usa HTTP normal com `Content-Type: text/event-stream`.
+- **Conecta com [03-05, AWS Core](../03-producao/03-05-aws-core.md):** Route53 (DNS), CloudFront (CDN), Application Load Balancer (TLS termination), Security Groups (firewalls em IP/porta).
+- **Conecta com [03-08, Applied Security](../03-producao/03-08-applied-security.md):** mTLS, CSP, CORS, rate limiting baseado em IP.
 
 ### Ferramentas satélites
 
@@ -381,35 +381,35 @@ Você vai construir um servidor TCP que:
 ## 6. Referências de Elite
 
 ### Livros canônicos
-- **Computer Networking: A Top-Down Approach** (Kurose & Ross, 8th ed) — top-down, melhor pra programadores.
-- **High Performance Browser Networking** (Ilya Grigorik) — free em [hpbn.co](https://hpbn.co/). Capítulos sobre TCP, TLS, HTTP/2, WebSocket, WebRTC. **Leitura obrigatória.**
-- **TCP/IP Illustrated, Volume 1** (Stevens) — clássico, denso, mas autoritativo.
+- **Computer Networking: A Top-Down Approach** (Kurose & Ross, 8th ed), top-down, melhor pra programadores.
+- **High Performance Browser Networking** (Ilya Grigorik), free em [hpbn.co](https://hpbn.co/). Capítulos sobre TCP, TLS, HTTP/2, WebSocket, WebRTC. **Leitura obrigatória.**
+- **TCP/IP Illustrated, Volume 1** (Stevens), clássico, denso, mas autoritativo.
 
 ### RFCs canônicos (leia os relevantes)
-- [RFC 791](https://datatracker.ietf.org/doc/html/rfc791) — IP
-- [RFC 793](https://datatracker.ietf.org/doc/html/rfc793) — TCP (também leia [RFC 9293](https://datatracker.ietf.org/doc/html/rfc9293), atualização)
-- [RFC 768](https://datatracker.ietf.org/doc/html/rfc768) — UDP (1 página)
-- [RFC 1035](https://datatracker.ietf.org/doc/html/rfc1035) — DNS
-- [RFC 9110](https://datatracker.ietf.org/doc/html/rfc9110) — HTTP semantics
-- [RFC 9112](https://datatracker.ietf.org/doc/html/rfc9112) — HTTP/1.1
-- [RFC 9113](https://datatracker.ietf.org/doc/html/rfc9113) — HTTP/2
-- [RFC 9114](https://datatracker.ietf.org/doc/html/rfc9114) — HTTP/3
-- [RFC 8446](https://datatracker.ietf.org/doc/html/rfc8446) — TLS 1.3
-- [RFC 6455](https://datatracker.ietf.org/doc/html/rfc6455) — WebSocket
+- [RFC 791](https://datatracker.ietf.org/doc/html/rfc791), IP
+- [RFC 793](https://datatracker.ietf.org/doc/html/rfc793), TCP (também leia [RFC 9293](https://datatracker.ietf.org/doc/html/rfc9293), atualização)
+- [RFC 768](https://datatracker.ietf.org/doc/html/rfc768), UDP (1 página)
+- [RFC 1035](https://datatracker.ietf.org/doc/html/rfc1035), DNS
+- [RFC 9110](https://datatracker.ietf.org/doc/html/rfc9110), HTTP semantics
+- [RFC 9112](https://datatracker.ietf.org/doc/html/rfc9112), HTTP/1.1
+- [RFC 9113](https://datatracker.ietf.org/doc/html/rfc9113), HTTP/2
+- [RFC 9114](https://datatracker.ietf.org/doc/html/rfc9114), HTTP/3
+- [RFC 8446](https://datatracker.ietf.org/doc/html/rfc8446), TLS 1.3
+- [RFC 6455](https://datatracker.ietf.org/doc/html/rfc6455), WebSocket
 
 ### Talks
-- **["High Performance Networking in Google Chrome"](https://www.igvita.com/posa/high-performance-networking-in-google-chrome/)** — Ilya Grigorik.
-- **["A QUIC look at HTTP/3"](https://www.youtube.com/results?search_query=QUIC+HTTP%2F3)** — várias talks na conferência Linux Networking.
+- **["High Performance Networking in Google Chrome"](https://www.igvita.com/posa/high-performance-networking-in-google-chrome/)**: Ilya Grigorik.
+- **["A QUIC look at HTTP/3"](https://www.youtube.com/results?search_query=QUIC+HTTP%2F3)**: várias talks na conferência Linux Networking.
 
 ### Repos
-- **[curl](https://github.com/curl/curl)** — código C de referência. Leia `lib/http.c`, `lib/conncache.c`.
-- **[nginx](https://github.com/nginx/nginx)** — servidor HTTP de referência.
-- **[Caddy](https://github.com/caddyserver/caddy)** — server HTTP em Go, fácil de ler.
-- **[h2o](https://github.com/h2o/h2o)** — HTTP/2 server, ótimo pra estudar implementação.
+- **[curl](https://github.com/curl/curl)**: código C de referência. Leia `lib/http.c`, `lib/conncache.c`.
+- **[nginx](https://github.com/nginx/nginx)**: servidor HTTP de referência.
+- **[Caddy](https://github.com/caddyserver/caddy)**: server HTTP em Go, fácil de ler.
+- **[h2o](https://github.com/h2o/h2o)**: HTTP/2 server, ótimo pra estudar implementação.
 
 ### Comunidade
-- **[Cloudflare blog](https://blog.cloudflare.com/)** — escreve sobre TCP, TLS, QUIC com profundidade técnica raríssima.
-- **[Mozilla MDN — HTTP](https://developer.mozilla.org/en-US/docs/Web/HTTP)**.
+- **[Cloudflare blog](https://blog.cloudflare.com/)**: escreve sobre TCP, TLS, QUIC com profundidade técnica raríssima.
+- **[Mozilla MDN, HTTP](https://developer.mozilla.org/en-US/docs/Web/HTTP)**.
 - **r/networking**, **r/webdev**.
 
 ---

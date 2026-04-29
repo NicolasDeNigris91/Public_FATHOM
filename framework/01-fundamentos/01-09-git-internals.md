@@ -1,6 +1,6 @@
 ---
 module: 01-09
-title: Git Interno — Objetos, Refs, Three Areas, Rebase vs Merge
+title: Git Interno, Objetos, Refs, Three Areas, Rebase vs Merge
 stage: fundamentos
 prereqs: [01-04]
 gates:
@@ -10,16 +10,16 @@ gates:
 status: locked
 ---
 
-# 01-09 — Git Interno
+# 01-09, Git Interno
 
 ## 1. Problema de Engenharia
 
 A maioria dos devs usa Git como mágica. `git pull`, `git push`, copia comandos do Stack Overflow quando algo dá errado. Quando há merge conflict complexo, rebase interativo, ou precisa recuperar commits "perdidos", trava.
 
-**Git é uma estrutura de dados** — uma DAG (directed acyclic graph) de **commits**, cada um apontando pra **trees**, que apontam pra **blobs**. Tudo identificado por **SHA-1** (em transição pra SHA-256). É um **sistema de versionamento de conteúdo distribuído** com modelo simples e operações compostas a partir desse modelo.
+**Git é uma estrutura de dados**: uma DAG (directed acyclic graph) de **commits**, cada um apontando pra **trees**, que apontam pra **blobs**. Tudo identificado por **SHA-1** (em transição pra SHA-256). É um **sistema de versionamento de conteúdo distribuído** com modelo simples e operações compostas a partir desse modelo.
 
 Entender Git por dentro significa:
-- Você nunca mais "perde commits" — sabe usar `reflog`.
+- Você nunca mais "perde commits", sabe usar `reflog`.
 - Você consegue fazer **rebase interativo** com confiança (squash, edit, reorder).
 - Você entende quando **`merge` é melhor** que rebase (e vice-versa).
 - Você consegue recuperar trabalho de qualquer estado (mesmo "detached HEAD" intencional).
@@ -31,7 +31,7 @@ Entender Git por dentro significa:
 
 ### 2.1 Modelo: content-addressable storage
 
-Tudo no Git é objeto identificado por **hash SHA-1** (40 chars hex) do **conteúdo**. Mesmo conteúdo → mesmo hash. Conteúdo diferente → hash diferente (com altíssima probabilidade — colisões SHA-1 são teoricamente possíveis, na prática negligenciáveis).
+Tudo no Git é objeto identificado por **hash SHA-1** (40 chars hex) do **conteúdo**. Mesmo conteúdo → mesmo hash. Conteúdo diferente → hash diferente (com altíssima probabilidade, colisões SHA-1 são teoricamente possíveis, na prática negligenciáveis).
 
 **3 tipos de objetos:**
 
@@ -93,11 +93,11 @@ Working directory  ──add──►  Index (staging)  ──commit──►  H
 
 ### 2.4 Branches e merging
 
-**Branch é só um ponteiro mutável.** Criação é O(1) — só cria um ref novo.
+**Branch é só um ponteiro mutável.** Criação é O(1), só cria um ref novo.
 
 **Merge** (default `--ff` quando possível): se branch atual está em ancestral do branch-alvo, **fast-forward** (move o ponteiro pra frente). Se há divergência, cria **merge commit** com 2 parents.
 
-**`--no-ff`** força merge commit mesmo quando fast-forward seria possível — mantém histórico explícito de "houve um branch aqui".
+**`--no-ff`** força merge commit mesmo quando fast-forward seria possível, mantém histórico explícito de "houve um branch aqui".
 
 **`--squash`**: combina mudanças em 1 commit linear. Não cria merge commit. Histórico fica mais limpo, mas perde info de branching.
 
@@ -134,16 +134,16 @@ A---B---C---D (main)
 
 Ferramenta poderosíssima pra limpar histórico antes de PR.
 
-### 2.6 Merge vs Rebase — quando cada
+### 2.6 Merge vs Rebase, quando cada
 
 **Merge:**
 - Mantém histórico real (incluindo "este branch existiu").
-- Não reescreve nada — seguro pra branches compartilhados.
+- Não reescreve nada, seguro pra branches compartilhados.
 - Histórico fica "ramificado", pode ficar visualmente complexo.
 
 **Rebase:**
 - Histórico linear, mais legível.
-- Reescreve commits — perigoso em branches públicos.
+- Reescreve commits, perigoso em branches públicos.
 - Bom pra atualizar feature branches privados com main antes de PR.
 
 **Política comum em times maduros:**
@@ -151,7 +151,7 @@ Ferramenta poderosíssima pra limpar histórico antes de PR.
 - Merge na main: usar `--no-ff` ou squash merge (preferência do time).
 - **Nunca** rebase main, develop, release branches.
 
-### 2.7 reflog — sua salvação
+### 2.7 reflog, sua salvação
 
 `git reflog` é log local de **toda movimentação de HEAD** (e de cada branch). Cada checkout, commit, reset, rebase é registrado por ~90 dias.
 
@@ -194,7 +194,7 @@ Diferente de `reset` que **apaga** o commit.
 `git pull` = `fetch` + `merge` (ou `--rebase`).
 `git push`: envia commits locais ao remote.
 
-**`git push --force`** sobrescreve remote — perigoso. **`git push --force-with-lease`**: só sobrescreve se remote ainda está onde você esperava (não houve push de outro entre seu fetch e push).
+**`git push --force`** sobrescreve remote, perigoso. **`git push --force-with-lease`**: só sobrescreve se remote ainda está onde você esperava (não houve push de outro entre seu fetch e push).
 
 **Rule:** **NUNCA** `--force` em main/master/develop. **Use `--force-with-lease`** mesmo em feature branches.
 
@@ -246,7 +246,7 @@ Pra passar o **Portão Conceitual**, sem consultar:
 
 ## 4. Desafio de Engenharia
 
-**Implementar `mygit` — uma versão minimalista do Git em TypeScript.**
+**Implementar `mygit`, uma versão minimalista do Git em TypeScript.**
 
 ### Especificação
 
@@ -274,7 +274,7 @@ CLI que suporta:
 
 ### Threshold
 
-- Você consegue criar um repo, hash-object alguns arquivos, write-tree, commit-tree, branch, checkout, log — e o estado é coerente.
+- Você consegue criar um repo, hash-object alguns arquivos, write-tree, commit-tree, branch, checkout, log, e o estado é coerente.
 - `mygit hash-object foo.txt` produz **mesmo SHA** que `git hash-object foo.txt`.
 - Documenta no README:
   - Estrutura de objects e por que cabeçalho é `<type> <size>\0`.
@@ -294,48 +294,48 @@ Esse desafio é particularmente valioso porque **você nunca mais vai mistificar
 
 ## 5. Extensões e Conexões
 
-- **Conecta com [01-04 — Data Structures](01-04-data-structures.md):** Git é **DAG** + **Merkle tree** (cada commit é hash do tree, que é hash dos blobs). Mesma estrutura de blockchain.
-- **Conecta com [01-02 — OS](01-02-operating-systems.md):** Git usa **file locks** (`*.lock`) pra serializar escritas. `fork`/`exec` ao chamar editor (`commit -m` vs sem -m).
-- **Conecta com [01-10 — Unix CLI](01-10-unix-cli-bash.md):** Git é shell-friendly. Pipes (`git log --oneline | head`), aliases.
-- **Conecta com [03-04 — CI/CD](../03-producao/03-04-cicd.md):** GitHub Actions triggers em commits/PRs. Branch protection rules.
-- **Conecta com [04-11 — Web3](../04-sistemas/04-11-web3.md):** Merkle trees, content-addressable storage. Git foi inspiração pra muito de blockchain.
+- **Conecta com [01-04, Data Structures](01-04-data-structures.md):** Git é **DAG** + **Merkle tree** (cada commit é hash do tree, que é hash dos blobs). Mesma estrutura de blockchain.
+- **Conecta com [01-02, OS](01-02-operating-systems.md):** Git usa **file locks** (`*.lock`) pra serializar escritas. `fork`/`exec` ao chamar editor (`commit -m` vs sem -m).
+- **Conecta com [01-10, Unix CLI](01-10-unix-cli-bash.md):** Git é shell-friendly. Pipes (`git log --oneline | head`), aliases.
+- **Conecta com [03-04, CI/CD](../03-producao/03-04-cicd.md):** GitHub Actions triggers em commits/PRs. Branch protection rules.
+- **Conecta com [04-11, Web3](../04-sistemas/04-11-web3.md):** Merkle trees, content-addressable storage. Git foi inspiração pra muito de blockchain.
 
 ### Ferramentas satélites
 
-- **`git log --graph --oneline --all`** — visualizar DAG.
-- **[GitKraken](https://www.gitkraken.com/)**, **[Sourcetree](https://www.sourcetreeapp.com/)** — GUIs.
-- **[lazygit](https://github.com/jesseduffield/lazygit)** — TUI excelente.
-- **[git-extras](https://github.com/tj/git-extras)** — comandos extras.
-- **[husky](https://typicode.github.io/husky/)** + **[lint-staged](https://github.com/okonet/lint-staged)** — hooks fáceis.
-- **[gh CLI](https://cli.github.com/)** — GitHub via terminal.
+- **`git log --graph --oneline --all`**: visualizar DAG.
+- **[GitKraken](https://www.gitkraken.com/)**, **[Sourcetree](https://www.sourcetreeapp.com/)**: GUIs.
+- **[lazygit](https://github.com/jesseduffield/lazygit)**: TUI excelente.
+- **[git-extras](https://github.com/tj/git-extras)**: comandos extras.
+- **[husky](https://typicode.github.io/husky/)** + **[lint-staged](https://github.com/okonet/lint-staged)**: hooks fáceis.
+- **[gh CLI](https://cli.github.com/)**: GitHub via terminal.
 
 ---
 
 ## 6. Referências de Elite
 
 ### Livros canônicos
-- **Pro Git** (Scott Chacon) — free em [git-scm.com/book](https://git-scm.com/book/en/v2). **Capítulo 10 ("Git Internals") é leitura obrigatória.**
-- **Git Internals** (Scott Chacon, free PDF) — versão antiga focada em internos.
+- **Pro Git** (Scott Chacon), free em [git-scm.com/book](https://git-scm.com/book/en/v2). **Capítulo 10 ("Git Internals") é leitura obrigatória.**
+- **Git Internals** (Scott Chacon, free PDF), versão antiga focada em internos.
 
 ### Recursos online
-- **[Atlassian Git Tutorials](https://www.atlassian.com/git/tutorials)** — bom didático.
-- **[Git from the Bottom Up](https://jwiegley.github.io/git-from-the-bottom-up/)** — John Wiegley. Bottom-up, brilhante.
-- **[Git Magic](http://www-cs-students.stanford.edu/~blynn/gitmagic/)** — alternativa.
-- **[Oh Shit, Git!?!](https://ohshitgit.com/)** — receitas pra desastres comuns.
-- **[Wyag (Write Yourself a Git)](https://wyag.thb.lt/)** — guia pra implementar git, em Python (vai te inspirar).
+- **[Atlassian Git Tutorials](https://www.atlassian.com/git/tutorials)**: bom didático.
+- **[Git from the Bottom Up](https://jwiegley.github.io/git-from-the-bottom-up/)**: John Wiegley. Bottom-up, brilhante.
+- **[Git Magic](http://www-cs-students.stanford.edu/~blynn/gitmagic/)**: alternativa.
+- **[Oh Shit, Git!?!](https://ohshitgit.com/)**: receitas pra desastres comuns.
+- **[Wyag (Write Yourself a Git)](https://wyag.thb.lt/)**: guia pra implementar git, em Python (vai te inspirar).
 
 ### Talks
-- **["Deep Dive into Git"](https://www.youtube.com/watch?v=VjvcAxAy9_Y)** — Edward Thomson.
-- **["Git from the inside out"](https://www.youtube.com/watch?v=fCtZWGhQBvo)** — Mary Rose Cook.
+- **["Deep Dive into Git"](https://www.youtube.com/watch?v=VjvcAxAy9_Y)**: Edward Thomson.
+- **["Git from the inside out"](https://www.youtube.com/watch?v=fCtZWGhQBvo)**: Mary Rose Cook.
 - **["Demystifying Git"](https://www.youtube.com/watch?v=lG90LZotrpo)**.
 
 ### Repos
-- **[git source](https://github.com/git/git)** — `Documentation/technical/` tem docs internas excelentes.
-- **[wyag](https://wyag.thb.lt/)** — minimal git em Python pra ler.
-- **[gitoxide](https://github.com/Byron/gitoxide)** — implementação moderna em Rust.
+- **[git source](https://github.com/git/git)**: `Documentation/technical/` tem docs internas excelentes.
+- **[wyag](https://wyag.thb.lt/)**: minimal git em Python pra ler.
+- **[gitoxide](https://github.com/Byron/gitoxide)**: implementação moderna em Rust.
 
 ### Comunidade
-- **[Linus Torvalds talk on Git (2007)](https://www.youtube.com/watch?v=4XpnKHJAok8)** — só pra ver Linus xingar SVN. Vale.
+- **[Linus Torvalds talk on Git (2007)](https://www.youtube.com/watch?v=4XpnKHJAok8)**: só pra ver Linus xingar SVN. Vale.
 
 ---
 

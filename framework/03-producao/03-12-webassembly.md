@@ -1,6 +1,6 @@
 ---
 module: 03-12
-title: WebAssembly — Linear Memory, Modules, Components, WASI, Edge
+title: WebAssembly, Linear Memory, Modules, Components, WASI, Edge
 stage: producao
 prereqs: [03-11]
 gates:
@@ -10,11 +10,11 @@ gates:
 status: locked
 ---
 
-# 03-12 — WebAssembly
+# 03-12, WebAssembly
 
 ## 1. Problema de Engenharia
 
-Wasm chegou em 2017 prometendo "código nativo no browser". Em 2026, virou portable runtime: edge functions, plugins, sandboxing seguro, processamento near-native em browser e servidor. Devs ainda confundem com "alternativa a JS no front" — mas o uso real está em edge runtimes (Cloudflare, Fastly), em libs heavy (Figma, AutoCAD Web, FFmpeg.wasm), em plug-in systems (Envoy filters, Suborbital).
+Wasm chegou em 2017 prometendo "código nativo no browser". Em 2026, virou portable runtime: edge functions, plugins, sandboxing seguro, processamento near-native em browser e servidor. Devs ainda confundem com "alternativa a JS no front", mas o uso real está em edge runtimes (Cloudflare, Fastly), em libs heavy (Figma, AutoCAD Web, FFmpeg.wasm), em plug-in systems (Envoy filters, Suborbital).
 
 Este módulo é Wasm como engenheiro full-stack precisa: arquitetura, linear memory, instâncias, bindings, WASI (Wasm fora do browser), Component Model, runtimes (browser, wasmtime, Wasmer, edge). Construir 1 use case real onde Wasm vence outras opções.
 
@@ -32,7 +32,7 @@ Características:
 - **Safe**: sandbox memory; sem syscalls direto.
 - **Compact**: binário pequeno comparado a JS minified.
 
-Não substitui JS em UI — Wasm não tem DOM access direto. Vence em **cálculo intenso** delegated.
+Não substitui JS em UI, Wasm não tem DOM access direto. Vence em **cálculo intenso** delegated.
 
 ### 2.2 Linear memory
 
@@ -63,18 +63,18 @@ Original: `i32`, `i64`, `f32`, `f64`. Apenas escalares.
 
 **Reference types** (2022+): `funcref`, `externref`. Wasm pode segurar referências JS opacas.
 
-**Component Model** (em maturação): higher-level types — strings, lists, records, variants. Bindings auto-gerados de WIT (Wasm Interface Type).
+**Component Model** (em maturação): higher-level types, strings, lists, records, variants. Bindings auto-gerados de WIT (Wasm Interface Type).
 
 ### 2.5 Toolchains
 
 **Rust**:
-- `cargo build --target wasm32-unknown-unknown` — vanilla Wasm.
-- `wasm-bindgen`, `wasm-pack` — auto-generate JS bindings.
-- `wit-bindgen` — Component Model.
+- `cargo build --target wasm32-unknown-unknown`, vanilla Wasm.
+- `wasm-bindgen`, `wasm-pack`, auto-generate JS bindings.
+- `wit-bindgen`, Component Model.
 
 **C/C++**:
-- Emscripten — full POSIX-ish in browser, com runtime grande.
-- WASI SDK — Wasm pra runtime non-browser.
+- Emscripten, full POSIX-ish in browser, com runtime grande.
+- WASI SDK, Wasm pra runtime non-browser.
 
 **Go**: suporte improving. `tinygo` produz binários menores que Go default. Go 1.21+ tem `wasip1` target.
 
@@ -88,7 +88,7 @@ WASI (WebAssembly System Interface): "POSIX pra Wasm". Permite Wasm fora do brow
 
 **WASI Preview 1** estável; **Preview 2** com Component Model evoluindo.
 
-Capability-based: módulo recebe handles (file descriptors, sockets) — não acessa "global" sistema. Sandbox forte.
+Capability-based: módulo recebe handles (file descriptors, sockets), não acessa "global" sistema. Sandbox forte.
 
 Roda em: wasmtime, Wasmer, WasmEdge, Spin, browsers via polyfills (limited).
 
@@ -205,7 +205,7 @@ Você precisa, sem consultar:
 
 ## 4. Desafio de Engenharia
 
-Adicionar **routing engine Wasm** ao Logística — reuso da 03-11 Rust em browser e edge.
+Adicionar **routing engine Wasm** ao Logística, reuso da 03-11 Rust em browser e edge.
 
 ### Especificação
 
@@ -280,12 +280,12 @@ Adicionar **routing engine Wasm** ao Logística — reuso da 03-11 Rust em brows
 ## 6. Referências
 
 - **WebAssembly.org** ([webassembly.org](https://webassembly.org/)).
-- **MDN — WebAssembly** ([developer.mozilla.org/en-US/docs/WebAssembly](https://developer.mozilla.org/en-US/docs/WebAssembly)).
+- **MDN, WebAssembly** ([developer.mozilla.org/en-US/docs/WebAssembly](https://developer.mozilla.org/en-US/docs/WebAssembly)).
 - **wasm-bindgen book** ([rustwasm.github.io/docs/wasm-bindgen](https://rustwasm.github.io/docs/wasm-bindgen/)).
 - **WASI docs** ([wasi.dev](https://wasi.dev/)).
 - **Component Model docs** ([component-model.bytecodealliance.org](https://component-model.bytecodealliance.org/)).
 - **Bytecode Alliance** ([bytecodealliance.org](https://bytecodealliance.org/)).
 - **Fermyon Spin docs** ([developer.fermyon.com](https://developer.fermyon.com/)).
 - **Cloudflare Workers Wasm guide**.
-- **"Programming WebAssembly with Rust"** — Kevin Hoffman.
-- **"WebAssembly: The Definitive Guide"** — Brian Sletten.
+- **"Programming WebAssembly with Rust"**: Kevin Hoffman.
+- **"WebAssembly: The Definitive Guide"**: Brian Sletten.

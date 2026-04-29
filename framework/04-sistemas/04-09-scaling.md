@@ -1,6 +1,6 @@
 ---
 module: 04-09
-title: Scaling — Vertical, Horizontal, Sharding, Multi-Region, Caching at Scale
+title: Scaling, Vertical, Horizontal, Sharding, Multi-Region, Caching at Scale
 stage: sistemas
 prereqs: [04-01, 04-04]
 gates:
@@ -10,7 +10,7 @@ gates:
 status: locked
 ---
 
-# 04-09 — Scaling
+# 04-09, Scaling
 
 ## 1. Problema de Engenharia
 
@@ -316,12 +316,12 @@ Plano e demo de **scaling Logística pra 10x atual** com baseline real.
 
 ## 6. Referências
 
-- **DDIA** — capítulos 5 (replication), 6 (partitioning).
-- **"The Art of Scalability"** — Abbott, Fisher.
-- **"Web Scalability for Startup Engineers"** — Artur Ejsmont.
-- **"Real-World Cryptography"** — capítulos relacionados a multi-region trust.
-- **AWS Builders' Library** — capacity planning, multi-region.
-- **High Scalability blog** ([highscalability.com](http://highscalability.com/)) — case studies.
+- **DDIA**: capítulos 5 (replication), 6 (partitioning).
+- **"The Art of Scalability"**: Abbott, Fisher.
+- **"Web Scalability for Startup Engineers"**: Artur Ejsmont.
+- **"Real-World Cryptography"**: capítulos relacionados a multi-region trust.
+- **AWS Builders' Library**: capacity planning, multi-region.
+- **High Scalability blog** ([highscalability.com](http://highscalability.com/)), case studies.
 - **Cockroach docs** ([cockroachlabs.com/docs](https://www.cockroachlabs.com/docs/)).
 - **CitusData blog**.
-- **"Site Reliability Engineering"** — Google. Capacity planning chapter.
+- **"Site Reliability Engineering"**: Google. Capacity planning chapter.

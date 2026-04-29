@@ -1,6 +1,6 @@
 ---
 module: 02-07
-title: Node.js Internals — libuv, Event Loop, Streams, Workers
+title: Node.js Internals, libuv, Event Loop, Streams, Workers
 stage: plataforma
 prereqs: [01-07]
 gates:
@@ -10,7 +10,7 @@ gates:
 status: locked
 ---
 
-# 02-07 — Node.js Internals
+# 02-07, Node.js Internals
 
 ## 1. Problema de Engenharia
 
@@ -41,7 +41,7 @@ V8 compila JS pra bytecode (Ignition) e re-otimiza hot code pra machine code (Tu
 
 Implicações práticas:
 - Funções monomórficas (sempre chamadas com mesma shape de args) otimizam melhor que polimórficas.
-- Object shapes (Hidden Classes) — adicionar properties em ordem consistente ajuda V8 a reusar inline caches.
+- Object shapes (Hidden Classes), adicionar properties em ordem consistente ajuda V8 a reusar inline caches.
 - Allocations grandes em loop quente disparam GC; reuse buffers.
 - Heap default é ~1.5-4 GB (depende). Pode-se aumentar com `--max-old-space-size=4096`.
 
@@ -63,7 +63,7 @@ Entre cada fase, Node drena:
 Ordem comum (após código síncrono terminar):
 - nextTick queue → microtasks → próxima fase.
 
-Por isso `process.nextTick` em loop infinito **bloqueia o event loop inteiro** — ele drena antes de qualquer fase rodar.
+Por isso `process.nextTick` em loop infinito **bloqueia o event loop inteiro**: ele drena antes de qualquer fase rodar.
 
 ### 2.4 Macro/microtask na prática
 
@@ -83,7 +83,7 @@ Output: `1 6 5 4 2 3` (na maioria dos cenários). Por quê:
 - Próxima fase de timers expirados: 2.
 - Próxima fase check: 3.
 
-(Ordem entre `setTimeout 0` e `setImmediate` é menos determinística fora de I/O — em I/O callback, `setImmediate` sempre vence.)
+(Ordem entre `setTimeout 0` e `setImmediate` é menos determinística fora de I/O, em I/O callback, `setImmediate` sempre vence.)
 
 ### 2.5 Thread pool (libuv)
 
@@ -95,15 +95,15 @@ Algumas operações bloqueariam o thread JS, então libuv as offload pra thread 
 
 Default: **4 threads**. Variável: `UV_THREADPOOL_SIZE` (até 1024). Aumentar ajuda CPU-bound APIs em paralelo, mas só faz sentido se você tem CPUs.
 
-I/O de **rede** (TCP, UDP) **não usa thread pool** — usa kernel async (epoll/kqueue/IOCP). Por isso Node escala bem em rede mesmo com pool default pequeno.
+I/O de **rede** (TCP, UDP) **não usa thread pool**: usa kernel async (epoll/kqueue/IOCP). Por isso Node escala bem em rede mesmo com pool default pequeno.
 
 ### 2.6 Buffers e binary data
 
 `Buffer` é a estrutura de Node pra dados binários. Wrap de `Uint8Array` com APIs extras (`toString('hex')`, etc.). 
 
-- `Buffer.alloc(n)` — zerado, seguro.
-- `Buffer.allocUnsafe(n)` — não zerado, mais rápido, mas pode vazar memória de processos anteriores se você não sobrescrever.
-- `Buffer.from(string, encoding)` — converte.
+- `Buffer.alloc(n)`, zerado, seguro.
+- `Buffer.allocUnsafe(n)`, não zerado, mais rápido, mas pode vazar memória de processos anteriores se você não sobrescrever.
+- `Buffer.from(string, encoding)`, converte.
 
 Em código moderno, prefira `Uint8Array` quando interop com Web Standard. `Buffer` quando precisa de APIs específicas.
 
@@ -144,15 +144,15 @@ Streams Readable são async iterables.
 `process` global expõe runtime info: `argv`, `env`, `cwd()`, `pid`, `platform`, `version`, `memoryUsage()`, `cpuUsage()`.
 
 Eventos importantes:
-- `'exit'` — quando event loop esvazia.
-- `'beforeExit'` — antes de exit, ainda dá pra agendar trabalho.
-- `'uncaughtException'` — última chance antes de crashar (você deve **logar e sair**, não recuperar; estado do app pode estar corrompido).
-- `'unhandledRejection'` — promise sem `.catch`. Em Node 15+ default é abortar processo.
+- `'exit'`, quando event loop esvazia.
+- `'beforeExit'`, antes de exit, ainda dá pra agendar trabalho.
+- `'uncaughtException'`, última chance antes de crashar (você deve **logar e sair**, não recuperar; estado do app pode estar corrompido).
+- `'unhandledRejection'`, promise sem `.catch`. Em Node 15+ default é abortar processo.
 
 `child_process`:
-- `spawn(cmd, args)` — processo separado, stdio em streams. Use pra processos longos.
-- `exec(cmd)` — stdout/stderr em buffer (limite default ~1 MB; cuidado).
-- `fork(file)` — fork especializado pra outro Node script, com canal IPC (`process.send`).
+- `spawn(cmd, args)`, processo separado, stdio em streams. Use pra processos longos.
+- `exec(cmd)`, stdout/stderr em buffer (limite default ~1 MB; cuidado).
+- `fork(file)`, fork especializado pra outro Node script, com canal IPC (`process.send`).
 
 Cada processo tem PID separado, memória separada, kernel scheduler decide.
 
@@ -162,7 +162,7 @@ Cada processo tem PID separado, memória separada, kernel scheduler decide.
 
 Use cases:
 - CPU-bound JS (parsing, criptografia heavy, cálculo).
-- Não use pra I/O — main thread já lida bem com I/O via libuv.
+- Não use pra I/O, main thread já lida bem com I/O via libuv.
 
 Diferença de cluster: cluster é multi-processo, worker_threads é multi-thread no mesmo processo (compartilha memória via SharedArrayBuffer, não via heap normal).
 
@@ -193,7 +193,7 @@ process.on('SIGTERM', () => {
 });
 ```
 
-Pra HTTP/Express: `server.close` espera conexões keep-alive — pode ser necessário forçar timeout. Libs como `stoppable` ajudam.
+Pra HTTP/Express: `server.close` espera conexões keep-alive, pode ser necessário forçar timeout. Libs como `stoppable` ajudam.
 
 ### 2.12 Module system: CJS vs ESM
 
@@ -247,9 +247,9 @@ Padrões e armadilhas:
 - `--inspect` / `--inspect-brk`: abre debugger compatível com Chrome DevTools.
 - `process.memoryUsage()`, `--heap-prof` flag pra heap snapshot.
 - `--prof` pra V8 sampling profiler (output em `isolate-*.log`).
-- **clinic.js** (Doctor, Flame, Bubbleprof) — toolkit pra análise de event loop, latência, async.
-- `0x` — flame graph generator.
-- **Async stack traces** (`--async-stack-traces` default) — stack inclui caminho cross-await.
+- **clinic.js** (Doctor, Flame, Bubbleprof), toolkit pra análise de event loop, latência, async.
+- `0x`, flame graph generator.
+- **Async stack traces** (`--async-stack-traces` default), stack inclui caminho cross-await.
 
 Sintomas comuns:
 - Latência crescente sob carga → event loop lag → `clinic doctor` ou medir `event-loop-lag`.
@@ -257,7 +257,7 @@ Sintomas comuns:
 - 100% CPU → flame graph, achar função quente.
 - App não morre após `Ctrl+C` → handle/refs ainda abertos. `process._getActiveHandles()` debug.
 
-### 2.17 Node vs Bun vs Deno — comparação real (2026)
+### 2.17 Node vs Bun vs Deno, comparação real (2026)
 
 Os três rodam JS/TS server-side mas diferem em decisões de design, runtime base, e maturidade de ecossistema. Senior real escolhe consciente, não por moda.
 
@@ -283,22 +283,22 @@ Os três rodam JS/TS server-side mas diferem em decisões de design, runtime bas
 - Quando o time inteiro é Node-fluent.
 
 **Quando escolher Bun:**
-- **Scripts**, ferramentas internas, **build pipelines** — startup rápido importa.
+- **Scripts**, ferramentas internas, **build pipelines**: startup rápido importa.
 - **Test suite grande**: `bun test` é 5-10x mais rápido que Jest.
-- **Bundling de aplicação** — substitui esbuild/Vite em alguns casos.
+- **Bundling de aplicação**: substitui esbuild/Vite em alguns casos.
 - **Dev experience**: `bun --hot` reinicia em milissegundos vs segundos.
-- Em produção: ainda emergente, mas Cloudflare Workers e várias startups estão em produção. Compat com `node:` modules ~95% — testar caso específico.
+- Em produção: ainda emergente, mas Cloudflare Workers e várias startups estão em produção. Compat com `node:` modules ~95%, testar caso específico.
 
 **Quando escolher Deno:**
 - **Edge functions / serverless** (Deno Deploy nativo, Supabase Functions usa Deno).
-- **Scripts onde permissions importam** — automação que toca rede/disco em CI ganha audit fácil.
+- **Scripts onde permissions importam**: automação que toca rede/disco em CI ganha audit fácil.
 - **Projetos novos sem legacy npm**, quando o time topa URL-imports.
 - **Workspace TS isolado**: zero config TS é genuinamente bom.
 
 **Pegadinhas reais:**
 - **Bun**: alguns workers/cluster patterns Node não funcionam ainda. APM tools (DataDog, NewRelic) tem agentes Bun mas defasados.
 - **Deno 2.x**: ganhou compat npm dramatic em 2024. Ainda assim, libs que assumem `__dirname`/CommonJS quebram. ESM-only é decisão consciente.
-- **Bun em produção**: já tem horror stories — memory leak em alguns cases de stream HTTP. Node tem 10 anos de patches em corner cases que Bun ainda vai descobrir.
+- **Bun em produção**: já tem horror stories, memory leak em alguns cases de stream HTTP. Node tem 10 anos de patches em corner cases que Bun ainda vai descobrir.
 
 **Veredicto pragmático 2026:**
 - **Backend produção crítico**: Node. Mude quando Bun atingir paridade vendor-support em 2027+.
@@ -327,14 +327,14 @@ Você precisa, sem consultar:
 
 ## 4. Desafio de Engenharia
 
-Construir o **Logística API v0** — backend simples mas com diagnóstico forte.
+Construir o **Logística API v0**: backend simples mas com diagnóstico forte.
 
 ### Especificação
 
 1. **Stack**:
    - Node 22+ LTS.
    - TypeScript.
-   - Sem framework HTTP — use módulo `http` direto (vamos abstrair em 02-08).
+   - Sem framework HTTP, use módulo `http` direto (vamos abstrair em 02-08).
    - Postgres opcional (pode ser SQLite); foco aqui é Node, não DB.
 2. **Endpoints** (REST mínimo):
    - `POST /orders` cria pedido.
@@ -368,7 +368,7 @@ Construir o **Logística API v0** — backend simples mas com diagnóstico forte
 
 - README mostra:
   - Diagrama do event loop com onde cada handler "vive".
-  - Resultado de `clinic doctor` durante load test (ex: `autocannon`) — anotar event loop lag, latência p50/p99.
+  - Resultado de `clinic doctor` durante load test (ex: `autocannon`), anotar event loop lag, latência p50/p99.
   - 1 caso real onde você quebrou backpressure (escreveu sem esperar drain) e como notou na memória.
   - Demonstração de shutdown: `kill -TERM <pid>` durante request em curso, comportamento.
 - Endpoint de export sustenta 100k linhas com memória estável (< 200 MB RSS).
@@ -386,7 +386,7 @@ Construir o **Logística API v0** — backend simples mas com diagnóstico forte
 
 - Liga com **01-02** (OS): processes, threads, signals, file descriptors. Node é syscall wrapper de luxo.
 - Liga com **01-03** (networking): TCP socket APIs, HTTP parser, keep-alive.
-- Liga com **01-07** (JS deep): event loop, microtasks, Promise — Node é JS runtime.
+- Liga com **01-07** (JS deep): event loop, microtasks, Promise, Node é JS runtime.
 - Liga com **02-08** (frameworks): Express/Fastify/Hono são camadas sobre `http` que vimos aqui.
 - Liga com **02-09** (Postgres): `pg` lib usa libuv/network; pool de conexões em event loop.
 - Liga com **02-14** (real-time): WebSocket no Node usa `net`/`http` upgrade.
@@ -398,10 +398,10 @@ Construir o **Logística API v0** — backend simples mas com diagnóstico forte
 
 ## 6. Referências
 
-- **Node.js docs** ([nodejs.org/api](https://nodejs.org/api/)) — leia HTTP, Stream, Cluster, Worker Threads, Process inteiros.
-- **"Don't Block the Event Loop"** — guide oficial ([nodejs.org/en/docs/guides/dont-block-the-event-loop](https://nodejs.org/en/docs/guides/dont-block-the-event-loop)).
-- **Bert Belder, "The Event Loop"** — talk clássica.
-- **"Node.js Design Patterns"** — Mario Casciaro & Luciano Mammino.
+- **Node.js docs** ([nodejs.org/api](https://nodejs.org/api/)), leia HTTP, Stream, Cluster, Worker Threads, Process inteiros.
+- **"Don't Block the Event Loop"**: guide oficial ([nodejs.org/en/docs/guides/dont-block-the-event-loop](https://nodejs.org/en/docs/guides/dont-block-the-event-loop)).
+- **Bert Belder, "The Event Loop"**: talk clássica.
+- **"Node.js Design Patterns"**: Mario Casciaro & Luciano Mammino.
 - **clinic.js docs** ([clinicjs.org](https://clinicjs.org/)).
-- **libuv docs** ([docs.libuv.org](http://docs.libuv.org/)) — quando quiser ir fundo no C.
+- **libuv docs** ([docs.libuv.org](http://docs.libuv.org/)), quando quiser ir fundo no C.
 - **Daniel Khan, Node.js Application Performance** (StrongLoop / IBM blog histórico).

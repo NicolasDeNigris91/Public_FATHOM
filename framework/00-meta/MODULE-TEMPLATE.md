@@ -1,6 +1,6 @@
 ---
 module: XX##
-title: Título do Módulo — Subtítulo Específico
+title: Título do Módulo, Subtítulo Específico
 stage: novice|apprentice|professional|senior|staff
 prereqs: [01-01, 01-02]
 gates:
@@ -10,7 +10,7 @@ gates:
 status: locked
 ---
 
-# XX## — Título do Módulo
+# XX##, Título do Módulo
 
 > Template oficial pra adicionar módulos ao framework. **Não** é um módulo. Use como starter copiando arquivo, renomeando, ajustando frontmatter, removendo este blockquote.
 >

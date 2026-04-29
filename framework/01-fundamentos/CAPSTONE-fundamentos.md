@@ -8,7 +8,7 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
 ---
 
-# CAPSTONE Fundamentos — HTTP/1.1 Server From Scratch
+# CAPSTONE Fundamentos, HTTP/1.1 Server From Scratch
 
 ## 1. Por que esse capstone existe
 
@@ -59,7 +59,7 @@ IDLE → READING_REQUEST_LINE → READING_HEADERS → READING_BODY → DISPATCH 
                                               ERROR → close
 ```
 
-Cada conexão TCP é uma instância dessa state machine. Múltiplas conexões coexistem (lembre-se: Node é single-thread + event loop — você gerencia muitas via `epoll` indiretamente).
+Cada conexão TCP é uma instância dessa state machine. Múltiplas conexões coexistem (lembre-se: Node é single-thread + event loop, você gerencia muitas via `epoll` indiretamente).
 
 ### 2.3 Features mínimas (Threshold do portão prático)
 
@@ -91,7 +91,7 @@ Cada conexão TCP é uma instância dessa state machine. Múltiplas conexões co
 - **Timeouts:** request idle (cliente abriu mas não enviou request), header parsing, body read, keep-alive idle.
 - **Tamanho máximo de header** (default 16 KB) → `431 Request Header Fields Too Large`.
 - **Body size limit** (default 1 MB) → `413 Payload Too Large`.
-- **Backpressure**: se cliente lê devagar, não acumule megabytes em memória — pause a stream.
+- **Backpressure**: se cliente lê devagar, não acumule megabytes em memória, pause a stream.
 - **HTTP request smuggling defenses:** rejeitar requests com `Content-Length` E `Transfer-Encoding`. Validar chunks.
 
 ### 2.5 Restrições
@@ -106,7 +106,7 @@ Testes obrigatórios (Vitest ou Jest):
 - **Unit:** parser de request line, parser de headers, parser de chunked body, LRU cache.
 - **Integration:** servidor escuta, responde a `curl http://localhost:3000/x`, retorna corretamente status, headers, body.
 - **Load:** `wrk -t4 -c100 -d10s http://localhost:3000/static/file.txt` mantém **0 erros** e responde >5k req/s no seu hardware (alvo razoável).
-- **Adversarial:** request com `Content-Length` mentindo, chunked malformed, header gigante — devem ser rejeitados sem crash.
+- **Adversarial:** request com `Content-Length` mentindo, chunked malformed, header gigante, devem ser rejeitados sem crash.
 
 ---
 
@@ -116,10 +116,10 @@ Pra o capstone passar, você precisa demonstrar:
 
 1. **Funciona.** `curl -v http://localhost:3000/...` retorna respostas corretas, com headers HTTP/1.1 conformes.
 2. **Concorrência.** `wrk -t4 -c100 -d10s` sem erros, com latência `p99 < 50ms` em respostas estáticas pequenas.
-3. **Keep-alive correto.** `wrk` com `connection: keep-alive` reutiliza conexões — você consegue **provar isso** com `tcpdump`/`ss` ou logs.
+3. **Keep-alive correto.** `wrk` com `connection: keep-alive` reutiliza conexões, você consegue **provar isso** com `tcpdump`/`ss` ou logs.
 4. **Robustez sob ataques:**
-   - Cliente envia headers sem `\r\n\r\n` final — você fecha a conexão após timeout.
-   - Cliente envia request smuggling tentativa — você rejeita.
+   - Cliente envia headers sem `\r\n\r\n` final, você fecha a conexão após timeout.
+   - Cliente envia request smuggling tentativa, você rejeita.
 5. **Graceful shutdown.** `kill -TERM <pid>` durante load test não causa erros nas in-flight requests.
 6. **Relatório final** (no README do repo) com:
    - **Diagrama da state machine** do parser.
@@ -135,13 +135,13 @@ O mentor vai fazer code review profundo, focando em:
 - **Buffer handling:** zero copy onde possível, sem string concat em hot path.
 - **Edge cases:**
   - Request line dividida em 2 chunks TCP.
-  - Header fold (linhas continuadas — históricas mas válidas em HTTP/1.1).
+  - Header fold (linhas continuadas, históricas mas válidas em HTTP/1.1).
   - Body chunked com chunks de 0 bytes.
   - Cliente desconecta no meio do body.
 - **Error paths:** todo erro tem path claro pra resposta correta + cleanup.
 - **Concurrency:** múltiplas conexões não corrompem state.
 
-Você precisa **explicar verbalmente** cada decisão arquitetural. Se você não souber justificar uma linha, é sinal que copiou — falha o portão.
+Você precisa **explicar verbalmente** cada decisão arquitetural. Se você não souber justificar uma linha, é sinal que copiou, falha o portão.
 
 ---
 
@@ -150,9 +150,9 @@ Você precisa **explicar verbalmente** cada decisão arquitetural. Se você não
 Cumprindo o threshold, você pode ir além:
 
 - **HTTPS** (use `node:tls`). Aprende handshake na prática.
-- **HTTP/2** (RFC 9113) — implementar o frame format binário, multiplexing.
-- **WebSocket upgrade** (RFC 6455) — handshake `Upgrade: websocket`, frames.
-- **Compression** (`Content-Encoding: gzip` ou `br`) — usa `node:zlib`.
+- **HTTP/2** (RFC 9113), implementar o frame format binário, multiplexing.
+- **WebSocket upgrade** (RFC 6455), handshake `Upgrade: websocket`, frames.
+- **Compression** (`Content-Encoding: gzip` ou `br`), usa `node:zlib`.
 - **Rate limiting** por IP (token bucket).
 - **Routing avançado** com **trie** de paths (ver 01-04).
 - **Server metrics** (`/metrics` em formato Prometheus).
@@ -182,18 +182,18 @@ Não há prazo. Mas se você quer um esqueleto mental:
 
 ## 6. Referências para o capstone
 
-- **[RFC 9112 — HTTP/1.1](https://datatracker.ietf.org/doc/html/rfc9112)** — leia inteiro. Parser tem que estar conforme.
-- **[RFC 9110 — HTTP semantics](https://datatracker.ietf.org/doc/html/rfc9110)** — méthods, status codes, content negotiation.
-- **[Node.js docs — net module](https://nodejs.org/api/net.html)**.
-- **[How HTTP request smuggling works](https://portswigger.net/web-security/request-smuggling)** — entender pra defender.
-- **[Inside NGINX: How We Designed for Performance & Scale](https://www.nginx.com/blog/inside-nginx-how-we-designed-for-performance-scale/)** — referência arquitetural.
-- **[Hono source](https://github.com/honojs/hono)** — backend framework pequeno e moderno em TS, leitura excelente.
-- **[Fastify source](https://github.com/fastify/fastify)** — produção, mais complexo.
+- **[RFC 9112, HTTP/1.1](https://datatracker.ietf.org/doc/html/rfc9112)**: leia inteiro. Parser tem que estar conforme.
+- **[RFC 9110, HTTP semantics](https://datatracker.ietf.org/doc/html/rfc9110)**: méthods, status codes, content negotiation.
+- **[Node.js docs, net module](https://nodejs.org/api/net.html)**.
+- **[How HTTP request smuggling works](https://portswigger.net/web-security/request-smuggling)**: entender pra defender.
+- **[Inside NGINX: How We Designed for Performance & Scale](https://www.nginx.com/blog/inside-nginx-how-we-designed-for-performance-scale/)**: referência arquitetural.
+- **[Hono source](https://github.com/honojs/hono)**: backend framework pequeno e moderno em TS, leitura excelente.
+- **[Fastify source](https://github.com/fastify/fastify)**: produção, mais complexo.
 
 ---
 
 ## 7. Encerramento
 
-Quando esse capstone passar, você **construiu de verdade** um servidor HTTP funcional. Você nunca mais vai ler `http.createServer((req,res)=>...)` da mesma forma — vai ver o parser, o keep-alive, o backpressure, o graceful shutdown que estão por baixo.
+Quando esse capstone passar, você **construiu de verdade** um servidor HTTP funcional. Você nunca mais vai ler `http.createServer((req,res)=>...)` da mesma forma, vai ver o parser, o keep-alive, o backpressure, o graceful shutdown que estão por baixo.
 
-Esse é também o **fundamento** pro próximo capstone (Plataforma — Logística v1), onde a aplicação vai usar HTTP via libs maduras, mas você já saberá o que cada coisa significa.
+Esse é também o **fundamento** pro próximo capstone (Plataforma, Logística v1), onde a aplicação vai usar HTTP via libs maduras, mas você já saberá o que cada coisa significa.

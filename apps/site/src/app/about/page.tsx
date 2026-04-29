@@ -21,18 +21,18 @@ export default function AboutPage() {
         <EyebrowHeading
           eyebrow="Sobre"
           title="O que é o Fathom"
-          subtitle="Trilha pessoal de longo prazo, mastery-based, sem prazos. Construída como artefato vivo — site, repo público, e disciplina diária."
+          subtitle="Trilha pessoal de longo prazo, mastery-based, sem prazos. Construída como artefato vivo, site, repo público, e disciplina diária."
         />
 
         <div className="mt-16 space-y-8 font-sans text-body-lg text-platinum leading-relaxed">
           <p>
-            Fathom é meu caderno pessoal de estudo de engenharia de software. Começa em <Link href="/modules/01-01" className="text-gold-leaf underline underline-offset-4 hover:text-pearl">01-01 — Computation Model</Link> e termina no capstone do estágio 5.
+            Fathom é meu caderno pessoal de estudo de engenharia de software. Começa em <Link href="/modules/01-01" className="text-gold-leaf underline underline-offset-4 hover:text-pearl">01-01, Computation Model</Link> e termina no capstone do estágio 5.
           </p>
           <p>
             Cinco estágios. 78 módulos. Cinco capstones encadeados em torno de um único produto (Logística) que evolui de servidor HTTP from scratch até sistema distribuído multi-region em 4 incrementos.
           </p>
           <p>
-            Conteúdo é <em>synthesis + curadoria</em> sobre fontes canônicas — DDIA, SICP, OS:TEP, RFCs, papers. Nunca substitui livro; é mapa pra navegar o território.
+            Conteúdo é <em>synthesis + curadoria</em> sobre fontes canônicas, DDIA, SICP, OS:TEP, RFCs, papers. Nunca substitui livro; é mapa pra navegar o território.
           </p>
         </div>
 

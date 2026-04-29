@@ -1,6 +1,6 @@
 ---
 module: 03-07
-title: Observability — Logs, Metrics, Traces, SLO/SLI, OpenTelemetry
+title: Observability, Logs, Metrics, Traces, SLO/SLI, OpenTelemetry
 stage: producao
 prereqs: [03-03, 03-04]
 gates:
@@ -10,11 +10,11 @@ gates:
 status: locked
 ---
 
-# 03-07 — Observability
+# 03-07, Observability
 
 ## 1. Problema de Engenharia
 
-A maioria dos sistemas em produção não é "observable" — é "monitored". Existe diferença real. Monitoring responde "X está vermelho?". Observability responde "por que X virou vermelho de jeitos que você não previu?". Logs verbose sem contexto, métricas sem cardinalidade decente, traces ausentes, alertas paginando madrugadas em problemas inúteis. Tudo isso é norma.
+A maioria dos sistemas em produção não é "observable", é "monitored". Existe diferença real. Monitoring responde "X está vermelho?". Observability responde "por que X virou vermelho de jeitos que você não previu?". Logs verbose sem contexto, métricas sem cardinalidade decente, traces ausentes, alertas paginando madrugadas em problemas inúteis. Tudo isso é norma.
 
 Este módulo é observability moderna: três pilares (logs, metrics, traces), OpenTelemetry como padrão, RED/USE methods, SLO/SLI/SLA, alerting baseado em error budget, profiling, e o stack realista (Prometheus/Grafana, Loki, Tempo, ou alternativas SaaS). Você sai sabendo instrumentar um sistema novo from scratch, definir SLOs, e debugar incidente sem refletor.
 
@@ -38,7 +38,7 @@ Logs não-estruturados ("user 123 paid 50") são query-hostis. Logs estruturados
 {"ts":"2026-04-28T10:00:00Z","level":"info","msg":"order paid","orderId":"abc","userId":"123","amount":50,"requestId":"r1","tenantId":"t1"}
 ```
 
-- **pino** (Node) — JSON, super fast.
+- **pino** (Node), JSON, super fast.
 - **structlog** (Python).
 - **zap** / **slog** (Go).
 
@@ -60,12 +60,12 @@ Cardinalidade explode quando você adiciona labels com muitos valores distintos 
 
 ### 2.4 RED e USE methods
 
-**RED** (Rate, Errors, Duration) — pra serviços que respondem requests:
+**RED** (Rate, Errors, Duration), pra serviços que respondem requests:
 - Rate: req/s.
 - Errors: % falhando.
 - Duration: latência (p50, p95, p99).
 
-**USE** (Utilization, Saturation, Errors) — pra recursos:
+**USE** (Utilization, Saturation, Errors), pra recursos:
 - Utilization: % busy.
 - Saturation: queue/wait.
 - Errors: count.
@@ -118,7 +118,7 @@ Vantagem: alerta acionável. "Latência subiu" é vago; "burn rate alto, vai est
 - **Vector / Fluent Bit**: log/metric forwarders eficientes.
 - **OTel Collector**: telemetria genérica.
 
-Esse stack ("LGTM" — Loki/Grafana/Tempo/Mimir) compete com SaaS modernamente.
+Esse stack ("LGTM", Loki/Grafana/Tempo/Mimir) compete com SaaS modernamente.
 
 ### 2.9 SaaS
 
@@ -161,7 +161,7 @@ Princípios:
 ### 2.13 Profiling
 
 Sampling profiler runs em produção pra mostrar "onde CPU vai":
-- **pprof** (Go) — clássico.
+- **pprof** (Go), clássico.
 - **node --prof**, **0x**, **clinic flame** (Node).
 - **Pyroscope / Grafana Pyroscope**: continuous profiling, integrado ao Grafana.
 - **Datadog Continuous Profiler**, **Sentry Profiling**.
@@ -183,7 +183,7 @@ Bots simulando user em rotas críticas, periodicamente:
 
 Detecta downtime quando ninguém está usando. Catch regressões rapidamente.
 
-### 2.16 eBPF observability — deep
+### 2.16 eBPF observability, deep
 
 eBPF (extended Berkeley Packet Filter) deixou de ser nicho de kernel hackers e virou categoria de observability mainstream entre 2023-2025. Vale entender por que e quando usar.
 
@@ -191,11 +191,11 @@ eBPF (extended Berkeley Packet Filter) deixou de ser nicho de kernel hackers e v
 - Linguagem **bytecode** rodando em VM dentro do kernel Linux. Verifier checa programa antes de carregar (sem loops infinitos, sem violar memória).
 - Pode atachar em **kprobes** (functions do kernel), **uprobes** (functions de user space), **tracepoints**, **cgroups**, **socket filters**, **XDP** (Packet processing antes da network stack).
 - Programa coleta dados em maps (hash, array, ring buffer) que user space lê.
-- Custo: ~5-15% overhead em workloads bem instrumentados — significativo mas viável.
+- Custo: ~5-15% overhead em workloads bem instrumentados, significativo mas viável.
 
 **Por que substitui agentes tradicionais:**
 - **Sem instrumentação de código**. Tradicional APM exige SDK em cada lib (HTTP, DB driver, gRPC). eBPF lê do kernel a syscall que o SDK iria interceptar.
-- **Cobre apps que você não controla** — vendor app, legacy binary, processo do OS.
+- **Cobre apps que você não controla**: vendor app, legacy binary, processo do OS.
 - **Visibilidade L3-L7** num framework só.
 - **Alta cardinalidade barata**: tracking por IP/PID/cgroup sem cost de span por request.
 
@@ -216,17 +216,17 @@ eBPF (extended Berkeley Packet Filter) deixou de ser nicho de kernel hackers e v
 
 | Caso | Tradicional (OTel SDK) | eBPF |
 |---|---|---|
-| App que você desenvolve, ownership total | Melhor — span semantics ricos | Complementar |
-| Mix de apps de fornecedores (Postgres, Redis, custom) | Custoso instrumentar tudo | Vence — coverage automático |
+| App que você desenvolve, ownership total | Melhor, span semantics ricos | Complementar |
+| Mix de apps de fornecedores (Postgres, Redis, custom) | Custoso instrumentar tudo | Vence, coverage automático |
 | Profile de função em prod | Impossível sem code changes | Parca/eBPF cover |
 | Network L4/L7 visibility (mTLS broken, who's calling who) | Service mesh ou tcpdump | Cilium / Pixie |
 | Forensics de incident (que processo escreveu nesse arquivo?) | Logs, audit | Tetragon |
 | Latency breakdown de Postgres query interno | Lib instrumentation se exists | bpftrace cover |
 
 **Pegadinhas:**
-- **Kernel version matters**. eBPF moderno (CO-RE — Compile Once Run Everywhere) precisa Linux 5.10+. Pra distros com kernel velho, fallback BPF tradicional.
+- **Kernel version matters**. eBPF moderno (CO-RE, Compile Once Run Everywhere) precisa Linux 5.10+. Pra distros com kernel velho, fallback BPF tradicional.
 - **GKE/EKS Autopilot e Fargate**: limitam capabilities, várias eBPF tools não funcionam. Use nodes managed.
-- **Encryption pode mascarar**: HTTPS dentro de TLS. Pixie usa **uprobes em libssl** pra capturar antes do encrypt — funciona se app linka libssl dynamically.
+- **Encryption pode mascarar**: HTTPS dentro de TLS. Pixie usa **uprobes em libssl** pra capturar antes do encrypt, funciona se app linka libssl dynamically.
 - **Cardinalidade ainda é problema**: eBPF gera muito dado. Filtre/sample ou backend cai.
 
 **Estratégia pragmática 2026:**
@@ -358,13 +358,13 @@ Instrumentar **Logística v1** com observability profissional. Stack open-source
 
 ## 6. Referências
 
-- **"Observability Engineering"** — Charity Majors, Liz Fong-Jones, George Miranda.
-- **"Site Reliability Engineering"** — Google. Capítulos sobre SLO, error budget, alerting.
-- **"The SRE Workbook"** — Google.
+- **"Observability Engineering"**: Charity Majors, Liz Fong-Jones, George Miranda.
+- **"Site Reliability Engineering"**: Google. Capítulos sobre SLO, error budget, alerting.
+- **"The SRE Workbook"**: Google.
 - **OpenTelemetry docs** ([opentelemetry.io](https://opentelemetry.io/)).
 - **Prometheus docs** ([prometheus.io/docs](https://prometheus.io/docs/)).
 - **Grafana docs** + **LGTM stack docs**.
-- **Honeycomb blog** — Charity, Liz; threads sobre debugging.
-- **Brendan Gregg, "Systems Performance"** — USE method, profiling.
+- **Honeycomb blog**: Charity, Liz; threads sobre debugging.
+- **Brendan Gregg, "Systems Performance"**: USE method, profiling.
 - **Pyroscope docs** ([grafana.com/oss/pyroscope](https://grafana.com/oss/pyroscope/)).
-- **Sloth** ([sloth.dev](https://sloth.dev/)) — SLO generator.
+- **Sloth** ([sloth.dev](https://sloth.dev/)), SLO generator.

@@ -1,6 +1,6 @@
 ---
 module: 02-06
-title: React Native — Bridge, Bundles, Native Modules, New Architecture
+title: React Native, Bridge, Bundles, Native Modules, New Architecture
 stage: plataforma
 prereqs: [02-04]
 gates:
@@ -10,7 +10,7 @@ gates:
 status: locked
 ---
 
-# 02-06 — React Native
+# 02-06, React Native
 
 ## 1. Problema de Engenharia
 
@@ -27,7 +27,7 @@ Este módulo não é tutorial Expo. É o modelo mental de como JS conversa com O
 Cross-platform mobile mainstream em 2026:
 
 - **React Native** (Meta): JS roda em runtime separado, comunica com nativo. UI usa componentes nativos reais (`UIView`, `android.View`).
-- **Flutter** (Google): Dart compila pra ARM, render próprio com Skia/Impeller. Não usa componentes nativos — desenha tudo. Resultado é pixel-idêntico cross-platform mas "não parece" iOS/Android nativo sem trabalho extra.
+- **Flutter** (Google): Dart compila pra ARM, render próprio com Skia/Impeller. Não usa componentes nativos, desenha tudo. Resultado é pixel-idêntico cross-platform mas "não parece" iOS/Android nativo sem trabalho extra.
 - **Capacitor/Cordova**: webview embutida. Limitado em performance e acesso a APIs.
 - **Native (Swift/Kotlin)**: zero overhead, dois codebases.
 - **Kotlin Multiplatform**: compartilha lógica, UI nativa em cada lado.
@@ -37,15 +37,15 @@ RN ganha quando: time já é JS/React, precisa shipar rápido, UI razoavelmente 
 ### 2.2 Expo vs bare RN
 
 **Expo** é um framework e plataforma sobre RN. Oferece:
-- **Expo Go** (cliente runtime de dev) — você não precisa abrir Xcode pra rodar JS.
+- **Expo Go** (cliente runtime de dev), você não precisa abrir Xcode pra rodar JS.
 - **Managed workflow** com SDK que abstrai módulos nativos comuns (Camera, Location, Notifications).
-- **EAS Build** — compila iOS/Android na nuvem.
-- **EAS Update** — OTA updates pra JS bundle sem passar pela store.
-- **Config plugins** — modificam projeto nativo via JS config.
+- **EAS Build**: compila iOS/Android na nuvem.
+- **EAS Update**: OTA updates pra JS bundle sem passar pela store.
+- **Config plugins**: modificam projeto nativo via JS config.
 
 **Bare RN** é só `npx react-native@latest init`. Você dono de `ios/` e `android/`. Mais flexível, mais trabalho.
 
-A separação "managed vs bare" hoje (Expo SDK 50+) está turva. Expo prebuild gera `ios/` e `android/` — você pode ter Expo + projeto nativo aberto. Recomendação 2026: **comece com Expo, eject só quando precisar.**
+A separação "managed vs bare" hoje (Expo SDK 50+) está turva. Expo prebuild gera `ios/` e `android/`, você pode ter Expo + projeto nativo aberto. Recomendação 2026: **comece com Expo, eject só quando precisar.**
 
 ### 2.3 Threads no RN
 
@@ -71,7 +71,7 @@ Problemas:
 - Difícil compartilhar estruturas (cada lado tem cópia).
 - Difícil tipar (sem schema enforced).
 
-Por isso scrollar uma `ScrollView` com 10k items via bridge é lento — cada onScroll vira N mensagens serializadas.
+Por isso scrollar uma `ScrollView` com 10k items via bridge é lento, cada onScroll vira N mensagens serializadas.
 
 ### 2.5 New Architecture: JSI, TurboModules, Fabric
 
@@ -94,10 +94,10 @@ Hermes é JS engine criado pela Meta especificamente pra RN mobile. Default desd
 Características:
 - Otimizado pra startup rápido (parsing AOT, bytecode cache).
 - Footprint de memória menor (importante em low-end Android).
-- Não tem JIT por default (até pouco tempo) — precompila para bytecode (HBC).
+- Não tem JIT por default (até pouco tempo), precompila para bytecode (HBC).
 - Suporta debugging via Chrome DevTools / Flipper / nova IDE de RN.
 
-Comparado com JSC (default antigo iOS): Hermes geralmente vence em startup e consumo. Em workloads de CPU sustentado, JSC com JIT podia ser mais rápido — mas pra app típico, o ganho de cold start vence.
+Comparado com JSC (default antigo iOS): Hermes geralmente vence em startup e consumo. Em workloads de CPU sustentado, JSC com JIT podia ser mais rápido, mas pra app típico, o ganho de cold start vence.
 
 ### 2.7 Metro bundler
 
@@ -118,23 +118,23 @@ Listas viraram benchmark de RN porque são caso patológico:
 - Re-render de uma row recria sub-árvore inteira se você não memoizar.
 
 Componentes:
-- **`FlatList`** — virtualização básica. Aceitável pra listas médias.
-- **`SectionList`** — agrupado.
-- **`FlashList`** (Shopify) — drop-in replacement pra `FlatList` com windowing melhor, recycling, performance superior. **Use FlashList em listas grandes.**
-- **`LegendList`** (Legend State) — outra opção performática moderna.
+- **`FlatList`**: virtualização básica. Aceitável pra listas médias.
+- **`SectionList`**: agrupado.
+- **`FlashList`** (Shopify), drop-in replacement pra `FlatList` com windowing melhor, recycling, performance superior. **Use FlashList em listas grandes.**
+- **`LegendList`** (Legend State), outra opção performática moderna.
 
 Otimizações sempre relevantes:
 - `keyExtractor` estável.
-- `getItemType` (FlashList) — separa item types pra reciclar.
-- `estimatedItemSize` — windowing precisa de palpite.
+- `getItemType` (FlashList), separa item types pra reciclar.
+- `estimatedItemSize`, windowing precisa de palpite.
 - `React.memo` na row component.
 - `useCallback` em handlers passados pra row.
 - Imagens com cache (FastImage / Expo Image).
 
 ### 2.9 Imagens, fonts, assets
 
-- **`expo-image`** ou **FastImage** — cache, placeholder, transitions, performance superior à `Image` padrão.
-- **`expo-font`** — load de fontes custom.
+- **`expo-image`** ou **FastImage**: cache, placeholder, transitions, performance superior à `Image` padrão.
+- **`expo-font`**: load de fontes custom.
 - Assets em `assets/` resolvidos por Metro. Imports diretos: `require('./assets/logo.png')`.
 - SVG: **react-native-svg**. SVG nativo, bom desempenho.
 
@@ -165,8 +165,8 @@ Worklets: funções JS marcadas com `'worklet'` que Reanimated extrai e roda em 
 
 JS bundle pode ser atualizado sem republish na store, **mas só JS** (e assets). Mudanças nativas exigem nova build.
 
-- **EAS Update** (Expo) — o caminho moderno.
-- **CodePush** (Microsoft) — vai ser descontinuado em 2025; migrar.
+- **EAS Update** (Expo), o caminho moderno.
+- **CodePush** (Microsoft), vai ser descontinuado em 2025; migrar.
 - Política da App Store/Play permite OTA pra patches de bug e features incrementais; **não permite mudar funcionalidade material da review**.
 
 ### 2.14 Push notifications
@@ -192,12 +192,12 @@ EAS Build automatiza: gera builds na nuvem, gerencia credenciais, deploy pra Tes
 
 ### 2.16 Debugging e profiling
 
-- **React DevTools** standalone — inspeciona árvore.
-- **Flipper** (descontinuado pelo Meta em 2024 mas ainda usado) — debug network, layout, logs.
-- **React Native DevTools** (nova) — sucessor moderno integrado ao Hermes.
-- **Performance Monitor** in-app — FPS de UI thread e JS thread separados (aprenda a ler).
-- **Hermes profiler** — sampling profiler de JS.
-- **Xcode Instruments** / **Android Studio Profiler** — pro lado nativo.
+- **React DevTools** standalone, inspeciona árvore.
+- **Flipper** (descontinuado pelo Meta em 2024 mas ainda usado), debug network, layout, logs.
+- **React Native DevTools** (nova), sucessor moderno integrado ao Hermes.
+- **Performance Monitor** in-app, FPS de UI thread e JS thread separados (aprenda a ler).
+- **Hermes profiler**: sampling profiler de JS.
+- **Xcode Instruments** / **Android Studio Profiler**: pro lado nativo.
 
 Sintomas comuns e onde olhar:
 - Lista trava ao scrollar → JS thread bloqueada → mover pra UI thread, virtualizar, memoizar.
@@ -232,7 +232,7 @@ Você precisa, sem consultar:
 
 ## 4. Desafio de Engenharia
 
-Construir o **app mobile da Logística** — companion app para entregadores.
+Construir o **app mobile da Logística**: companion app para entregadores.
 
 ### Especificação
 
@@ -266,7 +266,7 @@ Construir o **app mobile da Logística** — companion app para entregadores.
 
 - Sem libs de UI prontas que escondem RN (NativeBase, Tamagui podem; mas você deve saber o que fazem).
 - Sem `react-native-elements`.
-- API mockada local ou remota — desde que o app funcione offline (cache).
+- API mockada local ou remota, desde que o app funcione offline (cache).
 
 ### Threshold
 
@@ -301,11 +301,11 @@ Construir o **app mobile da Logística** — companion app para entregadores.
 
 ## 6. Referências
 
-- **React Native docs** ([reactnative.dev](https://reactnative.dev/)) — leia New Architecture, Performance, Threading.
-- **Expo docs** ([docs.expo.dev](https://docs.expo.dev/)) — guia oficial moderno.
-- **"React Native Performance"** — Vadim Demedes, série de posts sobre tunar.
-- **Reanimated docs** — worklets, layout animations.
+- **React Native docs** ([reactnative.dev](https://reactnative.dev/)), leia New Architecture, Performance, Threading.
+- **Expo docs** ([docs.expo.dev](https://docs.expo.dev/)), guia oficial moderno.
+- **"React Native Performance"**: Vadim Demedes, série de posts sobre tunar.
+- **Reanimated docs**: worklets, layout animations.
 - **FlashList docs** ([shopify.github.io/flash-list](https://shopify.github.io/flash-list/)).
-- **William Candillon** ("Can it be done in React Native?") — YouTube com Skia/Reanimated avançado.
-- **Krzysztof Magiera** (criador de Reanimated/Gesture Handler) — talks sobre internals.
-- **"React Native Architecture: A Deep Dive"** — talks da React Conf sobre Fabric/JSI.
+- **William Candillon** ("Can it be done in React Native?"), YouTube com Skia/Reanimated avançado.
+- **Krzysztof Magiera** (criador de Reanimated/Gesture Handler), talks sobre internals.
+- **"React Native Architecture: A Deep Dive"**: talks da React Conf sobre Fabric/JSI.

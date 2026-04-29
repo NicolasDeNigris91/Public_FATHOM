@@ -1,6 +1,6 @@
 ---
 module: 02-02
-title: Acessibilidade — ARIA, WCAG, Keyboard, Screen Readers
+title: Acessibilidade, ARIA, WCAG, Keyboard, Screen Readers
 stage: plataforma
 prereqs: [02-01]
 gates:
@@ -10,7 +10,7 @@ gates:
 status: locked
 ---
 
-# 02-02 — Acessibilidade
+# 02-02, Acessibilidade
 
 ## 1. Problema de Engenharia
 
@@ -31,24 +31,24 @@ Browsers expõem dois objetos paralelos pra cada página:
 - **DOM**: estrutura visual/JS que você programa.
 - **Accessibility tree**: estrutura derivada do DOM, exposta via APIs do SO (UIA no Windows, AX no macOS, ATK no Linux).
 
-Tecnologias assistivas (screen readers como **NVDA**, **JAWS**, **VoiceOver**, **TalkBack**) leem da accessibility tree, não do DOM. Quando você escreve `<div onClick>`, o accessibility tree não vê um botão — vê um elemento genérico. Daí a mãe das melhores práticas: **use elemento semântico nativo**, ele já entra no a11y tree corretamente.
+Tecnologias assistivas (screen readers como **NVDA**, **JAWS**, **VoiceOver**, **TalkBack**) leem da accessibility tree, não do DOM. Quando você escreve `<div onClick>`, o accessibility tree não vê um botão, vê um elemento genérico. Daí a mãe das melhores práticas: **use elemento semântico nativo**, ele já entra no a11y tree corretamente.
 
 DevTools de qualquer browser moderno tem aba "Accessibility" que mostra a tree pro elemento selecionado. Use isso como código fonte verdadeiro.
 
-### 2.2 WCAG — Web Content Accessibility Guidelines
+### 2.2 WCAG, Web Content Accessibility Guidelines
 
-WCAG 2.2 (atual, dezembro 2023) é o padrão mais aceito. Organiza em 4 princípios — **POUR**:
+WCAG 2.2 (atual, dezembro 2023) é o padrão mais aceito. Organiza em 4 princípios, **POUR**:
 
 - **Perceivable**: o conteúdo deve poder ser percebido (texto alternativo em imagens, captions em vídeo, contraste suficiente).
 - **Operable**: o controle deve poder ser operado (teclado funciona, sem armadilhas de foco, tempo suficiente, sem flashes que disparem epilepsia).
 - **Understandable**: o conteúdo deve ser compreensível (linguagem clara, comportamentos previsíveis, mensagens de erro úteis).
 - **Robust**: o conteúdo deve sobreviver a tecnologias variadas (markup válido, semântica correta).
 
-Cada critério tem 3 níveis: **A** (mínimo), **AA** (alvo realista, exigido pela maioria das leis), **AAA** (raro, ideal). Mire **AA** por default — exceções com justificativa.
+Cada critério tem 3 níveis: **A** (mínimo), **AA** (alvo realista, exigido pela maioria das leis), **AAA** (raro, ideal). Mire **AA** por default, exceções com justificativa.
 
 Você não precisa decorar os 50+ critérios. Conhecer os 10-15 mais importantes (contraste 4.5:1, target size, focus visible, name/role/value, alt text, captions, page title, lang attribute, error identification, reflow) cobre 80% dos problemas reais.
 
-### 2.3 ARIA — quando você precisa, quando não precisa
+### 2.3 ARIA, quando você precisa, quando não precisa
 
 **Regra número 1 do ARIA**: não use ARIA. Use o elemento HTML correto. ARIA é a ferramenta pra preencher buracos quando HTML não tem o conceito que você precisa.
 
@@ -57,17 +57,17 @@ ARIA tem três conceitos:
 - **state**: estado dinâmico (`aria-expanded="true"`, `aria-checked="false"`, `aria-busy`, `aria-current`).
 - **property**: característica relativamente estática (`aria-label`, `aria-labelledby`, `aria-describedby`, `aria-controls`, `aria-haspopup`).
 
-**Patterns oficiais** estão em [APG (ARIA Authoring Practices Guide)](https://www.w3.org/WAI/ARIA/apg/) — combobox, tabs, menu, tree, dialog modal, etc. Cada pattern tem o mínimo de roles + states + keyboard interactions.
+**Patterns oficiais** estão em [APG (ARIA Authoring Practices Guide)](https://www.w3.org/WAI/ARIA/apg/), combobox, tabs, menu, tree, dialog modal, etc. Cada pattern tem o mínimo de roles + states + keyboard interactions.
 
 Erros clássicos:
-- `aria-label="Click here"` em `<button>` — redundante, elemento já tem accessible name pelo conteúdo.
-- `role="button"` em `<a href>` — quebra navegação. Use `<button>` ou ajuste.
-- `aria-hidden="true"` em elemento com `tabindex="0"` — usuário pode focar mas screen reader não anuncia. Loop confuso.
+- `aria-label="Click here"` em `<button>`, redundante, elemento já tem accessible name pelo conteúdo.
+- `role="button"` em `<a href>`, quebra navegação. Use `<button>` ou ajuste.
+- `aria-hidden="true"` em elemento com `tabindex="0"`, usuário pode focar mas screen reader não anuncia. Loop confuso.
 - `aria-live` mal usado: leitor anuncia em momento errado, ou não anuncia.
 
 ### 2.4 Accessible name
 
-Todo controle (button, link, input, etc.) precisa de **accessible name** — o que screen reader anuncia. A computação segue uma cadeia ([accname spec](https://www.w3.org/TR/accname-1.2/)):
+Todo controle (button, link, input, etc.) precisa de **accessible name**: o que screen reader anuncia. A computação segue uma cadeia ([accname spec](https://www.w3.org/TR/accname-1.2/)):
 
 1. `aria-labelledby` → texto dos elementos referenciados.
 2. `aria-label` → texto explícito.
@@ -93,7 +93,7 @@ Todo controle interativo deve funcionar com teclado:
 - **Esc**: fecha modal, cancela ação.
 - **Home/End/PageUp/PageDown**: navegação rápida em listas longas, tabelas.
 
-`tabindex="0"` adiciona ao tab order natural. `tabindex="-1"` remove do tab order mas mantém focusável programaticamente (pra mover foco via JS). Evite `tabindex` positivo (1, 2...) — quebra ordem natural.
+`tabindex="0"` adiciona ao tab order natural. `tabindex="-1"` remove do tab order mas mantém focusável programaticamente (pra mover foco via JS). Evite `tabindex` positivo (1, 2...), quebra ordem natural.
 
 **Focus management**:
 - Modal abre → mover foco pra dentro (geralmente pro botão de fechar ou primeiro input).
@@ -103,7 +103,7 @@ Todo controle interativo deve funcionar com teclado:
 
 **Focus trap** em modal: Tab dentro do modal não escapa. Implementa-se interceptando keydown no boundary e redirecionando.
 
-**Focus visible**: nunca remova outline sem substituir. `:focus-visible` (vs `:focus`) só mostra ring quando navegação é por teclado, não em click — resolve a guerra antiga.
+**Focus visible**: nunca remova outline sem substituir. `:focus-visible` (vs `:focus`) só mostra ring quando navegação é por teclado, não em click, resolve a guerra antiga.
 
 ### 2.6 Contraste e cores
 
@@ -114,21 +114,21 @@ WCAG AA exige:
 
 Use `oklch()` ou ferramentas como [WebAIM Contrast Checker](https://webaim.org/resources/contrastchecker/), Stark plugin no Figma. Lighthouse e axe checam automaticamente.
 
-Não use **só** cor pra transmitir informação. Estado de erro precisa ter ícone, mensagem, ou borda — não só "input vermelho". Daltonismo afeta ~8% dos homens.
+Não use **só** cor pra transmitir informação. Estado de erro precisa ter ícone, mensagem, ou borda, não só "input vermelho". Daltonismo afeta ~8% dos homens.
 
 ### 2.7 Screen reader na prática
 
 Você não vai escrever a11y bom sem usar screen reader. Pelo menos uma vez. Recomendação:
 
-- **Mac**: VoiceOver (Cmd+F5). Comando básico — VO+arrows pra navegar, VO+Space pra ativar. VO = Ctrl+Option.
-- **Windows**: NVDA (gratuito, [nvaccess.org](https://www.nvaccess.org/)). Comando — Insert+arrows.
+- **Mac**: VoiceOver (Cmd+F5). Comando básico, VO+arrows pra navegar, VO+Space pra ativar. VO = Ctrl+Option.
+- **Windows**: NVDA (gratuito, [nvaccess.org](https://www.nvaccess.org/)). Comando, Insert+arrows.
 - **Mobile**: TalkBack (Android) ou VoiceOver (iOS). Use por 10 minutos só pra ver como é diferente.
 
 Faça um exercício: navegue o seu site com olhos fechados e screen reader ligado. Os primeiros minutos são desorientadores; após 1h você nota tudo o que está errado em qualquer site.
 
 ### 2.8 Live regions e dynamic content
 
-UI moderna muda dinamicamente — toast notifications, validações inline, updates parciais. Screen reader não percebe automaticamente. Use **live regions**:
+UI moderna muda dinamicamente, toast notifications, validações inline, updates parciais. Screen reader não percebe automaticamente. Use **live regions**:
 
 ```html
 <div role="status" aria-live="polite">{message}</div>
@@ -147,17 +147,17 @@ Forms são onde a11y mais aparece em apps reais. Boas práticas:
 - Sempre `<label for="...">` ou `<label>` envolvendo o input.
 - Erros de validação: `aria-invalid="true"` no campo + `aria-describedby` apontando pra mensagem de erro.
 - Required: `required` HTML attribute (browser valida + screen reader anuncia).
-- Inputs específicos: `type="email"`, `type="tel"`, `type="url"`, `inputmode="numeric"` — teclado mobile correto, validação básica.
-- Autocomplete: `autocomplete="email"`, `"new-password"`, `"name"`, `"shipping-postal-code"` — browser preenche, password manager funciona.
+- Inputs específicos: `type="email"`, `type="tel"`, `type="url"`, `inputmode="numeric"`, teclado mobile correto, validação básica.
+- Autocomplete: `autocomplete="email"`, `"new-password"`, `"name"`, `"shipping-postal-code"`, browser preenche, password manager funciona.
 - Erros: prefira inline próximo do campo + summary no topo do form pra facilitar review.
 
 ### 2.10 Padrões frequentes (resumo de APG)
 
 - **Modal dialog**: `role="dialog"` + `aria-modal="true"` + `aria-labelledby` no título + focus trap + Esc fecha + foco volta.
 - **Tabs**: `role="tablist"` no container, `role="tab"` + `aria-selected` + `aria-controls` em cada tab, `role="tabpanel"` + `aria-labelledby` no painel. Arrow keys movem entre tabs.
-- **Combobox** (autocomplete): pattern complexo — `role="combobox"`, `aria-expanded`, `aria-controls` apontando pra `role="listbox"`, `aria-activedescendant` pra opção destacada. Vale ler APG inteiro pra esse.
-- **Toast/notification**: `role="status"` ou `role="alert"`. Não use `role="alertdialog"` — esse é dialog que requer ação.
-- **Toggle switch**: `<button role="switch" aria-checked="true">` ou input checkbox estilizado — ambos funcionam, semântica clara.
+- **Combobox** (autocomplete): pattern complexo, `role="combobox"`, `aria-expanded`, `aria-controls` apontando pra `role="listbox"`, `aria-activedescendant` pra opção destacada. Vale ler APG inteiro pra esse.
+- **Toast/notification**: `role="status"` ou `role="alert"`. Não use `role="alertdialog"`, esse é dialog que requer ação.
+- **Toggle switch**: `<button role="switch" aria-checked="true">` ou input checkbox estilizado, ambos funcionam, semântica clara.
 - **Skip link**: primeiro elemento focável, `<a href="#main">Skip to content</a>`. Visível ao receber foco. Padrão obrigatório em sites com navegação extensa.
 
 ### 2.11 Reduced motion, color schemes
@@ -183,9 +183,9 @@ Camadas:
 - **Manual com screen reader**: 50% restante exige humano. Inclui flow de tarefas reais (preencher form, navegar, etc.).
 - **Audit profissional**: pra produtos sérios, contrate auditoria com WCAG specialists.
 
-Lighthouse a11y score é util mas mente — score 100 não significa "site acessível", significa "passou checks automáticos". Combine com manual. 03-17 cobre testing automation profundamente.
+Lighthouse a11y score é util mas mente, score 100 não significa "site acessível", significa "passou checks automáticos". Combine com manual. 03-17 cobre testing automation profundamente.
 
-### 2.13 WCAG 2.2 — novos critérios (2023)
+### 2.13 WCAG 2.2, novos critérios (2023)
 
 WCAG 2.2 adicionou 9 success criteria sobre 2.1. Os mais impactantes pra eng frontend:
 
@@ -205,7 +205,7 @@ Implementations típicas:
 - Target size: padding 4-8px em links inline; min 24x24 em buttons standalone.
 - Authentication: passkeys (FIDO2), suporte a password managers via `autocomplete="current-password"`.
 
-### 2.14 ARIA Authoring Practices Guide (APG) — patterns canônicos
+### 2.14 ARIA Authoring Practices Guide (APG), patterns canônicos
 
 ARIA APG ([w3.org/WAI/ARIA/apg](https://www.w3.org/WAI/ARIA/apg/)) define implementation oficial de cada widget complexo. Padrões essenciais a memorizar:
 
@@ -265,7 +265,7 @@ Tooling pega ~30-40%. Manual cobre o resto. Checklist prática:
 - Cada section landmark começa com heading.
 
 **Landmarks**:
-- `<header>`, `<nav>`, `<main>`, `<aside>`, `<footer>` — exatamente um `<main>`.
+- `<header>`, `<nav>`, `<main>`, `<aside>`, `<footer>`, exatamente um `<main>`.
 - `aria-label` em landmarks duplicados ("breadcrumbs nav" + "primary nav").
 
 **Tab order**:
@@ -300,19 +300,19 @@ Tooling pega ~30-40%. Manual cobre o resto. Checklist prática:
 
 **Screen reader test**: VoiceOver (Cmd+F5 macOS) ou NVDA (Windows free). Tente fluxo crítico.
 
-### 2.16 Regional disabilities — Brasil context
+### 2.16 Regional disabilities, Brasil context
 
 Brasil:
 - ~17.3M pessoas com alguma deficiência (IBGE 2020).
 - Lei Brasileira de Inclusão (LBI, 2015) exige acessibilidade em sites.
 - Lei nº 14.626/2023 (eAcessibilidade): empresas com SAC obrigadas a sites acessíveis.
 - Selo "Acessibilidade Digital" gov.br.
-- Padrão eMAG (Modelo de Acessibilidade em Governo Eletrônico) — derivado WCAG 2.0/2.1.
+- Padrão eMAG (Modelo de Acessibilidade em Governo Eletrônico), derivado WCAG 2.0/2.1.
 
 Português requer:
 - Stemmer pt-BR pra search.
 - Atributo `lang="pt-BR"` correto pra screen reader pronunciation.
-- Forms com CPF, CEP, telefone — máscaras + descrição clara.
+- Forms com CPF, CEP, telefone, máscaras + descrição clara.
 
 LIBRAS (Língua Brasileira de Sinais) é língua oficial. Para conteúdo videos sérios, intérprete em vídeo opcional ou alternativa textual completa.
 
@@ -383,7 +383,7 @@ Pegue o **dashboard de logística** do 02-01 e leve a a11y a **AA real**.
 
 - Liga com **02-01**: HTML semântico é a base. Sem ele, a11y vira ARIA gambiarra.
 - Liga com **02-04** (React): Headless UI libs (Radix UI, React Aria, Headless UI da Tailwind) implementam a maior parte dos APG patterns testados. Use elas em vez de reinventar.
-- Liga com **02-05** (Next.js): SSR ajuda a11y porque conteúdo crítico está no HTML inicial — screen reader não espera JS.
+- Liga com **02-05** (Next.js): SSR ajuda a11y porque conteúdo crítico está no HTML inicial, screen reader não espera JS.
 - Liga com **03-09** (perf): tempo de hydration impacta acessibilidade real (controle não responde até hidratar).
 - Liga com **02-03** (DOM/APIs): `IntersectionObserver` pra revelar conteúdo on-scroll precisa pensar em screen reader (announcing dynamic).
 
@@ -400,12 +400,12 @@ Pegue o **dashboard de logística** do 02-01 e leve a a11y a **AA real**.
 
 ## 6. Referências
 
-- **ARIA Authoring Practices Guide (APG)** — [w3.org/WAI/ARIA/apg](https://www.w3.org/WAI/ARIA/apg/). Patterns canônicos.
-- **WAI ARIA Spec** — autoritative.
-- **Inclusive Components** (Heydon Pickering) — patterns componente por componente.
-- **Inclusive Design Patterns** (Heydon) — abordagem mais ampla.
+- **ARIA Authoring Practices Guide (APG)**: [w3.org/WAI/ARIA/apg](https://www.w3.org/WAI/ARIA/apg/). Patterns canônicos.
+- **WAI ARIA Spec**: autoritative.
+- **Inclusive Components** (Heydon Pickering), patterns componente por componente.
+- **Inclusive Design Patterns** (Heydon), abordagem mais ampla.
 - **Accessibility for Everyone** (Laura Kalbag).
-- **A11y Project** ([a11yproject.com](https://www.a11yproject.com/)) — checklist + community resources.
-- **Adrian Roselli's blog** ([adrianroselli.com](https://adrianroselli.com/)) — análises técnicas excelentes.
-- **WebAIM** ([webaim.org](https://webaim.org/)) — referência de longa data, especialmente sobre screen reader survey anual.
-- **Sara Soueidan's blog** ([sarasoueidan.com](https://www.sarasoueidan.com/blog/)) — implementações detalhadas.
+- **A11y Project** ([a11yproject.com](https://www.a11yproject.com/)), checklist + community resources.
+- **Adrian Roselli's blog** ([adrianroselli.com](https://adrianroselli.com/)), análises técnicas excelentes.
+- **WebAIM** ([webaim.org](https://webaim.org/)), referência de longa data, especialmente sobre screen reader survey anual.
+- **Sara Soueidan's blog** ([sarasoueidan.com](https://www.sarasoueidan.com/blog/)), implementações detalhadas.

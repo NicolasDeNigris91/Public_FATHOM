@@ -1,6 +1,6 @@
 ---
 module: 02-01
-title: HTML, CSS e Tailwind — Modelo de Renderização e Linguagem Visual
+title: HTML, CSS e Tailwind, Modelo de Renderização e Linguagem Visual
 stage: plataforma
 prereqs: []
 gates:
@@ -10,15 +10,15 @@ gates:
 status: locked
 ---
 
-# 02-01 — HTML, CSS, Tailwind
+# 02-01, HTML, CSS, Tailwind
 
 ## 1. Problema de Engenharia
 
-HTML e CSS são tratados como "coisa básica" e por isso quase ninguém entende de verdade. Você cria divs, joga `flex` aqui, `grid` ali, e quando algo quebra você abre DevTools e vai chutando até funcionar. Esse modo de trabalhar não escala — bate o teto rápido em qualquer projeto sério.
+HTML e CSS são tratados como "coisa básica" e por isso quase ninguém entende de verdade. Você cria divs, joga `flex` aqui, `grid` ali, e quando algo quebra você abre DevTools e vai chutando até funcionar. Esse modo de trabalhar não escala, bate o teto rápido em qualquer projeto sério.
 
 A ideia aqui é entender como o browser **realmente renderiza** uma página, e como o CSS resolve um problema profundo: especificar layout responsivo a partir de regras declarativas. Sem esse modelo mental, qualquer bug visual vira tentativa e erro. Com ele, você lê DevTools como código fonte.
 
-Tailwind entra no final como ferramenta — não como religião. A discussão "atomic CSS vs CSS-in-JS vs CSS modules vs vanilla" tem trade-offs reais, e depois deste módulo você consegue argumentar com base em mecanismo, não em preferência estética.
+Tailwind entra no final como ferramenta, não como religião. A discussão "atomic CSS vs CSS-in-JS vs CSS modules vs vanilla" tem trade-offs reais, e depois deste módulo você consegue argumentar com base em mecanismo, não em preferência estética.
 
 ---
 
@@ -26,7 +26,7 @@ Tailwind entra no final como ferramenta — não como religião. A discussão "a
 
 ### 2.1 O pipeline de renderização do browser
 
-Quando você abre uma página, o browser passa por uma sequência conhecida (varia em detalhe por engine — Blink, WebKit, Gecko — mas o esqueleto é o mesmo):
+Quando você abre uma página, o browser passa por uma sequência conhecida (varia em detalhe por engine, Blink, WebKit, Gecko, mas o esqueleto é o mesmo):
 
 1. **Parse HTML** → DOM tree.
 2. **Parse CSS** → CSSOM tree.
@@ -35,11 +35,11 @@ Quando você abre uma página, o browser passa por uma sequência conhecida (var
 5. **Paint** → preenche pixels (cores, bordas, sombras, texto).
 6. **Composite** → camadas são combinadas (com aceleração GPU em transforms/opacity).
 
-Mudanças que afetam **layout** (mudar `width`, `height`, `top`, posição de elemento) são as mais caras — disparam reflow do subtree. Mudanças que afetam só **paint** (color, background) pulam layout. Mudanças que afetam só **composite** (transform, opacity) pulam paint também — daí a regra de animar com `transform: translateX()` em vez de `left`.
+Mudanças que afetam **layout** (mudar `width`, `height`, `top`, posição de elemento) são as mais caras, disparam reflow do subtree. Mudanças que afetam só **paint** (color, background) pulam layout. Mudanças que afetam só **composite** (transform, opacity) pulam paint também, daí a regra de animar com `transform: translateX()` em vez de `left`.
 
 Saber em qual fase cada propriedade entra é o que separa CSS legível de CSS performático. CSS Triggers ([csstriggers.com](https://csstriggers.com/)) tem tabela completa.
 
-### 2.2 HTML semântico — não é só "deixar acessível"
+### 2.2 HTML semântico, não é só "deixar acessível"
 
 A árvore HTML define a **estrutura** do documento. Tags semânticas existem por motivos concretos:
 
@@ -51,17 +51,17 @@ A árvore HTML define a **estrutura** do documento. Tags semânticas existem por
 **Regra prática:** comece pelo elemento mais semanticamente correto, só caia pra `<div>`/`<span>` quando nenhum outro descreve o que você está fazendo.
 
 Detalhes de elementos importantes:
-- `<button type="button">` por default em form é `type="submit"` — bug clássico.
+- `<button type="button">` por default em form é `type="submit"`, bug clássico.
 - `<a href="...">` é navegação. Se sua "ação" não muda URL, é `<button>`.
 - `<input type="...">` tem dezenas de variações com validação nativa, teclado mobile correto, etc.
 - `<picture>` + `<source media="...">` permite escolher imagem por viewport.
-- `<table>` é pra dados tabulares — não pra layout. Não use `<table>` pra maquetar nada.
+- `<table>` é pra dados tabulares, não pra layout. Não use `<table>` pra maquetar nada.
 
 ### 2.3 Box model
 
 Todo elemento é uma caixa retangular com 4 áreas concêntricas: **content**, **padding**, **border**, **margin**.
 
-Por default (`box-sizing: content-box`), `width` define só o content. Padding e border somam por fora — já te ferrou em algum momento, garantido. Por isso a regra global virou padrão:
+Por default (`box-sizing: content-box`), `width` define só o content. Padding e border somam por fora, já te ferrou em algum momento, garantido. Por isso a regra global virou padrão:
 
 ```css
 *, *::before, *::after { box-sizing: border-box; }
@@ -69,29 +69,29 @@ Por default (`box-sizing: content-box`), `width` define só o content. Padding e
 
 Com `border-box`, `width` inclui padding e border. Faz sentido pra 99% dos casos.
 
-**Margin collapsing**: margins verticais adjacentes colapsam (não somam — pegam o maior). Ex: `<p>` com `margin-bottom: 16px` seguido de `<p>` com `margin-top: 24px` produz 24px entre eles, não 40. Isso só vale em **block formatting context normal** — flex/grid/inline-block bloqueiam collapsing. Surpreende quem não sabe.
+**Margin collapsing**: margins verticais adjacentes colapsam (não somam, pegam o maior). Ex: `<p>` com `margin-bottom: 16px` seguido de `<p>` com `margin-top: 24px` produz 24px entre eles, não 40. Isso só vale em **block formatting context normal**: flex/grid/inline-block bloqueiam collapsing. Surpreende quem não sabe.
 
 ### 2.4 Display, posicionamento, flow
 
 `display` define o tipo de box do elemento. Os relevantes hoje:
-- `block` — toma largura total, quebra linha. `<div>`, `<p>`, `<section>`.
-- `inline` — flui no texto. `<span>`, `<a>`, `<em>`. Sem width/height.
-- `inline-block` — comporta-se inline mas aceita width/height/padding.
-- `flex` — Flexbox container. (ver 2.5)
-- `grid` — Grid container. (ver 2.6)
-- `none` — remove do layout (inclusive de a11y tree).
-- `contents` — elemento "desaparece", filhos sobem 1 nível no layout. Útil em casos específicos.
+- `block`, toma largura total, quebra linha. `<div>`, `<p>`, `<section>`.
+- `inline`, flui no texto. `<span>`, `<a>`, `<em>`. Sem width/height.
+- `inline-block`, comporta-se inline mas aceita width/height/padding.
+- `flex`, Flexbox container. (ver 2.5)
+- `grid`, Grid container. (ver 2.6)
+- `none`, remove do layout (inclusive de a11y tree).
+- `contents`, elemento "desaparece", filhos sobem 1 nível no layout. Útil em casos específicos.
 
 `position`:
-- `static` (default) — flow normal.
-- `relative` — flow normal mas oferece referência pra `absolute` filho. Aceita `top/left/etc`.
-- `absolute` — sai do flow. Posiciona relativo ao **ancestral positioned** mais próximo.
-- `fixed` — sai do flow. Relativo ao viewport (exceto se houver ancestral com `transform`/`filter`/`will-change` — pega esses como containing block, surpresa comum).
-- `sticky` — comporta-se como `relative` até cruzar threshold de scroll, aí "gruda" como `fixed`. Need `top/bottom`.
+- `static` (default), flow normal.
+- `relative`, flow normal mas oferece referência pra `absolute` filho. Aceita `top/left/etc`.
+- `absolute`, sai do flow. Posiciona relativo ao **ancestral positioned** mais próximo.
+- `fixed`, sai do flow. Relativo ao viewport (exceto se houver ancestral com `transform`/`filter`/`will-change`, pega esses como containing block, surpresa comum).
+- `sticky`, comporta-se como `relative` até cruzar threshold de scroll, aí "gruda" como `fixed`. Need `top/bottom`.
 
-`z-index` só funciona em elemento positioned. Stacking contexts são criados por `transform`, `opacity < 1`, `filter`, `position: fixed/sticky`, etc. Por isso `z-index: 9999` no seu modal não passa por cima de outro elemento — eles estão em stacking contexts diferentes. Esse é provavelmente o bug de CSS mais frustrante e mais comum.
+`z-index` só funciona em elemento positioned. Stacking contexts são criados por `transform`, `opacity < 1`, `filter`, `position: fixed/sticky`, etc. Por isso `z-index: 9999` no seu modal não passa por cima de outro elemento, eles estão em stacking contexts diferentes. Esse é provavelmente o bug de CSS mais frustrante e mais comum.
 
-### 2.5 Flexbox — modelo de uma dimensão
+### 2.5 Flexbox, modelo de uma dimensão
 
 Flexbox alinha em **um eixo principal** com flexibilidade de tamanho.
 
@@ -116,13 +116,13 @@ Item:
 }
 ```
 
-`flex: 1` é shorthand pra `1 1 0` — items dividem espaço por igual, ignorando conteúdo. Diferente de `flex: 1 1 auto` (`flex: auto`), que considera conteúdo.
+`flex: 1` é shorthand pra `1 1 0`, items dividem espaço por igual, ignorando conteúdo. Diferente de `flex: 1 1 auto` (`flex: auto`), que considera conteúdo.
 
 Casos onde flexbox brilha: barras de navegação, listas horizontais com gap consistente, alinhamento vertical (problema histórico de CSS), card layouts simples.
 
-Casos onde flexbox dá pena: layouts de página inteira com áreas nomeadas (header/sidebar/main/footer) — Grid faz melhor.
+Casos onde flexbox dá pena: layouts de página inteira com áreas nomeadas (header/sidebar/main/footer), Grid faz melhor.
 
-### 2.6 Grid — modelo de duas dimensões
+### 2.6 Grid, modelo de duas dimensões
 
 Grid trabalha em linhas e colunas simultaneamente.
 
@@ -145,9 +145,9 @@ Grid trabalha em linhas e colunas simultaneamente.
 
 `fr` é unidade fracionária do espaço restante. `repeat(12, 1fr)` cria grid de 12 colunas (Bootstrap-style sem Bootstrap). `minmax(200px, 1fr)` evita coluna ficar menor que 200px.
 
-`grid-template-columns: repeat(auto-fit, minmax(280px, 1fr))` — galeria responsiva sem media query. Vale dominar.
+`grid-template-columns: repeat(auto-fit, minmax(280px, 1fr))`, galeria responsiva sem media query. Vale dominar.
 
-Grid e Flexbox não competem — combinam. Layout outer com Grid, componentes internos com Flex.
+Grid e Flexbox não competem, combinam. Layout outer com Grid, componentes internos com Flex.
 
 ### 2.7 Cascade, especificidade, herança
 
@@ -165,9 +165,9 @@ Grid e Flexbox não competem — combinam. Layout outer com Grid, componentes in
 - `style="..."` (inline): `(1,0,0,0)`
 - `.btn.primary:hover`: `(0,0,3,0)`
 
-`!important` é guerra nuclear — vence tudo dentro do mesmo origin. Use raríssimo, normalmente em utility classes (Tailwind faz isso pra `!`-prefixed) ou em overrides defensivos. Em código de domínio é cheiro forte.
+`!important` é guerra nuclear, vence tudo dentro do mesmo origin. Use raríssimo, normalmente em utility classes (Tailwind faz isso pra `!`-prefixed) ou em overrides defensivos. Em código de domínio é cheiro forte.
 
-**Cascade Layers** (`@layer`) — feature moderna que dá controle explícito de ordem entre conjuntos de regras. Resolve maior parte dos abusos históricos de `!important`.
+**Cascade Layers** (`@layer`), feature moderna que dá controle explícito de ordem entre conjuntos de regras. Resolve maior parte dos abusos históricos de `!important`.
 
 **Herança**: algumas propriedades passam pra filhos automaticamente (`color`, `font-family`, `line-height`). Outras não (`margin`, `padding`, `border`, `background`). `inherit` força qualquer prop a herdar; `initial` reseta pro default da spec; `unset` é "inherit se herdável, initial se não"; `revert` volta pro origin anterior.
 
@@ -181,18 +181,18 @@ Grid e Flexbox não competem — combinam. Layout outer com Grid, componentes in
 .btn { color: var(--color-primary); padding: var(--space-md); }
 ```
 
-Variáveis CSS são **dinâmicas** — podem ser sobrescritas em escopos descendentes, e mudadas via JS:
+Variáveis CSS são **dinâmicas**: podem ser sobrescritas em escopos descendentes, e mudadas via JS:
 ```js
 document.documentElement.style.setProperty('--color-primary', '#ef4444');
 ```
 
 Isso é a fundação dos sistemas de design tokens, dark mode, theme switching.
 
-`@property` (registro tipado, novo) permite definir tipo, valor inicial, e se herda — habilita transições/animations em variáveis (CSS clássico não anima `var()`).
+`@property` (registro tipado, novo) permite definir tipo, valor inicial, e se herda, habilita transições/animations em variáveis (CSS clássico não anima `var()`).
 
 ### 2.9 Container queries
 
-Por décadas, "queries" eram só de viewport (`@media (min-width: 768px)`). Container queries permitem responsividade baseada no **container** — finalmente resolve componentes responsivos sem hacks.
+Por décadas, "queries" eram só de viewport (`@media (min-width: 768px)`). Container queries permitem responsividade baseada no **container**: finalmente resolve componentes responsivos sem hacks.
 
 ```css
 .card-container { container-type: inline-size; }
@@ -207,16 +207,16 @@ Funciona em qualquer browser moderno desde 2023. Pode usar.
 ### 2.10 Tipografia e unidades
 
 Unidades:
-- `px` — pixel CSS (não bate 1:1 com pixel físico em telas HiDPI).
-- `rem` — relativo ao `font-size` do `<html>` (default 16px). **Use rem por default em sizing.**
-- `em` — relativo ao `font-size` do elemento atual. Útil em padding interno, problemático em cascata profunda.
-- `%` — depende do contexto (pai, viewport, etc).
-- `vw`/`vh`/`dvh`/`svh`/`lvh` — viewport units. `dvh` (dynamic) ajusta com address bar móvel — use no lugar de `vh` em mobile.
-- `ch` — largura do `0` na fonte atual. Bom pra `max-width: 70ch` em prosa.
+- `px`, pixel CSS (não bate 1:1 com pixel físico em telas HiDPI).
+- `rem`, relativo ao `font-size` do `<html>` (default 16px). **Use rem por default em sizing.**
+- `em`, relativo ao `font-size` do elemento atual. Útil em padding interno, problemático em cascata profunda.
+- `%`, depende do contexto (pai, viewport, etc).
+- `vw`/`vh`/`dvh`/`svh`/`lvh`, viewport units. `dvh` (dynamic) ajusta com address bar móvel, use no lugar de `vh` em mobile.
+- `ch`, largura do `0` na fonte atual. Bom pra `max-width: 70ch` em prosa.
 
-**`line-height` sem unidade** (`line-height: 1.5`) é multiplicador do font-size do elemento. Com unidade (`line-height: 24px`), é fixo — herda o fixo, não o multiplicador. Quase sempre você quer sem unidade.
+**`line-height` sem unidade** (`line-height: 1.5`) é multiplicador do font-size do elemento. Com unidade (`line-height: 24px`), é fixo, herda o fixo, não o multiplicador. Quase sempre você quer sem unidade.
 
-Cores: `#hex`, `rgb()`, `hsl()`, `oklch()` (perceptualmente uniforme — modern color theory). `oklch` é o futuro de design systems sérios.
+Cores: `#hex`, `rgb()`, `hsl()`, `oklch()` (perceptualmente uniforme, modern color theory). `oklch` é o futuro de design systems sérios.
 
 ### 2.11 Animations, transitions, transforms
 
@@ -239,14 +239,14 @@ Animations são keyframes:
 
 Performance: anime `transform` e `opacity`. Tudo o que não muda layout → fica no compositor → 60fps fácil.
 
-### 2.12 Tailwind — atomic CSS na prática
+### 2.12 Tailwind, atomic CSS na prática
 
 Tailwind é um framework de **utility classes**: cada classe faz uma coisa pequena (`p-4` = `padding: 16px`, `text-lg`, `flex`, `gap-2`). Você compõe estilos diretamente no HTML/JSX.
 
 Por que dá certo (apesar de feio à primeira vista):
-- **Sem nomeação**: nome de classe é uma das partes mais difíceis de CSS escalável. BEM, SMACSS, OOCSS — todas tentaram resolver. Atomic dispensa o problema.
-- **Sem morte por specificity**: classes são todas (1,0,0). Última no HTML ganha — comportamento previsível.
-- **Tree-shaking automático**: Tailwind extrai só as classes usadas no source — bundle final pequeno.
+- **Sem nomeação**: nome de classe é uma das partes mais difíceis de CSS escalável. BEM, SMACSS, OOCSS, todas tentaram resolver. Atomic dispensa o problema.
+- **Sem morte por specificity**: classes são todas (1,0,0). Última no HTML ganha, comportamento previsível.
+- **Tree-shaking automático**: Tailwind extrai só as classes usadas no source, bundle final pequeno.
 - **Design system embutido**: spacing scale, color scale, breakpoints, type scale são parametrizados em `tailwind.config`. Times param de discutir "8px ou 12px de margin?".
 - **DevExperience**: hover, focus, dark mode, responsive como variantes (`md:flex`, `dark:bg-gray-900`, `hover:bg-blue-600`).
 
@@ -258,7 +258,7 @@ Críticas legítimas:
 Padrões úteis:
 - `@apply` em uma classe nomeada quando uma combinação se repete e merece nome (`.btn-primary`).
 - Component libraries (`shadcn/ui`, `Radix Themes`) já dão building blocks acessíveis.
-- Custom design tokens via CSS variables + Tailwind config — best of both worlds.
+- Custom design tokens via CSS variables + Tailwind config, best of both worlds.
 
 ### 2.13 Outros approaches (pra reconhecer)
 
@@ -310,7 +310,7 @@ Páginas:
 ### Threshold
 
 - Lighthouse: Performance ≥ 95, Accessibility ≥ 95.
-- Funciona em mobile real (não só DevTools — abra no celular).
+- Funciona em mobile real (não só DevTools, abra no celular).
 - README com:
   - Diagrama do design system (tokens de cor, spacing, type scale).
   - 3 componentes onde a versão CSS puro venceu Tailwind, e 3 onde Tailwind venceu CSS puro.
@@ -331,7 +331,7 @@ Páginas:
 - Liga com **02-03** (DOM/Web APIs): `IntersectionObserver`, `ResizeObserver`, `MutationObserver` são pareceiros naturais de CSS reativo.
 - Liga com **02-04** (React): styled-components, CSS Modules, Tailwind, todos integram a React de modos diferentes. Decisão técnica importa.
 - Liga com **02-05** (Next.js): Tailwind é praticamente padrão em Next; RSC complica CSS-in-JS runtime; Server CSS via `<style>` injection tem nuances.
-- Liga com **03-09** (frontend perf): Core Web Vitals (LCP, INP, CLS) dependem diretamente das escolhas de CSS — CLS especialmente.
+- Liga com **03-09** (frontend perf): Core Web Vitals (LCP, INP, CLS) dependem diretamente das escolhas de CSS, CLS especialmente.
 
 ### Ferramentas que vale conhecer
 
@@ -346,13 +346,13 @@ Páginas:
 
 ## 6. Referências
 
-- **CSS in Depth** (Keith J. Grant, 2nd ed) — leitura forte sobre cascade, especificidade, layout.
-- **Every Layout** (Heydon Pickering & Andy Bell) — composição de primitivos. Muda como você pensa CSS.
-- **MDN CSS** ([developer.mozilla.org](https://developer.mozilla.org/en-US/docs/Web/CSS)) — referência absoluta, sempre acima de tutoriais aleatórios.
-- **CSS Tricks "A Complete Guide to Flexbox" e "Grid"** — referência rápida.
-- **Josh Comeau's blog** ([joshwcomeau.com](https://www.joshwcomeau.com/)) — explicações visuais excelentes de CSS difícil.
-- **Adam Argyle no YouTube** ("GUI challenges") — patterns modernos.
-- **Tailwind docs** — leia inteiro, é curto.
-- **Refactoring UI** (Adam Wathan & Steve Schoger) — design pra devs. Curto e prático.
-- **Inclusive Components** (Heydon Pickering) — patterns de componente acessível.
-- **CSS Working Group drafts** ([drafts.csswg.org](https://drafts.csswg.org/)) — quando quiser ver o que está vindo.
+- **CSS in Depth** (Keith J. Grant, 2nd ed), leitura forte sobre cascade, especificidade, layout.
+- **Every Layout** (Heydon Pickering & Andy Bell), composição de primitivos. Muda como você pensa CSS.
+- **MDN CSS** ([developer.mozilla.org](https://developer.mozilla.org/en-US/docs/Web/CSS)), referência absoluta, sempre acima de tutoriais aleatórios.
+- **CSS Tricks "A Complete Guide to Flexbox" e "Grid"**: referência rápida.
+- **Josh Comeau's blog** ([joshwcomeau.com](https://www.joshwcomeau.com/)), explicações visuais excelentes de CSS difícil.
+- **Adam Argyle no YouTube** ("GUI challenges"), patterns modernos.
+- **Tailwind docs**: leia inteiro, é curto.
+- **Refactoring UI** (Adam Wathan & Steve Schoger), design pra devs. Curto e prático.
+- **Inclusive Components** (Heydon Pickering), patterns de componente acessível.
+- **CSS Working Group drafts** ([drafts.csswg.org](https://drafts.csswg.org/)), quando quiser ver o que está vindo.

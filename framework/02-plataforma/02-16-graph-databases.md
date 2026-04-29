@@ -1,6 +1,6 @@
 ---
 module: 02-16
-title: Graph Databases — Property Graph, Cypher, Path Queries, Graph Algorithms
+title: Graph Databases, Property Graph, Cypher, Path Queries, Graph Algorithms
 stage: plataforma
 prereqs: [01-04, 02-09]
 gates:
@@ -10,11 +10,11 @@ gates:
 status: locked
 ---
 
-# 02-16 — Graph Databases
+# 02-16, Graph Databases
 
 ## 1. Problema de Engenharia
 
-Algumas queries são natural-mente **caminhos em grafos**: amigos de amigos, recomendação por co-purchase, fraud rings, dependências entre serviços, conhecimento corporativo, roteamento (Logística!). SQL pode resolver — `JOIN`s recursivos, CTEs — mas vira ilegível e lento à medida que profundidade cresce.
+Algumas queries são natural-mente **caminhos em grafos**: amigos de amigos, recomendação por co-purchase, fraud rings, dependências entre serviços, conhecimento corporativo, roteamento (Logística!). SQL pode resolver, `JOIN`s recursivos, CTEs, mas vira ilegível e lento à medida que profundidade cresce.
 
 Graph databases (Neo4j, Memgraph, ArangoDB, JanusGraph, AWS Neptune) tratam **relacionamento como cidadão de primeira classe**. Queries declarativas (Cypher, Gremlin, SPARQL) expressam "encontre caminho de A pra B com restrições" diretamente. Indexação de adjacency e algoritmos builtin (PageRank, betweenness, shortest path) executam em milissegundos onde SQL recursivo demora segundos.
 
@@ -62,7 +62,7 @@ WHERE a.id = $start AND b.id = $end
 RETURN path, length(path) ORDER BY length(path) LIMIT 1
 ```
 
-Encontra caminhos de 1 a 5 hops. Sem profundidade, pode explodir — sempre limite.
+Encontra caminhos de 1 a 5 hops. Sem profundidade, pode explodir, sempre limite.
 
 ### 2.5 Indexes em graph
 
@@ -89,7 +89,7 @@ Regra: **substantivos com identidade** = nodes. **Verbos/relacionamentos** = edg
 
 Mas *granularidade* importa. Caso clássico: order com items.
 - Versão A: `(:Order)-[:CONTAINS]->(:Item)`. Se `Item` é compartilhado (mesmo SKU em vários orders), bom.
-- Versão B: `(:Order)-[:CONTAINS {qty: 3}]->(:Product)`. Quantity vira property da edge — natural pra muitos:muitos com atributos.
+- Versão B: `(:Order)-[:CONTAINS {qty: 3}]->(:Product)`. Quantity vira property da edge, natural pra muitos:muitos com atributos.
 
 Anti-pattern: tudo node. Edges com properties são poderosos, use.
 
@@ -205,7 +205,7 @@ Estender a Logística com **roteamento de entregas via graph DB**.
 ### Restrições
 
 - Cypher escrito à mão (sem ORM gráfico).
-- Sem cargar todo grafo em memória do app — queries vão ao DB.
+- Sem cargar todo grafo em memória do app, queries vão ao DB.
 - Tests cobrem: caminho mais curto correto, fallback se grafo desconectado, capacity respeitada.
 
 ### Threshold
@@ -239,13 +239,13 @@ Estender a Logística com **roteamento de entregas via graph DB**.
 
 ## 6. Referências
 
-- **"Graph Databases" (2nd ed.)** — Robinson, Webber, Eifrem (O'Reilly, gratuito).
-- **"Graph Algorithms"** — Mark Needham, Amy Hodler.
+- **"Graph Databases" (2nd ed.)**: Robinson, Webber, Eifrem (O'Reilly, gratuito).
+- **"Graph Algorithms"**: Mark Needham, Amy Hodler.
 - **Neo4j docs** + Cypher manual.
 - **Memgraph docs** (open source, in-memory).
 - **OpenCypher spec** ([opencypher.org](https://opencypher.org/)).
-- **GQL standard** — ISO/IEC 39075:2024.
-- **"Designing Data-Intensive Applications"** — Kleppmann, capítulo 2 (data models).
-- **Apache AGE docs** — Cypher sobre Postgres.
-- **"Networks, Crowds, and Markets"** — Easley, Kleinberg. Teoria de redes.
-- **Google Zanzibar paper** — permission graph at scale.
+- **GQL standard**: ISO/IEC 39075:2024.
+- **"Designing Data-Intensive Applications"**: Kleppmann, capítulo 2 (data models).
+- **Apache AGE docs**: Cypher sobre Postgres.
+- **"Networks, Crowds, and Markets"**: Easley, Kleinberg. Teoria de redes.
+- **Google Zanzibar paper**: permission graph at scale.

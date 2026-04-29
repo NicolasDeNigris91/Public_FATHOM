@@ -1,4 +1,4 @@
-# SPRINT-NEXT — Backlog de Aprofundamento e Próximas Iterações
+# SPRINT-NEXT, Backlog de Aprofundamento e Próximas Iterações
 
 > Roadmap honesto do **que ainda falta no framework** ordenado por valor. Não são features novas; são correções a problemas reconhecidos em auditoria interna.
 >
@@ -8,7 +8,7 @@
 
 ---
 
-## Sprint 0 — atual estado (referência)
+## Sprint 0, atual estado (referência)
 
 - 5 estágios completos.
 - 78 módulos + 5 capstones.
@@ -19,18 +19,18 @@
 
 ---
 
-## Sprint 1 — Depth Leveling (próximo batch, alta prioridade)
+## Sprint 1, Depth Leveling (próximo batch, alta prioridade)
 
 Objetivo: nivelar profundidade dos módulos shallow ao patamar dos densos. Target: cada módulo entre 320-450 linhas, cada subseção da Teoria Hard com mecanismo + trade-off + exemplo + edge case.
 
-### SN-001: Aprofundar 01-04 — Data Structures
+### SN-001: Aprofundar 01-04, Data Structures
 **Status**: pending.
 **Atual**: 336 linhas, cobertura ampla mas alguns tópicos rasos.
 **Gap**: persistent data structures, finger trees, skip lists com proof, succinct DS, cache-oblivious algorithms, fingerprinted equality, B-Tree variants (B*-Tree, B-link), HAMT (Hash Array Mapped Trie) usado em Clojure/Scala, TreeMap vs HashMap em real workloads.
 **Ação**: expandir 4-6 subseções com mecanismo + impl note + caso real + perf number.
 **Estimate**: 2-4 horas.
 
-### SN-002: Refazer 01-15 — Math Foundations
+### SN-002: Refazer 01-15, Math Foundations
 **Status**: pending.
 **Atual**: 349 linhas em 18 subseções → ~20 linhas cada.
 **Gap**: cada subseção pede aprofundamento. Probability tem 2 página em livro de 800; aqui está em 1 página.
@@ -41,28 +41,28 @@ Objetivo: nivelar profundidade dos módulos shallow ao patamar dos densos. Targe
 **Recomendação**: B com nota explícita "este módulo introduz; book complementar é OBRIGATÓRIO".
 **Estimate**: 4-6 horas.
 
-### SN-003: Aprofundar 02-02 — Accessibility
+### SN-003: Aprofundar 02-02, Accessibility
 **Status**: pending.
 **Atual**: 280 linhas.
 **Gap**: WCAG 2.2 novos criteria (target size, focus appearance, dragging) shallow; ARIA patterns canônicos (combobox, treeview, dialog) merecem subseção dedicada; cognitive básico (que 03-18 expande) deve ter intro mais sólida; testing manual checklist mais detalhado.
 **Ação**: +100-150 linhas, foco em ARIA APG patterns + WCAG 2.2.
 **Estimate**: 2-3 horas.
 
-### SN-004: Aprofundar 02-05 — Next.js
+### SN-004: Aprofundar 02-05, Next.js
 **Status**: pending.
 **Atual**: 338 linhas. Caching layers OK mas RSC mental model + streaming + parallel routes + intercepting routes mais shallow.
 **Gap**: Server Actions deep (revalidation, optimistic, transitions), Edge runtime constraints, middleware chain, parallel + intercepting routes com use case real, ISR invalidation patterns, Turbopack vs Webpack deltas.
 **Ação**: +80-120 linhas em RSC + streaming + parallel routes.
 **Estimate**: 2-3 horas.
 
-### SN-005: Aprofundar 04-05 — API Design
+### SN-005: Aprofundar 04-05, API Design
 **Status**: pending.
 **Atual**: 372 linhas. REST/GraphQL/gRPC cobertos mas comparação fim-a-fim shallow.
 **Gap**: GraphQL federation patterns (Apollo Federation v2, schema stitching deprecated), gRPC streaming bidirectional, BFF pattern com use case, API gateway placement, versioning evolution real (Stripe blog), error contract design (RFC 7807 Problem Details).
 **Ação**: +80-120 linhas com casos comparativos lado-a-lado.
 **Estimate**: 2-3 horas.
 
-### SN-006: Aprofundar 04-04 — Resilience Patterns
+### SN-006: Aprofundar 04-04, Resilience Patterns
 **Status**: pending.
 **Atual**: 332 linhas.
 **Gap**: hedging requests (Tail at Scale), load shedding mathematically (Little's Law applied), backpressure semantics em Reactive Streams, adaptive concurrency limits (Netflix), token bucket vs leaky bucket math, circuit breaker state machine formal.
@@ -73,7 +73,7 @@ Objetivo: nivelar profundidade dos módulos shallow ao patamar dos densos. Targe
 **Status**: done (audit 2026-04-28).
 **Resultado**: scan de todos os 78 módulos por line count.
 
-**Faixa shallow (< 280 linhas)** — 7 candidatos:
+**Faixa shallow (< 280 linhas)**: 7 candidatos:
 - 02-16 Graph Databases (251)
 - 01-13 Compilers & Interpreters (260)
 - 05-02 Multi-Domain Capstones (262)
@@ -81,9 +81,9 @@ Objetivo: nivelar profundidade dos módulos shallow ao patamar dos densos. Targe
 - 02-15 Search Engines (278)
 - 01-12 Cryptography Fundamentals (280)
 
-**Faixa borderline (280-310)** — ~12 candidatos. Aceitáveis se densidade alta.
+**Faixa borderline (280-310)**: ~12 candidatos. Aceitáveis se densidade alta.
 
-**Decisão**: 02-16, 01-13, 02-17, 02-15 entram em backlog Sprint 1 batch 2 quando demanda real surgir. 05-02 é coordinator doc de outros capstones — natural ser mais curto. 01-12 é ok pra Fundamentos intro (cripto profundo merece módulo Senior dedicado, não está em scope agora).
+**Decisão**: 02-16, 01-13, 02-17, 02-15 entram em backlog Sprint 1 batch 2 quando demanda real surgir. 05-02 é coordinator doc de outros capstones, natural ser mais curto. 01-12 é ok pra Fundamentos intro (cripto profundo merece módulo Senior dedicado, não está em scope agora).
 
 **Não disparar batch 2 imediatamente**: módulos atuais entregam fundamentos suficientes. Aprofundamento adicional triggered por uso real (alguém estudou e detectou gap específico).
 
@@ -91,14 +91,14 @@ Objetivo: nivelar profundidade dos módulos shallow ao patamar dos densos. Targe
 
 ---
 
-## Sprint 2 — Codebase Tours e Multi-Stack (alta prioridade)
+## Sprint 2, Codebase Tours e Multi-Stack (alta prioridade)
 
-### SN-010: Codebase Tours doc — done
+### SN-010: Codebase Tours doc, done
 **Status**: done in this sprint.
 **Output**: `framework/00-meta/CODEBASE-TOURS.md`.
 **Conteúdo**: guided reading paths em V8, CockroachDB, Postgres, Redis, libuv, React, Linux kernel, etc., com files específicos a abrir e what-to-look-for.
 
-### SN-011: Stack Comparisons doc — done
+### SN-011: Stack Comparisons doc, done
 **Status**: done in this sprint.
 **Output**: `framework/00-meta/STACK-COMPARISONS.md`.
 **Conteúdo**: side-by-side de Node/TS, Java/Spring, Python/FastAPI/Django, Ruby/Rails, Go, .NET, PHP/Laravel em patterns canônicos. Quebra bias Node-heavy do framework.
@@ -112,7 +112,7 @@ Objetivo: nivelar profundidade dos módulos shallow ao patamar dos densos. Targe
 
 ---
 
-## Sprint 3 — Pedagogia e Experiência
+## Sprint 3, Pedagogia e Experiência
 
 ### SN-020: Solution sketches dos Desafios
 **Status**: pending.
@@ -147,7 +147,7 @@ Objetivo: nivelar profundidade dos módulos shallow ao patamar dos densos. Targe
 
 ---
 
-## Sprint 4 — Operacional / Tooling
+## Sprint 4, Operacional / Tooling
 
 ### SN-030: CI script validate frontmatter consistency
 **Status**: pending (DL-007 open).
@@ -173,7 +173,7 @@ Objetivo: nivelar profundidade dos módulos shallow ao patamar dos densos. Targe
 
 ---
 
-## Sprint 5 — Translation e Reach
+## Sprint 5, Translation e Reach
 
 ### SN-040: Translate to EN
 **Status**: pending (DL-008 trade-off declared).
@@ -193,7 +193,7 @@ Objetivo: nivelar profundidade dos módulos shallow ao patamar dos densos. Targe
 
 ---
 
-## Sprint 6 — Avançado / Especialização
+## Sprint 6, Avançado / Especialização
 
 ### SN-050: Stage 5 Distinguished/Fellow track
 **Status**: explicit reject em DL-001.
@@ -228,7 +228,7 @@ Objetivo: nivelar profundidade dos módulos shallow ao patamar dos densos. Targe
 ### SN-056: Mock interview transcripts
 **Status**: pending.
 **Gap**: INTERVIEW-PREP.md mapeia áreas mas não tem mock real.
-**Ação**: 1 transcript por estágio (5 totais) — pergunta-resposta-feedback realístico tier-1. Útil pra calibrar nível.
+**Ação**: 1 transcript por estágio (5 totais), pergunta-resposta-feedback realístico tier-1. Útil pra calibrar nível.
 **Estimate**: 4-6h por mock.
 
 ### SN-057: Antipatterns aplicados ao capstone Logística
@@ -243,16 +243,16 @@ Objetivo: nivelar profundidade dos módulos shallow ao patamar dos densos. Targe
 **Ação**: dedicated doc `framework/05-amplitude/TRACK-G-AI-INFRA.md` com modules priorizados, papers, OSS contributing targets, mentor archetypes.
 **Estimate**: 8-12h.
 
-### SN-059: Sustainability deep — módulo dedicado
+### SN-059: Sustainability deep, módulo dedicado
 **Status**: pending.
 **Gap**: Cobertura em 03-05 §2.20 é overview. Em alguns mercados (EU, B2C consumer) virou tópico Senior+.
 **Ação opcional**: módulo S17 "Sustainability Engineering" ou subseção forte em 04-16. Decidir baseado em demanda.
 **Estimate**: 6-10h.
 
-### SN-060: Privacy engineering — módulo dedicado Senior
+### SN-060: Privacy engineering, módulo dedicado Senior
 **Status**: pending.
 **Gap**: Cobertura em 03-08 §2.17.1 é overview. LGPD/GDPR multi-jurisdição + differential privacy + tokenization vault merecem módulo.
-**Ação opcional**: módulo S17b "Privacy Engineering" — após mercado B2B EU consolidar requirement.
+**Ação opcional**: módulo S17b "Privacy Engineering", após mercado B2B EU consolidar requirement.
 **Estimate**: 8-12h.
 
 ### SN-061: Cross-stack revisit em Plataforma
@@ -267,13 +267,13 @@ Objetivo: nivelar profundidade dos módulos shallow ao patamar dos densos. Targe
 **Ação**: page `/papers` com lista filtrada por estágio + 3-pass tracking.
 **Estimate**: 4-6h.
 
-### SN-063: Quarterly review template — automação
+### SN-063: Quarterly review template, automação
 **Status**: pending (template criado em STUDY-PROTOCOL §17).
 **Gap**: Template é markdown manual. Pra ter série temporal útil, vale CLI ou script que gera estrutura + pull stats do git/PROGRESS.
 **Ação opcional**: script `scripts/quarterly-review.mjs` que gera template preenchido com stats reais do trimestre.
 **Estimate**: 3-5h.
 
-### SN-064: Schedulers modernos — refresh periódico
+### SN-064: Schedulers modernos, refresh periódico
 **Status**: pending.
 **Gap**: 01-02 §2.4.1 documenta CFS→EEVDF (Linux 6.6). Hybrid CPUs (Intel 12+, Apple M-series) impactam scheduling. Tópico evolui rápido.
 **Ação**: refresh anual de 01-02 pra acompanhar kernel changes.
@@ -297,7 +297,7 @@ Resistir tentação de fazer:
 Ordem sugerida (alta → baixa prioridade):
 
 1. **Sprint 1 SN-001 a SN-007**: depth leveling. Maior ROI.
-2. **Sprint 2 SN-010 SN-011**: meta docs novos (done in this sprint — codebase tours + stack comparisons).
+2. **Sprint 2 SN-010 SN-011**: meta docs novos (done in this sprint, codebase tours + stack comparisons).
 3. **Sprint 3 SN-020 SN-022**: pedagogia. Multiplicador de outcome.
 4. **Sprint 4 SN-030 SN-031**: tooling minimal.
 5. **Sprint 5 SN-040**: translation se decidir. SN-041 OSS.
@@ -308,11 +308,11 @@ Ordem sugerida (alta → baixa prioridade):
 
 ## Done log (mover items aqui ao concluir)
 
-### 2026-04-28 — Sprint 2 batch 1 (Site público)
+### 2026-04-28, Sprint 2 batch 1 (Site público)
 
 - **SN-053 done**: Site público em `apps/site/` (Next.js 16 + React 19 + Tailwind 4). Render do framework Markdown como artefato navegável em `fathom.nicolaspilegidenigris.dev`.
   - 12 rotas: `/`, `/stages`, `/stages/[stage]`, `/modules/[id]`, `/progress`, `/now`, `/index`, `/library`, `/glossary`, `/docs/[slug]` (17 docs), `/about`, `/api/health`.
-  - Stack idêntica ao `MyPersonalWebSite` — mesmas fonts, paleta, tokens. Drop-in se quiser integrar como rota futura.
+  - Stack idêntica ao `MyPersonalWebSite`, mesmas fonts, paleta, tokens. Drop-in se quiser integrar como rota futura.
   - CMD+K palette com fuzzy search em 100+ entries. Mobile responsive com hamburger menu.
   - A11y: `prefers-reduced-motion`, `aria-current`, focus rings, breadcrumbs.
   - Features: prev/next module nav, reading time estimation, mermaid render do DAG, glossary com client-side filter.
@@ -320,7 +320,7 @@ Ordem sugerida (alta → baixa prioridade):
   - **Validation**: `scripts/validate-content.mjs` hookado como `prebuild`. Falha cedo em regressão estrutural (frontmatter, prereqs, links).
   - Single source of truth preservado: edição segue sendo `git commit` em `.md`.
 
-### 2026-04-28 — Sprint 1 batch 1 (depth leveling)
+### 2026-04-28, Sprint 1 batch 1 (depth leveling)
 
 - **SN-001 done**: 01-04 Data Structures aprofundado. Adicionadas subseções 2.9 B-Tree variants, 2.10 Persistent data structures, 2.11 Cache-oblivious, 2.12 Skip list deep, 2.13 HAMT concreto, 2.14 LSM-Tree internals, 2.15 Bloom filter math, 2.16 Adjacency list/matrix/CSR, 2.17 Trie e variantes, 2.18 Disjoint Set Union. Threshold expandido com 6 itens novos. Total: ~+200 linhas.
 - **SN-002 done**: 01-15 Math Foundations aprofundado. Adicionadas subseções 2.19 Linear algebra deep, 2.20 Probability deep com casos, 2.21 Information theory deep, 2.22 Graphs avançado com complexity, 2.23 Numerical computing detalhado, 2.24 LA em código, 2.25 Optimization concrete, 2.26 Probabilistic data structures math. Total: ~+250 linhas.

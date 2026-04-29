@@ -219,7 +219,7 @@ export async function loadGlossary(): Promise<{ sections: string[]; terms: Gloss
   const sections: string[] = [];
   let currentSection = '';
 
-  const TERM_RE = /^-\s+\*\*([^*]+?)\*\*(?:\s*\(([^)]+)\))?\s*[—-]\s+(.+)$/;
+  const TERM_RE = /^-\s+\*\*([^*]+?)\*\*(?:\s*\(([^)]+)\))?\s*[, -]\s+(.+)$/;
 
   for (const line of lines) {
     const sectionMatch = line.match(/^##\s+(.+?)\s*$/);

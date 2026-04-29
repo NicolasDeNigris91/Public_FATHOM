@@ -1,6 +1,6 @@
 ---
 module: 05-01
-title: Build-from-Scratch Track — Toy Database, Queue, Cache, Runtime, Compiler
+title: Build-from-Scratch Track, Toy Database, Queue, Cache, Runtime, Compiler
 stage: amplitude
 prereqs: [senior-complete]
 gates:
@@ -10,15 +10,15 @@ gates:
 status: locked
 ---
 
-# 05-01 — Build-from-Scratch Track
+# 05-01, Build-from-Scratch Track
 
 ## 1. Problema de Engenharia
 
-Senior generalista construiu **aplicação completa**: o que está acima da linha de abstração. Staff/Principal entende **o que está abaixo** porque construiu pelo menos uma vez. Não precisa ter feito todos: ter feito UM toy DB, UM toy Kafka, UM toy interpretador, UM toy K8s scheduler — o salto de entendimento é qualitativo.
+Senior generalista construiu **aplicação completa**: o que está acima da linha de abstração. Staff/Principal entende **o que está abaixo** porque construiu pelo menos uma vez. Não precisa ter feito todos: ter feito UM toy DB, UM toy Kafka, UM toy interpretador, UM toy K8s scheduler, o salto de entendimento é qualitativo.
 
 A diferença prática aparece em design review: Staff pega bug em proposta de outro engineer porque já implementou storage engine. Identifica trade-off em escolha de broker porque já fez retention policy. Sabe quando vendor é caro e quando é barato porque já implementou alternativa.
 
-Este módulo é a **disciplina de implementar coisas que já existem** — não pra produção, mas pra entender. SQLite-clone (B-Tree + WAL + transactions), Redis-clone (KV + LRU + AOF + replication), Kafka-clone (log + partitions + consumer groups), Lua/Mini-runtime (parser + bytecode + GC), mini-K8s scheduler (pod placement + bin packing + reschedule).
+Este módulo é a **disciplina de implementar coisas que já existem**: não pra produção, mas pra entender. SQLite-clone (B-Tree + WAL + transactions), Redis-clone (KV + LRU + AOF + replication), Kafka-clone (log + partitions + consumer groups), Lua/Mini-runtime (parser + bytecode + GC), mini-K8s scheduler (pod placement + bin packing + reschedule).
 
 Staff não tem tempo de fazer tudo. Escolhe **2 dos 5** que conectam com seu eixo de especialização. Faz com profundidade. Documenta lessons.
 
@@ -274,14 +274,14 @@ Construir **2 toys** dos 5 listados acima.
 
 ## 6. Referências
 
-- **"Crafting Interpreters"** — Robert Nystrom (toy interpreter end-to-end).
-- **"Build Your Own Redis with C/C++"** — James Smith (build-your-own.org).
-- **"Designing Data-Intensive Applications"** — base teórica.
-- **"Database Internals"** — Alex Petrov.
-- **"Database Design and Implementation"** — Edward Sciore (toy DB tutorial).
-- **MIT 6.5840 (Distributed Systems) labs** — Raft, KV server.
-- **"Writing an OS in Rust"** — Philipp Oppermann.
-- **"500 Lines or Less"** — collection of small implementations.
+- **"Crafting Interpreters"**: Robert Nystrom (toy interpreter end-to-end).
+- **"Build Your Own Redis with C/C++"**: James Smith (build-your-own.org).
+- **"Designing Data-Intensive Applications"**: base teórica.
+- **"Database Internals"**: Alex Petrov.
+- **"Database Design and Implementation"**: Edward Sciore (toy DB tutorial).
+- **MIT 6.5840 (Distributed Systems) labs**: Raft, KV server.
+- **"Writing an OS in Rust"**: Philipp Oppermann.
+- **"500 Lines or Less"**: collection of small implementations.
 - **CMU 15-445 Database Systems** course materials.
-- **Will Wilson @ FoundationDB talks** — deterministic simulation testing.
+- **Will Wilson @ FoundationDB talks**: deterministic simulation testing.
 - **Nikita Sobolev's "build your own X"** lists.

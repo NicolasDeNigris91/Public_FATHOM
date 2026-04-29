@@ -1,6 +1,6 @@
 ---
 module: CAPSTONE-amplitude
-title: Staff Capstone — Specialization Track + Public Showcase
+title: Staff Capstone, Specialization Track + Public Showcase
 stage: amplitude
 prereqs: [05-01, 05-02, 05-03, 05-04, 05-05, 05-06]
 gates:
@@ -10,11 +10,11 @@ gates:
 status: locked
 ---
 
-# CAPSTONE — Staff/Principal Specialization Track
+# CAPSTONE, Staff/Principal Specialization Track
 
 ## 1. Problema de Engenharia
 
-Senior generalista entrega Logística v3 distribuído. Staff/Principal **escolhe um eixo de profundidade** e produz output que demonstra mastery suficiente pra título Staff em empresa séria. Não é mais um capstone uniforme — é o ponto onde a trajetória se ramifica.
+Senior generalista entrega Logística v3 distribuído. Staff/Principal **escolhe um eixo de profundidade** e produz output que demonstra mastery suficiente pra título Staff em empresa séria. Não é mais um capstone uniforme, é o ponto onde a trajetória se ramifica.
 
 Você já fez:
 - 05-01: 2 toys de baixo nível (build-from-scratch).
@@ -73,7 +73,7 @@ Internal promo + external visibility = strong signal. Patterns:
 - Mentee promoted publicly.
 - Cited in industry write-up.
 
-Não pra ego — pra validate scope além de empregador atual.
+Não pra ego, pra validate scope além de empregador atual.
 
 ### 2.4 Job market posicionamento
 
@@ -85,7 +85,7 @@ Staff offer numbers em Brasil 2026: $150-300k+ TC (USD/year-equiv) tier 1; menor
 
 Don't optimize comp short-term. Optimize career mobility.
 
-### 2.5 Track A — Distributed Systems Engineer
+### 2.5 Track A, Distributed Systems Engineer
 
 Output:
 - Toy DB completo + toy queue (05-01).
@@ -98,7 +98,7 @@ Output:
 
 Companies que valorizam: Stripe, Cockroach, Confluent, AWS, Google Cloud, Cloudflare, Anthropic.
 
-### 2.6 Track B — Platform / Infra Engineer
+### 2.6 Track B, Platform / Infra Engineer
 
 Output:
 - Toy scheduler / load balancer (05-01).
@@ -111,7 +111,7 @@ Output:
 
 Companies: Vercel, Railway, Fly.io, GitHub, GitLab, AWS, Heroku-style platforms.
 
-### 2.7 Track C — Frontend / DX Architect
+### 2.7 Track C, Frontend / DX Architect
 
 Output:
 - Toy compiler/runtime (05-01 + 01-13).
@@ -123,7 +123,7 @@ Output:
 
 Companies: Vercel, Netlify, Linear, Figma, Notion, Stripe.
 
-### 2.8 Track D — Data / ML Engineer
+### 2.8 Track D, Data / ML Engineer
 
 Output:
 - 05-02 RAG capstone production-quality.
@@ -136,7 +136,7 @@ Output:
 
 Companies: Databricks, Pinecone, OpenAI, Anthropic, Hugging Face, Weights & Biases.
 
-### 2.9 Track E — Security Engineer
+### 2.9 Track E, Security Engineer
 
 Output:
 - Threat models documentados (Logística + capstones).
@@ -148,7 +148,7 @@ Output:
 
 Companies: Cloudflare, Trail of Bits, Doyensec, Latacora, Anthropic.
 
-### 2.10 Track F — Founding / Product Engineer
+### 2.10 Track F, Founding / Product Engineer
 
 Output:
 - Logística como side product testado com 5+ users reais.
@@ -158,9 +158,9 @@ Output:
 - Talk em founder-engineering oriented event.
 - Possibly small product launched (Plasmic-style).
 
-### 2.11 Track G — AI Infrastructure Engineer
+### 2.11 Track G, AI Infrastructure Engineer
 
-Categoria que explodiu em 2024-2026. Diferente de "ML engineer" tradicional (treinar modelos) ou "AI app dev" (consume API): **infraestrutura que serve modelos em escala** — GPU clusters, inference servers, training pipelines, vector DBs em prod, evals em CI.
+Categoria que explodiu em 2024-2026. Diferente de "ML engineer" tradicional (treinar modelos) ou "AI app dev" (consume API): **infraestrutura que serve modelos em escala**: GPU clusters, inference servers, training pipelines, vector DBs em prod, evals em CI.
 
 Output:
 - **Inference cluster próprio** (toy ou real): vLLM ou TGI servindo modelo open-weight (Llama 3, Mistral) com batch dynamic, KV cache. Mede tokens/sec, p99 latency, GPU utilization.
@@ -296,7 +296,7 @@ Você precisa, sem consultar:
    - Iterate.
 6. **External validation**:
    - 1+ talk gravado em conf ou meetup ≥ 50 pessoas.
-   - 1+ blog post atingindo > 1k views (proxy de ressonância — não vanity, evidence de público).
+   - 1+ blog post atingindo > 1k views (proxy de ressonância, não vanity, evidence de público).
    - OSS lib com ≥ 100 stars OU 1+ user empresa documentado.
 7. **Reading consolidation**:
    - 25+ papers lidos (05-04 expansão).
@@ -342,15 +342,15 @@ Final do framework. Não há próximo módulo.
 
 ## 6. Referências
 
-- **"Staff Engineer"** — Tanya Reilly. Definitivo.
-- **"The Staff Engineer's Path"** — Tanya Reilly (livro de mesmo nome).
-- **"An Elegant Puzzle"** — Will Larson.
-- **"Become an Effective Software Engineering Manager"** — Drozdzal.
+- **"Staff Engineer"**: Tanya Reilly. Definitivo.
+- **"The Staff Engineer's Path"**: Tanya Reilly (livro de mesmo nome).
+- **"An Elegant Puzzle"**: Will Larson.
+- **"Become an Effective Software Engineering Manager"**: Drozdzal.
 - **levels.fyi** + **Pragmatic Engineer** newsletter (Gergely Orosz).
 - **Engineering Ladders public**: Rent the Runway, CircleCI, GitLab, Spotify.
-- **"Slack" book** — Tom DeMarco. Career mindset.
+- **"Slack" book**: Tom DeMarco. Career mindset.
 - **Lara Hogan's "Resilient Management"**.
 - **LeadDev conferences** ([leaddev.com](https://leaddev.com/)).
 - **Senior Engineer / Staff Engineer / Principal Engineer talks**.
-- **"How to Become a Top Engineer"** — Lara Hogan, Camille Fournier essays.
-- **Engineering blogs of empresas alvo** — practice reading their narrative.
+- **"How to Become a Top Engineer"**: Lara Hogan, Camille Fournier essays.
+- **Engineering blogs of empresas alvo**: practice reading their narrative.

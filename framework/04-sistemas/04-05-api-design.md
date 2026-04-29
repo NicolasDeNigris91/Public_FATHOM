@@ -1,6 +1,6 @@
 ---
 module: 04-05
-title: API Design Avançado — REST, GraphQL, gRPC, OpenAPI, Versioning
+title: API Design Avançado, REST, GraphQL, gRPC, OpenAPI, Versioning
 stage: sistemas
 prereqs: [02-08, 04-03]
 gates:
@@ -10,7 +10,7 @@ gates:
 status: locked
 ---
 
-# 04-05 — API Design Avançado
+# 04-05, API Design Avançado
 
 ## 1. Problema de Engenharia
 
@@ -27,7 +27,7 @@ Este módulo é design API com profundidade: REST com maturity, paginação, fil
 - **Level 0**: HTTP como transporte (SOAP-style RPC over HTTP).
 - **Level 1**: resources (URLs separadas por entidade).
 - **Level 2**: HTTP verbs (GET/POST/PUT/DELETE com semantics) e status codes (200/201/204/4xx/5xx).
-- **Level 3**: HATEOAS — responses com links pra ações próximas.
+- **Level 3**: HATEOAS, responses com links pra ações próximas.
 
 Maioria dos APIs "REST" estão em Level 2. Level 3 raro mas robusto pra discovery.
 
@@ -59,7 +59,7 @@ Cada um carrega significado. **Não invente** ou abuse 200 com error body.
 Anti-padrões:
 - Verb em path: `/getOrder`.
 - Inconsistência: `/orders` e `/userList`.
-- POST pra leitura por preferência (CSRF excuse — use cookie SameSite ou JWT).
+- POST pra leitura por preferência (CSRF excuse, use cookie SameSite ou JWT).
 
 ### 2.4 Pagination
 
@@ -178,7 +178,7 @@ Quando: backend ↔ backend perf-sensitive (microservices). Mobile pode usar.
 
 Padrão moderno: gRPC interno + REST/GraphQL externo.
 
-### 2.13 tRPC e Connect-RPC — type-safe sem schema
+### 2.13 tRPC e Connect-RPC, type-safe sem schema
 
 Duas alternativas modernas a REST/gRPC quando você controla cliente e servidor.
 
@@ -205,7 +205,7 @@ const user = await trpc.user.byId.query({ id: 'abc' });  // tipado!
 ```
 
 - Validation runtime via Zod (ou Yup, Valibot).
-- Transport HTTP normal — pode usar batching, links, custom headers.
+- Transport HTTP normal, pode usar batching, links, custom headers.
 - Sem code gen, sem rebuild quando muda schema.
 - Adapters: Next.js, Express, Fastify, Lambda, etc.
 
@@ -213,7 +213,7 @@ const user = await trpc.user.byId.query({ id: 'abc' });  // tipado!
 - **TS-only** literalmente. Cliente não-TS = você reverte pra REST/OpenAPI.
 - **Acoplamento monorepo**: cliente importa `AppRouter` type do server. Não funciona em deploys cross-repo sem ginástica.
 - **Public API ruim**: sem schema externo legível, terceiros não consumem fácil.
-- **Sem caching HTTP automático** — você implementa via React Query / TanStack Query (que tRPC integra).
+- **Sem caching HTTP automático**: você implementa via React Query / TanStack Query (que tRPC integra).
 
 **Quando vale tRPC:**
 - App full-stack TS (Next.js, Remix) com cliente próprio.
@@ -231,9 +231,9 @@ service UserService {
 ```
 
 - Client gerado pode chamar via HTTP normal (debugar com curl) ou gRPC binary (perf).
-- **Cross-language** real: Go, TS, Swift, Python, Java, Rust, C++ — protobuf gera tudo.
+- **Cross-language** real: Go, TS, Swift, Python, Java, Rust, C++, protobuf gera tudo.
 - **`buf` tooling** (Buf Build): linting, breaking-change detection, schema registry, CI integration.
-- **Sem dependência de gRPC runtime pesado** em browser — funciona com `fetch` plain.
+- **Sem dependência de gRPC runtime pesado** em browser, funciona com `fetch` plain.
 
 ```ts
 // client TS gerado
@@ -244,7 +244,7 @@ const user = await client.getUser({ id: 'abc' });
 **Trade-offs:**
 - Schema separado (.proto). Refactor menos fluido que tRPC.
 - Code gen step. CI precisa rodar `buf generate`.
-- Curva de aprendizado de protobuf — vale o investimento se você vai consumir cross-language.
+- Curva de aprendizado de protobuf, vale o investimento se você vai consumir cross-language.
 
 **Quando vale Connect-RPC:**
 - Multi-language clients (mobile native + web + serviços internos em Go/Java).
@@ -338,7 +338,7 @@ Em organizações grandes:
 - Review boards.
 - Backwards-compatibility tests (Pact, contract).
 
-### 2.20 GraphQL Federation v2 — distribuído
+### 2.20 GraphQL Federation v2, distribuído
 
 Fragmentation problem: GraphQL monolithic vira gargalo. Federation resolve: schema unified composto de subgraphs, cada subgraph owned por team.
 
@@ -456,7 +456,7 @@ API Gateway é layer entre clients e backend services:
 - Gateway com lógica de negócio (vira monolítico hidden).
 - Gateway que conhece schema interno detalhado (acoplamento).
 
-### 2.24 Versioning evolution real — Stripe blog case
+### 2.24 Versioning evolution real, Stripe blog case
 
 Stripe não quebra API. Versioning:
 
@@ -474,7 +474,7 @@ Lições:
 - "Não aviso, deprecate" destrói confiança.
 - Migration guides claros + tools (codemod) reduzem fricção.
 
-### 2.25 RFC 7807 — Problem Details for HTTP APIs
+### 2.25 RFC 7807, Problem Details for HTTP APIs
 
 Standard pra error response shape:
 
@@ -619,7 +619,7 @@ Redesign API pública do **Logística v2** com profundidade.
 ### Threshold
 
 - README documenta:
-  - API guidelines (interno) — 1-2 páginas.
+  - API guidelines (interno), 1-2 páginas.
   - OpenAPI hospedado e live demonstrável.
   - Comparação GraphQL vs REST pra mesmo caso.
   - gRPC entre backend e routing engine; benchmark vs HTTP.
@@ -652,14 +652,14 @@ Redesign API pública do **Logística v2** com profundidade.
 
 ## 6. Referências
 
-- **"REST API Design Rulebook"** — Mark Massé.
-- **"RESTful Web APIs"** — Leonard Richardson, Mike Amundsen.
+- **"REST API Design Rulebook"**: Mark Massé.
+- **"RESTful Web APIs"**: Leonard Richardson, Mike Amundsen.
 - **OpenAPI Specification 3.1** ([spec.openapis.org/oas/v3.1.0](https://spec.openapis.org/oas/v3.1.0)).
 - **JSON:API spec** ([jsonapi.org](https://jsonapi.org/)).
 - **GraphQL spec** ([spec.graphql.org](https://spec.graphql.org/)).
 - **gRPC docs** ([grpc.io/docs](https://grpc.io/docs/)).
 - **AsyncAPI** ([asyncapi.com](https://www.asyncapi.com/)).
 - **RFC 9110** (HTTP semantics), **RFC 9457** (Problem Details), **RFC 8594** (Sunset header), **RFC 5988** (Web Linking).
-- **Stripe API docs** — referência de API design.
+- **Stripe API docs**: referência de API design.
 - **Zalando Restful API Guidelines** ([opensource.zalando.com/restful-api-guidelines](https://opensource.zalando.com/restful-api-guidelines/)).
 - **Google AIP** (API Improvement Proposals) ([google.aip.dev](https://google.aip.dev/)).

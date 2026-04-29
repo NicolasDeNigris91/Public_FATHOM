@@ -1,6 +1,6 @@
 ---
 module: 04-16
-title: Product, Business & Unit Economics — Pricing, Cohorts, Churn, Margins
+title: Product, Business & Unit Economics, Pricing, Cohorts, Churn, Margins
 stage: sistemas
 prereqs: [04-12]
 gates:
@@ -10,11 +10,11 @@ gates:
 status: locked
 ---
 
-# 04-16 — Product, Business & Unit Economics
+# 04-16, Product, Business & Unit Economics
 
 ## 1. Problema de Engenharia
 
-Senior técnico sem entender **como o produto faz dinheiro** é engenheiro decorativo. Constrói features que ninguém pediu, otimiza coisas que não importam pra revenue, ignora trade-offs com cost-of-goods-sold, e fica surpreso quando rounding cuts atingem o time. Liderança técnica de verdade exige fluência mínima em product, business, e unit economics — não pra virar PM, mas pra **ter opinião informada** sobre tradeoffs e roadmap.
+Senior técnico sem entender **como o produto faz dinheiro** é engenheiro decorativo. Constrói features que ninguém pediu, otimiza coisas que não importam pra revenue, ignora trade-offs com cost-of-goods-sold, e fica surpreso quando rounding cuts atingem o time. Liderança técnica de verdade exige fluência mínima em product, business, e unit economics, não pra virar PM, mas pra **ter opinião informada** sobre tradeoffs e roadmap.
 
 Em entrevista de Staff/Principal, candidato é cobrado em "como você decidiria entre X e Y dado contexto de negócio". Resposta puramente técnica falha. Quem distingue: "X tem TCO 30% maior mas reduz churn previsto em 1.5pts → ROI positivo em 14 meses, mas só se cohort M+3 mantiver retention atual; recomendo X com gate de re-eval".
 
@@ -65,7 +65,7 @@ Cohort analysis = retention por safra. Plotar % retido em M0, M+1, ..., M+12. Pa
 
 Receita esperada por customer ao longo do relacionamento.
 
-Simple: `LTV = ARPU × gross_margin × lifetime`, lifetime = 1/churn. Gross margin (não revenue bruto — descontar COGS).
+Simple: `LTV = ARPU × gross_margin × lifetime`, lifetime = 1/churn. Gross margin (não revenue bruto, descontar COGS).
 
 Se margem 70%, ARPU $100/mês, churn 2%/mês: LTV = $100 × 0.70 × 50 = $3500.
 
@@ -329,15 +329,15 @@ Construir **dashboards e simulator de unit economics da Logística** + propostas
 
 ## 6. Referências
 
-- **"The SaaS Playbook"** — Rob Walling.
-- **"From Impossible to Inevitable"** — Aaron Ross, Jason Lemkin.
-- **"Lean Analytics"** — Alistair Croll, Benjamin Yoskovitz.
-- **"Platform Revolution"** — Parker, Van Alstyne, Choudary (marketplaces).
-- **"The Lean Startup"** — Eric Ries.
-- **"Crossing the Chasm"** — Geoffrey Moore.
+- **"The SaaS Playbook"**: Rob Walling.
+- **"From Impossible to Inevitable"**: Aaron Ross, Jason Lemkin.
+- **"Lean Analytics"**: Alistair Croll, Benjamin Yoskovitz.
+- **"Platform Revolution"**: Parker, Van Alstyne, Choudary (marketplaces).
+- **"The Lean Startup"**: Eric Ries.
+- **"Crossing the Chasm"**: Geoffrey Moore.
 - **a16z growth handbook** ([a16z.com/growth-handbook](https://a16z.com/growth-handbook)).
-- **For Entrepreneurs** — David Skok ([forentrepreneurs.com](https://www.forentrepreneurs.com/)).
+- **For Entrepreneurs**: David Skok ([forentrepreneurs.com](https://www.forentrepreneurs.com/)).
 - **OpenView SaaS Benchmarks** anuais.
 - **High Alpha / Bessemer State of the Cloud** reports.
-- **"Why Software Is Eating The World"** — Marc Andreessen.
-- **OpenAI / Anthropic / Stripe / Notion / Figma engineering blogs** — engineering meets business.
+- **"Why Software Is Eating The World"**: Marc Andreessen.
+- **OpenAI / Anthropic / Stripe / Notion / Figma engineering blogs**: engineering meets business.

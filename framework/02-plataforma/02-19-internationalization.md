@@ -1,6 +1,6 @@
 ---
 module: 02-19
-title: Internationalization & Localization — Unicode, ICU, Pluralization, RTL, Timezones
+title: Internationalization & Localization, Unicode, ICU, Pluralization, RTL, Timezones
 stage: plataforma
 prereqs: [02-01, 02-02]
 gates:
@@ -10,7 +10,7 @@ gates:
 status: locked
 ---
 
-# 02-19 — Internationalization & Localization (i18n / l10n)
+# 02-19, Internationalization & Localization (i18n / l10n)
 
 ## 1. Problema de Engenharia
 
@@ -42,7 +42,7 @@ Same string aparente, bytes diferentes. Forms:
 - **NFD**: decomposed (`e` + combining).
 - **NFKC, NFKD**: compatibility (transformações como ﬁ → fi).
 
-Comparação requer normalização. `str.normalize('NFC')`. Bug clássico: usuário cadastra "café" (NFD), login compara com "café" (NFC) — mismatch silencioso.
+Comparação requer normalização. `str.normalize('NFC')`. Bug clássico: usuário cadastra "café" (NFD), login compara com "café" (NFC), mismatch silencioso.
 
 ### 2.3 Collation
 
@@ -52,7 +52,7 @@ Sort cultural-aware. "ç" em Português < "z"; em Castellano antigo, "ñ" tinha 
 - `sensitivity`: 'base'/'accent'/'case'/'variant'.
 - `numeric: true`: "10" > "2" como números.
 
-Postgres collation: schemas, índices baseados. Trocar collation pode invalidar índice — caso real causando incidents.
+Postgres collation: schemas, índices baseados. Trocar collation pode invalidar índice, caso real causando incidents.
 
 ### 2.4 Pluralization
 
@@ -159,7 +159,7 @@ Emoji: cada plataforma renders diferente. Twemoji (Twitter), Noto Color Emoji.
 
 Chinese/Japanese/Korean usam IME (Input Method Editor): user digita romaji/pinyin, sugere candidates, confirma. UI deve **não** processar `keydown` durante composition (use `compositionstart`/`compositionend`).
 
-Bug clássico: search-as-you-type dispara em cada keydown durante IME composition — query incompleta vai pro backend.
+Bug clássico: search-as-you-type dispara em cada keydown durante IME composition, query incompleta vai pro backend.
 
 ### 2.12 Search e collation em DB
 
@@ -215,7 +215,7 @@ Engenharia: dependendo do mercado, multi-region storage, audit logs, data reside
 
 - **Translation memory** (TM): reuse translations.
 - **Glossary**: termos consistentes (Logística → mantém em pt; "tracker" → ?).
-- **Pseudolocale**: en-XA — testar layout com strings expandidas (~30% longer).
+- **Pseudolocale**: en-XA, testar layout com strings expandidas (~30% longer).
 - **Translation services**: Crowdin, Lokalise, Phrase, Smartling. ICU support, workflow, integration GitHub.
 - **String key naming**: hierarchic (`orders.list.empty`).
 - **Plurals e gender em key**: avoid; use ICU.
@@ -336,13 +336,13 @@ Internationalize a Logística para **3 locales**: pt-BR (default), en-US, es-MX.
 - **Unicode Standard** ([unicode.org](https://unicode.org/)). Latest version.
 - **ICU User Guide** ([unicode-org.github.io/icu](https://unicode-org.github.io/icu/)).
 - **CLDR** (Common Locale Data Repository).
-- **MDN — `Intl` namespace**.
-- **"Falsehoods Programmers Believe About Names"** — Patrick McKenzie.
-- **"Falsehoods Programmers Believe About Time"** — Noah Sussman e revisões.
-- **"Falsehoods Programmers Believe About Addresses"** — Mike Hearn.
-- **"Internationalization in Practice"** — Mark Davis (Unicode Consortium).
+- **MDN, `Intl` namespace**.
+- **"Falsehoods Programmers Believe About Names"**: Patrick McKenzie.
+- **"Falsehoods Programmers Believe About Time"**: Noah Sussman e revisões.
+- **"Falsehoods Programmers Believe About Addresses"**: Mike Hearn.
+- **"Internationalization in Practice"**: Mark Davis (Unicode Consortium).
 - **i18next docs** ([i18next.com](https://www.i18next.com/)).
 - **FormatJS docs** ([formatjs.io](https://formatjs.io/)).
-- **Crowdin / Lokalise / Phrase** — translation platforms.
-- **Patrick McKenzie's "Bits about Money"** essays — currency edge cases.
+- **Crowdin / Lokalise / Phrase**: translation platforms.
+- **Patrick McKenzie's "Bits about Money"** essays, currency edge cases.
 - **GDPR text** + **LGPD text**.

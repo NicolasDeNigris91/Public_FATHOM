@@ -1,6 +1,6 @@
 ---
 module: 04-06
-title: Domain-Driven Design — Bounded Contexts, Aggregates, Tactical
+title: Domain-Driven Design, Bounded Contexts, Aggregates, Tactical
 stage: sistemas
 prereqs: [04-03]
 gates:
@@ -10,11 +10,11 @@ gates:
 status: locked
 ---
 
-# 04-06 — Domain-Driven Design
+# 04-06, Domain-Driven Design
 
 ## 1. Problema de Engenharia
 
-DDD virou buzzword. Times "fazem DDD" e produzem CRUD com vocabulário pomposo (Repository, ValueObject, Entity em todo lado) e pouco da disciplina real — modelo do domínio que reflete realidade, ubiquitous language, bounded contexts, refinamento contínuo via conversa com stakeholders. O resultado: código verbose, abstrações errôneas, e times que confundem padrões táticos com a essência.
+DDD virou buzzword. Times "fazem DDD" e produzem CRUD com vocabulário pomposo (Repository, ValueObject, Entity em todo lado) e pouco da disciplina real, modelo do domínio que reflete realidade, ubiquitous language, bounded contexts, refinamento contínuo via conversa com stakeholders. O resultado: código verbose, abstrações errôneas, e times que confundem padrões táticos com a essência.
 
 Este módulo separa estrátégia (bounded contexts, context mapping, ubiquitous language) de tática (aggregates, value objects, domain events, repositories). Você sai sabendo aplicar DDD com sobriedade e identificar onde NÃO vale.
 
@@ -47,9 +47,9 @@ Fonte de bug latente: traduções implícitas. Padrão: glossário no repo, refi
 Modelo é coerente dentro de um contexto. Um termo significa coisas diferentes em contextos diferentes.
 
 Em Logística:
-- Contexto **Order Management** — `Order` é entidade central com status pipeline, items, total.
-- Contexto **Routing** — `Order` é um stop com lat/lng e priority.
-- Contexto **Billing** — `Order` é evento monetário.
+- Contexto **Order Management**: `Order` é entidade central com status pipeline, items, total.
+- Contexto **Routing**: `Order` é um stop com lat/lng e priority.
+- Contexto **Billing**: `Order` é evento monetário.
 
 Mesmo "Order" mapeando dados similares mas com perspective distinta. Não force "1 modelo to rule them all".
 
@@ -94,14 +94,14 @@ DDD investe profundo em core; supporting com cuidado; generic compra ou usa pron
 Aggregate (já vimos): cluster consistente. Aggregate root é única entry. Transações dentro de 1 aggregate. Cross-aggregate via events/saga.
 
 **Entity**: identity persistente (`Order` tem id; identidade é o id, não os atributos).
-**Value Object**: identidade pelos atributos. Imutável. (`Address` com street/city — 2 addresses iguais são "iguais", sem id).
+**Value Object**: identidade pelos atributos. Imutável. (`Address` com street/city, 2 addresses iguais são "iguais", sem id).
 **Domain Service**: lógica que não cabe naturalmente em entity/VO. Stateless.
 **Domain Event**: algo que aconteceu, com significado de domínio (`OrderDelivered`).
 **Repository**: abstração pra persistência. "Like a in-memory collection". Hide DB details.
 **Factory**: encapsula criação complex de aggregate.
 **Specification**: encapsula query/filter como objeto.
 
-Em projetos JS/TS modernos, "Repository" pode ser exagero — `db.query` em camada simples cobre. Não force pattern; use quando complexidade emerge.
+Em projetos JS/TS modernos, "Repository" pode ser exagero, `db.query` em camada simples cobre. Não force pattern; use quando complexidade emerge.
 
 ### 2.8 Aggregate design rules
 
@@ -222,7 +222,7 @@ Refatorar **Logística** rumo a modular monolith DDD.
 1. **Strategic discovery**:
    - Conduza Event Storming (sozinho ou com 1-2 amigos): liste events do domínio (sticky-style em Miro/Excalidraw).
    - Identifique bounded contexts (mínimo 4: Order Management, Routing, Courier, Billing).
-   - Documente ubiquitous language (glossário) — pelo menos 20 termos.
+   - Documente ubiquitous language (glossário), pelo menos 20 termos.
 2. **Modularização**:
    - Reorganize código em módulos por bounded context (`src/order-management/`, `src/routing/`, etc.).
    - Public API por módulo (export limitado); internal não escapa.
@@ -232,7 +232,7 @@ Refatorar **Logística** rumo a modular monolith DDD.
    - Documente vocabulário em README do módulo.
 4. **Tactical em Order Management**:
    - `Order` aggregate com root + events.
-   - Methods invariant-enforcing (`order.markPickedUp(courierId, ts)` — checa status, courier assigned).
+   - Methods invariant-enforcing (`order.markPickedUp(courierId, ts)`, checa status, courier assigned).
    - Domain events (`OrderPickedUp`) emitted.
    - Repository abstrai persist, retorna fully-loaded aggregate.
 5. **Cross-context comunication**:
@@ -289,12 +289,12 @@ Refatorar **Logística** rumo a modular monolith DDD.
 
 ## 6. Referências
 
-- **"Domain-Driven Design"** — Eric Evans (2003).
-- **"Implementing Domain-Driven Design"** — Vaughn Vernon (2013).
-- **"Domain-Driven Design Distilled"** — Vaughn Vernon (curto).
-- **"Learning Domain-Driven Design"** — Vlad Khononov (mais moderno, 2021).
-- **"Domain-Driven Design Quickly"** — InfoQ free.
+- **"Domain-Driven Design"**: Eric Evans (2003).
+- **"Implementing Domain-Driven Design"**: Vaughn Vernon (2013).
+- **"Domain-Driven Design Distilled"**: Vaughn Vernon (curto).
+- **"Learning Domain-Driven Design"**: Vlad Khononov (mais moderno, 2021).
+- **"Domain-Driven Design Quickly"**: InfoQ free.
 - **Alberto Brandolini, "Introducing EventStorming"**.
-- **"Patterns, Principles, and Practices of Domain-Driven Design"** — Scott Millett, Nick Tune.
+- **"Patterns, Principles, and Practices of Domain-Driven Design"**: Scott Millett, Nick Tune.
 - **Vaughn Vernon's blog and talks**.
-- **DDD Crew** ([github.com/ddd-crew](https://github.com/ddd-crew)) — collected resources.
+- **DDD Crew** ([github.com/ddd-crew](https://github.com/ddd-crew)), collected resources.

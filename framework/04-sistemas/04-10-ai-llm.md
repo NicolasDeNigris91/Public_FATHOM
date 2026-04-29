@@ -1,6 +1,6 @@
 ---
 module: 04-10
-title: AI/LLM em Sistemas — Inference, RAG, Agents, Embeddings, Evals
+title: AI/LLM em Sistemas, Inference, RAG, Agents, Embeddings, Evals
 stage: sistemas
 prereqs: [04-05]
 gates:
@@ -10,7 +10,7 @@ gates:
 status: locked
 ---
 
-# 04-10 — AI/LLM em Sistemas
+# 04-10, AI/LLM em Sistemas
 
 ## 1. Problema de Engenharia
 
@@ -29,7 +29,7 @@ Trate como qualquer dep externa:
 - Falhas transientes.
 - Rate limits.
 - Cost por chamada.
-- Versionamento (Claude 4.7, GPT-5, etc. — modelos evoluem; prompts viram brittle se não versionados).
+- Versionamento (Claude 4.7, GPT-5, etc., modelos evoluem; prompts viram brittle se não versionados).
 - Outputs não-determinísticos.
 
 Aplicar resilience patterns (04-04): timeouts, retries em transient errors, circuit breaker, idempotency keys, fallback (modelo menor ou cached response).
@@ -98,7 +98,7 @@ Modelos têm limit de tokens (8k, 32k, 200k, 1M). Conversas longas excedem. Estr
 
 Em apps de produção, gerenciar context é tarefa de engenharia.
 
-### 2.8 RAG — Retrieval Augmented Generation
+### 2.8 RAG, Retrieval Augmented Generation
 
 LLM não sabe seu domínio. RAG alimenta LLM com contexto relevante:
 1. Documents (KB, Logística policies, FAQ) chunked e embedded.
@@ -111,12 +111,12 @@ Eficácia: RAG bem feito reduz hallucination, aumenta accuracy.
 Embeddings:
 - **OpenAI text-embedding-3-large**, **Cohere embed-v3**, **Voyage AI**.
 - **Open-source**: Sentence-Transformers, jina-embeddings.
-- Dimensões: 384, 768, 1024, 1536, 3072 — maior = mais expressivo, mais storage.
+- Dimensões: 384, 768, 1024, 1536, 3072, maior = mais expressivo, mais storage.
 
 Vector DBs:
-- **pgvector** (Postgres extension) — para muitos casos é suficiente. Indexes IVFFlat, HNSW.
-- **Qdrant, Weaviate, Milvus** — dedicated.
-- **Pinecone** — managed.
+- **pgvector** (Postgres extension), para muitos casos é suficiente. Indexes IVFFlat, HNSW.
+- **Qdrant, Weaviate, Milvus**: dedicated.
+- **Pinecone**: managed.
 
 ### 2.9 RAG advanced
 
@@ -347,14 +347,14 @@ Adicionar **AI assistant** ao Logística com production-quality.
 
 ## 6. Referências
 
-- **Anthropic docs** ([docs.anthropic.com](https://docs.anthropic.com/)) — Claude API, tool use, prompt caching.
+- **Anthropic docs** ([docs.anthropic.com](https://docs.anthropic.com/)), Claude API, tool use, prompt caching.
 - **OpenAI docs**.
 - **Vercel AI SDK** ([sdk.vercel.ai](https://sdk.vercel.ai/)).
-- **"Building LLM-Powered Applications"** — Vali Aboubakr.
-- **Eugene Yan blog** ([eugeneyan.com](https://eugeneyan.com/)) — practical LLM eng.
-- **Hamel Husain blog** — evals, fine-tuning.
+- **"Building LLM-Powered Applications"**: Vali Aboubakr.
+- **Eugene Yan blog** ([eugeneyan.com](https://eugeneyan.com/)), practical LLM eng.
+- **Hamel Husain blog**: evals, fine-tuning.
 - **OWASP Top 10 for LLM Applications** ([owasp.org/www-project-top-10-for-large-language-model-applications](https://owasp.org/www-project-top-10-for-large-language-model-applications/)).
 - **Anthropic prompt engineering guide**.
-- **Lilian Weng blog (OpenAI)** — agents, RLHF deep dives.
-- **Pinecone learning center** — vector DB / RAG patterns.
-- **LangSmith / Braintrust / Phoenix docs** — eval tooling.
+- **Lilian Weng blog (OpenAI)**: agents, RLHF deep dives.
+- **Pinecone learning center**: vector DB / RAG patterns.
+- **LangSmith / Braintrust / Phoenix docs**: eval tooling.

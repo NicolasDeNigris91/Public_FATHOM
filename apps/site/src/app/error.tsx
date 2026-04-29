@@ -29,7 +29,7 @@ export default function Error({
         <div className="h-px bg-gold-leaf w-32 mb-10" />
         <p className="font-sans text-body-lg text-chrome leading-relaxed mb-6 max-w-2xl">
           O servidor ou client falhou ao renderizar essa página. Você pode
-          tentar de novo. Se persistir, é bug — me avise via GitHub Issues.
+          tentar de novo. Se persistir, é bug, me avise via GitHub Issues.
         </p>
 
         {error.digest && (

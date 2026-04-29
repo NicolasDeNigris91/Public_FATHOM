@@ -1,6 +1,6 @@
 ---
 module: 03-05
-title: AWS Core — IAM, VPC, EC2, 04-03, RDS, Lambda, ECS/EKS, CloudFront
+title: AWS Core, IAM, VPC, EC2, 04-03, RDS, Lambda, ECS/EKS, CloudFront
 stage: producao
 prereqs: [01-02, 01-03, 03-02]
 gates:
@@ -10,13 +10,13 @@ gates:
 status: locked
 ---
 
-# 03-05 — AWS Core
+# 03-05, AWS Core
 
 ## 1. Problema de Engenharia
 
-AWS é dominante em cloud enterprise e tem 200+ serviços. A maioria dos devs sabe usar 5: EC2 manualmente, 04-03 pra blob, RDS pra DB, Lambda pra "serverless", e por aí. Falta o modelo mental — IAM como espinha dorsal, VPC como rede, custo por bom uso vs custo por preguiça, decisões entre Lambda/Fargate/EKS, replicação multi-AZ, security groups, NAT gateways. Sem isso, você commit em arquitetura cara e frágil.
+AWS é dominante em cloud enterprise e tem 200+ serviços. A maioria dos devs sabe usar 5: EC2 manualmente, 04-03 pra blob, RDS pra DB, Lambda pra "serverless", e por aí. Falta o modelo mental, IAM como espinha dorsal, VPC como rede, custo por bom uso vs custo por preguiça, decisões entre Lambda/Fargate/EKS, replicação multi-AZ, security groups, NAT gateways. Sem isso, você commit em arquitetura cara e frágil.
 
-Este módulo cobre os primitives core. Não é "tutorial AWS" — é mapa pra navegar 90% das decisões de cloud em projetos médios. Foco em decisões e princípios. Hands-on no desafio.
+Este módulo cobre os primitives core. Não é "tutorial AWS", é mapa pra navegar 90% das decisões de cloud em projetos médios. Foco em decisões e princípios. Hands-on no desafio.
 
 ---
 
@@ -30,7 +30,7 @@ Recursos são por região (com exceções: IAM, Route 53, CloudFront, são globa
 
 Conta AWS é unidade de billing e isolation. Em organizações sérias, **AWS Organizations** com múltiplas contas (dev, staging, prod, security) e **Control Tower** pra governance.
 
-### 2.2 IAM — espinha dorsal
+### 2.2 IAM, espinha dorsal
 
 **IAM** controla quem pode fazer o quê. Conceitos:
 - **Users**: humanos (raramente recomendado em 2026; prefer SSO).
@@ -49,7 +49,7 @@ Policies têm tamanho limite (6 KB inline, 6 KB managed default). Conditions pod
 
 **IAM Access Analyzer**: detecta policies overly permissive.
 
-### 2.3 VPC — rede
+### 2.3 VPC, rede
 
 **VPC**: rede virtual privada na sua conta. Default VPC em cada região vem pronta; em prod, crie a própria.
 
@@ -68,18 +68,18 @@ Padrão: 3 AZs com 1 subnet pública + 1 privada cada. Backend em privadas; ALB 
 
 NAT Gateway custa ~$32/mês + $0.045/GB. Em projetos sensíveis a custo, considere VPC Endpoints pra 04-03/ECR/etc., reduzindo egresso via NAT.
 
-### 2.3.1 VPC deep — onde Senior diverge de Pleno
+### 2.3.1 VPC deep, onde Senior diverge de Pleno
 
 Pleno conhece subnet/SG/NAT. Senior decide topologia, custos, e patterns avançados. Lacuna típica:
 
-**Multi-VPC topology — quando você precisa:**
-- **VPC peering**: conexão 1-pra-1, sem transitive routing. Bom pra 2-3 VPCs. Não escala — N² pares.
+**Multi-VPC topology, quando você precisa:**
+- **VPC peering**: conexão 1-pra-1, sem transitive routing. Bom pra 2-3 VPCs. Não escala, N² pares.
 - **Transit Gateway (TGW)**: hub-and-spoke. 1 TGW conecta N VPCs + on-prem (via VPN/Direct Connect) + outras regiões. Custo: $0.05/hora por VPC attach + processing fees. Em multi-account real, TGW resolve. Suporta route tables segmentadas (prod isolada de dev mesmo no mesmo TGW).
 - **Cloud WAN** (2024+): camada acima de TGW pra global multi-region. Mais cara, melhor pra dezenas de VPCs cross-region.
 
-**PrivateLink — o que Pleno raramente domina:**
+**PrivateLink, o que Pleno raramente domina:**
 - VPC Endpoints clássicos: **Gateway** (04-03, DynamoDB) usam route table; **Interface** usam ENI dentro da sua VPC com IP privado.
-- **PrivateLink avançado**: você expõe um **NLB** como serviço VPC. Outros VPCs (até de outras contas) consomem como Interface Endpoint. Pattern padrão pra **B2B SaaS** — cliente acessa seu serviço sem expor à internet.
+- **PrivateLink avançado**: você expõe um **NLB** como serviço VPC. Outros VPCs (até de outras contas) consomem como Interface Endpoint. Pattern padrão pra **B2B SaaS**: cliente acessa seu serviço sem expor à internet.
 - Custo: $0.01/hora por Endpoint + $0.01/GB processed. Usado bem, economiza muito vs NAT egress.
 
 **Egress VPC pattern (multi-account):**
@@ -91,7 +91,7 @@ Pleno conhece subnet/SG/NAT. Senior decide topologia, custos, e patterns avança
 - AWS cobra **$0.005/hora por IPv4 público**. IPv6 é grátis. Em 2026 vale dual-stack ou IPv6-only quando possível pra cortar custo significativo em fleets grandes.
 - ALB, NLB, EC2 suportam IPv6 nativo. Lambda em VPC com IPv6 desde 2024.
 
-**Security Groups vs NACLs — pegadinha:**
+**Security Groups vs NACLs, pegadinha:**
 - SG é **stateful**: response automática. NACL é **stateless**: regra explícita pra response port (ephemeral 1024-65535).
 - SG padrão: deny tudo, allow listas. NACL padrão default VPC: allow tudo.
 - Pra **egress filtering** (impedir exfil de dados), SG outbound é o que importa. NACL ajuda em DDoS L4 (block IP range).
@@ -101,7 +101,7 @@ Pleno conhece subnet/SG/NAT. Senior decide topologia, custos, e patterns avança
 - Concorrente direto de Service Mesh (Istio/Linkerd) pra cenários AWS-only.
 - Custo razoável; vale considerar antes de stack mesh complexa.
 
-**Endpoint Policies — controle granular:**
+**Endpoint Policies, controle granular:**
 - VPC Endpoint pode ter policy IAM-like restringindo o que você acessa via aquela rota.
 - Pattern: bucket 04-03 só acessível via PrivateLink + bucket policy reforça (defesa em profundidade).
 
@@ -125,7 +125,7 @@ Em 2026 muita carga foi pra serverless ou container. EC2 ainda é base; you'll p
 
 EBS: storage block. Tipos: gp3 (default, balanced), io2 (high IOPS), st1 (throughput optimized). Snapshots, encryption.
 
-### 2.5 04-03 — object storage
+### 2.5 04-03, object storage
 
 Bucket → object key. Bytes ilimitados (per object 5 TB).
 
@@ -169,7 +169,7 @@ Managed Redis (compatível com Redis OSS / Valkey) e Memcached.
 - **Multi-AZ replicas**: failover.
 - **Backup snapshots** opcionais.
 
-Em 2026 AWS oferece **MemoryDB** também — Redis-compat com persistência multi-AZ stronger (durable, RPO 0). Mais cara.
+Em 2026 AWS oferece **MemoryDB** também, Redis-compat com persistência multi-AZ stronger (durable, RPO 0). Mais cara.
 
 ### 2.8 Lambda
 
@@ -303,7 +303,7 @@ Em orgs sérias:
 
 ### 2.19 FinOps e cost engineering
 
-Pleno conhece "monitorar fatura". Senior pratica **FinOps** — disciplina de unit economics em cloud. Em 2025-2026 virou skill obrigatória pra quem opera infra.
+Pleno conhece "monitorar fatura". Senior pratica **FinOps**: disciplina de unit economics em cloud. Em 2025-2026 virou skill obrigatória pra quem opera infra.
 
 **Conceitos centrais:**
 - **Unit cost**: $ por unidade de business (per request, per active user, per GB processed). Métrica que importa, não fatura absoluta.
@@ -340,7 +340,7 @@ Pleno conhece "monitorar fatura". Senior pratica **FinOps** — disciplina de un
 
 ### 2.20 Sustainability (Green software)
 
-Em 2025-2026 virou signal de maturidade técnica em diversos contextos (consumer-facing brands, EU GDPR + sustainability reporting, talent attraction). Não é só "marketing" — tem decisões técnicas reais.
+Em 2025-2026 virou signal de maturidade técnica em diversos contextos (consumer-facing brands, EU GDPR + sustainability reporting, talent attraction). Não é só "marketing", tem decisões técnicas reais.
 
 **Princípios (Green Software Foundation):**
 - **Carbon efficiency**: minimizar emissões por unit work.
@@ -396,7 +396,7 @@ Você precisa, sem consultar:
 
 ## 4. Desafio de Engenharia
 
-Migrar **Logística v1** pra AWS — abandonar Railway pra esse exercício, ainda em escala pequena.
+Migrar **Logística v1** pra AWS, abandonar Railway pra esse exercício, ainda em escala pequena.
 
 ### Especificação
 
@@ -481,11 +481,11 @@ Migrar **Logística v1** pra AWS — abandonar Railway pra esse exercício, aind
 
 ## 6. Referências
 
-- **AWS docs** ([docs.aws.amazon.com](https://docs.aws.amazon.com/)) — leia VPC, IAM, EC2, 04-03, RDS, ECS, Lambda, CloudFront whitepapers.
-- **"AWS Well-Architected Framework"** — six pillars (operational excellence, security, reliability, performance, cost, sustainability).
-- **AWS Solutions Architect cert prep books** — Stephane Maarek (Udemy também).
-- **Yan Cui's blog** ([theburningmonk.com](https://theburningmonk.com/)) — deep takes em Lambda e serverless.
-- **Corey Quinn / Last Week in AWS** — críticas de pricing e produtos.
-- **AWS re:Invent talks** — releases anuais, deep dives em features.
-- **"Serverless Land"** ([serverlessland.com](https://serverlessland.com/)) — patterns.
-- **AWS CDK Workshop** — IaC introdução.
+- **AWS docs** ([docs.aws.amazon.com](https://docs.aws.amazon.com/)), leia VPC, IAM, EC2, 04-03, RDS, ECS, Lambda, CloudFront whitepapers.
+- **"AWS Well-Architected Framework"**: six pillars (operational excellence, security, reliability, performance, cost, sustainability).
+- **AWS Solutions Architect cert prep books**: Stephane Maarek (Udemy também).
+- **Yan Cui's blog** ([theburningmonk.com](https://theburningmonk.com/)), deep takes em Lambda e serverless.
+- **Corey Quinn / Last Week in AWS**: críticas de pricing e produtos.
+- **AWS re:Invent talks**: releases anuais, deep dives em features.
+- **"Serverless Land"** ([serverlessland.com](https://serverlessland.com/)), patterns.
+- **AWS CDK Workshop**: IaC introdução.

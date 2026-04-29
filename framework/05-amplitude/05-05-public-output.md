@@ -1,6 +1,6 @@
 ---
 module: 05-05
-title: Public Output — Blog, Talks, OSS at Scale, Audience Building
+title: Public Output, Blog, Talks, OSS at Scale, Audience Building
 stage: amplitude
 prereqs: [04-15]
 gates:
@@ -10,14 +10,14 @@ gates:
 status: locked
 ---
 
-# 05-05 — Public Output
+# 05-05, Public Output
 
 ## 1. Problema de Engenharia
 
-Engineering público compounded sobre tempo. Quem publica posts, dá talks, mantém OSS visível, escreve threads — em 5 anos tem **leverage** que não-publicadores não conseguem comprar. Acesso a oportunidades, hiring pipeline, peer network, conference invites, advisor positions, salário maior, e principalmente: **clarity de pensamento** (você não escreve sem pensar).
+Engineering público compounded sobre tempo. Quem publica posts, dá talks, mantém OSS visível, escreve threads, em 5 anos tem **leverage** que não-publicadores não conseguem comprar. Acesso a oportunidades, hiring pipeline, peer network, conference invites, advisor positions, salário maior, e principalmente: **clarity de pensamento** (você não escreve sem pensar).
 
 Maioria dos engineers não publica por uma de três razões:
-1. "Não tenho nada original a dizer." (Falso — sua experiência específica é original).
+1. "Não tenho nada original a dizer." (Falso, sua experiência específica é original).
 2. "Síndrome do impostor." (Real, mas dominável com hábito).
 3. "Não tenho tempo." (É sobre prioridade).
 
@@ -53,7 +53,7 @@ Audience secondary; clarity primary.
 
 Pick 1-2 onde você é mais natural. Não tudo.
 
-### 2.2.1 YouTube e podcast — médium escalável de 2025+
+### 2.2.1 YouTube e podcast, médium escalável de 2025+
 
 Em 2025-2026, vídeo e podcast são **canais mais escaláveis** que blog pra Senior+ visibility. Razões objetivas:
 
@@ -82,11 +82,11 @@ Em 2025-2026, vídeo e podcast são **canais mais escaláveis** que blog pra Sen
 
 **Cadência realista (combinando com day job):**
 - **1 vídeo/mês** estilo deep dive (5-10h prep + 5-10h edit).
-- **1 short/semana** (1-3 min) — extracted de live coding ou observation.
-- **1 podcast appearance/mês** (entrevista em outros podcasts) — reach sem produção própria.
+- **1 short/semana** (1-3 min), extracted de live coding ou observation.
+- **1 podcast appearance/mês** (entrevista em outros podcasts), reach sem produção própria.
 
 **Quando NÃO investir em vídeo:**
-- Você não gosta de aparecer em câmera. Faking não funciona — viewer detecta.
+- Você não gosta de aparecer em câmera. Faking não funciona, viewer detecta.
 - Sua especialização é hyper-niche e audiência ínfima (specific compiler internals). Blog vence.
 - Você não tem 10-20h/mês sustentável. Cadência irregular mata canal.
 
@@ -366,14 +366,14 @@ Estabelecer **public output stream** + 1 talk dado.
 
 ## 6. Referências
 
-- **"On Writing Well"** — William Zinsser. Bíblia de prose nonfiction.
-- **"Show Your Work"** — Austin Kleon.
-- **"Atomic Habits"** — James Clear (cadence sustentável).
-- **"The Programmer's Guide to Writing Well"** — Sjaak Brinkkemper.
-- **"Pyramid Principle"** — Barbara Minto (estrutura argumentativa).
-- **Julia Evans blog & zines** ([jvns.ca](https://jvns.ca/)) — exemplo elite de explanation.
-- **Dan Luu's blog** ([danluu.com](https://danluu.com/)) — long-form técnico.
+- **"On Writing Well"**: William Zinsser. Bíblia de prose nonfiction.
+- **"Show Your Work"**: Austin Kleon.
+- **"Atomic Habits"**: James Clear (cadence sustentável).
+- **"The Programmer's Guide to Writing Well"**: Sjaak Brinkkemper.
+- **"Pyramid Principle"**: Barbara Minto (estrutura argumentativa).
+- **Julia Evans blog & zines** ([jvns.ca](https://jvns.ca/)), exemplo elite de explanation.
+- **Dan Luu's blog** ([danluu.com](https://danluu.com/)), long-form técnico.
 - **Patrick McKenzie** ([kalzumeus.com](https://www.kalzumeus.com/), Bits About Money). Engineering meets business.
-- **Cassidy Williams** newsletter — short-form sustainability.
-- **"Blogging for Engineers"** — varied talks.
-- **Conference CFP guides** — Heatherf, Lara Hogan posts.
+- **Cassidy Williams** newsletter, short-form sustainability.
+- **"Blogging for Engineers"**: varied talks.
+- **Conference CFP guides**: Heatherf, Lara Hogan posts.

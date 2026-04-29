@@ -15,7 +15,7 @@ export const STAGES: StageMeta[] = [
     id: 'fundamentos',
     number: 1,
     dir: '01-fundamentos',
-    title: 'Estágio 1 — Fundamentos',
+    title: 'Estágio 1: Fundamentos',
     subtitle: 'Computer Science',
     tagline:
       'CPU, memória, rede, sistemas operacionais, algoritmos, paradigmas.',
@@ -25,7 +25,7 @@ export const STAGES: StageMeta[] = [
     id: 'plataforma',
     number: 2,
     dir: '02-plataforma',
-    title: 'Estágio 2 — Plataforma',
+    title: 'Estágio 2: Plataforma',
     subtitle: 'Aplicações Full Stack',
     tagline:
       'Construir e operar aplicação full-stack monolítica em produção.',
@@ -35,7 +35,7 @@ export const STAGES: StageMeta[] = [
     id: 'producao',
     number: 3,
     dir: '03-producao',
-    title: 'Estágio 3 — Produção',
+    title: 'Estágio 3: Produção',
     subtitle: 'Ecossistema, Testes, Operações',
     tagline:
       'Testes confiáveis, deploy seguro, observabilidade, segurança defensável.',
@@ -45,7 +45,7 @@ export const STAGES: StageMeta[] = [
     id: 'sistemas',
     number: 4,
     dir: '04-sistemas',
-    title: 'Estágio 4 — Sistemas',
+    title: 'Estágio 4: Sistemas',
     subtitle: 'Arquitetura Distribuída',
     tagline:
       'Arquitetura distribuída, trade-offs, modos de falha, custos operacionais.',
@@ -55,7 +55,7 @@ export const STAGES: StageMeta[] = [
     id: 'amplitude',
     number: 5,
     dir: '05-amplitude',
-    title: 'Estágio 5 — Amplitude',
+    title: 'Estágio 5: Amplitude',
     subtitle: 'Specialization, Influence, Public Output',
     tagline:
       'Especializar, publicar, mentorar, ler papers, construir from-scratch.',

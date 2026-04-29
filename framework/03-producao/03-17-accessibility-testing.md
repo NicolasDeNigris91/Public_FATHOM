@@ -1,6 +1,6 @@
 ---
 module: 03-17
-title: Accessibility Testing & Automation — axe, Pa11y, Lighthouse, Manual Audits, A11y CI
+title: Accessibility Testing & Automation, axe, Pa11y, Lighthouse, Manual Audits, A11y CI
 stage: producao
 prereqs: [02-02, 03-01]
 gates:
@@ -10,13 +10,13 @@ gates:
 status: locked
 ---
 
-# 03-17 — Accessibility Testing & Automation
+# 03-17, Accessibility Testing & Automation
 
 ## 1. Problema de Engenharia
 
-02-02 cobriu accessibility como design e implementation. Mas conhecimento sem **testing automation** vira regressão silenciosa. Dev adiciona componente novo, esquece `aria-label`, PR aprova, deploy, screen reader user reclama meses depois — pior, abandona produto sem reclamar. Sem CI gate, a11y degrada continuamente.
+02-02 cobriu accessibility como design e implementation. Mas conhecimento sem **testing automation** vira regressão silenciosa. Dev adiciona componente novo, esquece `aria-label`, PR aprova, deploy, screen reader user reclama meses depois, pior, abandona produto sem reclamar. Sem CI gate, a11y degrada continuamente.
 
-Tooling automatizado não pega tudo (estimativas: ~30-40% de issues detectáveis automaticamente; resto exige usuário humano e screen reader). Mas pega muito do baixo-pendente fácil — alt text faltando, contrast ruim, label-input mismatch, aria-* errado, focus order broken, lang missing. Combinar **automated** + **manual** + **user testing** é o standard.
+Tooling automatizado não pega tudo (estimativas: ~30-40% de issues detectáveis automaticamente; resto exige usuário humano e screen reader). Mas pega muito do baixo-pendente fácil, alt text faltando, contrast ruim, label-input mismatch, aria-* errado, focus order broken, lang missing. Combinar **automated** + **manual** + **user testing** é o standard.
 
 Compliance importa: WCAG 2.1 AA é referência mínima; AAA quando contexto pede. Lawsuits ADA crescem ano a ano (Domino's vs Robles, 2019; várias outras). EU Web Accessibility Directive 2016 exige público sites nivelarem. Tooling como Lighthouse, axe, Pa11y, Wave, screen readers (VoiceOver, NVDA, JAWS) compõem stack.
 
@@ -29,7 +29,7 @@ Este módulo é **a11y como prática de engineering**: tools automatizados, inte
 ### 2.1 WCAG 2.1 e níveis
 
 WCAG (Web Content Accessibility Guidelines):
-- 4 princípios: **POUR** — Perceivable, Operable, Understandable, Robust.
+- 4 princípios: **POUR**: Perceivable, Operable, Understandable, Robust.
 - 13 guidelines.
 - Success Criteria com níveis A / AA / AAA.
 - WCAG 2.2 (2023) adiciona 9 novos criteria (focus appearance, dragging, target size).
@@ -62,9 +62,9 @@ Linearizam DOM em árvore acessível. User navega via:
 - Read continuous.
 
 Tools:
-- **VoiceOver** (macOS, iOS) — Cmd+F5 ativa.
-- **NVDA** (Windows, free) — preferido em test.
-- **JAWS** (Windows, paid) — enterprise dominant.
+- **VoiceOver** (macOS, iOS), Cmd+F5 ativa.
+- **NVDA** (Windows, free), preferido em test.
+- **JAWS** (Windows, paid), enterprise dominant.
 - **TalkBack** (Android).
 - **Narrator** (Windows builtin).
 - **Orca** (Linux).
@@ -231,13 +231,13 @@ Insights únicos: tool-detected issue (low contrast) já corrigida pode ainda se
 ### 2.16 CI integration patterns
 
 Pipeline maduro:
-1. **Lint** (eslint-plugin-jsx-a11y) — every commit.
-2. **Unit** (jest-axe) — per component.
-3. **E2E** (Playwright + axe) — key flows.
-4. **Lighthouse CI** — per route.
-5. **Visual regression** — detect undocumented changes.
-6. **Manual audit** — quarterly.
-7. **User testing** — major releases.
+1. **Lint** (eslint-plugin-jsx-a11y), every commit.
+2. **Unit** (jest-axe), per component.
+3. **E2E** (Playwright + axe), key flows.
+4. **Lighthouse CI**: per route.
+5. **Visual regression**: detect undocumented changes.
+6. **Manual audit**: quarterly.
+7. **User testing**: major releases.
 
 Each step catches different layer. None alone enough.
 
@@ -260,7 +260,7 @@ VPAT atualizado periodicamente.
 iOS: VoiceOver, Dynamic Type, Switch Control, AssistiveTouch.
 Android: TalkBack, Magnification, Switch Access.
 
-Native components default a11y melhor que web. RN bridges nem sempre — test.
+Native components default a11y melhor que web. RN bridges nem sempre, test.
 
 `accessibilityLabel`, `accessibilityRole`, `accessibilityHint`, `accessibilityState` em RN.
 
@@ -387,16 +387,16 @@ Fazer **a11y audit completo + CI gates** da Logística.
 
 - **WCAG 2.1 / 2.2 spec** ([w3.org/TR/WCAG22](https://www.w3.org/TR/WCAG22/)).
 - **ARIA Authoring Practices Guide (APG)** ([w3.org/WAI/ARIA/apg](https://www.w3.org/WAI/ARIA/apg/)).
-- **WebAIM** ([webaim.org](https://webaim.org/)) — guides + Million reports.
-- **Deque University** — a11y courses.
-- **A11y Project** ([a11yproject.com](https://www.a11yproject.com/)) — checklist, posts.
-- **"Inclusive Design Patterns"** — Heydon Pickering.
-- **"Accessibility for Everyone"** — Laura Kalbag.
+- **WebAIM** ([webaim.org](https://webaim.org/)), guides + Million reports.
+- **Deque University**: a11y courses.
+- **A11y Project** ([a11yproject.com](https://www.a11yproject.com/)), checklist, posts.
+- **"Inclusive Design Patterns"**: Heydon Pickering.
+- **"Accessibility for Everyone"**: Laura Kalbag.
 - **MDN Accessibility docs**.
 - **axe-core docs**.
 - **Lighthouse docs**.
 - **Smashing Magazine accessibility tag**.
-- **Sara Soueidan's blog** — practical a11y posts.
-- **Adrian Roselli's blog** — ARIA + patterns deep.
+- **Sara Soueidan's blog**: practical a11y posts.
+- **Adrian Roselli's blog**: ARIA + patterns deep.
 - **Lawsuits database**: ADA Title III lawsuits trends (Seyfarth report).
 - **Section 508** (US federal).

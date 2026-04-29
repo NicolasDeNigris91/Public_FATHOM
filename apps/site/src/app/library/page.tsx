@@ -9,7 +9,7 @@ import { STAGES, type StageId } from '@/lib/stages';
 export const metadata = {
   title: 'Library',
   description:
-    'Estante de fontes canônicas curadas por estágio. Não duplica reading-list.md — é o subset de máxima carga.',
+    'Estante de fontes canônicas curadas por estágio. Não duplica reading-list.md, é o subset de máxima carga.',
   alternates: { canonical: '/library' },
 };
 
@@ -39,7 +39,7 @@ export default function LibraryPage() {
         <EyebrowHeading
           eyebrow="Curadoria"
           title="Library"
-          subtitle="Estante de fontes canônicas, curada por estágio. Não é mirror completo do reading-list — é o subconjunto de máxima carga: livros citados como primários em 2+ módulos ou genre-defining pro estágio. Lista completa em /docs/reading-list."
+          subtitle="Estante de fontes canônicas, curada por estágio. Não é mirror completo do reading-list, é o subconjunto de máxima carga: livros citados como primários em 2+ módulos ou genre-defining pro estágio. Lista completa em /docs/reading-list."
         />
 
         <div className="mt-16 mb-20 flex flex-wrap items-center gap-x-6 gap-y-3 font-mono text-caption text-chrome tracking-wide">
@@ -159,7 +159,7 @@ export default function LibraryPage() {
           </p>
           <p className="font-sans text-body-lg text-chrome leading-relaxed max-w-3xl">
             Framework é mapa; livros são território. Cada módulo aponta capítulo
-            específico. Você não precisa ler todos do início ao fim — use os
+            específico. Você não precisa ler todos do início ao fim, use os
             módulos como bússola.
           </p>
         </div>

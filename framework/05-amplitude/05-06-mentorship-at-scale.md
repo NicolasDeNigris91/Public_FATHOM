@@ -1,6 +1,6 @@
 ---
 module: 05-06
-title: Mentorship at Scale — Career Frameworks, 1-on-1s, Coaching, Sponsorship
+title: Mentorship at Scale, Career Frameworks, 1-on-1s, Coaching, Sponsorship
 stage: amplitude
 prereqs: [04-12]
 gates:
@@ -10,17 +10,17 @@ gates:
 status: locked
 ---
 
-# 05-06 — Mentorship at Scale
+# 05-06, Mentorship at Scale
 
 ## 1. Problema de Engenharia
 
-Senior pessoa única faz 1.0x impact via código. Staff/Principal multiplica via influência e mentoria — 1.0x próprio + 0.3x sobre 5-10 outros = 2.5x-4.0x.
+Senior pessoa única faz 1.0x impact via código. Staff/Principal multiplica via influência e mentoria, 1.0x próprio + 0.3x sobre 5-10 outros = 2.5x-4.0x.
 
-Mas mentoria não é "café eventual". É disciplina: 1-on-1s estruturados, feedback que machuca pouco e ensina muito, sponsorship (não só mentoring), coaching (não só answering), promoting subordinates' careers, building leaders. Mal feito gera dependency, micromanagement, burnout do mentor, ou — comum — performance ineffective ("eu disse coisas mas pessoa não cresceu").
+Mas mentoria não é "café eventual". É disciplina: 1-on-1s estruturados, feedback que machuca pouco e ensina muito, sponsorship (não só mentoring), coaching (não só answering), promoting subordinates' careers, building leaders. Mal feito gera dependency, micromanagement, burnout do mentor, ou, comum, performance ineffective ("eu disse coisas mas pessoa não cresceu").
 
 Este módulo é mentoria como **engineering practice**: career frameworks (escadas, expectations), feedback techniques (SBI, radical candor), 1-on-1 disciplines, coaching vs mentoring vs sponsoring distinctions, fairness traps (homo-soclalal mentoring, glue work assigned to underrepresented), e como medir impact.
 
-Staff/Principal real é avaliado também por **quem cresceu sob você**. Currículo de promovidos, retidos, recovered-from-burnout. Esse é currículo — código sozinho não basta.
+Staff/Principal real é avaliado também por **quem cresceu sob você**. Currículo de promovidos, retidos, recovered-from-burnout. Esse é currículo, código sozinho não basta.
 
 ---
 
@@ -32,7 +32,7 @@ Staff/Principal real é avaliado também por **quem cresceu sob você**. Curríc
 - **Coaching**: facilitar descoberta ("o que você acha sobre Y?"). Direção: pessoa cresce sozinha com guia.
 - **Sponsoring**: pôr peso em pessoa pra oportunidade ("quero que João lidere isso"). Risco do sponsor; ganho do sponsoree.
 
-Staff faz todos três. Sponsoring é o mais escasso e mais valioso — Staff tem capital político pra investir em alguém.
+Staff faz todos três. Sponsoring é o mais escasso e mais valioso, Staff tem capital político pra investir em alguém.
 
 ### 2.2 Career framework
 
@@ -85,7 +85,7 @@ Senior IC bom em receber multiplica trust de mentees.
 Coaching depends on listening. Patterns:
 - Mais perguntas, menos sentenças.
 - Pause antes de responder.
-- Reformule pra checagem ("entendi que você está frustrado com X — correto?").
+- Reformule pra checagem ("entendi que você está frustrado com X, correto?").
 - Resista impulso de resolve immediate.
 
 Sometimes person não quer solução; quer ear. Coach reads situation.
@@ -108,7 +108,7 @@ Allocate political capital:
 - Recommend mentee pra committee promo.
 - Volunteer mentee pra visible project.
 - Cite mentee em meeting upper.
-- Coauthor RFC — mentee primary.
+- Coauthor RFC, mentee primary.
 
 Sponsorship custa: você assume risk se mentee falha. Pick well. But Staff sponsors broadly, helps career mobility.
 
@@ -156,7 +156,7 @@ Inside-team mentoring é easier. Cross-team mentoring multiplica reach.
 
 Programs:
 - Internal mentor matching app.
-- External (Plato, MentorCruise) — validate carefully.
+- External (Plato, MentorCruise), validate carefully.
 - Communities (Lara Hogan's Wherewithall, Rands Leadership Slack).
 
 Disclose conflicts: don't mentor someone whose perf review you write.
@@ -218,7 +218,7 @@ Open mentorship:
 - Community Slack/Discord helping.
 - Open source review com pedagogical comments.
 
-Public mentorship scales mais — same effort reaches mais people.
+Public mentorship scales mais, same effort reaches mais people.
 
 ---
 
@@ -305,15 +305,15 @@ Estabelecer **practice de mentoring** + 3 mentees acompanhados.
 
 ## 6. Referências
 
-- **"Staff Engineer"** — Tanya Reilly. Direct.
-- **"Radical Candor"** — Kim Scott.
-- **"The Manager's Path"** — Camille Fournier (mentor mindset for IC).
-- **"An Elegant Puzzle"** — Will Larson.
-- **"The Coaching Habit"** — Michael Bungay Stanier.
-- **"Resilient Management"** — Lara Hogan.
-- **"Time to Think"** — Nancy Kline (active listening).
-- **GitLab Handbook** — career framework público.
+- **"Staff Engineer"**: Tanya Reilly. Direct.
+- **"Radical Candor"**: Kim Scott.
+- **"The Manager's Path"**: Camille Fournier (mentor mindset for IC).
+- **"An Elegant Puzzle"**: Will Larson.
+- **"The Coaching Habit"**: Michael Bungay Stanier.
+- **"Resilient Management"**: Lara Hogan.
+- **"Time to Think"**: Nancy Kline (active listening).
+- **GitLab Handbook**: career framework público.
 - **Rent the Runway Engineering Ladder**.
-- **"What Got You Here Won't Get You There"** — Marshall Goldsmith.
+- **"What Got You Here Won't Get You There"**: Marshall Goldsmith.
 - **Lara Hogan's blog** ([larahogan.me](https://larahogan.me/)).
-- **"How To Be A Great Mentor"** — patterns.
+- **"How To Be A Great Mentor"**: patterns.

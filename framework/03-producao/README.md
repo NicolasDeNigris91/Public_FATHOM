@@ -1,4 +1,4 @@
-# Estágio 3 — Produção (Ecossistema, Testes, Operações)
+# Estágio 3: Produção (Ecossistema, Testes, Operações)
 
 ## Por que esse estágio existe
 
@@ -6,16 +6,16 @@ Construir uma aplicação é uma coisa. **Operá-la em produção** é outra. Es
 
 Aqui você aprende:
 - **Testar de verdade** (não só unit; integration, E2E, property-based, TDD)
-- **Container e orquestração** (Docker + Kubernetes — entendendo o **interno**, não só `kubectl apply`)
+- **Container e orquestração** (Docker + Kubernetes, entendendo o **interno**, não só `kubectl apply`)
 - **CI/CD** (pipeline que dá deploy contínuo e seguro)
 - **Cloud** (AWS, IaC com Terraform)
-- **Observabilidade** (logs estruturados, métricas Prometheus, tracing OpenTelemetry — os 4 sinais dourados)
+- **Observabilidade** (logs estruturados, métricas Prometheus, tracing OpenTelemetry, os 4 sinais dourados)
 - **Segurança aplicada** (OWASP, CSP, criptografia, secrets management)
 - **Performance** (Core Web Vitals, profiling Node, flamegraphs, caching strategies)
-- **Linguagens de sistema** (Go e Rust — só o que distingue de Node)
+- **Linguagens de sistema** (Go e Rust, só o que distingue de Node)
 - **WebAssembly** (quando JS não dá conta)
 
-**Promessa de saída:** você consegue colocar uma aplicação em produção com qualidade de empresa séria — testes confiáveis, deploy seguro, observabilidade real, segurança defensável, performance medida.
+**Promessa de saída:** você consegue colocar uma aplicação em produção com qualidade de empresa séria, testes confiáveis, deploy seguro, observabilidade real, segurança defensável, performance medida.
 
 ---
 
@@ -49,13 +49,13 @@ Aqui você aprende:
 - Dados / mídia: 03-13 → 03-14
 - Soft technical: 03-15 → 03-16
 
-03-15-03-16 são de soft-technical (operação humana e planning); cobertura essencial pra estágios seguintes, frequentemente ausente em frameworks técnicos. **03-17** automatiza a11y como gate de CI — sem ele, 02-02 vira regressão silenciosa em meses. **03-18** cobre o que tooling não pega: a11y cognitiva (dyslexia, ADHD, low literacy, memory load), validada via testing humano.
+03-15-03-16 são de soft-technical (operação humana e planning); cobertura essencial pra estágios seguintes, frequentemente ausente em frameworks técnicos. **03-17** automatiza a11y como gate de CI, sem ele, 02-02 vira regressão silenciosa em meses. **03-18** cobre o que tooling não pega: a11y cognitiva (dyslexia, ADHD, low literacy, memory load), validada via testing humano.
 
 ---
 
 ## Capstone do estágio 3
 
-[CAPSTONE-producao.md](CAPSTONE-producao.md) — **Logística v2**: pegar a v1 do Plataforma e levar pra **production-ready**.
+[CAPSTONE-producao.md](CAPSTONE-producao.md), **Logística v2**: pegar a v1 do Plataforma e levar pra **production-ready**.
 
 Entregas obrigatórias:
 - Tudo containerizado com Dockerfile multi-stage
@@ -73,7 +73,7 @@ Entregas obrigatórias:
 ## Postura recomendada para este estágio
 
 - **Não use Helm/Kustomize antes de escrever manifests à mão por pelo menos 1 mês.** Atalhos cedo escondem o aprendizado.
-- **Setup K8s local com `kind` ou `k3d`** — mais rápido que minikube, mais real que Docker Desktop K8s.
+- **Setup K8s local com `kind` ou `k3d`**: mais rápido que minikube, mais real que Docker Desktop K8s.
 - **Faça [Kubernetes The Hard Way](https://github.com/kelseyhightower/kubernetes-the-hard-way)** uma vez na vida. Brutal, mas é como você entende cada componente.
 - **Pra AWS, comece com a CLI antes do Console.** Console esconde o que está acontecendo.
 - **Observabilidade é não-negociável**: se você não sabe medir, não sabe melhorar. Faça primeiro.
@@ -88,7 +88,7 @@ Como discutido no plano: o estágio 2 (Plataforma) cabe nos $5/mês do Hobby. **
 **Estratégia recomendada:**
 - App + DB no Railway
 - Stack de observabilidade rodando **local** (Docker Compose com Prometheus/Grafana/Loki/OTel collector) só durante sessões de estudo
-- K8s real (kind multi-node local) — Railway não expõe K8s
+- K8s real (kind multi-node local), Railway não expõe K8s
 - Pipeline GitHub Actions executa contra Railway via API
 
 Isso mantém você no Railway pro app principal e libera o aprendizado de K8s/observability sem quebrar o orçamento.

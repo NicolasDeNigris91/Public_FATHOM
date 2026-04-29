@@ -1,6 +1,6 @@
 ---
 module: 05-07
-title: Embedded & IoT — RTOS, Microcontrollers, Constrained Networks, Telemetry
+title: Embedded & IoT, RTOS, Microcontrollers, Constrained Networks, Telemetry
 stage: amplitude
 prereqs: [01-02, 03-11]
 gates:
@@ -10,11 +10,11 @@ gates:
 status: locked
 ---
 
-# 05-07 — Embedded & IoT
+# 05-07, Embedded & IoT
 
 ## 1. Problema de Engenharia
 
-Software roda em mais que servidores e laptops. Carros, tracking devices, sensores de logística, IoT industrial, médicos — bilhões de microcontroladores rodando código com 32KB RAM, sem GC, sem OS, talvez com RTOS, em conexão flaky 2G/LoRa/BLE. Cloud-only engineer perde porção significativa da computação real.
+Software roda em mais que servidores e laptops. Carros, tracking devices, sensores de logística, IoT industrial, médicos, bilhões de microcontroladores rodando código com 32KB RAM, sem GC, sem OS, talvez com RTOS, em conexão flaky 2G/LoRa/BLE. Cloud-only engineer perde porção significativa da computação real.
 
 Pra Logística, embedded é altamente relevante: tracker GPS no caminhão, sensor de temperatura em entrega refrigerada, leitor de barcode/QR custom, beacon BLE em hub. Construir hardware ou stack mobile-edge expande o que produto pode fazer.
 
@@ -43,10 +43,10 @@ Real-Time Operating System:
 - Latency previsível (deadline matters).
 
 Popular:
-- **FreeRTOS** — open, Amazon-backed.
-- **Zephyr** — Linux Foundation; modern.
-- **NuttX** — POSIX-style.
-- **VxWorks** — commercial classic.
+- **FreeRTOS**: open, Amazon-backed.
+- **Zephyr**: Linux Foundation; modern.
+- **NuttX**: POSIX-style.
+- **VxWorks**: commercial classic.
 
 Bare metal (sem RTOS): main loop + interrupts. Simples, escala mal acima de poucas tasks.
 
@@ -54,7 +54,7 @@ Bare metal (sem RTOS): main loop + interrupts. Simples, escala mal acima de pouc
 
 Sem heap dinâmico em hard real-time. Static allocation, pools de tamanho fixo.
 
-Stack overflow não há helper — debug via canários, watermarks.
+Stack overflow não há helper, debug via canários, watermarks.
 
 Linker scripts decidem layout (text, data, bss, heap, stack) em flash + RAM.
 
@@ -159,8 +159,8 @@ IDEs: PlatformIO (popular para multi-platform), STM32CubeIDE, Espressif IDF, Zep
 ### 2.13 Filesystem em flash
 
 Flash wear-out (NAND). Filesystem aware:
-- **LittleFS** (ARM) — power-loss resilient, wear-leveling.
-- **SPIFFS** (ESP) — older, going away.
+- **LittleFS** (ARM), power-loss resilient, wear-leveling.
+- **SPIFFS** (ESP), older, going away.
 - **FATFS** wrapped com wear-leveling layer.
 
 Logs e config persistem; mas evite write-heavy.
@@ -186,7 +186,7 @@ Trade-off: gateway adds dependência mas reduz cellular cost (1 modem vez de N).
 
 ### 2.16 Edge computing
 
-Trabalho em device em vez de cloud. ML inference em MCU (TinyML — TensorFlow Lite Micro). Privacy-preserving (data não sai).
+Trabalho em device em vez de cloud. ML inference em MCU (TinyML, TensorFlow Lite Micro). Privacy-preserving (data não sai).
 
 Trade-off: dev complexity vs cloud cost reduzido.
 
@@ -231,13 +231,13 @@ Você precisa, sem consultar:
 
 ## 4. Desafio de Engenharia
 
-Construir **tracker IoT mínimo** integrado à Logística — opcional simulado em ESP32 dev kit ($10).
+Construir **tracker IoT mínimo** integrado à Logística, opcional simulado em ESP32 dev kit ($10).
 
 ### Especificação
 
 **Hardware** (escolha 1 path):
-- **Path A — Simulado**: usa ESP32 dev kit + sensors básicos. Compre ($30 total), monte.
-- **Path B — Pure simulation**: emulador QEMU + dummy sensors. Sem hardware físico.
+- **Path A, Simulado**: usa ESP32 dev kit + sensors básicos. Compre ($30 total), monte.
+- **Path B, Pure simulation**: emulador QEMU + dummy sensors. Sem hardware físico.
 
 1. **Firmware (Rust embedded ou C com FreeRTOS)**:
    - Lê GPS (fake em sim, real-ish em ESP32 + módulo NEO-6M).
@@ -270,7 +270,7 @@ Construir **tracker IoT mínimo** integrado à Logística — opcional simulado 
 
 ### Restrições
 
-- Sleep dominant — tempo awake < 10%.
+- Sleep dominant, tempo awake < 10%.
 - Buffered local quando offline.
 - Idempotent insert no backend (event_id).
 - Signed firmware.
@@ -307,15 +307,15 @@ Construir **tracker IoT mínimo** integrado à Logística — opcional simulado 
 
 ## 6. Referências
 
-- **"Making Embedded Systems"** — Elecia White.
-- **"Embedded Software Engineering 101"** — Christoph Schmidt-Dwertmann.
+- **"Making Embedded Systems"**: Elecia White.
+- **"Embedded Software Engineering 101"**: Christoph Schmidt-Dwertmann.
 - **FreeRTOS docs**.
 - **Zephyr docs**.
-- **"Programming Embedded Systems in C and C++"** — Michael Barr.
+- **"Programming Embedded Systems in C and C++"**: Michael Barr.
 - **"The Rust Embedded Book"** ([rust-embedded.github.io](https://rust-embedded.github.io/)).
-- **"Linux Kernel Development"** — Robert Love.
+- **"Linux Kernel Development"**: Robert Love.
 - **MQTT spec v5**.
 - **LoRaWAN spec**.
-- **"TinyML"** — Pete Warden, Daniel Situnayake.
+- **"TinyML"**: Pete Warden, Daniel Situnayake.
 - **Espressif IDF docs** (ESP32).
 - **Hackaday + Hackster.io** community.

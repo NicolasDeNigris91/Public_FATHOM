@@ -34,7 +34,7 @@ function classify(cell: string): GateMark {
   for (const [sym, mark] of Object.entries(GATE_SYMBOLS)) {
     if (trimmed.startsWith(sym)) return mark;
   }
-  if (trimmed === '—' || trimmed === '-') return 'pending';
+  if (trimmed === ', ' || trimmed === '-') return 'pending';
   return 'pending';
 }
 

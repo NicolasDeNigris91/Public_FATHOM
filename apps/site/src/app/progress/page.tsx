@@ -7,7 +7,7 @@ import { STAGES } from '@/lib/stages';
 
 export const metadata = {
   title: 'Progress',
-  description: 'Dashboard de portões — estado atual de cada módulo do framework.',
+  description: 'Dashboard de portões, estado atual de cada módulo do framework.',
   alternates: { canonical: '/progress' },
 };
 
@@ -52,10 +52,10 @@ export default async function ProgressPage() {
         />
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mt-16 mb-16">
-          <Stat label="Estágio ativo" value={snap.activeStage || '—'} />
-          <Stat label="Módulo ativo" value={snap.activeModule || '—'} />
-          <Stat label="Próximo" value={snap.nextModule || '—'} />
-          <Stat label="Atualizado" value={snap.updatedAt || '—'} />
+          <Stat label="Estágio ativo" value={snap.activeStage || ', '} />
+          <Stat label="Módulo ativo" value={snap.activeModule || ', '} />
+          <Stat label="Próximo" value={snap.nextModule || ', '} />
+          <Stat label="Atualizado" value={snap.updatedAt || ', '} />
         </div>
 
         <div className="border border-mist/50 bg-graphite p-8 mb-12">

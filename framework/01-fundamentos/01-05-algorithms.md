@@ -1,6 +1,6 @@
 ---
 module: 01-05
-title: Algoritmos — Big-O, Sorting, Searching, DP, Graph, Strings
+title: Algoritmos, Big-O, Sorting, Searching, DP, Graph, Strings
 stage: fundamentos
 prereqs: [01-04]
 gates:
@@ -10,19 +10,19 @@ gates:
 status: locked
 ---
 
-# 01-05 — Algoritmos
+# 01-05, Algoritmos
 
 ## 1. Problema de Engenharia
 
-Algoritmos são **as receitas** de como resolver problemas computacionais. Linguagem, framework, banco — todos rodam algoritmos por baixo. Decisões arquiteturais frequentemente são, no fundo, **decisões algorítmicas**:
+Algoritmos são **as receitas** de como resolver problemas computacionais. Linguagem, framework, banco, todos rodam algoritmos por baixo. Decisões arquiteturais frequentemente são, no fundo, **decisões algorítmicas**:
 
-- Postgres escolhe entre `nested loop join`, `hash join`, `merge join` baseado em estatísticas — você precisa entender os 3 pra ler `EXPLAIN`.
-- Sistema de logística (capstone) precisa **encontrar caminho mais curto** (Dijkstra/A*), **otimizar rota** (TSP/VRP — NP-hard, heurísticas), **balancear carga** entre veículos.
+- Postgres escolhe entre `nested loop join`, `hash join`, `merge join` baseado em estatísticas, você precisa entender os 3 pra ler `EXPLAIN`.
+- Sistema de logística (capstone) precisa **encontrar caminho mais curto** (Dijkstra/A*), **otimizar rota** (TSP/VRP, NP-hard, heurísticas), **balancear carga** entre veículos.
 - Anti-cheat em jogos usa **string matching** (KMP, Rabin-Karp) pra detectar padrões em logs.
 - Compressão (gzip, brotli) usa **LZ77/LZ78** + **Huffman**.
 - Search engines usam **inverted index** + **TF-IDF** + **PageRank**.
 
-Sem fundamento algorítmico, você vira escravo de bibliotecas — quando algo não tem lib, você trava.
+Sem fundamento algorítmico, você vira escravo de bibliotecas, quando algo não tem lib, você trava.
 
 ---
 
@@ -44,7 +44,7 @@ Pra problemas, fala-se de:
 - **Amortized** (custo médio sobre sequência de operações)
 
 **Master theorem** (pra recorrências de divide-and-conquer):
-- `T(n) = a·T(n/b) + f(n)` — comparar `f(n)` com `n^(log_b a)` pra resolver.
+- `T(n) = a·T(n/b) + f(n)`, comparar `f(n)` com `n^(log_b a)` pra resolver.
 - Exemplo: merge sort `T(n) = 2T(n/2) + O(n)` → `O(n log n)`.
 
 ### 2.2 Sorting
@@ -67,7 +67,7 @@ Pra problemas, fala-se de:
 - **Radix sort**: O(n·d) onde d = dígitos. Para strings/inteiros.
 - **Bucket sort**: O(n) médio com distribuição uniforme.
 
-**`Array.prototype.sort` em V8:** Tim sort estável desde V8 7.0 (Chrome 70+, Node 11+). Use `arr.sort((a,b) => a-b)` pra numérico — `(a,b) => a < b` está **errado** (não estável).
+**`Array.prototype.sort` em V8:** Tim sort estável desde V8 7.0 (Chrome 70+, Node 11+). Use `arr.sort((a,b) => a-b)` pra numérico, `(a,b) => a < b` está **errado** (não estável).
 
 ### 2.3 Searching
 
@@ -99,13 +99,13 @@ Erros clássicos: condição `<` vs `≤`, off-by-one no `mid`, overflow em `(lo
 ```typescript
 function fib(n: number): number {
   if (n < 2) return n;
-  return fib(n - 1) + fib(n - 2); // O(2^n) — exponencial
+  return fib(n - 1) + fib(n - 2); // O(2^n), exponencial
 }
 ```
 
 **Problema:** `fib(40)` repete cálculos massivamente.
 
-**Solução 1 — Memoization (top-down DP):**
+**Solução 1, Memoization (top-down DP):**
 ```typescript
 const memo = new Map<number, number>();
 function fib(n: number): number {
@@ -118,7 +118,7 @@ function fib(n: number): number {
 // O(n) tempo, O(n) espaço
 ```
 
-**Solução 2 — Tabulação (bottom-up DP):**
+**Solução 2, Tabulação (bottom-up DP):**
 ```typescript
 function fib(n: number): number {
   if (n < 2) return n;
@@ -139,7 +139,7 @@ function fib(n: number): number {
 - Longest Common Subsequence
 - Knapsack (mochila)
 - Coin change
-- Edit distance (Levenshtein) — usado em diff, autocorrect.
+- Edit distance (Levenshtein), usado em diff, autocorrect.
 - Longest Increasing Subsequence
 
 ### 2.5 Greedy e Divide-and-Conquer
@@ -258,7 +258,7 @@ Pra passar o **Portão Conceitual**, sem consultar:
 
 ### Threshold
 
-- Os 3 algoritmos retornam **caminhos com mesma distância total** (exceto se A\* usa heurística inadmissível — não use).
+- Os 3 algoritmos retornam **caminhos com mesma distância total** (exceto se A\* usa heurística inadmissível, não use).
 - A\* explora **estritamente menos** ou igual ao Dijkstra.
 - Bidirectional Dijkstra explora aproximadamente metade do espaço.
 - Documenta no README:
@@ -279,47 +279,47 @@ Esse desafio é particularmente útil porque **alimenta o capstone de logística
 
 ## 5. Extensões e Conexões
 
-- **Conecta com [01-04 — Data Structures](01-04-data-structures.md):** todo algoritmo opera sobre estruturas. Heap pra Dijkstra, queue pra BFS, stack pra DFS.
-- **Conecta com [01-01 — Computation Model](01-01-computation-model.md):** algoritmos cache-friendly batem cache-hostile na prática mesmo com mesmo Big-O.
-- **Conecta com [02-09 — Postgres Deep](../02-plataforma/02-09-postgres-deep.md):** query planner escolhe entre nested loop, hash, merge join — algoritmos de junção. PostGIS faz routing geo com algoritmos similares ao seu desafio.
-- **Conecta com [04-09 — Scaling](../04-sistemas/04-09-scaling.md):** **consistent hashing** (DynamoDB, Cassandra, sharding moderno) é algoritmo crítico.
+- **Conecta com [01-04, Data Structures](01-04-data-structures.md):** todo algoritmo opera sobre estruturas. Heap pra Dijkstra, queue pra BFS, stack pra DFS.
+- **Conecta com [01-01, Computation Model](01-01-computation-model.md):** algoritmos cache-friendly batem cache-hostile na prática mesmo com mesmo Big-O.
+- **Conecta com [02-09, Postgres Deep](../02-plataforma/02-09-postgres-deep.md):** query planner escolhe entre nested loop, hash, merge join, algoritmos de junção. PostGIS faz routing geo com algoritmos similares ao seu desafio.
+- **Conecta com [04-09, Scaling](../04-sistemas/04-09-scaling.md):** **consistent hashing** (DynamoDB, Cassandra, sharding moderno) é algoritmo crítico.
 - **Conecta com [Capstone Senior](../04-sistemas/CAPSTONE-sistemas.md):** logística distribuída exige routing + otimização (VRP).
-- **Conecta com [04-10 — AI/LLM](../04-sistemas/04-10-ai-llm.md):** algoritmos de **nearest neighbor** em vector DBs (HNSW, IVF) são variações de graph search e clustering.
+- **Conecta com [04-10, AI/LLM](../04-sistemas/04-10-ai-llm.md):** algoritmos de **nearest neighbor** em vector DBs (HNSW, IVF) são variações de graph search e clustering.
 
 ### Ferramentas satélites
 
-- **[VisuAlgo](https://visualgo.net/en)** — animations.
-- **[CP-Algorithms](https://cp-algorithms.com/)** — referência detalhada de algoritmos competitivos. Excelente.
-- **[Leetcode top 100](https://leetcode.com/problem-list/top-100-liked-questions/)** — exercício.
+- **[VisuAlgo](https://visualgo.net/en)**: animations.
+- **[CP-Algorithms](https://cp-algorithms.com/)**: referência detalhada de algoritmos competitivos. Excelente.
+- **[Leetcode top 100](https://leetcode.com/problem-list/top-100-liked-questions/)**: exercício.
 
 ---
 
 ## 6. Referências de Elite
 
 ### Livros canônicos
-- **Introduction to Algorithms** (CLRS, 4th ed) — referência absoluta.
-- **Algorithms** (Sedgewick & Wayne) — alternativa didática.
-- **The Algorithm Design Manual** (Skiena) — pragmático, com war stories.
-- **Algorithms for Competitive Programming** ([cp-algorithms.com](https://cp-algorithms.com/)) — free, denso.
-- **Algorithms** (Jeff Erickson) — free em [jeffe.cs.illinois.edu/teaching/algorithms](https://jeffe.cs.illinois.edu/teaching/algorithms/). Notebook-style, brilhante.
+- **Introduction to Algorithms** (CLRS, 4th ed), referência absoluta.
+- **Algorithms** (Sedgewick & Wayne), alternativa didática.
+- **The Algorithm Design Manual** (Skiena), pragmático, com war stories.
+- **Algorithms for Competitive Programming** ([cp-algorithms.com](https://cp-algorithms.com/)), free, denso.
+- **Algorithms** (Jeff Erickson), free em [jeffe.cs.illinois.edu/teaching/algorithms](https://jeffe.cs.illinois.edu/teaching/algorithms/). Notebook-style, brilhante.
 
 ### Cursos
-- **[Princeton Algorithms (Coursera)](https://www.coursera.org/learn/algorithms-part1)** — Sedgewick. Sólido.
-- **[MIT 6.006](https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-fall-2011/)** — free, denso.
+- **[Princeton Algorithms (Coursera)](https://www.coursera.org/learn/algorithms-part1)**: Sedgewick. Sólido.
+- **[MIT 6.006](https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-fall-2011/)**: free, denso.
 
 ### Repos
-- **[trekhleb/javascript-algorithms](https://github.com/trekhleb/javascript-algorithms)** — implementações em JS.
-- **[the-algorithms](https://github.com/TheAlgorithms)** — mesmas estruturas em várias linguagens.
-- **[GraphHopper](https://github.com/graphhopper/graphhopper)** — routing engine open-source. Leia pra ver Contraction Hierarchies em produção.
-- **[OSRM](https://github.com/Project-OSRM/osrm-backend)** — outro routing engine.
+- **[trekhleb/javascript-algorithms](https://github.com/trekhleb/javascript-algorithms)**: implementações em JS.
+- **[the-algorithms](https://github.com/TheAlgorithms)**: mesmas estruturas em várias linguagens.
+- **[GraphHopper](https://github.com/graphhopper/graphhopper)**: routing engine open-source. Leia pra ver Contraction Hierarchies em produção.
+- **[OSRM](https://github.com/Project-OSRM/osrm-backend)**: outro routing engine.
 
 ### Talks
-- **["What every programmer should know about algorithms"](https://www.youtube.com/results?search_query=what+every+programmer+should+know+algorithms)** — várias talks.
-- **["Sorting Algorithms - Visualized"](https://www.youtube.com/watch?v=kPRA0W1kECg)** — clássica.
+- **["What every programmer should know about algorithms"](https://www.youtube.com/results?search_query=what+every+programmer+should+know+algorithms)**: várias talks.
+- **["Sorting Algorithms - Visualized"](https://www.youtube.com/watch?v=kPRA0W1kECg)**: clássica.
 
 ### Comunidade
-- **[Codeforces](https://codeforces.com/)** — competitive programming, conteúdo de elite.
-- **[Topcoder Tutorials](https://www.topcoder.com/community/competitive-programming/tutorials/)** — resumos de algoritmos.
+- **[Codeforces](https://codeforces.com/)**: competitive programming, conteúdo de elite.
+- **[Topcoder Tutorials](https://www.topcoder.com/community/competitive-programming/tutorials/)**: resumos de algoritmos.
 
 ---
 

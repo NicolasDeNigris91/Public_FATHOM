@@ -1,6 +1,6 @@
 ---
 capstone: senior
-title: Logística v3 — Distributed, Scalable, AI-Augmented
+title: Logística v3, Distributed, Scalable, AI-Augmented
 stage: sistemas
 prereqs: [04-01, 04-02, 04-03, 04-04, 04-05, 04-06, 04-07, 04-08, 04-09, 04-10, 04-11, 04-12]
 status: locked
@@ -8,7 +8,7 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
 ---
 
-# CAPSTONE Senior — Logística v3
+# CAPSTONE Senior, Logística v3
 
 ## 1. Por que esse capstone existe
 
@@ -41,7 +41,7 @@ Mesmo core (entregas multi-tenant). Crescimento ambicioso:
 Features novas que estressam o teto:
 - **Routing inteligente** (Rust + Wasm preview, expandido pra batched assignments).
 - **AI assistant** pra lojistas (LLM tool use).
-- **Tokens de fidelidade** opcional via L2 (04-11) — feature flag, não mainstream.
+- **Tokens de fidelidade** opcional via L2 (04-11), feature flag, não mainstream.
 - **Public API** pra parceiros (webhooks, SDK TS).
 - **Public status page** com SLO histórico.
 - **Self-service dashboards** pra lojistas verem cobrança e payouts.
@@ -129,7 +129,7 @@ Features novas que estressam o teto:
 - Rate limit por tenant.
 - Documentation portal.
 
-### 3.10 Blockchain (04-11) — feature flag
+### 3.10 Blockchain (04-11), feature flag
 
 - LogisticaEscrow contract em L2 testnet.
 - Lojistas opt-in.
@@ -163,7 +163,7 @@ Você só passa se:
 - AI assistant em produção com evals passando, cost controlled.
 - Public API com OpenAPI live, SDK publicado, rate limit, webhooks operacionais.
 - README + ARCHITECTURE.md formando narrativa coerente do sistema.
-- Você consegue fazer um **tech talk de 30 min** explicando arquitetura, decisões, trade-offs, lições aprendidas — sem slides feitos no momento.
+- Você consegue fazer um **tech talk de 30 min** explicando arquitetura, decisões, trade-offs, lições aprendidas, sem slides feitos no momento.
 
 Sem isso, fica em pendência. v3 é o teto do framework; após ele, você é senior+.
 
@@ -171,16 +171,16 @@ Sem isso, fica em pendência. v3 é o teto do framework; após ele, você é sen
 
 ## 5. Anti-padrões a evitar
 
-- "Microservices porque escala" — escolha por bounded context, não por fé.
-- "Multi-region em day 1" — você precisa primeiro single-region maduro.
-- "AI em todo lugar" — AI augment, não core decision.
+- "Microservices porque escala", escolha por bounded context, não por fé.
+- "Multi-region em day 1", você precisa primeiro single-region maduro.
+- "AI em todo lugar", AI augment, não core decision.
 - "Blockchain pra resolver problema X que não é blockchain problem".
 - "Distributed monolith disfarçado".
 - "Eventos sem schema, sem versioning, sem dead letter".
-- "ADRs escritos retroativamente sem honestidade" — escreva como decisões reais foram feitas, mesmo se fora idéias originais.
+- "ADRs escritos retroativamente sem honestidade", escreva como decisões reais foram feitas, mesmo se fora idéias originais.
 - "Performance sem profile".
 - "Resilience pattern aplicado por reflexo, sem chaos test confirmando".
-- "Eu sei tudo isso porque li" — implementação > leitura.
+- "Eu sei tudo isso porque li", implementação > leitura.
 
 ---
 
@@ -212,6 +212,6 @@ Se ele/ela responde "isso é trabalho de senior+ engineer", você passou.
 Após o capstone passar:
 - Atualize PROGRESS.md final.
 - `framework/04-sistemas/CAPSTONE-sistemas.md` frontmatter `status: done`.
-- `final-reflection.md` no repo do projeto: jornada completa do framework, do 01-01 ao 04-12+v3. Documente recomendações de mudança no framework — esse framework deve evoluir (registre via SPRINT-NEXT.md ou DECISION-LOG.md).
+- `final-reflection.md` no repo do projeto: jornada completa do framework, do 01-01 ao 04-12+v3. Documente recomendações de mudança no framework, esse framework deve evoluir (registre via SPRINT-NEXT.md ou DECISION-LOG.md).
 
 A partir daí, **você define o próximo passo**. Pode ser carreira específica (SRE, tech lead, founder), specialização (distributed databases, ML engineering), ou novo projeto onde aplicar o que aprendeu. O framework te entregou fundamentos. O resto é vida real.

@@ -1,6 +1,6 @@
 ---
 module: 03-11
-title: Systems Languages — Go and Rust for Backend Engineers
+title: Systems Languages, Go and Rust for Backend Engineers
 stage: producao
 prereqs: [01-06, 01-07, 02-07]
 gates:
@@ -10,19 +10,19 @@ gates:
 status: locked
 ---
 
-# 03-11 — Systems Languages
+# 03-11, Systems Languages
 
 ## 1. Problema de Engenharia
 
-JS/TS resolve 80% dos backends. Os 20% restantes — alta concorrência, latência sub-ms, processamento CPU-bound, ferramentas de infra, runtime crítico — pedem sistemas com tipos fortes, GC controlado ou ausente, concorrência primeiro-classe. Go e Rust dominam essa categoria. Você não precisa migrar Logística inteira. Precisa entender quando trazer ferramenta apropriada e ter conforto pra ler ecossistema (Docker, Kubernetes, Terraform, Tailscale são Go; Tauri, Astral tools, Polars, ripgrep são Rust).
+JS/TS resolve 80% dos backends. Os 20% restantes, alta concorrência, latência sub-ms, processamento CPU-bound, ferramentas de infra, runtime crítico, pedem sistemas com tipos fortes, GC controlado ou ausente, concorrência primeiro-classe. Go e Rust dominam essa categoria. Você não precisa migrar Logística inteira. Precisa entender quando trazer ferramenta apropriada e ter conforto pra ler ecossistema (Docker, Kubernetes, Terraform, Tailscale são Go; Tauri, Astral tools, Polars, ripgrep são Rust).
 
-Este módulo é Go e Rust **pra engenheiro full-stack** — não pra virar Rustacean ou Gopher hardcore. Modelo mental, idioms, concorrência, ecossistema, e quando cada um vence. Construir 1 serviço útil em cada.
+Este módulo é Go e Rust **pra engenheiro full-stack**: não pra virar Rustacean ou Gopher hardcore. Modelo mental, idioms, concorrência, ecossistema, e quando cada um vence. Construir 1 serviço útil em cada.
 
 ---
 
 ## 2. Teoria Hard
 
-### 2.1 Go — visão geral
+### 2.1 Go, visão geral
 
 Lançado 2009 (Google). Design: simples, tipagem estática, GC, concurrency primeira-classe (goroutines + channels), compilação rápida pra binário estático.
 
@@ -36,12 +36,12 @@ Lançado 2009 (Google). Design: simples, tipagem estática, GC, concurrency prim
 
 **Cons**:
 - Erros explícitos por valor (`if err != nil`) verbose.
-- Generics chegaram em 1.18 (2022) — antes era reflection.
+- Generics chegaram em 1.18 (2022), antes era reflection.
 - Sem enums proper (constantes + types).
 - Tratamento de errors via wrap manual.
 - Sem null safety; nil pointer panics ainda existem.
 
-### 2.2 Go — concorrência
+### 2.2 Go, concorrência
 
 Goroutines são green threads. `go f()` agenda; runtime schedula em P (processor) bound a M (OS thread).
 
@@ -72,7 +72,7 @@ Padrões:
 
 Mantra: "Don't communicate by sharing memory; share memory by communicating."
 
-### 2.3 Go — error handling
+### 2.3 Go, error handling
 
 ```go
 data, err := os.ReadFile("x")
@@ -85,7 +85,7 @@ if err != nil {
 
 Sem exceptions. Funções devolvem `(T, error)`. `panic`/`recover` reservados pra programmer errors.
 
-### 2.4 Go — ecosystem
+### 2.4 Go, ecosystem
 
 - **gin, echo, fiber, chi, gorilla/mux**: HTTP frameworks.
 - **net/http** stdlib bem suficiente. Frameworks geralmente pra ergonomia.
@@ -95,7 +95,7 @@ Sem exceptions. Funções devolvem `(T, error)`. `panic`/`recover` reservados pr
 - **cobra, urfave/cli**: CLI.
 - **Kubernetes, Docker, Terraform, etcd**: tudo Go. Familiarity te dá leitura desses códigos.
 
-### 2.5 Rust — visão geral
+### 2.5 Rust, visão geral
 
 Lançado 2010 (Mozilla). Design: zero-cost abstractions, memory safety sem GC via ownership/borrow checker, type system rico (sum types, traits, generics, lifetimes).
 
@@ -114,7 +114,7 @@ Lançado 2010 (Mozilla). Design: zero-cost abstractions, memory safety sem GC vi
 - Verbose em casos simples.
 - Refactor pode forçar mudanças amplas em assinaturas (lifetime parameters propagam).
 
-### 2.6 Rust — ownership
+### 2.6 Rust, ownership
 
 Cada valor tem 1 owner. Quando owner sai de escopo, valor é dropped.
 
@@ -141,7 +141,7 @@ r1.push_str("!");
 
 Compile-time guaranteia: ou múltiplos &T, ou um &mut T, nunca ambos. Elimina data races em concurrent code.
 
-### 2.7 Rust — lifetimes
+### 2.7 Rust, lifetimes
 
 Funções/structs anotam quanto tempo refs vivem:
 ```rust
@@ -154,7 +154,7 @@ fn longest<'a>(x: &'a str, y: &'a str) -> &'a str {
 
 Em 90% dos casos, lifetime elision (compiler infere) basta. Quando precisa anotar manualmente, é sinal de design refinement.
 
-### 2.8 Rust — Result, Option, pattern matching
+### 2.8 Rust, Result, Option, pattern matching
 
 ```rust
 enum Option<T> { Some(T), None }
@@ -174,7 +174,7 @@ let v = parse(input)?;  // ? propaga Err pro caller
 
 `?` operator é game-changer pra ergonomia.
 
-### 2.9 Rust — traits e generics
+### 2.9 Rust, traits e generics
 
 Traits = interfaces.
 ```rust
@@ -191,7 +191,7 @@ Trait objects (`dyn Trait`) pra dispatch dinâmico.
 
 Type system suporta higher-ranked traits, associated types, GATs (generic associated types).
 
-### 2.10 Rust — concorrência
+### 2.10 Rust, concorrência
 
 - **Threads**: `std::thread::spawn`, OS threads.
 - **Channels**: `std::sync::mpsc`. `crossbeam` é alternativa mais rica.
@@ -211,7 +211,7 @@ async fn main() {
 
 Send + Sync traits codificam thread-safety no type system.
 
-### 2.11 Rust — ecosystem backend
+### 2.11 Rust, ecosystem backend
 
 - **Axum** (Tokio team): async HTTP framework. Padrão atual.
 - **Actix-web**: maduro, performance forte.
@@ -273,7 +273,7 @@ Rust:
 
 Go: goroutines + channels. Runtime hide async; você chama bloqueante e runtime suspende.
 
-Rust: explicit `async fn`, Future trait, runtime (Tokio) escolhido. Mais ceremony, mais controle. "Function coloring" — async vira viral em assinaturas.
+Rust: explicit `async fn`, Future trait, runtime (Tokio) escolhido. Mais ceremony, mais controle. "Function coloring", async vira viral em assinaturas.
 
 Go é mais fácil de adotar pra backend. Rust é mais expressivo pra sistemas onde async coexiste com sync.
 
@@ -302,7 +302,7 @@ Construir **2 microserviços de apoio** ao Logística, um em Go, um em Rust.
 
 ### Especificação
 
-**Serviço 1 — Go: Webhook Ingestor**
+**Serviço 1, Go: Webhook Ingestor**
 
 1. **Stack**: Go 1.22+, `chi` ou `gin`, `pgx` direto pra Postgres.
 2. **Endpoints**:
@@ -321,7 +321,7 @@ Construir **2 microserviços de apoio** ao Logística, um em Go, um em Rust.
 5. **Tests**: table-driven tests pra validation, integration test contra Postgres via testcontainers.
 6. **Deploy**: Dockerfile multi-stage, imagem ≤ 20 MB.
 
-**Serviço 2 — Rust: Routing Engine**
+**Serviço 2, Rust: Routing Engine**
 
 1. **Stack**: Rust stable, Axum, sqlx (Postgres), tokio.
 2. **Endpoint**:
@@ -333,7 +333,7 @@ Construir **2 microserviços de apoio** ao Logística, um em Go, um em Rust.
    - Sem deps de routing externo (você implementa).
    - Use crates: `geo` pra haversine, `itertools` se ajudar.
 4. **Concorrência**:
-   - Cálculo CPU-bound — paralelize com `rayon` (data parallelism).
+   - Cálculo CPU-bound, paralelize com `rayon` (data parallelism).
    - Endpoint async (Tokio); compute em thread pool blocking (`tokio::task::spawn_blocking`).
 5. **Validation**: serde com Zod-equivalent (campos required, ranges).
 6. **Observability**: tracing com tracing-subscriber, OTel exporter.
@@ -357,7 +357,7 @@ Construir **2 microserviços de apoio** ao Logística, um em Go, um em Rust.
 - README documenta:
   - Por que cada serviço foi feito na linguagem escolhida.
   - Diagrama do polyglot stack.
-  - Bench de routing engine: 50 stops, 100 stops, 200 stops — latência p99.
+  - Bench de routing engine: 50 stops, 100 stops, 200 stops, latência p99.
   - Memory footprint de cada serviço sob load (Go vs Rust vs Node compare).
   - 1 caso onde borrow checker te ensinou algo (refactor não-óbvio em TS).
   - 1 caso onde channels Go simplificaram código que em Node seria mais verbose.
@@ -387,16 +387,16 @@ Construir **2 microserviços de apoio** ao Logística, um em Go, um em Rust.
 ## 6. Referências
 
 **Go**:
-- **"The Go Programming Language"** — Donovan, Kernighan.
-- **"Concurrency in Go"** — Katherine Cox-Buday.
-- **"100 Go Mistakes and How to Avoid Them"** — Teiva Harsanyi.
+- **"The Go Programming Language"**: Donovan, Kernighan.
+- **"Concurrency in Go"**: Katherine Cox-Buday.
+- **"100 Go Mistakes and How to Avoid Them"**: Teiva Harsanyi.
 - **Go Tour** + **Effective Go** ([go.dev](https://go.dev/)).
 
 **Rust**:
 - **"The Rust Programming Language"** ("The Book", livre) ([doc.rust-lang.org/book](https://doc.rust-lang.org/book/)).
-- **"Programming Rust"** — Blandy, Orendorff, Tindall.
-- **"Rust for Rustaceans"** — Jon Gjengset.
-- **"Zero to Production in Rust"** — Luca Palmieri.
+- **"Programming Rust"**: Blandy, Orendorff, Tindall.
+- **"Rust for Rustaceans"**: Jon Gjengset.
+- **"Zero to Production in Rust"**: Luca Palmieri.
 - **Tokio docs** ([tokio.rs](https://tokio.rs/)).
-- **Jon Gjengset YouTube** — explicações profundas.
+- **Jon Gjengset YouTube**: explicações profundas.
 - **This Week in Rust** ([this-week-in-rust.org](https://this-week-in-rust.org/)).

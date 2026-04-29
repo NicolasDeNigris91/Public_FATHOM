@@ -1,6 +1,6 @@
 ---
 module: 01-02
-title: Sistemas Operacionais — Processes, Threads, Scheduling, Syscalls, FDs
+title: Sistemas Operacionais, Processes, Threads, Scheduling, Syscalls, FDs
 stage: fundamentos
 prereqs: [01-01]
 gates:
@@ -10,7 +10,7 @@ gates:
 status: locked
 ---
 
-# 01-02 — Sistemas Operacionais
+# 01-02, Sistemas Operacionais
 
 ## 1. Problema de Engenharia
 
@@ -28,7 +28,7 @@ Este módulo te dá o vocabulário e os mecanismos do SO que sustentam **toda** 
 
 ## 2. Teoria Hard
 
-### 2.1 O que é um SO — kernel vs user space
+### 2.1 O que é um SO, kernel vs user space
 
 O kernel é um programa especial que roda em **modo privilegiado** da CPU. Ele tem acesso direto a hardware (CPU, RAM, disco, rede). Aplicações rodam em **user space**, em modo não-privilegiado, e **não** podem tocar hardware diretamente.
 
@@ -48,7 +48,7 @@ O kernel é um programa especial que roda em **modo privilegiado** da CPU. Ele t
                 Hardware
 ```
 
-Quando uma app precisa fazer algo privilegiado (ler arquivo, abrir socket), ela faz uma **system call** (`syscall`) — uma chamada que passa controle pro kernel via interrupção de software. Após o kernel executar, retorna ao user space.
+Quando uma app precisa fazer algo privilegiado (ler arquivo, abrir socket), ela faz uma **system call** (`syscall`), uma chamada que passa controle pro kernel via interrupção de software. Após o kernel executar, retorna ao user space.
 
 **Custo de syscall:** ~100-1000 ns dependendo da operação. Não é grátis. Por isso runtimes como Node fazem batching (uma syscall `writev` em vez de várias `write`).
 
@@ -56,7 +56,7 @@ Quando uma app precisa fazer algo privilegiado (ler arquivo, abrir socket), ela 
 
 Um **processo** é uma instância em execução de um programa. Cada processo tem:
 - **PID** (process ID, número único do kernel)
-- **Espaço de endereços virtual** próprio (text, data, heap, stack — ver 01-01)
+- **Espaço de endereços virtual** próprio (text, data, heap, stack, ver 01-01)
 - **Um ou mais threads** de execução
 - **File descriptors** abertos
 - **UID/GID** (usuário/grupo dono do processo)
@@ -75,7 +75,7 @@ Uma **thread** é uma sequência de execução **dentro** de um processo. Thread
 - Compartilham espaço de endereços (heap, código)
 - Têm **stacks separadas**
 - Têm registradores próprios
-- São escalonadas pelo SO (em Linux, threads são "Lightweight Processes" — kernel não distingue muito de processo)
+- São escalonadas pelo SO (em Linux, threads são "Lightweight Processes", kernel não distingue muito de processo)
 
 **Vantagem:** comunicação rápida via memória compartilhada.
 **Custo:** sincronização (mutex, semáforos, atomics) é difícil. Race conditions e deadlocks são fáceis de introduzir.
@@ -90,7 +90,7 @@ O kernel **escalona** threads/processos sobre os cores físicos (CPUs). Componen
 - **Scheduler**: decide qual thread roda em cada core, por quanto tempo (time slice / quantum, tipicamente 1-100ms).
 - **Context switch**: salvar registradores e estado da thread atual, restaurar os da próxima. Custa ~1-10 µs + invalidação parcial de cache.
 
-**Linux scheduler atual: CFS (Completely Fair Scheduler).** Mantém uma red-black tree de threads runnable, ordenada por **vruntime** (tempo virtual de CPU acumulado). Sempre escolhe a thread com menor vruntime — daí "fair".
+**Linux scheduler atual: CFS (Completely Fair Scheduler).** Mantém uma red-black tree de threads runnable, ordenada por **vruntime** (tempo virtual de CPU acumulado). Sempre escolhe a thread com menor vruntime, daí "fair".
 
 **Estados de thread:**
 - **Running** (executando)
@@ -103,27 +103,27 @@ Quando uma thread faz syscall bloqueante (`read` num socket sem dado), o kernel 
 **Implicações práticas:**
 - **Mais threads que cores ≠ mais paralelismo.** Apenas N threads rodam simultaneamente em N cores. As outras esperam.
 - **Context switching tem custo.** 1000s de threads concorrentes em I/O bound podem funcionar, mas em CPU-bound geralmente é melhor ~1 thread por core.
-- **CPU affinity** (`taskset`, `sched_setaffinity`) trava thread em cores específicos — útil pra cache locality em workloads críticas.
+- **CPU affinity** (`taskset`, `sched_setaffinity`) trava thread em cores específicos, útil pra cache locality em workloads críticas.
 
 ### 2.4.1 Schedulers modernos: CFS, EEVDF, Windows, BSD
 
 CFS reinou de 2007 até 2024. A partir do **Linux 6.6** (out/2023), o kernel mainline adotou **EEVDF** (Earliest Eligible Virtual Deadline First) substituindo CFS pra workloads não-realtime. Mudança discreta pra usuário comum, relevante pra quem ajusta latência fina.
 
-**EEVDF em uma frase:** cada thread recebe um **deadline virtual**; scheduler sempre roda quem está "elegível" (acumulou direito) com menor deadline. CFS minimizava unfairness entre quem rodou; EEVDF agrega **slice/lag** explícitos — mais fácil raciocinar sobre latência tail.
+**EEVDF em uma frase:** cada thread recebe um **deadline virtual**; scheduler sempre roda quem está "elegível" (acumulou direito) com menor deadline. CFS minimizava unfairness entre quem rodou; EEVDF agrega **slice/lag** explícitos, mais fácil raciocinar sobre latência tail.
 
 **Por que mudou:**
 - CFS dependia de heurísticas (`sched_min_granularity_ns`, etc.) pra balancear interatividade vs throughput. EEVDF expressa o trade-off via `slice` por entidade.
 - CFS tinha bugs documentados em workloads com burst pequeno (web servers acordando rápido). EEVDF reduz tail latency em ~20% em benchmarks (Phoronix 2024).
 
 **Outras classes de scheduler em Linux** (não substituídas por EEVDF):
-- **`SCHED_FIFO`/`SCHED_RR`** (real-time, prioridade fixa). Usada em audio, controle industrial. Sem timesharing — pode ser starver.
-- **`SCHED_DEADLINE`** (EDF — Earliest Deadline First). Real-time hard. Você declara `(runtime, deadline, period)` e kernel admite só se cabe.
+- **`SCHED_FIFO`/`SCHED_RR`** (real-time, prioridade fixa). Usada em audio, controle industrial. Sem timesharing, pode ser starver.
+- **`SCHED_DEADLINE`** (EDF, Earliest Deadline First). Real-time hard. Você declara `(runtime, deadline, period)` e kernel admite só se cabe.
 - **`SCHED_IDLE`** (background, prioridade mais baixa que normal).
 - **`chrt`** muda a classe de um processo.
 
-**Windows scheduler:** **multilevel feedback queue** com 32 prioridades. Foreground apps recebem boost (UI responsivo), I/O-bound idem. Não é "fair" no sentido CFS — é "responsivo". A partir do **Windows 11**, há **Thread Director** que coopera com Intel hybrid CPUs (P-cores + E-cores) pra colocar work certo no core certo.
+**Windows scheduler:** **multilevel feedback queue** com 32 prioridades. Foreground apps recebem boost (UI responsivo), I/O-bound idem. Não é "fair" no sentido CFS, é "responsivo". A partir do **Windows 11**, há **Thread Director** que coopera com Intel hybrid CPUs (P-cores + E-cores) pra colocar work certo no core certo.
 
-**macOS/BSD scheduler:** **Mach** + **BSD scheduler layer**. Threads têm `quality of service class` (`QOS_CLASS_USER_INTERACTIVE`, `..._USER_INITIATED`, `..._UTILITY`, `..._BACKGROUND`). Apple Silicon tem heterogeneous cores (P/E) — scheduler decide energy/perf.
+**macOS/BSD scheduler:** **Mach** + **BSD scheduler layer**. Threads têm `quality of service class` (`QOS_CLASS_USER_INTERACTIVE`, `..._USER_INITIATED`, `..._UTILITY`, `..._BACKGROUND`). Apple Silicon tem heterogeneous cores (P/E), scheduler decide energy/perf.
 
 **Implicações práticas pra Senior:**
 - **Latency-sensitive workload em Linux**: considere `SCHED_FIFO` ou `SCHED_DEADLINE` em vez de só `nice`. Cuidado com starvation.
@@ -133,7 +133,7 @@ CFS reinou de 2007 até 2024. A partir do **Linux 6.6** (out/2023), o kernel mai
 
 ### 2.5 System calls e standard library
 
-Aplicação não chama syscalls diretamente — chama wrappers da **libc** (em C, libc é a implementação que faz a syscall). Em outras linguagens, há equivalente (Node usa libuv que chama syscalls).
+Aplicação não chama syscalls diretamente, chama wrappers da **libc** (em C, libc é a implementação que faz a syscall). Em outras linguagens, há equivalente (Node usa libuv que chama syscalls).
 
 **Syscalls clássicas** que você precisa saber existir:
 
@@ -149,11 +149,11 @@ Aplicação não chama syscalls diretamente — chama wrappers da **libc** (em C
 | Time | `clock_gettime`, `nanosleep` | Relógio, sleep |
 | IPC | `pipe`, `socketpair`, `shmget`, `mq_open` | Inter-process communication |
 
-Use `strace -f` em qualquer processo Linux pra ver as syscalls que ele faz. **Faça isso uma vez com `node script.js`** — você vai entender o que o runtime está realmente fazendo.
+Use `strace -f` em qualquer processo Linux pra ver as syscalls que ele faz. **Faça isso uma vez com `node script.js`**: você vai entender o que o runtime está realmente fazendo.
 
 ### 2.6 File descriptors
 
-Tudo no Linux é **arquivo** — ou pelo menos é exposto via API de arquivo. Sockets, pipes, terminais, arquivos regulares, dispositivos, tudo é representado por um **file descriptor (FD)**: um inteiro pequeno que indexa uma tabela por processo.
+Tudo no Linux é **arquivo**: ou pelo menos é exposto via API de arquivo. Sockets, pipes, terminais, arquivos regulares, dispositivos, tudo é representado por um **file descriptor (FD)**: um inteiro pequeno que indexa uma tabela por processo.
 
 FDs especiais:
 - **0** = stdin
@@ -166,15 +166,15 @@ Quando você abre arquivo (`open`), o kernel retorna o FD numericamente menor di
 
 **Closing FDs** é responsabilidade do processo. Não fechar = leak. Use **try/finally** (em qualquer linguagem) ou RAII (C++/Rust).
 
-**Tabela de FDs após fork:** o filho herda **cópia da tabela**. Os mesmos FDs apontam pras mesmas entries no kernel — então pai e filho compartilham posição em arquivos abertos!
+**Tabela de FDs após fork:** o filho herda **cópia da tabela**. Os mesmos FDs apontam pras mesmas entries no kernel, então pai e filho compartilham posição em arquivos abertos!
 
 ### 2.7 I/O bloqueante vs não-bloqueante vs assíncrono
 
 Imagine `read(fd, buf, 1024)`:
 
-- **Bloqueante (default):** se não há dado disponível, a thread fica em `Sleep` até dado chegar. Simples, mas escala mal — uma thread por conexão pra um servidor web é caro.
+- **Bloqueante (default):** se não há dado disponível, a thread fica em `Sleep` até dado chegar. Simples, mas escala mal, uma thread por conexão pra um servidor web é caro.
 - **Não-bloqueante (`O_NONBLOCK`):** se não há dado, retorna **imediatamente** com `EAGAIN`/`EWOULDBLOCK`. Aplicação tem que pollar/voltar depois. Permite uma thread gerenciar muitos FDs.
-- **I/O multiplex (`select`/`poll`/`epoll`):** thread bloqueia em **muitos FDs ao mesmo tempo**, acorda quando qualquer um tem dado pronto. **`epoll` (Linux)** é eficiente até 100k+ conexões — usado pelo libuv (Node), nginx, redis.
+- **I/O multiplex (`select`/`poll`/`epoll`):** thread bloqueia em **muitos FDs ao mesmo tempo**, acorda quando qualquer um tem dado pronto. **`epoll` (Linux)** é eficiente até 100k+ conexões, usado pelo libuv (Node), nginx, redis.
 - **AIO (assíncrono real, Linux `io_uring`):** kernel faz a operação em background, acorda app quando termina. Mais eficiente mas mais complexo.
 
 **Por que isso importa pra Node:**
@@ -184,19 +184,19 @@ Imagine `read(fd, buf, 1024)`:
 ### 2.8 Signals
 
 **Signal** é uma notificação assíncrona enviada pelo kernel a um processo. Lista clássica:
-- `SIGINT` (Ctrl+C) — interrupção
-- `SIGTERM` — pedido educado pra terminar (default `kill <pid>`)
-- `SIGKILL` (9) — terminação forçada, não captável
-- `SIGSEGV` — segmentation fault (acesso a memória inválida)
-- `SIGCHLD` — filho terminou
-- `SIGPIPE` — escreveu em pipe sem leitor
-- `SIGUSR1`, `SIGUSR2` — definidos pelo usuário
+- `SIGINT` (Ctrl+C), interrupção
+- `SIGTERM`, pedido educado pra terminar (default `kill <pid>`)
+- `SIGKILL` (9), terminação forçada, não captável
+- `SIGSEGV`, segmentation fault (acesso a memória inválida)
+- `SIGCHLD`, filho terminou
+- `SIGPIPE`, escreveu em pipe sem leitor
+- `SIGUSR1`, `SIGUSR2`, definidos pelo usuário
 
 Aplicações **podem capturar** signals (exceto `SIGKILL` e `SIGSTOP`) com `signal()` ou `sigaction()`. Em Node: `process.on('SIGTERM', handler)`.
 
 **Padrão importante**: graceful shutdown. Captura `SIGTERM`, fecha conexões abertas, espera in-flight requests terminarem, depois encerra. Kubernetes envia `SIGTERM`, espera `terminationGracePeriodSeconds`, depois `SIGKILL`.
 
-### 2.9 IPC — Inter-Process Communication
+### 2.9 IPC, Inter-Process Communication
 
 Mecanismos pra processos se comunicarem:
 - **Pipes (`|` no shell)**: stream unidirecional, criada com `pipe()` ou ao spawnar com `popen`. Usado em Node via `child_process`.
@@ -251,9 +251,9 @@ Pra passar o **Portão Conceitual**, sem consultar:
 Construa um REPL que aceite comandos e execute como um shell (bash-like). Suporte:
 
 1. **Comandos externos**: `ls`, `cat foo.txt`, `node script.js`, etc. Use `child_process.spawn` ou equivalente.
-2. **Pipes**: `cat foo.txt | grep bar | wc -l` — encadeamento de processos.
+2. **Pipes**: `cat foo.txt | grep bar | wc -l`, encadeamento de processos.
 3. **Redirecionamento**: `ls > out.txt`, `cat < in.txt`, `command 2> err.log`.
-4. **Background jobs**: `sleep 10 &` — não bloqueia o prompt.
+4. **Background jobs**: `sleep 10 &`, não bloqueia o prompt.
 5. **Built-ins**: `cd <path>`, `exit`, `pwd`, `export VAR=value`.
 6. **Sinais**: Ctrl+C deve enviar `SIGINT` ao processo em foreground sem matar o shell.
 7. **Tratamento de zombies**: shell deve fazer `wait` em filhos terminados.
@@ -280,13 +280,13 @@ Construa um REPL que aceite comandos e execute como um shell (bash-like). Suport
 
 ## 5. Extensões e Conexões
 
-- **Conecta com [01-01 — Computation Model](01-01-computation-model.md):** virtual memory, page tables, mmap são features do kernel. Stack/heap layout é mantido pelo kernel ao iniciar processo.
-- **Conecta com [01-03 — Networking](01-03-networking.md):** sockets são FDs. `epoll` esperando em N sockets é o **fundamento** do servidor Node.
-- **Conecta com [01-09 — Git Internals](01-09-git-internals.md):** Git usa file locks (`*.lock` files) pra serializar escritas no `.git/`. Falhas em fork+exec são origem de "git stuck on lock" issues.
-- **Conecta com [01-10 — Unix CLI & Bash](01-10-unix-cli-bash.md):** o que você usa no shell é orquestração de processos via syscalls.
-- **Conecta com [02-07 — Node.js Internals](../02-plataforma/02-07-nodejs-internals.md):** event loop do Node é construído sobre `epoll` (Linux), `kqueue` (BSD/macOS), `IOCP` (Windows). Worker threads são threads kernel.
-- **Conecta com [03-02 — Docker](../03-producao/03-02-docker.md):** containers são processos com **namespaces** (PID, net, mount, IPC, UTS, user) e **cgroups** isolados — features do kernel Linux.
-- **Conecta com [03-03 — Kubernetes](../03-producao/03-03-kubernetes.md):** pods são grupos de containers compartilhando network namespace.
+- **Conecta com [01-01, Computation Model](01-01-computation-model.md):** virtual memory, page tables, mmap são features do kernel. Stack/heap layout é mantido pelo kernel ao iniciar processo.
+- **Conecta com [01-03, Networking](01-03-networking.md):** sockets são FDs. `epoll` esperando em N sockets é o **fundamento** do servidor Node.
+- **Conecta com [01-09, Git Internals](01-09-git-internals.md):** Git usa file locks (`*.lock` files) pra serializar escritas no `.git/`. Falhas em fork+exec são origem de "git stuck on lock" issues.
+- **Conecta com [01-10, Unix CLI & Bash](01-10-unix-cli-bash.md):** o que você usa no shell é orquestração de processos via syscalls.
+- **Conecta com [02-07, Node.js Internals](../02-plataforma/02-07-nodejs-internals.md):** event loop do Node é construído sobre `epoll` (Linux), `kqueue` (BSD/macOS), `IOCP` (Windows). Worker threads são threads kernel.
+- **Conecta com [03-02, Docker](../03-producao/03-02-docker.md):** containers são processos com **namespaces** (PID, net, mount, IPC, UTS, user) e **cgroups** isolados, features do kernel Linux.
+- **Conecta com [03-03, Kubernetes](../03-producao/03-03-kubernetes.md):** pods são grupos de containers compartilhando network namespace.
 
 ### Ferramentas satélites
 
@@ -304,33 +304,33 @@ Construa um REPL que aceite comandos e execute como um shell (bash-like). Suport
 ## 6. Referências de Elite
 
 ### Livros canônicos
-- **Operating Systems: Three Easy Pieces** (Remzi Arpaci-Dusseau) — free em [pages.cs.wisc.edu/~remzi/OSTEP](https://pages.cs.wisc.edu/~remzi/OSTEP/). **Leitura obrigatória.** Capítulos 4-5 (processes), 26-32 (concurrency), 35-43 (persistence).
-- **Advanced Programming in the UNIX Environment** (Stevens & Rago, "APUE") — bíblia. Use como referência.
-- **The Linux Programming Interface** (Michael Kerrisk) — alternativa moderna a APUE, mais Linux-specific.
-- **Linux Kernel Development** (Robert Love) — quando quiser entender o lado kernel.
+- **Operating Systems: Three Easy Pieces** (Remzi Arpaci-Dusseau), free em [pages.cs.wisc.edu/~remzi/OSTEP](https://pages.cs.wisc.edu/~remzi/OSTEP/). **Leitura obrigatória.** Capítulos 4-5 (processes), 26-32 (concurrency), 35-43 (persistence).
+- **Advanced Programming in the UNIX Environment** (Stevens & Rago, "APUE"), bíblia. Use como referência.
+- **The Linux Programming Interface** (Michael Kerrisk), alternativa moderna a APUE, mais Linux-specific.
+- **Linux Kernel Development** (Robert Love), quando quiser entender o lado kernel.
 
 ### Artigos
-- **["The C10K problem"](http://www.kegel.com/c10k.html)** — Dan Kegel. Histórico, mas o **fundamento conceitual** de servidores high-concurrency. Leia.
-- **["The C10M problem"](https://highscalability.com/the-secret-to-10-million-concurrent-connections-the-kernel-i/)** — sequência moderna.
+- **["The C10K problem"](http://www.kegel.com/c10k.html)**: Dan Kegel. Histórico, mas o **fundamento conceitual** de servidores high-concurrency. Leia.
+- **["The C10M problem"](https://highscalability.com/the-secret-to-10-million-concurrent-connections-the-kernel-i/)**: sequência moderna.
 - **["Understanding the Linux Kernel CFS"](https://opensource.com/article/19/2/fair-scheduling-linux)**.
 
 ### Repos
-- **[Linux kernel source](https://github.com/torvalds/linux)** — `kernel/sched/` pra scheduler, `fs/` pra filesystems.
-- **[libuv](https://github.com/libuv/libuv)** — implementação de event loop C que o Node usa.
-- **[busybox](https://www.busybox.net/)** — implementações minimal de quase todos comandos Unix. Excelente pra ler código.
-- **[xv6](https://github.com/mit-pdos/xv6-public)** — SO didático do MIT. Pode ler inteiro.
+- **[Linux kernel source](https://github.com/torvalds/linux)**: `kernel/sched/` pra scheduler, `fs/` pra filesystems.
+- **[libuv](https://github.com/libuv/libuv)**: implementação de event loop C que o Node usa.
+- **[busybox](https://www.busybox.net/)**: implementações minimal de quase todos comandos Unix. Excelente pra ler código.
+- **[xv6](https://github.com/mit-pdos/xv6-public)**: SO didático do MIT. Pode ler inteiro.
 
 ### Documentação primária
-- **[man pages](https://man7.org/linux/man-pages/)** — `man 2 <syscall>` (seção 2 = syscalls). Use sempre.
+- **[man pages](https://man7.org/linux/man-pages/)**: `man 2 <syscall>` (seção 2 = syscalls). Use sempre.
 - **[Linux man pages online](https://man7.org/linux/man-pages/)**.
 
 ### Talks
-- **["Linux Scheduler"](https://www.youtube.com/watch?v=q1GH3wMs9_Y)** — várias talks de LinuxCon.
-- **Brendan Gregg performance talks** — [brendangregg.com/talks.html](https://www.brendangregg.com/talks.html).
+- **["Linux Scheduler"](https://www.youtube.com/watch?v=q1GH3wMs9_Y)**: várias talks de LinuxCon.
+- **Brendan Gregg performance talks**: [brendangregg.com/talks.html](https://www.brendangregg.com/talks.html).
 
 ### Comunidade
 - **[r/linux](https://www.reddit.com/r/linux)**, **[r/kernel](https://www.reddit.com/r/kernel)**.
-- **LWN.net** — jornalismo técnico de kernel de altíssima qualidade.
+- **LWN.net**: jornalismo técnico de kernel de altíssima qualidade.
 
 ---
 
