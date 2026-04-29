@@ -43,18 +43,18 @@ Total: ~6h deep work/dia × 5 dias = 30h/sem.
 
 | Mês | Foco principal |
 |---|---|
-| 1 | Novice N01-N06 + STUDY-PROTOCOL aplicado |
-| 2 | Novice N07-N15 + CAPSTONE-novice |
-| 3 | Apprentice frontend (A01-A06) |
-| 4 | Apprentice backend (A07-A14) |
-| 5 | Apprentice dados (A09-A12, A15-A16) + auth + i18n |
-| 6 | CAPSTONE-apprentice (Logística v1) |
-| 7-8 | Professional ops + qualidade (P01-P10, P15-P18) |
-| 9 | CAPSTONE-professional (Logística v2) |
-| 10-11 | Senior distribuído (S01-S09) |
-| 12 | Senior carreira/business (S12-S16) |
+| 1 | Fundamentos 01-01-01-06 + STUDY-PROTOCOL aplicado |
+| 2 | Fundamentos 01-07-01-15 + CAPSTONE-fundamentos |
+| 3 | Plataforma frontend (02-01-02-06) |
+| 4 | Plataforma backend (02-07-02-14) |
+| 5 | Plataforma dados (02-09-02-12, 02-15-02-16) + auth + i18n |
+| 6 | CAPSTONE-plataforma (Logística v1) |
+| 7-8 | Professional ops + qualidade (03-01-03-10, 03-15-03-18) |
+| 9 | CAPSTONE-producao (Logística v2) |
+| 10-11 | Senior distribuído (04-01-04-09) |
+| 12 | Senior carreira/business (04-12-04-16) |
 
-Total full sabbatical 12-18 meses pra terminar até CAPSTONE-senior. Stage Staff (5) fica como continuação pós-job.
+Total full sabbatical 12-18 meses pra terminar até CAPSTONE-sistemas. Stage Staff (5) fica como continuação pós-job.
 
 ### Riscos
 
@@ -86,11 +86,11 @@ Total: ~10h/sem deep work.
 
 | Período | Foco |
 |---|---|
-| Mês 1-3 | N01-N06 |
-| Mês 4-6 | N07-N15 + CAPSTONE-novice |
-| Ano 2 (12 meses) | Apprentice todo + CAPSTONE-apprentice |
-| Ano 3 (12 meses) | Professional + CAPSTONE-professional |
-| Ano 4 (12 meses) | Senior + CAPSTONE-senior |
+| Mês 1-3 | 01-01-01-06 |
+| Mês 4-6 | 01-07-01-15 + CAPSTONE-fundamentos |
+| Ano 2 (12 meses) | Plataforma todo + CAPSTONE-plataforma |
+| Ano 3 (12 meses) | Professional + CAPSTONE-producao |
+| Ano 4 (12 meses) | Senior + CAPSTONE-sistemas |
 | Ano 5+ | Stage Staff conforme aspiração |
 
 ### Riscos
@@ -128,8 +128,8 @@ Multiplicar Plan B por 1.5-2x:
 
 | Período | Foco |
 |---|---|
-| Ano 1 | Novice |
-| Ano 2-3 | Apprentice |
+| Ano 1 | Fundamentos |
+| Ano 2-3 | Plataforma |
 | Ano 4-5 | Professional |
 | Ano 6-7 | Senior |
 
@@ -153,13 +153,13 @@ Mesmo Plan B (10h/sem) **mas começa real do zero**.
 
 ### Cronograma:
 
-- **Mês 1**: SELF-ASSESSMENT + Plan B cadence + N01-N02.
-- **Trimestre 1-2**: Novice todo. Lacunas detectadas em SELF-ASSESSMENT priorizadas.
+- **Mês 1**: SELF-ASSESSMENT + Plan B cadence + 01-01-01-02.
+- **Trimestre 1-2**: Fundamentos todo. Lacunas detectadas em SELF-ASSESSMENT priorizadas.
 - **Subsequente**: segue Plan B.
 
 ### Atenção:
 
-- **Tentação de pular Novice**: você já programa. Faça portões mesmo assim. Maior parte falha em N02-N04 detalhados.
+- **Tentação de pular Fundamentos**: você já programa. Faça portões mesmo assim. Maior parte falha em 01-02-01-04 detalhados.
 - **Não substitua job pelo framework**: trabalho remunerado provê produção real (necessária pro Senior real).
 - **Mentor humano** ajuda muito nessa fase. Pague se preciso (paga-se em meses de aceleração).
 
@@ -171,20 +171,20 @@ Mesmo Plan B (10h/sem) **mas começa real do zero**.
 
 ### Cadência enxuta
 
-Pula Novice + Apprentice (faça portões pra confirmar). Foco em:
+Pula Fundamentos + Plataforma (faça portões pra confirmar). Foco em:
 
 - **Audit dos pontos fracos** via SELF-ASSESSMENT.
-- **Stage 4 Senior modules pendentes**: S13 streaming, S14 formal methods, S15 OSS, S16 business.
-- **Stage 5 Staff**: ST01 build-from-scratch (paralelo, longo) + ST04 paper habit + ST05 public output + ST06 mentorship desde já.
-- **CAPSTONE-staff**: trabalhar continuamente; portfolio + promo case.
+- **Stage 4 Senior modules pendentes**: 04-13 streaming, 04-14 formal methods, 04-15 OSS, 04-16 business.
+- **Stage 5 Staff**: 05-01 build-from-scratch (paralelo, longo) + 05-04 paper habit + 05-05 public output + 05-06 mentorship desde já.
+- **CAPSTONE-amplitude**: trabalhar continuamente; portfolio + promo case.
 
 ### Cronograma:
 
 | Mês | Foco |
 |---|---|
-| 1-3 | Audit + S13-S16 portões + start ST04 paper habit. |
-| 4-12 | ST01 (1 toy), ST02 (1 capstone), ST05 cadence. |
-| 12-24 | Continue ST01-ST02, mentor 1-3 mentees (ST06), publicar 6+ posts (ST05). |
+| 1-3 | Audit + 04-13-04-16 portões + start 05-04 paper habit. |
+| 4-12 | 05-01 (1 toy), 05-02 (1 capstone), 05-05 cadence. |
+| 12-24 | Continue 05-01-05-02, mentor 1-3 mentees (05-06), publicar 6+ posts (05-05). |
 | Continuous | Maintain habit pós-Staff. |
 
 Esse é o plan que mais combina com framework neste estado.
@@ -197,8 +197,8 @@ Esse é o plan que mais combina com framework neste estado.
 
 ### Cadência: combinação Plan A (3-6 meses bootcamp-like) + Plan B subsequente.
 
-- **Mês 1-3 (Plan A)**: imersão Novice. Setup ambiente real. Habit de coding diário.
-- **Mês 4-6**: Apprentice frontend + CAPSTONE simples (não Logística inteira; algo menor). Aplicar a jobs junior.
+- **Mês 1-3 (Plan A)**: imersão Fundamentos. Setup ambiente real. Habit de coding diário.
+- **Mês 4-6**: Plataforma frontend + CAPSTONE simples (não Logística inteira; algo menor). Aplicar a jobs junior.
 - **Mês 7+**: job junior + Plan B cadence. Continue framework.
 
 ### Atenção:
@@ -216,11 +216,11 @@ Esse é o plan que mais combina com framework neste estado.
 
 Foco em **conceito + reading**, não Desafios:
 
-- N01-N04 conceitos.
-- A07-A09 conceitos.
-- P02-P07 conceitos (decision-making).
-- S01, S08, S12, S16.
-- ST03 Conway's Law.
+- 01-01-01-04 conceitos.
+- 02-07-02-09 conceitos.
+- 03-02-03-07 conceitos (decision-making).
+- 04-01, 04-08, 04-12, 04-16.
+- 05-03 Conway's Law.
 
 Pula Desafios. Risk: literacy sem implementation = ainda gap. Aceite explicitamente.
 
@@ -248,7 +248,7 @@ Solo absoluto sem nenhum canal externo falha. Encontre 1 buddy mínimo, paper cl
 
 ### Skip portões
 
-"Já vi Postgres, pula A09 portão." 80% das vezes você falha. Faça mesmo assim.
+"Já vi Postgres, pula 02-09 portão." 80% das vezes você falha. Faça mesmo assim.
 
 ### Não ler livros
 

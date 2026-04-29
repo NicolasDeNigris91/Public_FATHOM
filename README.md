@@ -1,8 +1,6 @@
-# Fathom — Framework de Maestria Full Stack
+# Fathom
 
-> Trilha estruturada de iniciante real até Staff/Principal Software Engineer. Mastery-based, sem prazos, conduzida pelo mentor (você, peer, ou suplemento opcional) sob protocolo rígido.
-
-Não é curso. Não é bootcamp. Não é leitura passiva. É uma **disciplina de longo prazo** com módulos densos, portões de avaliação, e um produto encadeado (Logística) que evolui ao longo dos 5 estágios.
+> Minhas notas de estudo de engenharia de software, organizadas por estágio.
 
 ---
 
@@ -34,11 +32,11 @@ Fathom/
     │   ├── SELF-ASSESSMENT.md         # questionário inicial pra calibrar trilha
     │   ├── elite-references.md        # repos, blogs, talks, comunidades, RFCs
     │   └── reading-list.md            # livros canônicos por estágio
-    ├── 01-novice/         (15 módulos + capstone — fundamentos & CS)
-    ├── 02-apprentice/     (19 módulos + capstone — aplicações)
-    ├── 03-professional/   (17 módulos + capstone — operações & qualidade)
-    ├── 04-senior/         (16 módulos + capstone — distribuído & arquitetura)
-    └── 05-staff/          (7 módulos + capstone — specialization & influence)
+    ├── 01-fundamentos/         (15 módulos + capstone — fundamentos & CS)
+    ├── 02-plataforma/     (19 módulos + capstone — aplicações)
+    ├── 03-producao/   (17 módulos + capstone — operações & qualidade)
+    ├── 04-sistemas/         (16 módulos + capstone — distribuído & arquitetura)
+    └── 05-amplitude/          (7 módulos + capstone — specialization & influence)
 ```
 
 **Total**: 5 estágios, 66 módulos, 5 capstones, 8 metas, 3 raiz.
@@ -49,11 +47,11 @@ Detalhe completo em [framework/00-meta/INDEX.md](framework/00-meta/INDEX.md).
 
 ## Os 5 estágios em uma frase cada
 
-1. **Novice (Fundamentos & CS)** — quando perguntarem "por que esse loop é lento?", você raciocina sobre cache, alocação, syscalls, complexidade, branch prediction. Não chuta. [framework/01-novice/](framework/01-novice/README.md)
-2. **Apprentice (Aplicações)** — você constrói e opera aplicação full-stack monolítica em produção, defendendo cada escolha técnica em entrevista de Pleno. [framework/02-apprentice/](framework/02-apprentice/README.md)
-3. **Professional (Ecossistema, Testes, Operações)** — você coloca em produção com qualidade de empresa séria — testes confiáveis, deploy seguro, observabilidade real, segurança defensável, performance medida, planning honesto. [framework/03-professional/](framework/03-professional/README.md)
-4. **Senior (Arquitetura Distribuída)** — você desenha e justifica arquitetura distribuída pra problema novo, prevendo trade-offs, modos de falha, custos operacionais, com TLA+ pra o que importa. [framework/04-senior/](framework/04-senior/README.md)
-5. **Staff / Principal (Specialization, Influence, Public Output)** — você multiplica via influência, especializa em eixo, publica, mentora, lê papers, constrói from-scratch, fala org, pensa business. [framework/05-staff/](framework/05-staff/README.md)
+1. **Estágio 1 — Fundamentos (Computer Science)** — quando perguntarem "por que esse loop é lento?", você raciocina sobre cache, alocação, syscalls, complexidade, branch prediction. Não chuta. [framework/01-fundamentos/](framework/01-fundamentos/README.md)
+2. **Estágio 2 — Plataforma (Aplicações Full Stack)** — você constrói e opera aplicação full-stack monolítica em produção, defendendo cada escolha técnica. [framework/02-plataforma/](framework/02-plataforma/README.md)
+3. **Estágio 3 — Produção (Ecossistema, Testes, Operações)** — você coloca em produção com qualidade de empresa séria — testes confiáveis, deploy seguro, observabilidade real, segurança defensável, performance medida, planning honesto. [framework/03-producao/](framework/03-producao/README.md)
+4. **Estágio 4 — Sistemas (Arquitetura Distribuída)** — você desenha e justifica arquitetura distribuída pra problema novo, prevendo trade-offs, modos de falha, custos operacionais, com TLA+ pra o que importa. [framework/04-sistemas/](framework/04-sistemas/README.md)
+5. **Estágio 5 — Amplitude (Specialization, Influence, Public Output)** — você multiplica via influência, especializa em eixo, publica, mentora, lê papers, constrói from-scratch, fala org, pensa business. [framework/05-amplitude/](framework/05-amplitude/README.md)
 
 Cada estágio tem capstone que **evolui o mesmo produto** (Logística — sistema de roteamento de entregas multi-tenant). Você sente refactor, migration, redesign na pele. Detalhe em [CAPSTONE-EVOLUTION.md](framework/00-meta/CAPSTONE-EVOLUTION.md).
 
@@ -89,13 +87,13 @@ Leia (em ordem):
 3. **[framework/00-meta/SELF-ASSESSMENT.md](framework/00-meta/SELF-ASSESSMENT.md)** — questionário pra calibrar onde você realmente está (e o que pode pular com prova).
 4. **[framework/00-meta/reading-list.md](framework/00-meta/reading-list.md)** + **[framework/00-meta/elite-references.md](framework/00-meta/elite-references.md)** — fontes canônicas. Não compre tudo; cada módulo aponta o que ler.
 
-Depois, abra **N01 — Computation Model** e leia a seção 1 + parte da Teoria Hard. Comece a tentar o desafio. Volte na teoria quando travar.
+Depois, abra **01-01 — Computation Model** e leia a seção 1 + parte da Teoria Hard. Comece a tentar o desafio. Volte na teoria quando travar.
 
 ---
 
 ## Princípios não-negociáveis (resumo de MENTOR.md §8)
 
-1. **Mastery-based.** Sem prazos. Critério é **explicar o interno e provar com código**.
+1. **Estudo de longo prazo.** Sem prazos. Critério é **explicar o interno e provar com código**.
 2. **Sem passar pano.** Bloqueio honesto > simpatia.
 3. **Teoria → Threshold → Prática → Conexões.** Sempre nessa ordem.
 4. **Conexões > silos.** Conhecimento isolado é inútil.
@@ -113,11 +111,11 @@ Estimativa **muito** grossa pra dar ordem de magnitude (depende de horas/semana,
 
 | Estágio | Faixa típica (horas) |
 |---|---|
-| Novice (15 módulos + capstone) | 400-800 |
-| Apprentice (19 módulos + capstone) | 600-1200 |
-| Professional (17 módulos + capstone) | 500-1000 |
-| Senior (16 módulos + capstone) | 600-1500 |
-| Staff (7 módulos + capstone) | 800-2000 |
+| 1 — Fundamentos (15 módulos + capstone) | 400-800 |
+| 2 — Plataforma (19 módulos + capstone) | 600-1200 |
+| 3 — Produção (18 módulos + capstone) | 500-1000 |
+| 4 — Sistemas (16 módulos + capstone) | 600-1500 |
+| 5 — Amplitude (10 módulos + capstone) | 800-2000 |
 
 Total: ~3-7 mil horas. Não é "1 ano". Não é "5 anos". É **o tempo que cada estágio requer** dado seu compromisso.
 
@@ -127,7 +125,7 @@ Cortar caminho aqui é cortar maestria. Não há atalho.
 
 ## Output cumulativo esperado
 
-Ao terminar Staff:
+Ao terminar o estágio 5:
 
 - Logística production-grade distribuída, deployed, com 4 capstones encadeados.
 - 2 toys de baixo nível construídos do zero (DB, queue, runtime, scheduler — escolha).
@@ -140,7 +138,7 @@ Ao terminar Staff:
 - 3+ mentees acompanhados.
 - Promo case (interno) e narrative (externo) prontos.
 
-Esse é o estado que justifica título Staff em empresa séria. Não garante hire (nada garante). Mas **te coloca à altura**.
+Esse é o estado de domínio que o estágio 5 visa. Não garante título nem hire (nada garante). Mas **te coloca à altura**.
 
 ---
 
@@ -199,4 +197,4 @@ A: O que você já passou continua valendo. Mas a maior força do framework é e
 
 ---
 
-**Próximo passo:** [STUDY-PROTOCOL.md](STUDY-PROTOCOL.md) → [MENTOR.md](MENTOR.md) → [framework/00-meta/SELF-ASSESSMENT.md](framework/00-meta/SELF-ASSESSMENT.md) → N01.
+**Próximo passo:** [STUDY-PROTOCOL.md](STUDY-PROTOCOL.md) → [MENTOR.md](MENTOR.md) → [framework/00-meta/SELF-ASSESSMENT.md](framework/00-meta/SELF-ASSESSMENT.md) → 01-01.

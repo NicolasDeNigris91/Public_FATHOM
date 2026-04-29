@@ -2,7 +2,7 @@
 module: XX##
 title: Título do Módulo — Subtítulo Específico
 stage: novice|apprentice|professional|senior|staff
-prereqs: [N01, N02]
+prereqs: [01-01, 01-02]
 gates:
   conceitual: { status: pending, date: null, attempts: 0, notes: null }
   pratico: { status: pending, date: null, attempts: 0, notes: null }
@@ -14,7 +14,7 @@ status: locked
 
 > Template oficial pra adicionar módulos ao framework. **Não** é um módulo. Use como starter copiando arquivo, renomeando, ajustando frontmatter, removendo este blockquote.
 >
-> Convenção de nome: `XX##-slug-curto.md`. Exemplos: `N14-cpu-microarchitecture.md`, `P17-accessibility-testing.md`.
+> Convenção de nome: `XX##-slug-curto.md`. Exemplos: `01-14-cpu-microarchitecture.md`, `03-17-accessibility-testing.md`.
 
 ## 1. Problema de Engenharia
 
@@ -40,11 +40,11 @@ Cada subseção: 1 conceito, denso. Inclui:
 - Referências cruzadas a outros módulos.
 
 Padrão de scope:
-- **Novice**: foundations crus (CPU, OS, redes, CS theory).
-- **Apprentice**: tecnologias específicas (React, Postgres, etc.).
-- **Professional**: ops, qualidade, perf, segurança.
-- **Senior**: arquitetura, distribuído, design.
-- **Staff**: meta-skills, especialização, carreira.
+- **Fundamentos**: foundations crus (CPU, OS, redes, CS theory).
+- **Plataforma**: tecnologias específicas (React, Postgres, etc.).
+- **Produção**: ops, qualidade, perf, segurança.
+- **Sistemas**: arquitetura, distribuído, design.
+- **Amplitude**: meta-skills, especialização, carreira.
 
 ### 2.1 Primeira subseção
 
@@ -130,9 +130,9 @@ Lista de conexões com outros módulos. Forma `- Liga com **XXX** (assunto): exp
 Mínimo 5-8 conexões. Cobre dependências up (prereqs) e down (módulos que dependem deste).
 
 Exemplos:
-- Liga com **N02** (OS): syscalls e processes.
-- Liga com **A07** (Node internals): event loop em runtime real.
-- Liga com **S01** (distributed theory): consensus depende deste fundamento.
+- Liga com **01-02** (OS): syscalls e processes.
+- Liga com **02-07** (Node internals): event loop em runtime real.
+- Liga com **04-01** (distributed theory): consensus depende deste fundamento.
 
 Conexões claras facilitam Portão de Conexões (§3.3 do MENTOR.md).
 

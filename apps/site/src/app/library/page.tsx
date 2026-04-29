@@ -13,7 +13,7 @@ export const metadata = {
   alternates: { canonical: '/library' },
 };
 
-const STAGE_ORDER: StageId[] = ['novice', 'apprentice', 'professional', 'senior', 'staff'];
+const STAGE_ORDER: StageId[] = ['fundamentos', 'plataforma', 'producao', 'sistemas', 'amplitude'];
 
 export default function LibraryPage() {
   const bookListLd = buildBookListLd({

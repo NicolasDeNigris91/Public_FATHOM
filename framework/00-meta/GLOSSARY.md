@@ -6,7 +6,7 @@
 
 ---
 
-## Computer Science / Foundations (N01-N15)
+## Computer Science / Foundations (01-01-01-15)
 
 - **AST** (Abstract Syntax Tree) — árvore que representa estrutura sintática de código após parser; AST descarta detalhes triviais (parens, whitespace) que CST preserva.
 - **B-Tree / B+Tree** — árvores balanceadas de fan-out alto, otimizadas pra storage paginado; B+ mantém só keys nos internal nodes, leaves linkadas.
@@ -59,7 +59,7 @@
 
 ---
 
-## Web & Frontend (A01-A06, A19)
+## Web & Frontend (02-01-02-06, 02-19)
 
 - **a11y** — accessibility (a + 11 letras + y).
 - **App Router** (Next.js) — roteador baseado em React Server Components; substitui Pages Router.
@@ -89,7 +89,7 @@
 
 ---
 
-## Backend & Data (A07-A18, P13)
+## Backend & Data (02-07-02-18, 03-13)
 
 - **AEAD** (Authenticated Encryption with Associated Data) — AES-GCM, ChaCha20-Poly1305. Confidencialidade + integridade.
 - **ANN** (Approximate Nearest Neighbor) — busca em embeddings com tradeoff recall × velocidade. HNSW dominante.
@@ -130,7 +130,7 @@
 
 ---
 
-## Operações (P01-P17)
+## Operações (03-01-03-17)
 
 - **A/B/Canary deploy** — gradual rollout. Canary começa em 1% e expande.
 - **Alert fatigue** — excesso de alerts não-actionable; equipe ignora.
@@ -166,7 +166,7 @@
 
 ---
 
-## Distributed & Architecture (S01-S16)
+## Distributed & Architecture (04-01-04-16)
 
 - **ACID** vs **BASE** — Atomicity/Consistency/Isolation/Durability vs Basically Available, Soft state, Eventually consistent.
 - **At-least-once / At-most-once / Effectively-once** — message delivery semantics.
@@ -208,7 +208,7 @@
 
 ---
 
-## Carreira & Influência (S12, S15-S16, ST*)
+## Carreira & Influência (04-12, 04-15-04-16, ST*)
 
 - **ADR** (Architecture Decision Record) — doc curto registrando decisão técnica e contexto.
 - **ARR** (Annual Recurring Revenue) — MRR × 12; padrão SaaS.

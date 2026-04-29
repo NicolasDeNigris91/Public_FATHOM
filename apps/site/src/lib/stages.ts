@@ -1,10 +1,9 @@
-export type StageId = 'novice' | 'apprentice' | 'professional' | 'senior' | 'staff';
+export type StageId = 'fundamentos' | 'plataforma' | 'producao' | 'sistemas' | 'amplitude';
 
 export interface StageMeta {
   id: StageId;
   number: number;
   dir: string;
-  prefix: string;
   title: string;
   subtitle: string;
   tagline: string;
@@ -13,58 +12,53 @@ export interface StageMeta {
 
 export const STAGES: StageMeta[] = [
   {
-    id: 'novice',
+    id: 'fundamentos',
     number: 1,
-    dir: '01-novice',
-    prefix: 'N',
-    title: 'Novice',
-    subtitle: 'Fundamentos & Computer Science',
+    dir: '01-fundamentos',
+    title: 'Estágio 1 — Fundamentos',
+    subtitle: 'Computer Science',
     tagline:
-      'CPU, memória, rede, sistemas operacionais, algoritmos, paradigmas. Sem isso, você nunca passa de Pleno superficial.',
+      'CPU, memória, rede, sistemas operacionais, algoritmos, paradigmas.',
     moduleCount: 15,
   },
   {
-    id: 'apprentice',
+    id: 'plataforma',
     number: 2,
-    dir: '02-apprentice',
-    prefix: 'A',
-    title: 'Apprentice',
+    dir: '02-plataforma',
+    title: 'Estágio 2 — Plataforma',
     subtitle: 'Aplicações Full Stack',
     tagline:
-      'Construir e operar aplicação full-stack monolítica em produção, defendendo cada escolha técnica em entrevista de Pleno.',
+      'Construir e operar aplicação full-stack monolítica em produção.',
     moduleCount: 19,
   },
   {
-    id: 'professional',
+    id: 'producao',
     number: 3,
-    dir: '03-professional',
-    prefix: 'P',
-    title: 'Professional',
+    dir: '03-producao',
+    title: 'Estágio 3 — Produção',
     subtitle: 'Ecossistema, Testes, Operações',
     tagline:
-      'Produção com qualidade de empresa séria — testes confiáveis, deploy seguro, observabilidade real, segurança defensável.',
+      'Testes confiáveis, deploy seguro, observabilidade, segurança defensável.',
     moduleCount: 18,
   },
   {
-    id: 'senior',
+    id: 'sistemas',
     number: 4,
-    dir: '04-senior',
-    prefix: 'S',
-    title: 'Senior',
+    dir: '04-sistemas',
+    title: 'Estágio 4 — Sistemas',
     subtitle: 'Arquitetura Distribuída',
     tagline:
-      'Desenhar e justificar arquitetura distribuída pra problema novo, prevendo trade-offs, modos de falha, custos operacionais.',
+      'Arquitetura distribuída, trade-offs, modos de falha, custos operacionais.',
     moduleCount: 16,
   },
   {
-    id: 'staff',
+    id: 'amplitude',
     number: 5,
-    dir: '05-staff',
-    prefix: 'ST',
-    title: 'Staff / Principal',
+    dir: '05-amplitude',
+    title: 'Estágio 5 — Amplitude',
     subtitle: 'Specialization, Influence, Public Output',
     tagline:
-      'Multiplicar via influência, especializar em eixo, publicar, mentorar, ler papers, construir from-scratch, falar org.',
+      'Especializar, publicar, mentorar, ler papers, construir from-scratch.',
     moduleCount: 10,
   },
 ];

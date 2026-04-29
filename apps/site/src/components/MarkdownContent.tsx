@@ -19,7 +19,7 @@ function rewriteHref(href: string | undefined): string | undefined {
   target = target.replace(/^\.?\/?framework\//, '');
   target = target.replace(/^(\.\.\/)+/, '');
 
-  const modMatch = target.match(/^(\d{2}-[a-z]+)\/([A-Z]+\d+|CAPSTONE-[a-z]+)[^\/]*\.md(#.*)?$/);
+  const modMatch = target.match(/^(\d{2}-[a-z]+)\/(\d{2}-\d{2}|CAPSTONE-[a-z]+)[^\/]*\.md(#.*)?$/);
   if (modMatch) {
     const id = modMatch[2].toLowerCase();
     return `/modules/${id}${modMatch[3] ?? ''}`;

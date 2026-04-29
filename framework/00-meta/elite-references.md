@@ -8,7 +8,7 @@
 
 Estudar código de produção de classe mundial é uma das atividades de maior alavancagem que existe. Escolha 1-2 repos por estágio e **leia código de verdade** — não só README.
 
-### Estágio 1 — Novice
+### Estágio 1 — Fundamentos
 - **[V8](https://github.com/v8/v8)** — engine JavaScript do Chrome/Node. Comece por `src/builtins/`.
 - **[Node.js](https://github.com/nodejs/node)** — `lib/` (JS land) e `src/` (C++). Leia `lib/internal/streams/` pra entender streams.
 - **[libuv](https://github.com/libuv/libuv)** — event loop em C que roda o Node.
@@ -16,13 +16,13 @@ Estudar código de produção de classe mundial é uma das atividades de maior a
 - **[lodash](https://github.com/lodash/lodash)** — código JS idiomático bem testado.
 - **[zod](https://github.com/colinhacks/zod)** — TS type system explorado a fundo.
 - **[type-challenges](https://github.com/type-challenges/type-challenges)** — exercícios brutais de TypeScript.
-- **[Crafting Interpreters Lox](https://github.com/munificent/craftinginterpreters)** — codebase do livro; toy interpreter end-to-end. Pra **N13**.
-- **[parking_lot](https://github.com/Amanieu/parking_lot)** — Rust syncs primitives com futex. Pra **N11**.
-- **[libsodium](https://github.com/jedisct1/libsodium)** — biblioteca cripto opinativa, segura por default. Pra **N12**.
-- **[Linux perf](https://github.com/torvalds/linux/tree/master/tools/perf)** — fonte do `perf`. Pra **N14**.
-- **[NumPy](https://github.com/numpy/numpy)** — numerical Python. Algoritmos canônicos. Pra **N15**.
+- **[Crafting Interpreters Lox](https://github.com/munificent/craftinginterpreters)** — codebase do livro; toy interpreter end-to-end. Pra **01-13**.
+- **[parking_lot](https://github.com/Amanieu/parking_lot)** — Rust syncs primitives com futex. Pra **01-11**.
+- **[libsodium](https://github.com/jedisct1/libsodium)** — biblioteca cripto opinativa, segura por default. Pra **01-12**.
+- **[Linux perf](https://github.com/torvalds/linux/tree/master/tools/perf)** — fonte do `perf`. Pra **01-14**.
+- **[NumPy](https://github.com/numpy/numpy)** — numerical Python. Algoritmos canônicos. Pra **01-15**.
 
-### Estágio 2 — Apprentice
+### Estágio 2 — Plataforma
 - **[React](https://github.com/facebook/react)** — `packages/react-reconciler/` é onde mora a Fiber architecture.
 - **[Next.js](https://github.com/vercel/next.js)** — `packages/next/src/server/` pra rendering.
 - **[Hono](https://github.com/honojs/hono)** — backend framework moderno, código limpo, ótimo pra ler.
@@ -35,19 +35,19 @@ Estudar código de produção de classe mundial é uma das atividades de maior a
 - **[PostgreSQL](https://github.com/postgres/postgres)** — denso em C. Comece por `src/backend/access/heap/` pra entender storage.
 - **[MongoDB Realm SDK](https://github.com/realm/realm-js)**.
 - **[Socket.IO](https://github.com/socketio/socket.io)** — implementação de WebSocket-based real-time.
-- **[Meilisearch](https://github.com/meilisearch/meilisearch)** — Rust, search engine com DX excelente. Pra **A15**.
-- **[OpenSearch](https://github.com/opensearch-project/OpenSearch)** — fork open-source de Elasticsearch. Pra **A15**.
-- **[pgvector](https://github.com/pgvector/pgvector)** — vector similarity em Postgres. Pra **A15**.
-- **[Memgraph](https://github.com/memgraph/memgraph)** — graph DB in-memory. Pra **A16**.
-- **[Apache AGE](https://github.com/apache/age)** — Cypher sobre Postgres. Pra **A16**.
-- **[Stripe SDK Node](https://github.com/stripe/stripe-node)** — biblioteca de referência em payment integration. Pra **A18**.
-- **[Stripe CLI](https://github.com/stripe/stripe-cli)** — local webhook testing. Pra **A18**.
-- **[swift-evolution](https://github.com/apple/swift-evolution)** + **[swiftlang/swift](https://github.com/swiftlang/swift)** — Swift internals. Pra **A17**.
-- **[Compose Multiplatform](https://github.com/JetBrains/compose-multiplatform)** + **[androidx](https://github.com/androidx/androidx)** — Android modern. Pra **A17**.
-- **[FormatJS](https://github.com/formatjs/formatjs)** + **[i18next](https://github.com/i18next/i18next)** — i18n libs canônicas. Pra **A19**.
-- **[Yjs](https://github.com/yjs/yjs)** — CRDT lib madura. Pra **ST02** real-time capstone.
+- **[Meilisearch](https://github.com/meilisearch/meilisearch)** — Rust, search engine com DX excelente. Pra **02-15**.
+- **[OpenSearch](https://github.com/opensearch-project/OpenSearch)** — fork open-source de Elasticsearch. Pra **02-15**.
+- **[pgvector](https://github.com/pgvector/pgvector)** — vector similarity em Postgres. Pra **02-15**.
+- **[Memgraph](https://github.com/memgraph/memgraph)** — graph DB in-memory. Pra **02-16**.
+- **[Apache AGE](https://github.com/apache/age)** — Cypher sobre Postgres. Pra **02-16**.
+- **[Stripe SDK Node](https://github.com/stripe/stripe-node)** — biblioteca de referência em payment integration. Pra **02-18**.
+- **[Stripe CLI](https://github.com/stripe/stripe-cli)** — local webhook testing. Pra **02-18**.
+- **[swift-evolution](https://github.com/apple/swift-evolution)** + **[swiftlang/swift](https://github.com/swiftlang/swift)** — Swift internals. Pra **02-17**.
+- **[Compose Multiplatform](https://github.com/JetBrains/compose-multiplatform)** + **[androidx](https://github.com/androidx/androidx)** — Android modern. Pra **02-17**.
+- **[FormatJS](https://github.com/formatjs/formatjs)** + **[i18next](https://github.com/i18next/i18next)** — i18n libs canônicas. Pra **02-19**.
+- **[Yjs](https://github.com/yjs/yjs)** — CRDT lib madura. Pra **05-02** real-time capstone.
 
-### Estágio 3 — Professional
+### Estágio 3 — Produção
 - **[Docker](https://github.com/moby/moby)** — engine open-source do Docker (moby).
 - **[containerd](https://github.com/containerd/containerd)** — container runtime moderno.
 - **[Kubernetes](https://github.com/kubernetes/kubernetes)** — *o* projeto Go de larga escala. Leia `pkg/scheduler/`.
@@ -59,15 +59,15 @@ Estudar código de produção de classe mundial é uma das atividades de maior a
 - **[Terraform](https://github.com/hashicorp/terraform)** — provider model.
 - **[ClamAV](https://github.com/Cisco-Talos/clamav)** ou **[OWASP ZAP](https://github.com/zaproxy/zaproxy)** — pra entender pentest tooling.
 - **[Tokio](https://github.com/tokio-rs/tokio)** — runtime async em Rust, paralelo conceitual ao libuv.
-- **[ClickHouse](https://github.com/ClickHouse/ClickHouse)** — column-store distribuído state-of-art. Pra **P13**.
-- **[TimescaleDB](https://github.com/timescale/timescaledb)** — extension Postgres pra time-series. Pra **P13**.
-- **[DuckDB](https://github.com/duckdb/duckdb)** — analítico in-process. Leitura agradável. Pra **P13**.
-- **[deck.gl](https://github.com/visgl/deck.gl)** — GPU-rendered geo viz. Pra **P14**.
-- **[ffmpeg](https://github.com/FFmpeg/FFmpeg)** — codec swiss-army knife. Pra **P14**.
-- **[axe-core](https://github.com/dequelabs/axe-core)** — engine a11y open-source. Pra **P17**.
-- **[Pa11y](https://github.com/pa11y/pa11y)** — CLI runner pra a11y CI. Pra **P17**.
+- **[ClickHouse](https://github.com/ClickHouse/ClickHouse)** — column-store distribuído state-of-art. Pra **03-13**.
+- **[TimescaleDB](https://github.com/timescale/timescaledb)** — extension Postgres pra time-series. Pra **03-13**.
+- **[DuckDB](https://github.com/duckdb/duckdb)** — analítico in-process. Leitura agradável. Pra **03-13**.
+- **[deck.gl](https://github.com/visgl/deck.gl)** — GPU-rendered geo viz. Pra **03-14**.
+- **[ffmpeg](https://github.com/FFmpeg/FFmpeg)** — codec swiss-army knife. Pra **03-14**.
+- **[axe-core](https://github.com/dequelabs/axe-core)** — engine a11y open-source. Pra **03-17**.
+- **[Pa11y](https://github.com/pa11y/pa11y)** — CLI runner pra a11y CI. Pra **03-17**.
 
-### Estágio 4 — Senior
+### Estágio 4 — Sistemas
 - **[Apache Kafka](https://github.com/apache/kafka)** — Scala/Java, mas a doc do `core/` é ouro.
 - **[NATS](https://github.com/nats-io/nats-server)** — alternativa moderna, Go, código limpo.
 - **[RabbitMQ](https://github.com/rabbitmq/rabbitmq-server)** — Erlang/OTP.
@@ -82,22 +82,22 @@ Estudar código de produção de classe mundial é uma das atividades de maior a
 - **[LangChain](https://github.com/langchain-ai/langchain)** ou **[LangGraph](https://github.com/langchain-ai/langgraph)** — RAG, agents.
 - **[Solidity](https://github.com/ethereum/solidity)** — compilador.
 - **[OpenZeppelin Contracts](https://github.com/OpenZeppelin/openzeppelin-contracts)** — padrões de smart contracts seguros.
-- **[Apache Flink](https://github.com/apache/flink)** — streaming engine canônico. Pra **S13**.
-- **[Apache Spark](https://github.com/apache/spark)** — batch + streaming. Pra **S13**.
-- **[dbt-core](https://github.com/dbt-labs/dbt-core)** — transformations declarativas em warehouse. Pra **S13**.
-- **[Apache Iceberg](https://github.com/apache/iceberg)** — lakehouse spec. Pra **S13**.
-- **[etcd raft](https://github.com/etcd-io/raft)** — implementação Raft de produção. Referência conceitual pra **S14**.
-- **[TLA+ Examples](https://github.com/tlaplus/Examples)** — specs reais. Pra **S14**.
-- **[FastAPI](https://github.com/tiangolo/fastapi)** — exemplo OSS sustentado. Pra **S15**.
+- **[Apache Flink](https://github.com/apache/flink)** — streaming engine canônico. Pra **04-13**.
+- **[Apache Spark](https://github.com/apache/spark)** — batch + streaming. Pra **04-13**.
+- **[dbt-core](https://github.com/dbt-labs/dbt-core)** — transformations declarativas em warehouse. Pra **04-13**.
+- **[Apache Iceberg](https://github.com/apache/iceberg)** — lakehouse spec. Pra **04-13**.
+- **[etcd raft](https://github.com/etcd-io/raft)** — implementação Raft de produção. Referência conceitual pra **04-14**.
+- **[TLA+ Examples](https://github.com/tlaplus/Examples)** — specs reais. Pra **04-14**.
+- **[FastAPI](https://github.com/tiangolo/fastapi)** — exemplo OSS sustentado. Pra **04-15**.
 
-### Estágio 5 — Staff / Principal
-- **[Crafting Interpreters](https://github.com/munificent/craftinginterpreters)** — codebase de toy interpreter. Pra **ST01**.
-- **[build-your-own-x](https://github.com/codecrafters-io/build-your-own-x)** — colection de projetos build-from-scratch. Pra **ST01**.
-- **[Excalidraw](https://github.com/excalidraw/excalidraw)** — real-time collab whiteboard com CRDT. Pra **ST02**.
-- **[Open source maintainer journals](https://github.com/sindresorhus/awesome)** — exemplos de governance, sustainability. Pra **S15**.
-- **[Zephyr](https://github.com/zephyrproject-rtos/zephyr)** — RTOS modern. Pra **ST07**.
-- **[ESP-IDF](https://github.com/espressif/esp-idf)** — ESP32 framework. Pra **ST07**.
-- **[Embedded Rust HAL](https://github.com/rust-embedded/embedded-hal)** — Rust em microcontrollers. Pra **ST07**.
+### Estágio 5 — Amplitude
+- **[Crafting Interpreters](https://github.com/munificent/craftinginterpreters)** — codebase de toy interpreter. Pra **05-01**.
+- **[build-your-own-x](https://github.com/codecrafters-io/build-your-own-x)** — colection de projetos build-from-scratch. Pra **05-01**.
+- **[Excalidraw](https://github.com/excalidraw/excalidraw)** — real-time collab whiteboard com CRDT. Pra **05-02**.
+- **[Open source maintainer journals](https://github.com/sindresorhus/awesome)** — exemplos de governance, sustainability. Pra **04-15**.
+- **[Zephyr](https://github.com/zephyrproject-rtos/zephyr)** — RTOS modern. Pra **05-07**.
+- **[ESP-IDF](https://github.com/espressif/esp-idf)** — ESP32 framework. Pra **05-07**.
+- **[Embedded Rust HAL](https://github.com/rust-embedded/embedded-hal)** — Rust em microcontrollers. Pra **05-07**.
 
 ---
 
@@ -111,28 +111,28 @@ Pessoas e empresas com conteúdo de qualidade consistente, **sem clickbait**.
 - **[Dan Abramov](https://overreacted.io/)** — React internals, mental models.
 - **[Kent C. Dodds](https://kentcdodds.com/blog)** — testing, React patterns.
 - **[Simon Willison](https://simonwillison.net/)** — pragmatismo aplicado, AI/LLM, observabilidade.
-- **[Hillel Wayne](https://www.hillelwayne.com/)** — formal methods (S14), software engineering crítico.
+- **[Hillel Wayne](https://www.hillelwayne.com/)** — formal methods (04-14), software engineering crítico.
 - **[Aphyr (Kyle Kingsbury)](https://aphyr.com/)** — Jepsen series. Como DBs distribuídas falham. **Indispensável.**
-- **[Adrian Colyer (the morning paper)](https://blog.acolyer.org/)** — paper reviews curados (ST04).
+- **[Adrian Colyer (the morning paper)](https://blog.acolyer.org/)** — paper reviews curados (05-04).
 - **[Bartosz Ciechanowski](https://ciechanow.ski/)** — visualizações brilhantes de conceitos físicos e computacionais.
-- **[Julia Evans](https://jvns.ca/)** — explicações claras de Linux internals, networking, debugging. Modelo de **ST05**.
-- **[Will Larson (Irrational Exuberance)](https://lethain.com/)** — engineering management, staff+ engineering (S12, ST03, ST06).
+- **[Julia Evans](https://jvns.ca/)** — explicações claras de Linux internals, networking, debugging. Modelo de **05-05**.
+- **[Will Larson (Irrational Exuberance)](https://lethain.com/)** — engineering management, staff+ engineering (04-12, 05-03, 05-06).
 - **[Camille Fournier](https://skamille.medium.com/)** — tech leadership.
-- **[Marc Brooker](https://brooker.co.za/blog/)** — distributed systems engineer at AWS (S01, S14).
-- **[Mathias Bynens](https://mathiasbynens.be/)** — V8, Web platform internals (N07, N13).
+- **[Marc Brooker](https://brooker.co.za/blog/)** — distributed systems engineer at AWS (04-01, 04-14).
+- **[Mathias Bynens](https://mathiasbynens.be/)** — V8, Web platform internals (01-07, 01-13).
 - **[Lin Clark (codecartoons)](https://code-cartoons.com/)** — explicações ilustradas de coisas profundas.
-- **[Tanya Reilly](https://noidea.dog/blog)** — Staff Engineer's Path. Pra **ST03/ST06**.
-- **[Patrick McKenzie](https://www.kalzumeus.com/)** + **[Bits about Money](https://www.bitsaboutmoney.com/)** — engineering meets fintech, business. Pra **A18, S16**.
-- **[Dan Luu](https://danluu.com/)** — long-form técnico de elite. Modelo de **ST05**.
+- **[Tanya Reilly](https://noidea.dog/blog)** — Staff Engineer's Path. Pra **05-03/05-06**.
+- **[Patrick McKenzie](https://www.kalzumeus.com/)** + **[Bits about Money](https://www.bitsaboutmoney.com/)** — engineering meets fintech, business. Pra **02-18, 04-16**.
+- **[Dan Luu](https://danluu.com/)** — long-form técnico de elite. Modelo de **05-05**.
 - **[Cassidy Williams](https://cassidoo.co/)** — short-form sustainability.
-- **[Sara Soueidan](https://www.sarasoueidan.com/)** — accessibility profundo (P17).
-- **[Adrian Roselli](https://adrianroselli.com/)** — ARIA + a11y patterns (P17).
-- **[Jepsen / Aphyr Analyses](https://jepsen.io/analyses)** — falhas reais de DBs distribuídas (S01).
-- **[Murat Demirbas](http://muratbuffalo.blogspot.com/)** — paper reviews de distributed (ST04).
-- **[Chip Huyen](https://huyenchip.com/)** — ML systems em produção. Pra **S10**.
-- **[Lara Hogan](https://larahogan.me/)** — resilient management, mentoria (ST06).
-- **[Gergely Orosz / Pragmatic Engineer](https://newsletter.pragmaticengineer.com/)** — staff+ careers, org (ST03).
-- **[Preshing on Programming](https://preshing.com/)** — lock-free + memory models (N11).
+- **[Sara Soueidan](https://www.sarasoueidan.com/)** — accessibility profundo (03-17).
+- **[Adrian Roselli](https://adrianroselli.com/)** — ARIA + a11y patterns (03-17).
+- **[Jepsen / Aphyr Analyses](https://jepsen.io/analyses)** — falhas reais de DBs distribuídas (04-01).
+- **[Murat Demirbas](http://muratbuffalo.blogspot.com/)** — paper reviews de distributed (05-04).
+- **[Chip Huyen](https://huyenchip.com/)** — ML systems em produção. Pra **04-10**.
+- **[Lara Hogan](https://larahogan.me/)** — resilient management, mentoria (05-06).
+- **[Gergely Orosz / Pragmatic Engineer](https://newsletter.pragmaticengineer.com/)** — staff+ careers, org (05-03).
+- **[Preshing on Programming](https://preshing.com/)** — lock-free + memory models (01-11).
 
 ### Empresas
 - **[High Scalability](http://highscalability.com/)** — case studies de arquitetura em escala.
@@ -143,7 +143,7 @@ Pessoas e empresas com conteúdo de qualidade consistente, **sem clickbait**.
 - **[Stripe Engineering](https://stripe.com/blog/engineering)**.
 - **[GitHub Engineering](https://github.blog/engineering/)**.
 - **[Vercel Blog](https://vercel.com/blog)** — Next.js internals.
-- **[Anthropic Engineering](https://www.anthropic.com/engineering)** — prompt engineering, agent patterns, LLM systems (recurso de estudo pra **S10**).
+- **[Anthropic Engineering](https://www.anthropic.com/engineering)** — prompt engineering, agent patterns, LLM systems (recurso de estudo pra **04-10**).
 - **[V8 Blog](https://v8.dev/blog)** — engine JS internals.
 - **[Mozilla Hacks](https://hacks.mozilla.org/)**.
 - **[Two Sigma Engineering](https://www.twosigma.com/articles/)** — fintech, distributed.
@@ -175,22 +175,22 @@ Pessoas e empresas com conteúdo de qualidade consistente, **sem clickbait**.
 - **"State of GPT"** — Andrej Karpathy.
 - **"The Bitter Lesson"** — Rich Sutton (não é talk, é ensaio curto, mas essencial).
 
-### Sobre Performance e CPU (N14)
+### Sobre Performance e CPU (01-14)
 - **"What Every Programmer Should Know About Memory"** — Ulrich Drepper (paper).
 - **"Mechanical Sympathy"** talks — Martin Thompson.
 - **"Memory Barriers: a Hardware View for Software Hackers"** — Paul McKenney.
 
-### Sobre Search e IR (A15)
+### Sobre Search e IR (02-15)
 - **"Relevant Search"** — Doug Turnbull, John Berryman.
 
-### Sobre Embedded (ST07)
+### Sobre Embedded (05-07)
 - **Pete Warden's blog** — TinyML, embedded perf.
 
-### Sobre Org / Career (ST03, ST06)
+### Sobre Org / Career (05-03, 05-06)
 - **"Staff Engineer Archetypes"** — Tanya Reilly.
 - **"How to Become a Top Engineer"** — Lara Hogan.
 
-### Sobre i18n (A19)
+### Sobre i18n (02-19)
 - **"Falsehoods Programmers Believe About Names / Time / Addresses"** — series.
 
 ---

@@ -6,7 +6,7 @@ import { loadProgress } from '@/lib/progress';
 
 export const metadata = {
   title: 'Stages',
-  description: 'Os 5 estágios do Fathom — Novice, Apprentice, Professional, Senior, Staff/Principal.',
+  description: 'Os 5 estágios do Fathom — Fundamentos, Plataforma, Produção, Sistemas, Amplitude.',
   alternates: { canonical: '/stages' },
 };
 

@@ -1,4 +1,4 @@
-# Framework de Maestria Full Stack — Protocolo de Mentoria
+# Fathom — Protocolo de Mentoria
 
 > Este arquivo é o **contrato canônico do mentor**. Toda sessão neste diretório opera sob estas regras, **independente de quem está mentorizando** (você mesmo, peer humano, ou hybrid).
 
@@ -97,7 +97,7 @@ Se `PROGRESS.md` está vazio:
 2. Encaminhar a `framework/00-meta/SELF-ASSESSMENT.md` pra calibrar.
 3. Encaminhar a `framework/00-meta/STUDY-PLANS.md` pra escolher cadência.
 4. Encaminhar a `framework/00-meta/reading-list.md` pra entender fontes canônicas.
-5. Iniciar `N01-computation-model.md` — sempre nessa ordem.
+5. Iniciar `01-01-computation-model.md` — sempre nessa ordem.
 
 ### 2.3 Quando o aluno declara "li o módulo X, quero o portão"
 
@@ -205,8 +205,8 @@ Editar **dois arquivos**, sempre nessa ordem:
 
 Atualizar cabeçalho de `PROGRESS.md`:
 ```
-**Estágio ativo:** Novice
-**Módulo ativo:** N02 — Operating Systems
+**Estágio ativo:** Fundamentos
+**Módulo ativo:** 01-02 — Operating Systems
 **Atualizado em:** YYYY-MM-DD
 ```
 
@@ -242,11 +242,11 @@ Leitura prévia obrigatória: [STUDY-PROTOCOL.md](STUDY-PROTOCOL.md).
 
 | Estágio | Diretório | Conteúdo |
 |---------|-----------|----------|
-| 1. Novice | [framework/01-novice/](framework/01-novice/README.md) | 15 módulos + capstone |
-| 2. Apprentice | [framework/02-apprentice/](framework/02-apprentice/README.md) | 19 módulos + capstone |
-| 3. Professional | [framework/03-professional/](framework/03-professional/README.md) | 18 módulos + capstone |
-| 4. Senior | [framework/04-senior/](framework/04-senior/README.md) | 16 módulos + capstone |
-| 5. Staff/Principal | [framework/05-staff/](framework/05-staff/README.md) | 10 módulos (4 opcionais) + capstone |
+| 1. Fundamentos | [framework/01-fundamentos/](framework/01-fundamentos/README.md) | 15 módulos + capstone |
+| 2. Plataforma | [framework/02-plataforma/](framework/02-plataforma/README.md) | 19 módulos + capstone |
+| 3. Professional | [framework/03-producao/](framework/03-producao/README.md) | 18 módulos + capstone |
+| 4. Senior | [framework/04-sistemas/](framework/04-sistemas/README.md) | 16 módulos + capstone |
+| 5. Staff/Principal | [framework/05-amplitude/](framework/05-amplitude/README.md) | 10 módulos (4 opcionais) + capstone |
 
 Mapa global em [framework/00-meta/INDEX.md](framework/00-meta/INDEX.md). Marco v1.0 em [framework/00-meta/RELEASE-NOTES.md](framework/00-meta/RELEASE-NOTES.md). Demais metas listadas em INDEX.md.
 
@@ -254,7 +254,7 @@ Mapa global em [framework/00-meta/INDEX.md](framework/00-meta/INDEX.md). Marco v
 
 ## 8. Princípios Não-Negociáveis
 
-1. **Mastery-based.** Sem prazos. Critério é **explicar o interno e provar com código**.
+1. **Estudo de longo prazo.** Sem prazos. Critério é **explicar o interno e provar com código**.
 2. **Sem passar pano.** Bloqueio honesto > simpatia.
 3. **Teoria → Threshold → Prática → Conexões.** Sempre nessa ordem.
 4. **Conexões > silos.**
@@ -285,7 +285,7 @@ Em self-mentor: leia esta tabela **toda sessão**. Tentação de burlar é silen
 
 - **Aluno** quando detecta erro técnico ou lacuna pedagógica em módulo ativo.
 - **Quarterly review** auto-imposto: aluno revisa SPRINT-NEXT, faz audit honesto.
-- **Trigger externo**: nova RFC, paper canônico publicado, evolução de stack (S10 tooling muda mensalmente).
+- **Trigger externo**: nova RFC, paper canônico publicado, evolução de stack (04-10 tooling muda mensalmente).
 
 ### 10.2 Como propor mudança
 
@@ -328,7 +328,7 @@ Solo absoluto detecta menos buracos. Aceite o gate.
 ### 10.6 Skip-by-design
 
 Você pode declarar módulo opcional como `skipped` se:
-1. Eixo de carreira deliberado descarta (ex: ST09 Bioinformatics se você não vai a biotech/healthcare/research).
+1. Eixo de carreira deliberado descarta (ex: 05-09 Bioinformatics se você não vai a biotech/healthcare/research).
 2. Entry em DECISION-LOG justifica.
 3. Status em PROGRESS.md vira `SKIPPED-BY-DESIGN` em vez de `LOCKED`.
 4. Capstone subsequente não depende de prereqs do skipped.

@@ -9,276 +9,276 @@
 ## CS / Foundations
 
 ### Algorítmo e estrutura
-- **`O(n²)` aceito sem necessidade**. Loop em loop em data crescente. — N05.
-- **`Array.includes` em loop em vez de Set**. Quadratic disfarçado. — N04.
-- **String concat em loop** em vez de array+join (alguns languages). — N04, N15.
-- **Recursion sem memoization** em problemas com overlapping subproblems. — N05.
-- **Cache-unfriendly data layout** (linked list onde array faria). — N04, N14.
-- **Sort + linear scan** quando hash bastaria. — N05.
+- **`O(n²)` aceito sem necessidade**. Loop em loop em data crescente. — 01-05.
+- **`Array.includes` em loop em vez de Set**. Quadratic disfarçado. — 01-04.
+- **String concat em loop** em vez de array+join (alguns languages). — 01-04, 01-15.
+- **Recursion sem memoization** em problemas com overlapping subproblems. — 01-05.
+- **Cache-unfriendly data layout** (linked list onde array faria). — 01-04, 01-14.
+- **Sort + linear scan** quando hash bastaria. — 01-05.
 
 ### Memory / GC
-- **Closure capturando state grande sem necessidade** — leak. — N07, A07.
-- **Arrays grandes mantidos vivos** por references esquecidas. — N07.
-- **Hot allocation em loop** (criar objects/arrays a cada iteration). — N14, P10.
-- **String concat com `+=`** em loops gigantes (algumas linguagens copiam tudo). — N04.
+- **Closure capturando state grande sem necessidade** — leak. — 01-07, 02-07.
+- **Arrays grandes mantidos vivos** por references esquecidas. — 01-07.
+- **Hot allocation em loop** (criar objects/arrays a cada iteration). — 01-14, 03-10.
+- **String concat com `+=`** em loops gigantes (algumas linguagens copiam tudo). — 01-04.
 
 ### Concurrency
-- **Thread Without joining** — race + leak. — N11, A07.
-- **Lock holding I/O** dentro de critical section. — N11, P10.
-- **Double-checked locking** sem `volatile`/atomic. — N11.
-- **CAS sem ABA mitigation** em estruturas com pointer recycling. — N11.
-- **Shared mutable global** entre handlers HTTP. — A07, A08.
-- **`async` retornado mas não awaited**. — N07, A07.
+- **Thread Without joining** — race + leak. — 01-11, 02-07.
+- **Lock holding I/O** dentro de critical section. — 01-11, 03-10.
+- **Double-checked locking** sem `volatile`/atomic. — 01-11.
+- **CAS sem ABA mitigation** em estruturas com pointer recycling. — 01-11.
+- **Shared mutable global** entre handlers HTTP. — 02-07, 02-08.
+- **`async` retornado mas não awaited**. — 01-07, 02-07.
 
 ### Cripto
-- **Hash de senha sem salt** (ex: SHA-256 puro). — N12, A13.
-- **Hash rápido pra senha** (SHA-256 em vez de Argon2id/bcrypt). — N12.
-- **JWT com `alg:none` aceito**. — N12, A13.
-- **Comparação de tokens com `==`** em vez de `timingSafeEqual`. — N12.
-- **Nonce reutilizado em GCM**. — N12.
-- **`Math.random` em token** em vez de CSPRNG. — N12.
-- **ECB cipher mode** — leak de patterns. — N12.
-- **Sign-then-encrypt em vez de encrypt-then-MAC** (ou AEAD). — N12.
+- **Hash de senha sem salt** (ex: SHA-256 puro). — 01-12, 02-13.
+- **Hash rápido pra senha** (SHA-256 em vez de Argon2id/bcrypt). — 01-12.
+- **JWT com `alg:none` aceito**. — 01-12, 02-13.
+- **Comparação de tokens com `==`** em vez de `timingSafeEqual`. — 01-12.
+- **Nonce reutilizado em GCM**. — 01-12.
+- **`Math.random` em token** em vez de CSPRNG. — 01-12.
+- **ECB cipher mode** — leak de patterns. — 01-12.
+- **Sign-then-encrypt em vez de encrypt-then-MAC** (ou AEAD). — 01-12.
 
 ### Compilers / parsers
-- **Concatenar strings pra construir SQL/HTML** (SQL injection / XSS). — A09, P08.
-- **eval ou Function de input** sem sanitização. — N07, P08.
-- **Regex desumano** (catastrophic backtracking ReDoS). — N05, P08.
+- **Concatenar strings pra construir SQL/HTML** (SQL injection / XSS). — 02-09, 03-08.
+- **eval ou Function de input** sem sanitização. — 01-07, 03-08.
+- **Regex desumano** (catastrophic backtracking ReDoS). — 01-05, 03-08.
 
 ### CPU
-- **Branch em hot loop sem necessidade**. — N14.
-- **False sharing** em counters paralelos. — N11, N14.
-- **Pointer chasing** em structs grandes (linked lists). — N14.
-- **Unnecessary fp64** quando fp32 / fp16 basta. — N14, S10.
+- **Branch em hot loop sem necessidade**. — 01-14.
+- **False sharing** em counters paralelos. — 01-11, 01-14.
+- **Pointer chasing** em structs grandes (linked lists). — 01-14.
+- **Unnecessary fp64** quando fp32 / fp16 basta. — 01-14, 04-10.
 
 ### Math
-- **Float pra dinheiro** em vez de bigint cents. — A18, N15.
-- **Subtração de números próximos** (catastrophic cancellation) em código numérico. — N15.
+- **Float pra dinheiro** em vez de bigint cents. — 02-18, 01-15.
+- **Subtração de números próximos** (catastrophic cancellation) em código numérico. — 01-15.
 
 ---
 
 ## Web / Frontend
 
 ### CSS / HTML
-- **`position: absolute`** pra layouts onde flex/grid resolveria. — A01.
-- **`!important`** acumulando — specificity wars. — A01.
-- **Px hardcoded** em vez de rem (a11y zoom). — A01, A02.
-- **Tabela pra layout**. — A01.
-- **`<div onClick>`** em vez de `<button>`. — A02, P17.
+- **`position: absolute`** pra layouts onde flex/grid resolveria. — 02-01.
+- **`!important`** acumulando — specificity wars. — 02-01.
+- **Px hardcoded** em vez de rem (a11y zoom). — 02-01, 02-02.
+- **Tabela pra layout**. — 02-01.
+- **`<div onClick>`** em vez de `<button>`. — 02-02, 03-17.
 
 ### Accessibility
-- **`outline: none`** sem replacement. — A02, P17.
-- **Imagens sem alt text** (ou alt="image"). — A02, P17.
-- **Color como único sinal**. — A02, P17.
-- **Auto-rotating carousel sem pause**. — P18.
-- **Time limits sem warning**. — P18.
-- **Form sem label** ou label não associado. — A02, P17.
-- **ARIA com role conflitando** (button + clickable div). — A02, P17.
-- **Lang attribute ausente**. — A19, P17.
+- **`outline: none`** sem replacement. — 02-02, 03-17.
+- **Imagens sem alt text** (ou alt="image"). — 02-02, 03-17.
+- **Color como único sinal**. — 02-02, 03-17.
+- **Auto-rotating carousel sem pause**. — 03-18.
+- **Time limits sem warning**. — 03-18.
+- **Form sem label** ou label não associado. — 02-02, 03-17.
+- **ARIA com role conflitando** (button + clickable div). — 02-02, 03-17.
+- **Lang attribute ausente**. — 02-19, 03-17.
 
 ### React
-- **Key={index}** em listas dinâmicas. — A04.
-- **`useEffect` com missing deps**. — A04.
-- **State derived em useState** em vez de computar. — A04.
-- **`useMemo` em tudo** (overhead sem ganho). — A04, P09.
-- **`useCallback` sem dependent memoization**. — A04.
-- **Estado global pra dado local** (ex: form fields no Redux). — A04.
-- **Mutating state directly** (`state.foo = x`). — A04.
-- **Renderização não estável** (random IDs por render). — A04.
+- **Key={index}** em listas dinâmicas. — 02-04.
+- **`useEffect` com missing deps**. — 02-04.
+- **State derived em useState** em vez de computar. — 02-04.
+- **`useMemo` em tudo** (overhead sem ganho). — 02-04, 03-09.
+- **`useCallback` sem dependent memoization**. — 02-04.
+- **Estado global pra dado local** (ex: form fields no Redux). — 02-04.
+- **Mutating state directly** (`state.foo = x`). — 02-04.
+- **Renderização não estável** (random IDs por render). — 02-04.
 
 ### Next.js
-- **`use client` em tudo** — perde benefits de RSC. — A05.
-- **`fetch` com cache não thought-through**. — A05.
-- **Force re-render** em mudança de pathname desnecessário. — A05.
-- **Server Action sem validation**. — A05.
+- **`use client` em tudo** — perde benefits de RSC. — 02-05.
+- **`fetch` com cache não thought-through**. — 02-05.
+- **Force re-render** em mudança de pathname desnecessário. — 02-05.
+- **Server Action sem validation**. — 02-05.
 
 ### DOM / Web APIs
-- **`innerHTML` com input** — XSS. — A03, P08.
-- **Listeners não removidos** em components que unmount. — A03, A04.
-- **Touch events em vez de Pointer events**. — A03.
+- **`innerHTML` com input** — XSS. — 02-03, 03-08.
+- **Listeners não removidos** em components que unmount. — 02-03, 02-04.
+- **Touch events em vez de Pointer events**. — 02-03.
 
 ### Mobile
-- **Bridge calls em loops** (RN). — A06.
-- **Bloquear main thread**. — A06, A17.
-- **Sem permission rationale**. — A17.
-- **Background tracking** sem foreground service (Android). — A17.
+- **Bridge calls em loops** (RN). — 02-06.
+- **Bloquear main thread**. — 02-06, 02-17.
+- **Sem permission rationale**. — 02-17.
+- **Background tracking** sem foreground service (Android). — 02-17.
 
 ### Build / bundle
-- **Sem code splitting** em SPA grande. — P09.
-- **Imagens não otimizadas** (PNG quando WebP/AVIF serve). — A05, P09.
-- **Fontes sem subsetting**. — P09.
-- **CSS-in-JS hot path** (runtime cost). — P09.
+- **Sem code splitting** em SPA grande. — 03-09.
+- **Imagens não otimizadas** (PNG quando WebP/AVIF serve). — 02-05, 03-09.
+- **Fontes sem subsetting**. — 03-09.
+- **CSS-in-JS hot path** (runtime cost). — 03-09.
 
 ---
 
 ## Backend
 
 ### Database
-- **N+1 query**. — A09, A10.
-- **`SELECT *`**. — A09, P13.
-- **Sem índice em FK**. — A09.
-- **Index em coluna nunca queried** (overhead pra writes). — A09.
-- **`COUNT(*)` em tabela grande** sem caching. — A09.
-- **`LIKE '%foo%'`** em tabela grande sem GIN/trgm. — A09, A15.
-- **`ALTER TABLE ADD COLUMN NOT NULL DEFAULT`** em pré-PG11 (lock). — A09.
-- **VARCHAR(N)** quando text faria. — A09.
-- **Connection pool ausente** em serverless. — A09.
-- **Migration que reescreve tabela** sem CONCURRENTLY. — A09.
-- **PgBouncer transaction mode** com prepared statements. — A09.
+- **N+1 query**. — 02-09, 02-10.
+- **`SELECT *`**. — 02-09, 03-13.
+- **Sem índice em FK**. — 02-09.
+- **Index em coluna nunca queried** (overhead pra writes). — 02-09.
+- **`COUNT(*)` em tabela grande** sem caching. — 02-09.
+- **`LIKE '%foo%'`** em tabela grande sem GIN/trgm. — 02-09, 02-15.
+- **`ALTER TABLE ADD COLUMN NOT NULL DEFAULT`** em pré-PG11 (lock). — 02-09.
+- **VARCHAR(N)** quando text faria. — 02-09.
+- **Connection pool ausente** em serverless. — 02-09.
+- **Migration que reescreve tabela** sem CONCURRENTLY. — 02-09.
+- **PgBouncer transaction mode** com prepared statements. — 02-09.
 
 ### Cache
-- **Cache sem TTL**. — A11.
-- **Cache stampede** (todos clients miss simultâneo). — A11.
-- **Cache não-invalidado** após write. — A11.
-- **Cache de dado sensível** sem encryption. — A11, P08.
+- **Cache sem TTL**. — 02-11.
+- **Cache stampede** (todos clients miss simultâneo). — 02-11.
+- **Cache não-invalidado** após write. — 02-11.
+- **Cache de dado sensível** sem encryption. — 02-11, 03-08.
 
 ### API
-- **Endpoint `GET /admin/deleteAll`** (verb wrong). — S05.
-- **Sem versioning**. — S05.
-- **Sem pagination** em list endpoints. — S05.
-- **Inconsistent error format** (404 às vezes JSON, às vezes HTML). — S05.
-- **Stack trace em error response prod**. — S05, P08.
-- **Sem rate limit**. — S04.
-- **CORS `*`** em endpoint authenticated. — P08.
+- **Endpoint `GET /admin/deleteAll`** (verb wrong). — 04-05.
+- **Sem versioning**. — 04-05.
+- **Sem pagination** em list endpoints. — 04-05.
+- **Inconsistent error format** (404 às vezes JSON, às vezes HTML). — 04-05.
+- **Stack trace em error response prod**. — 04-05, 03-08.
+- **Sem rate limit**. — 04-04.
+- **CORS `*`** em endpoint authenticated. — 03-08.
 
 ### Auth
-- **Senha em log**. — A13, P08.
-- **Token em URL (querystring)**. — A13.
-- **Refresh token sem rotation**. — A13.
-- **Sessions sem expiry**. — A13.
-- **OAuth2 sem PKCE em mobile/SPA**. — A13.
+- **Senha em log**. — 02-13, 03-08.
+- **Token em URL (querystring)**. — 02-13.
+- **Refresh token sem rotation**. — 02-13.
+- **Sessions sem expiry**. — 02-13.
+- **OAuth2 sem PKCE em mobile/SPA**. — 02-13.
 
 ### Payments
-- **Webhook sem signature verify**. — A18.
-- **Webhook sem dedupe**. — A18.
-- **Charge sem idempotency key**. — A18.
-- **Float em currency**. — A18.
-- **Refund sem ledger entry**. — A18.
+- **Webhook sem signature verify**. — 02-18.
+- **Webhook sem dedupe**. — 02-18.
+- **Charge sem idempotency key**. — 02-18.
+- **Float em currency**. — 02-18.
+- **Refund sem ledger entry**. — 02-18.
 
 ### Search
-- **Dual-write** DB + index sem reconciliation. — A15.
-- **Reindex destrutivo** sem alias swap. — A15.
-- **Query sem analyzer adequado** ao idioma. — A15, A19.
+- **Dual-write** DB + index sem reconciliation. — 02-15.
+- **Reindex destrutivo** sem alias swap. — 02-15.
+- **Query sem analyzer adequado** ao idioma. — 02-15, 02-19.
 
 ### Real-time
-- **WebSocket sem reconnect logic**. — A14.
-- **Broadcast pra all clients** quando deveria ser room/channel. — A14.
-- **Sem heartbeat / ping-pong**. — A14.
-- **Backpressure ignorado** (servidor empurra mais que client lê). — A14.
+- **WebSocket sem reconnect logic**. — 02-14.
+- **Broadcast pra all clients** quando deveria ser room/channel. — 02-14.
+- **Sem heartbeat / ping-pong**. — 02-14.
+- **Backpressure ignorado** (servidor empurra mais que client lê). — 02-14.
 
 ---
 
 ## Operações / Production
 
 ### Docker / K8s
-- **`latest` tag** em prod. — P02.
-- **Container rodando como root**. — P02, P08.
-- **Secrets em env var em manifest** (em vez de Secret). — P02, P08.
-- **Sem resource limits** (CPU/memory). — P03.
-- **HPA sem min/max** sano. — P03.
-- **Single replica** pra service crítico. — P03.
-- **Helm direto em prod sem testar staging**. — P03.
+- **`latest` tag** em prod. — 03-02.
+- **Container rodando como root**. — 03-02, 03-08.
+- **Secrets em env var em manifest** (em vez de Secret). — 03-02, 03-08.
+- **Sem resource limits** (CPU/memory). — 03-03.
+- **HPA sem min/max** sano. — 03-03.
+- **Single replica** pra service crítico. — 03-03.
+- **Helm direto em prod sem testar staging**. — 03-03.
 
 ### CI/CD
-- **Tests skipped pra "ship rápido"**. — P01, P04.
-- **Sem rollback automático**. — P04, P15.
-- **Deploy direto pra prod** sem canary/blue-green. — P04.
-- **Schema migration in same deploy** com code change incompatível. — A09, P04.
-- **Secrets em CI logs**. — P04, P08.
+- **Tests skipped pra "ship rápido"**. — 03-01, 03-04.
+- **Sem rollback automático**. — 03-04, 03-15.
+- **Deploy direto pra prod** sem canary/blue-green. — 03-04.
+- **Schema migration in same deploy** com code change incompatível. — 02-09, 03-04.
+- **Secrets em CI logs**. — 03-04, 03-08.
 
 ### Observability
-- **Sem logs estruturados** (só print). — P07.
-- **Logs com PII**. — P07, P08.
-- **Métricas só de média** (sem P95/P99). — P07.
-- **Alerting threshold absoluto** ("CPU > 80%") sem context. — P07, P15.
-- **Trace ID não propagado** entre services. — P07.
+- **Sem logs estruturados** (só print). — 03-07.
+- **Logs com PII**. — 03-07, 03-08.
+- **Métricas só de média** (sem P95/P99). — 03-07.
+- **Alerting threshold absoluto** ("CPU > 80%") sem context. — 03-07, 03-15.
+- **Trace ID não propagado** entre services. — 03-07.
 
 ### Security
-- **Dependabot ignored**. — P08.
-- **Sem secrets rotation plan**. — P08.
-- **CSP ausente ou `unsafe-inline`**. — P08.
-- **Sem input validation no boundary**. — P08, S05.
-- **DoS em endpoint custoso** sem rate limit. — S04, P08.
+- **Dependabot ignored**. — 03-08.
+- **Sem secrets rotation plan**. — 03-08.
+- **CSP ausente ou `unsafe-inline`**. — 03-08.
+- **Sem input validation no boundary**. — 03-08, 04-05.
+- **DoS em endpoint custoso** sem rate limit. — 04-04, 03-08.
 
 ### Performance
-- **Otimização sem profile**. — P09, P10.
-- **Microbenchmark sem warm-up**. — P10, N14.
-- **Cache em memory single-instance** assume single replica. — A11, P10.
-- **Sync I/O em event loop**. — A07, P10.
-- **Database thrashing** (queries sem batch). — A09, P10.
+- **Otimização sem profile**. — 03-09, 03-10.
+- **Microbenchmark sem warm-up**. — 03-10, 01-14.
+- **Cache em memory single-instance** assume single replica. — 02-11, 03-10.
+- **Sync I/O em event loop**. — 02-07, 03-10.
+- **Database thrashing** (queries sem batch). — 02-09, 03-10.
 
 ### Incident
-- **Sem runbook** pra alert. — P15.
-- **Postmortem com blame** (vs blameless). — P15.
-- **Sem follow-through** em action items. — P15.
-- **Status page silencioso** durante incidente. — P15.
+- **Sem runbook** pra alert. — 03-15.
+- **Postmortem com blame** (vs blameless). — 03-15.
+- **Sem follow-through** em action items. — 03-15.
+- **Status page silencioso** durante incidente. — 03-15.
 
 ---
 
 ## Architecture / Distributed
 
 ### Services
-- **"Microservices" sem service ownership clara**. — S08, ST03.
-- **Synchronous chain de calls** (latency adds). — S04, S05.
-- **Distributed transaction** (2PC) em vez de Saga. — S03.
-- **Service partilhando DB** (distributed monolith). — S08.
+- **"Microservices" sem service ownership clara**. — 04-08, 05-03.
+- **Synchronous chain de calls** (latency adds). — 04-04, 04-05.
+- **Distributed transaction** (2PC) em vez de Saga. — 04-03.
+- **Service partilhando DB** (distributed monolith). — 04-08.
 
 ### Eventos
-- **Eventos publicados antes de DB commit** (sem outbox). — S03.
-- **Consumer não-idempotente** assumindo exactly-once. — S02, S03.
-- **Sem schema registry** — payload divergence. — S02.
-- **At-most-once em pagamentos** (perde txn). — S02, A18.
+- **Eventos publicados antes de DB commit** (sem outbox). — 04-03.
+- **Consumer não-idempotente** assumindo exactly-once. — 04-02, 04-03.
+- **Sem schema registry** — payload divergence. — 04-02.
+- **At-most-once em pagamentos** (perde txn). — 04-02, 02-18.
 
 ### Resilience
-- **Retry sem jitter** (synchronized retries). — S04.
-- **Sem circuit breaker** em external call. — S04.
-- **Timeout default infinito**. — S04.
-- **Sem bulkhead** entre tenants. — S04.
+- **Retry sem jitter** (synchronized retries). — 04-04.
+- **Sem circuit breaker** em external call. — 04-04.
+- **Timeout default infinito**. — 04-04.
+- **Sem bulkhead** entre tenants. — 04-04.
 
 ### Scaling
-- **Sharding por hash sem rebalance plan**. — S09.
-- **Single Postgres primary** sob 100k QPS. — A09, S09.
-- **Hot partition** (sharding poor key choice). — S09.
+- **Sharding por hash sem rebalance plan**. — 04-09.
+- **Single Postgres primary** sob 100k QPS. — 02-09, 04-09.
+- **Hot partition** (sharding poor key choice). — 04-09.
 
 ### Domain modeling
-- **Anemic models** (DTOs sem behavior). — S06.
-- **Bounded contexts violados** (Order acessa User direto via SQL). — S06.
-- **Ubiquitous language inconsistente** (Order, Pedido, Sale misturados). — S06.
+- **Anemic models** (DTOs sem behavior). — 04-06.
+- **Bounded contexts violados** (Order acessa User direto via SQL). — 04-06.
+- **Ubiquitous language inconsistente** (Order, Pedido, Sale misturados). — 04-06.
 
 ---
 
 ## Carreira / Influência
 
 ### Code review
-- **Aprovar sem ler**. — S12, ST06.
-- **Bikeshedding** (style nit) ignorando design issue. — S12.
-- **Walls of nits** sem priorização. — S12.
-- **Aprovar com "LGTM"** sem evidence de leitura. — S12.
+- **Aprovar sem ler**. — 04-12, 05-06.
+- **Bikeshedding** (style nit) ignorando design issue. — 04-12.
+- **Walls of nits** sem priorização. — 04-12.
+- **Aprovar com "LGTM"** sem evidence de leitura. — 04-12.
 
 ### Tech writing
-- **RFC sem alternatives consideradas**. — S12.
-- **ADR sem trade-offs explícitos**. — S12.
-- **Doc desatualizada** sem flag. — S12, S15.
+- **RFC sem alternatives consideradas**. — 04-12.
+- **ADR sem trade-offs explícitos**. — 04-12.
+- **Doc desatualizada** sem flag. — 04-12, 04-15.
 
 ### Mentorship
-- **Solving instead of coaching**. — ST06.
-- **Feedback vague**. — ST06.
-- **Mentor que não cita data/source**. — ST06.
+- **Solving instead of coaching**. — 05-06.
+- **Feedback vague**. — 05-06.
+- **Mentor que não cita data/source**. — 05-06.
 
 ### Public output
-- **Hot take sem evidence**. — ST05.
-- **Tutorial duplicate** ("how to use Redux"). — ST05.
-- **Promoção sutil de empregador**. — ST05.
+- **Hot take sem evidence**. — 05-05.
+- **Tutorial duplicate** ("how to use Redux"). — 05-05.
+- **Promoção sutil de empregador**. — 05-05.
 
 ### Estimation
-- **Estimate inflado individual** (buffer escondido). — P16.
-- **Sem re-plan check-in**. — P16.
-- **Promise unrealistic** sob pressure. — P16.
+- **Estimate inflado individual** (buffer escondido). — 03-16.
+- **Sem re-plan check-in**. — 03-16.
+- **Promise unrealistic** sob pressure. — 03-16.
 
 ### Org
-- **Reorg como first solution**. — ST03.
-- **Spotify Model literal** (reconhecidamente disfuncional). — ST03.
-- **Two pizza ignored** em time grande. — ST03.
+- **Reorg como first solution**. — 05-03.
+- **Spotify Model literal** (reconhecidamente disfuncional). — 05-03.
+- **Two pizza ignored** em time grande. — 05-03.
 
 ---
 
@@ -290,8 +290,8 @@
 - **Estudar 12h sem dormir**. — STUDY-PROTOCOL §7.
 - **Skim notebooks sem implement**. — STUDY-PROTOCOL.
 - **Não revisar módulos passados** (decay > 90d). — STUDY-PROTOCOL §12.
-- **Reading list de 200 papers e ler 0**. — ST04.
-- **Burnout silencioso** (não sinalizar). — P15, ST06.
+- **Reading list de 200 papers e ler 0**. — 05-04.
+- **Burnout silencioso** (não sinalizar). — 03-15, 05-06.
 
 ---
 

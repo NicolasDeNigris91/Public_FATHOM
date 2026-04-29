@@ -23,7 +23,7 @@ Antes de qualquer tour:
 
 ---
 
-## Tour 1: V8 (engine JavaScript) — para N07, N13, N14
+## Tour 1: V8 (engine JavaScript) — para 01-07, 01-13, 01-14
 
 **Repo**: [github.com/v8/v8](https://github.com/v8/v8)
 **Linguagem**: C++, alguns assembly.
@@ -34,13 +34,13 @@ Antes de qualquer tour:
 
 ### Path:
 
-1. **`src/parsing/parser.cc`** (parser top-level). Skim. Identifique recursive descent. Compare com N13.
+1. **`src/parsing/parser.cc`** (parser top-level). Skim. Identifique recursive descent. Compare com 01-13.
 2. **`src/parsing/scanner.cc`** (lexer). Veja state machine de tokens.
 3. **`src/ast/ast.h`** (AST nodes). Hierarchy.
 4. **`src/interpreter/interpreter.cc`** + **`bytecode/bytecode-generator.cc`** (Ignition — interpretador bytecode). Como AST → bytecode.
-5. **`src/objects/objects.h`** + **`map.h`** (V8 hidden classes ≡ Maps). Where shapes live. Crítico pra N14 perf.
+5. **`src/objects/objects.h`** + **`map.h`** (V8 hidden classes ≡ Maps). Where shapes live. Crítico pra 01-14 perf.
 6. **`src/compiler/turbofan.cc`** (otimizador). Não tente entender; só veja escala. JIT optimizing tier.
-7. **`src/heap/heap.cc`** + **`mark-compact.cc`** (GC). Generational + mark-compact. Connecta com N13 §2.10.
+7. **`src/heap/heap.cc`** + **`mark-compact.cc`** (GC). Generational + mark-compact. Connecta com 01-13 §2.10.
 
 ### What to look for:
 - Tipos de IC (Inline Cache) em `src/ic/`.
@@ -59,7 +59,7 @@ Antes de qualquer tour:
 
 ---
 
-## Tour 2: PostgreSQL — para A09, P13, S09, S14
+## Tour 2: PostgreSQL — para 02-09, 03-13, 04-09, 04-14
 
 **Repo**: [github.com/postgres/postgres](https://github.com/postgres/postgres)
 **Linguagem**: C.
@@ -99,7 +99,7 @@ Antes de qualquer tour:
 
 ---
 
-## Tour 3: Redis — para A11
+## Tour 3: Redis — para 02-11
 
 **Repo**: [github.com/redis/redis](https://github.com/redis/redis)
 **Linguagem**: C.
@@ -133,7 +133,7 @@ Antes de qualquer tour:
 
 ---
 
-## Tour 4: libuv — para A07, N02
+## Tour 4: libuv — para 02-07, 01-02
 
 **Repo**: [github.com/libuv/libuv](https://github.com/libuv/libuv)
 **Linguagem**: C.
@@ -165,7 +165,7 @@ Antes de qualquer tour:
 
 ---
 
-## Tour 5: React reconciler (Fiber) — para A04
+## Tour 5: React reconciler (Fiber) — para 02-04
 
 **Repo**: [github.com/facebook/react](https://github.com/facebook/react)
 **Linguagem**: JS (Flow types).
@@ -198,7 +198,7 @@ Antes de qualquer tour:
 
 ---
 
-## Tour 6: CockroachDB — para S01, S09, S14
+## Tour 6: CockroachDB — para 04-01, 04-09, 04-14
 
 **Repo**: [github.com/cockroachdb/cockroach](https://github.com/cockroachdb/cockroach)
 **Linguagem**: Go.
@@ -231,7 +231,7 @@ Antes de qualquer tour:
 
 ---
 
-## Tour 7: Kubernetes scheduler — para P03, ST01
+## Tour 7: Kubernetes scheduler — para 03-03, 05-01
 
 **Repo**: [github.com/kubernetes/kubernetes](https://github.com/kubernetes/kubernetes)
 **Linguagem**: Go.
@@ -263,7 +263,7 @@ Antes de qualquer tour:
 
 ---
 
-## Tour 8: Linux Kernel (mini-tour) — para N02
+## Tour 8: Linux Kernel (mini-tour) — para 01-02
 
 **Repo**: [github.com/torvalds/linux](https://github.com/torvalds/linux)
 **Linguagem**: C.
@@ -281,7 +281,7 @@ Antes de qualquer tour:
 5. **`fs/read_write.c`** (`ksys_read`): syscall implementation.
 6. **`kernel/fork.c`** (`do_fork`): process creation.
 7. **`mm/page_alloc.c`**: page allocator.
-8. **`kernel/futex.c`**: futex (revisita N11).
+8. **`kernel/futex.c`**: futex (revisita 01-11).
 
 ### What to look for:
 - CFS rb-tree.
@@ -295,7 +295,7 @@ Antes de qualquer tour:
 
 ---
 
-## Tour 9: Apache Kafka — para S02, S13
+## Tour 9: Apache Kafka — para 04-02, 04-13
 
 **Repo**: [github.com/apache/kafka](https://github.com/apache/kafka)
 **Linguagem**: Scala (legacy) + Java (newer).
@@ -327,7 +327,7 @@ Antes de qualquer tour:
 
 ---
 
-## Tour 10: TigerBeetle (financial DB) — para A18, S14
+## Tour 10: TigerBeetle (financial DB) — para 02-18, 04-14
 
 **Repo**: [github.com/tigerbeetle/tigerbeetle](https://github.com/tigerbeetle/tigerbeetle)
 **Linguagem**: Zig.
@@ -356,7 +356,7 @@ Antes de qualquer tour:
 
 ---
 
-## Tour 11: Bevy ECS — para ST10
+## Tour 11: Bevy ECS — para 05-10
 
 **Repo**: [github.com/bevyengine/bevy](https://github.com/bevyengine/bevy)
 **Linguagem**: Rust.
@@ -382,7 +382,7 @@ Antes de qualquer tour:
 
 ---
 
-## Tour 12: Stripe SDK Node — para A18
+## Tour 12: Stripe SDK Node — para 02-18
 
 **Repo**: [github.com/stripe/stripe-node](https://github.com/stripe/stripe-node)
 **Linguagem**: TypeScript.
@@ -406,7 +406,7 @@ Antes de qualquer tour:
 
 ---
 
-## Tour 13: TLA+ Examples — para S14
+## Tour 13: TLA+ Examples — para 04-14
 
 **Repo**: [github.com/tlaplus/Examples](https://github.com/tlaplus/Examples)
 **Linguagem**: TLA+, PlusCal.
@@ -429,7 +429,7 @@ Antes de qualquer tour:
 
 ---
 
-## Tour 14: Tokio (Rust async runtime) — para P11, N11
+## Tour 14: Tokio (Rust async runtime) — para 03-11, 01-11
 
 **Repo**: [github.com/tokio-rs/tokio](https://github.com/tokio-rs/tokio)
 **Linguagem**: Rust.
@@ -451,7 +451,7 @@ Antes de qualquer tour:
 
 ---
 
-## Tour 15: Caddy / nginx — para A14, S05
+## Tour 15: Caddy / nginx — para 02-14, 04-05
 
 Para entender HTTP server e reverse proxy real.
 
@@ -464,7 +464,7 @@ Para entender HTTP server e reverse proxy real.
 
 ---
 
-## Tour 16: Excalidraw — para ST02 (CRDT capstone)
+## Tour 16: Excalidraw — para 05-02 (CRDT capstone)
 
 **Repo**: [github.com/excalidraw/excalidraw](https://github.com/excalidraw/excalidraw)
 **Linguagem**: TypeScript.
@@ -483,7 +483,7 @@ Para entender HTTP server e reverse proxy real.
 
 ---
 
-## Tour 17: SQLite (mini-DB) — para ST01, A09
+## Tour 17: SQLite (mini-DB) — para 05-01, 02-09
 
 **Repo**: [sqlite.org](https://sqlite.org/) (não GitHub direto; trunk em fossil).
 **Linguagem**: C.
@@ -497,11 +497,11 @@ Para entender HTTP server e reverse proxy real.
 4. `src/wal.c`: WAL mode.
 5. `src/vdbe.c`: virtual machine bytecode.
 
-SQLite é referência **mais legível** que Postgres pra entender DB internals. Pra ST01 build-from-scratch.
+SQLite é referência **mais legível** que Postgres pra entender DB internals. Pra 05-01 build-from-scratch.
 
 ---
 
-## Tour 18: io_uring / Linux async — para P10, N02 advanced
+## Tour 18: io_uring / Linux async — para 03-10, 01-02 advanced
 
 **Repo**: [github.com/axboe/liburing](https://github.com/axboe/liburing) + linux kernel `io_uring/`.
 **Linguagem**: C.
@@ -515,7 +515,7 @@ io_uring é onde Linux async vai. Vale entender.
 
 ---
 
-## Tour 19: Bun runtime — para A07, N13
+## Tour 19: Bun runtime — para 02-07, 01-13
 
 **Repo**: [github.com/oven-sh/bun](https://github.com/oven-sh/bun)
 **Linguagem**: Zig + JS.
@@ -530,7 +530,7 @@ Bun mostra alternative architecture pra Node — JavaScriptCore vs V8, Zig vs C+
 
 ---
 
-## Tour 20: Anthropic Cookbook + LangGraph — para S10
+## Tour 20: Anthropic Cookbook + LangGraph — para 04-10
 
 **Repos**:
 - [github.com/anthropics/anthropic-cookbook](https://github.com/anthropics/anthropic-cookbook)

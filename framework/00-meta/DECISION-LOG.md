@@ -2,7 +2,7 @@
 
 > Registro de **por que** o framework foi feito como foi. Não é roadmap; é archaeology.
 >
-> Daqui a 1 ano você (ou outro leitor) vai perguntar: "por que 5 estágios?", "por que Logística?", "por que ST07-ST10 opcionais?". Este doc responde com reasoning.
+> Daqui a 1 ano você (ou outro leitor) vai perguntar: "por que 5 estágios?", "por que Logística?", "por que 05-07-05-10 opcionais?". Este doc responde com reasoning.
 >
 > Cada decisão tem ID `DL-NNN`, contexto, alternativas, escolha, trade-offs, status. Append-only — superseded com nova entry citando o ID antigo.
 
@@ -15,19 +15,19 @@ Frameworks de carreira tradicionais usam 3 níveis (Junior/Pleno/Senior) ou 7+ (
 
 **Alternativas consideradas**:
 - 3 estágios: simples; perde granularidade entre fundamentos vs aplicação vs operação.
-- 4 estágios (versão original): Novice + Apprentice + Professional + Senior. Era OK até a auditoria mostrar gap em pós-Senior.
+- 4 estágios (versão original): Fundamentos + Plataforma + Professional + Senior. Era OK até a auditoria mostrar gap em pós-Senior.
 - 7+ estágios: granular demais; senior-fellow distinction matter only em empresas raras.
 
-**Escolha**: 5 estágios (Novice, Apprentice, Professional, Senior, Staff/Principal).
+**Escolha**: 5 estágios (Fundamentos, Plataforma, Professional, Senior, Staff/Principal).
 
 **Por quê**:
-- Novice/Apprentice/Professional/Senior cobrem trajetória full-stack até Senior generalista — o que 95% dos engineers precisam.
+- Fundamentos/Plataforma/Professional/Senior cobrem trajetória full-stack até Senior generalista — o que 95% dos engineers precisam.
 - Estágio 5 (Staff/Principal) preenche gap real onde dev fica preso em Senior por 5+ anos sem ferramentas pra cruzar.
 - "Distinguished/Fellow" e além são domain-specific demais pra framework standardizable; trajetórias divergem.
 
 **Trade-offs**:
 - Aceita: framework para no Staff. Para quem quer Distinguished/Fellow, framework é insuficiente.
-- Pago em: granularidade. Pleno-junior vs Pleno-senior coexistem em "Apprentice" sem distinção formal.
+- Pago em: granularidade. Pleno-junior vs Pleno-senior coexistem em "Plataforma" sem distinção formal.
 
 **Status**: ativo.
 
@@ -60,7 +60,7 @@ Frameworks tradicionais têm capstone descontínuo (cada estágio um produto). I
 
 **Trade-offs**:
 - Aceita: dev anti-Logística pode achar dull. "Não é o domínio que importa; é o shape que ensina."
-- Pago em: alguns conceitos que não cabem em Logística viram capstone-staff multi-domain (ST02).
+- Pago em: alguns conceitos que não cabem em Logística viram capstone-staff multi-domain (05-02).
 
 **Status**: ativo.
 
@@ -76,12 +76,12 @@ Versão original do framework parava em Senior. Auditoria honesta mostrou: dev S
 - Adicionar conteúdo Staff dentro do Senior (mas estagio Senior ficaria gigante).
 - Stage 5 separado.
 
-**Escolha**: Stage 5 explícito com 7 módulos núcleo (ST01-ST06 + ST07 opcional) + capstone de specialization.
+**Escolha**: Stage 5 explícito com 7 módulos núcleo (05-01-05-06 + 05-07 opcional) + capstone de specialization.
 
 **Por quê**:
 - Trajetória Senior → Staff é qualitativamente diferente (multiplicação via influência, não código).
-- Módulos como ST04 (paper reading), ST05 (public output), ST06 (mentorship) raramente recebem tratamento estruturado.
-- Build-from-scratch (ST01) e multi-domain (ST02) marcam transição de "construir aplicação" pra "entender stack abaixo + breadth".
+- Módulos como 05-04 (paper reading), 05-05 (public output), 05-06 (mentorship) raramente recebem tratamento estruturado.
+- Build-from-scratch (05-01) e multi-domain (05-02) marcam transição de "construir aplicação" pra "entender stack abaixo + breadth".
 - Capstone-staff cristaliza outputs cumulativos em portfolio + promo case.
 
 **Trade-offs**:
@@ -102,11 +102,11 @@ Após adições, framework tem 78 módulos. Auditoria identificou tentação de 
 - Mais módulos: 100+. Cobertura quase total.
 - Equilíbrio escolhido: ~78 com **opcionais** marcados claramente.
 
-**Escolha**: 78 módulos, com 4 ST opcionais (ST07-ST10) + 1 P opcional aspect (P18).
+**Escolha**: 78 módulos, com 4 ST opcionais (05-07-05-10) + 1 P opcional aspect (03-18).
 
 **Por quê**:
 - Lacunas conceituais identificadas (search, graph, payments, mobile native, i18n, perf CPU, math, formal methods, OSS, business, paper reading, etc.) são reais e separadoras de Senior real vs Senior superficial.
-- Marcar opcionais previne paralisia ("78 módulos? impossível"); leitor vê que ST07-ST10 são branches especializadas, não obrigatórias.
+- Marcar opcionais previne paralisia ("78 módulos? impossível"); leitor vê que 05-07-05-10 são branches especializadas, não obrigatórias.
 - Domínios extremamente nicho (game dev, bio, hardware, cognitive a11y) merecem módulo só pra quem precisa; sem módulo, esse pessoal sente framework não cobre eles.
 
 **Trade-offs**:
@@ -170,8 +170,8 @@ Aprendizado solo é viável mas slower; full-cohort cria dependência de matchma
 Frameworks tradicionais usam "X meses por estágio". Inflaciona expectativas, desincentiva profundidade.
 
 **Alternativas**:
-- Time-based: "Novice em 3 meses".
-- Mastery-based: "Novice quando o mentor valida portões".
+- Time-based: "Fundamentos em 3 meses".
+- Mastery-based: "Fundamentos quando o mentor valida portões".
 - Hybrid: time-bound recomendado, mastery gate.
 
 **Escolha**: pure mastery-based, sem prazos.
@@ -334,7 +334,7 @@ Reabra entry quando decidir.
 ## DL-014: Profundidade desigual aceita pragmaticamente
 
 **Contexto** (2026-04-28):
-Auditoria interna mostra que módulos têm profundidade desigual. A09 (Postgres) é denso; N04 (Data Structures) é mais shallow proporcionalmente; N15 (Math) cobre 18 sub-tópicos em 350 linhas — cada um merece livro. Tentação: rewrite tudo pra alcançar profundidade máxima.
+Auditoria interna mostra que módulos têm profundidade desigual. 02-09 (Postgres) é denso; 01-04 (Data Structures) é mais shallow proporcionalmente; 01-15 (Math) cobre 18 sub-tópicos em 350 linhas — cada um merece livro. Tentação: rewrite tudo pra alcançar profundidade máxima.
 
 **Alternativas consideradas**:
 - A. Rewrite todos os 78 módulos pra ~500-600 linhas cada — torna framework livro de 40k+ linhas. Demora meses.
@@ -363,7 +363,7 @@ Auditoria interna mostra que módulos têm profundidade desigual. A09 (Postgres)
 Framework é heavy em Node/TypeScript/Postgres/Redis/React. Auditoria reconhece bias. Java, Python, Ruby, Go, .NET, PHP comunidades também precisam ver framework relevante.
 
 **Alternativas consideradas**:
-- A. Rewrite de cada módulo com versions per-stack (ex: A07 Node, A07 Java, A07 Python). 3-5x volume.
+- A. Rewrite de cada módulo com versions per-stack (ex: 02-07 Node, 02-07 Java, 02-07 Python). 3-5x volume.
 - B. Forks per-stack (community-maintained).
 - C. Documento meta `STACK-COMPARISONS.md` mapeando patterns canônicos em cada stack lado-a-lado.
 
@@ -437,7 +437,7 @@ Framework é artefato pessoal. Versão anterior tinha attribuição compartilhad
 ## DL-018: Site público em monorepo (apps/site/), não repo separado
 
 **Contexto** (2026-04-28):
-Framework precisa de surface pública pra ser consumido fora do GitHub raw — recruiters, peers, leitores casuais, futuro promo case (CAPSTONE-staff §2.12). Decisão: criar repo dedicado pro site, ou manter dentro do `FATHOM` em `apps/site/`?
+Framework precisa de surface pública pra ser consumido fora do GitHub raw — recruiters, peers, leitores casuais, futuro promo case (CAPSTONE-amplitude §2.12). Decisão: criar repo dedicado pro site, ou manter dentro do `FATHOM` em `apps/site/`?
 
 **Alternativas consideradas**:
 - A. Repo separado `FATHOM-site`. Pros: clean boundary, deploy independente. Cons: duplicação cross-repo de conteúdo (ou pull via submodule), dois lugares pra atualizar, divergência risk.

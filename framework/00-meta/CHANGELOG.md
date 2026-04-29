@@ -24,38 +24,38 @@ Tipos:
 
 Expansão de conteúdo cobrindo gaps detectados em audit interno. Tópicos atualizados pra 2025-2026 reality.
 
-**Novice (4 módulos):**
-- N02: §2.4.1 schedulers modernos (CFS→EEVDF Linux 6.6+, Windows Thread Director, hybrid CPUs P/E cores).
-- N03: §2.6.1 QUIC deep — UDP user-space, 0-RTT replay attack, connection migration, custos vs TCP.
-- N11: §2.17 modelos de concorrência comparados — CSP/Go vs Actors/Erlang vs async-await/Rust com tabela e quando usar cada.
-- N12: §2.15 reescrito — NIST PQ standards 2024 (FIPS 203/204/205), TLS hybrid X25519MLKEM768, "harvest now decrypt later".
+**Fundamentos (4 módulos):**
+- 01-02: §2.4.1 schedulers modernos (CFS→EEVDF Linux 6.6+, Windows Thread Director, hybrid CPUs P/E cores).
+- 01-03: §2.6.1 QUIC deep — UDP user-space, 0-RTT replay attack, connection migration, custos vs TCP.
+- 01-11: §2.17 modelos de concorrência comparados — CSP/Go vs Actors/Erlang vs async-await/Rust com tabela e quando usar cada.
+- 01-12: §2.15 reescrito — NIST PQ standards 2024 (FIPS 203/204/205), TLS hybrid X25519MLKEM768, "harvest now decrypt later".
 
-**Apprentice (5 módulos):**
-- A04: §2.7 React Compiler deep — modelo mental novo, rules of React, bail-out behavior, migrações práticas.
-- A07: §2.17 Node vs Bun vs Deno comparação real 2026 — tabela de decisão, pegadinhas, veredicto pragmático.
-- A09: §2.13.1 logical replication uso real (CDC, zero-downtime upgrade, pegadinhas) + §2.14 Postgres 17/18 features.
-- A13: §2.9 Passkeys/WebAuthn deep — synced vs device-bound vs roaming, server flow, pegadinhas, migration strategy.
-- A14: §2.14 WebTransport deep — modelo, API client, quando vs WebSocket, server libs 2026.
+**Plataforma (5 módulos):**
+- 02-04: §2.7 React Compiler deep — modelo mental novo, rules of React, bail-out behavior, migrações práticas.
+- 02-07: §2.17 Node vs Bun vs Deno comparação real 2026 — tabela de decisão, pegadinhas, veredicto pragmático.
+- 02-09: §2.13.1 logical replication uso real (CDC, zero-downtime upgrade, pegadinhas) + §2.14 Postgres 17/18 features.
+- 02-13: §2.9 Passkeys/WebAuthn deep — synced vs device-bound vs roaming, server flow, pegadinhas, migration strategy.
+- 02-14: §2.14 WebTransport deep — modelo, API client, quando vs WebSocket, server libs 2026.
 
 **Professional (6 módulos):**
-- P03: §2.18 operators pattern + §2.18.1 alternativas a K8s (ECS, Nomad, Fly, Railway, Cloud Run, Kamal) com heurística pragmática.
-- P05: §2.3.1 VPC deep — TGW, PrivateLink, egress VPC, IPv6, custos esquecidos. + §2.19 FinOps + §2.20 Sustainability.
-- P07: §2.16 eBPF observability deep — tools 2026 (Pixie, Tetragon, Parca, Cilium, Coroot, bpftrace, Beyla), quando vale.
-- P08: §2.17.1 privacy engineering — tokenization, field encryption, RTBF real, differential privacy, k-anonymity, antipatterns.
-- P10: §2.19 perf JVM/.NET/Go — JIT tiers, GCs, AOT, virtual threads, comparação cross-runtime.
-- P15: §2.11 chaos engineering tooling deep — Litmus, Chaos Mesh, Gremlin, FIS, Pumba; tipos de injeção; maturity ladder.
+- 03-03: §2.18 operators pattern + §2.18.1 alternativas a K8s (ECS, Nomad, Fly, Railway, Cloud Run, Kamal) com heurística pragmática.
+- 03-05: §2.3.1 VPC deep — TGW, PrivateLink, egress VPC, IPv6, custos esquecidos. + §2.19 FinOps + §2.20 Sustainability.
+- 03-07: §2.16 eBPF observability deep — tools 2026 (Pixie, Tetragon, Parca, Cilium, Coroot, bpftrace, Beyla), quando vale.
+- 03-08: §2.17.1 privacy engineering — tokenization, field encryption, RTBF real, differential privacy, k-anonymity, antipatterns.
+- 03-10: §2.19 perf JVM/.NET/Go — JIT tiers, GCs, AOT, virtual threads, comparação cross-runtime.
+- 03-15: §2.11 chaos engineering tooling deep — Litmus, Chaos Mesh, Gremlin, FIS, Pumba; tipos de injeção; maturity ladder.
 
 **Senior (5 módulos):**
-- S01: §2.18 CRDT deep — famílias (CvRDT/CmRDT/delta), Yjs/Automerge, limitações, quando usar.
-- S02: §2.7 Pulsar/Redpanda/NATS JetStream deep com tabela de decisão.
-- S05: §2.13 tRPC + Connect-RPC — comparação com gRPC clássico e REST, quando escolher.
-- S13: §2.2.1 streaming SQL incremental — Materialize, RisingWave, vs Flink.
-- S14: §2.7-2.9 reescritos — P language, Alloy, Lean 4 (mathlib4, Cedar) deep.
+- 04-01: §2.18 CRDT deep — famílias (CvRDT/CmRDT/delta), Yjs/Automerge, limitações, quando usar.
+- 04-02: §2.7 Pulsar/Redpanda/NATS JetStream deep com tabela de decisão.
+- 04-05: §2.13 tRPC + Connect-RPC — comparação com gRPC clássico e REST, quando escolher.
+- 04-13: §2.2.1 streaming SQL incremental — Materialize, RisingWave, vs Flink.
+- 04-14: §2.7-2.9 reescritos — P language, Alloy, Lean 4 (mathlib4, Cedar) deep.
 
 **Staff (3 módulos):**
-- ST04: §2.7.1 must-read papers list — 35 papers ordenados por estágio (Apprentice→Staff→Foundations→Data/ML).
-- ST05: §2.2.1 YouTube/podcast como medium — formatos, setup, cadência, quando NÃO usar.
-- CAPSTONE-staff: Track G — AI Infrastructure Engineer (vLLM, training pipelines, vector DBs prod, evals, GPU cost).
+- 05-04: §2.7.1 must-read papers list — 35 papers ordenados por estágio (Plataforma→Staff→Foundations→Data/ML).
+- 05-05: §2.2.1 YouTube/podcast como medium — formatos, setup, cadência, quando NÃO usar.
+- CAPSTONE-amplitude: Track G — AI Infrastructure Engineer (vLLM, training pipelines, vector DBs prod, evals, GPU cost).
 
 **Cross-cutting:**
 - STUDY-PROTOCOL §17 — Quarterly Review template com cadência fixa, 3 perguntas brutais, sinais de burnout.
@@ -77,7 +77,7 @@ Expansão de conteúdo cobrindo gaps detectados em audit interno. Tópicos atual
 
 - **remove**: `CLAUDE.md` raiz (versão dependente de ferramenta específica). Conteúdo migrado/generalizado em `MENTOR.md`.
 - **edit**: `MENTOR.md` reescrito com 4 modos de mentor — A (self), B (peer/cohort), C (suplemento opcional de produtividade, sob restrições), D (hybrid recomendado). Sem nomear ferramentas específicas.
-- **edit**: limpeza de referências a ferramentas/fornecedores de IA específicos em todo o repo (README.md, PROGRESS.md, STUDY-PROTOCOL.md, capstones, metas). Linguagem agnóstica ("o mentor", "você", voz passiva). Referências técnicas legítimas em S10 (módulo sobre LLM systems), elite-references e reading-list (recursos de estudo) preservadas.
+- **edit**: limpeza de referências a ferramentas/fornecedores de IA específicos em todo o repo (README.md, PROGRESS.md, STUDY-PROTOCOL.md, capstones, metas). Linguagem agnóstica ("o mentor", "você", voz passiva). Referências técnicas legítimas em 04-10 (módulo sobre LLM systems), elite-references e reading-list (recursos de estudo) preservadas.
 - **edit**: `RELEASE-NOTES.md` — seção "Agradecimentos" substituída por "Autoria" (Nicolas De Nigris, único autor; síntese baseada em fontes canônicas).
 - **add**: `DECISION-LOG.md` DL-017 — atribuição autoral única; ferramentas usadas no processo são instrumento, não co-autor.
 - **edit**: `DECISION-LOG.md` DL-005 reescrito como "Mentor flexível com modos self / peer / suplemento opcional"; entries que mencionavam ferramenta específica generalizadas.
@@ -93,12 +93,12 @@ Expansão de conteúdo cobrindo gaps detectados em audit interno. Tópicos atual
 
 ### 2026-04-28 — Sprint 1 batch 1: Depth Leveling em 6 módulos
 
-- **edit**: N04 Data Structures — +10 subseções (B-Tree variants, persistent DS, cache-oblivious, skip list deep, HAMT, LSM-Tree, Bloom math, adjacency variants, Trie variants, Union-Find).
-- **edit**: N15 Math Foundations — +8 subseções deep (linear algebra concrete, probability cases, info theory, graphs com complexity, numerical, LA code, optimization, probabilistic DS math).
-- **edit**: A02 Accessibility — +4 subseções (WCAG 2.2 critérios, ARIA APG patterns, manual audit checklist, Brasil regional context).
-- **edit**: A05 Next.js — +8 subseções (Server Components mental model, RSC payload, streaming deep, Server Actions revalidation/optimistic/transitions, Edge runtime, ISR cache invalidation, Turbopack vs Webpack, errors/instrumentation).
-- **edit**: S05 API Design — +7 subseções (GraphQL Federation v2, gRPC streaming bidirectional, BFF, API gateway, Stripe versioning, RFC 7807, comparison side-by-side).
-- **edit**: S04 Resilience Patterns — +9 subseções (hedging, adaptive concurrency, backpressure formal, token/leaky bucket math, circuit breaker state machine, bulkhead concrete, failover, chaos engineering, failure budget).
+- **edit**: 01-04 Data Structures — +10 subseções (B-Tree variants, persistent DS, cache-oblivious, skip list deep, HAMT, LSM-Tree, Bloom math, adjacency variants, Trie variants, Union-Find).
+- **edit**: 01-15 Math Foundations — +8 subseções deep (linear algebra concrete, probability cases, info theory, graphs com complexity, numerical, LA code, optimization, probabilistic DS math).
+- **edit**: 02-02 Accessibility — +4 subseções (WCAG 2.2 critérios, ARIA APG patterns, manual audit checklist, Brasil regional context).
+- **edit**: 02-05 Next.js — +8 subseções (Server Components mental model, RSC payload, streaming deep, Server Actions revalidation/optimistic/transitions, Edge runtime, ISR cache invalidation, Turbopack vs Webpack, errors/instrumentation).
+- **edit**: 04-05 API Design — +7 subseções (GraphQL Federation v2, gRPC streaming bidirectional, BFF, API gateway, Stripe versioning, RFC 7807, comparison side-by-side).
+- **edit**: 04-04 Resilience Patterns — +9 subseções (hedging, adaptive concurrency, backpressure formal, token/leaky bucket math, circuit breaker state machine, bulkhead concrete, failover, chaos engineering, failure budget).
 - **gap encerrado**: profundidade desigual no batch identificado em DL-014. Sprint 1 batch 1 entregou 1100+ linhas adicionais nos 6 módulos prioritários. SN-007 audit dos restantes pendente pra batch 2.
 - Done log atualizada em SPRINT-NEXT.md.
 
@@ -109,17 +109,17 @@ Expansão de conteúdo cobrindo gaps detectados em audit interno. Tópicos atual
 - **add**: `00-meta/STACK-COMPARISONS.md` — mapeamento cross-stack (Node, Java, Python, Ruby, Go, .NET, PHP, Rust, Elixir) cobrindo backend frameworks, concurrency, auth, ORM, testing, observability, deploy, perf, real-time, frontend, mobile, AI/LLM. Reduz bias Node/Postgres do framework.
 - **edit**: DECISION-LOG.md — DL-014 (profundidade desigual aceita), DL-015 (multi-stack via comparisons), DL-016 (codebase tours como complemento). Pending questions referenciadas a SPRINT-NEXT IDs.
 - **edit**: MENTOR.md §7 + INDEX.md — referências às 3 metas novas adicionadas.
-- **gap reconhecido**: depth leveling de N04, N15, A02, A05, S04, S05 ficou em SPRINT-NEXT Sprint 1 (SN-001 a SN-006); não executado neste batch.
+- **gap reconhecido**: depth leveling de 01-04, 01-15, 02-02, 02-05, 04-04, 04-05 ficou em SPRINT-NEXT Sprint 1 (SN-001 a SN-006); não executado neste batch.
 
 ### 2026-04-28 — Foundation, Stage 5, Niche specialties, Meta consolidation
 
-- **add**: Stage 5 — Staff/Principal completo (ST01-ST07 + CAPSTONE-staff + README).
+- **add**: Stage 5 — Staff/Principal completo (05-01-05-07 + CAPSTONE-amplitude + README).
 - **add**: 16 módulos novos cobrindo lacunas conceituais e domain breadth:
-  - Novice: N11 Concurrency Theory, N12 Cryptography Fundamentals, N13 Compilers & Interpreters, N14 CPU Microarchitecture, N15 Math Foundations.
-  - Apprentice: A15 Search Engines & IR, A16 Graph Databases, A17 Native Mobile, A18 Payments & Billing, A19 i18n / l10n.
-  - Professional: P13 Time-Series & Analytical DBs, P14 Graphics/Audio/Codecs, P15 Incident Response, P16 Estimation & Planning, P17 Accessibility Testing, P18 Cognitive Accessibility.
-  - Senior: S13 Streaming & Batch, S14 Formal Methods (TLA+), S15 OSS Maintainership, S16 Product/Business/Unit Economics.
-  - Staff specialties: ST08 Hardware Design, ST09 Bioinformatics & Scientific Computing, ST10 Game Development Pipeline.
+  - Fundamentos: 01-11 Concurrency Theory, 01-12 Cryptography Fundamentals, 01-13 Compilers & Interpreters, 01-14 CPU Microarchitecture, 01-15 Math Foundations.
+  - Plataforma: 02-15 Search Engines & IR, 02-16 Graph Databases, 02-17 Native Mobile, 02-18 Payments & Billing, 02-19 i18n / l10n.
+  - Professional: 03-13 Time-Series & Analytical DBs, 03-14 Graphics/Audio/Codecs, 03-15 Incident Response, 03-16 Estimation & Planning, 03-17 Accessibility Testing, 03-18 Cognitive Accessibility.
+  - Senior: 04-13 Streaming & Batch, 04-14 Formal Methods (TLA+), 04-15 OSS Maintainership, 04-16 Product/Business/Unit Economics.
+  - Staff specialties: 05-08 Hardware Design, 05-09 Bioinformatics & Scientific Computing, 05-10 Game Development Pipeline.
 - **add**: meta files completos:
   - `00-meta/INDEX.md` — mapa global com DAG.
   - `00-meta/CAPSTONE-EVOLUTION.md` — Logística v0→v1→v2→v3→v4.
@@ -143,10 +143,10 @@ Expansão de conteúdo cobrindo gaps detectados em audit interno. Tópicos atual
 
 - **add**: Foundation — MENTOR.md, PROGRESS.md, STUDY-PROTOCOL.md.
 - **add**: `framework/00-meta/elite-references.md` e `reading-list.md` (versão inicial).
-- **add**: Estágio 1 — Novice (N01-N10 + CAPSTONE-novice + README).
-- **add**: Estágio 2 — Apprentice (A01-A14 + CAPSTONE-apprentice + README).
-- **add**: Estágio 3 — Professional (P01-P12 + CAPSTONE-professional + README).
-- **add**: Estágio 4 — Senior (S01-S12 + CAPSTONE-senior + README).
+- **add**: Estágio 1 — Fundamentos (01-01-01-10 + CAPSTONE-fundamentos + README).
+- **add**: Estágio 2 — Plataforma (02-01-02-14 + CAPSTONE-plataforma + README).
+- **add**: Estágio 3 — Produção (03-01-03-12 + CAPSTONE-producao + README).
+- **add**: Estágio 4 — Sistemas (04-01-04-12 + CAPSTONE-sistemas + README).
 
 ---
 
@@ -162,8 +162,8 @@ Sempre que tocar arquivo do framework:
 Se quebrou contrato (renomeou módulo cited em outros, mudou prereqs, mudou semantic de portão), documente impact e migration:
 
 ```
-### 2026-XX-XX — Renamed N02 → N02-os-internals
-- **rename**: N02-operating-systems.md → N02-os-internals.md.
+### 2026-XX-XX — Renamed 01-02 → 01-02-os-internals
+- **rename**: 01-02-operating-systems.md → 01-02-os-internals.md.
 - **migration**: 12 cross-references em outros módulos atualizadas.
 - **migration**: PROGRESS.md, INDEX.md, stage README atualizados.
 ```

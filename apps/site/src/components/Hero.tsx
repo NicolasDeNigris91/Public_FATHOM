@@ -36,7 +36,7 @@ export function Hero({ totalModules, activeModule }: HeroProps) {
           variants={slideVariant}
           className="font-mono text-caption text-racing-green-lit tracking-luxury uppercase mb-8"
         >
-          Framework de Maestria · {new Date().getFullYear()}
+          Caderno de estudos · {new Date().getFullYear()}
         </motion.p>
 
         <motion.h1
@@ -54,16 +54,9 @@ export function Hero({ totalModules, activeModule }: HeroProps) {
 
         <motion.p
           variants={slideVariant}
-          className="font-sans text-body-lg text-chrome leading-relaxed mb-6 max-w-3xl"
+          className="font-sans text-body-lg text-chrome leading-relaxed mb-12 max-w-3xl"
         >
-          Trilha estruturada de iniciante real até Staff/Principal Software Engineer. Mastery-based, sem prazos, conduzida pelo mentor (você, peer, ou suplemento opcional) sob protocolo rígido.
-        </motion.p>
-
-        <motion.p
-          variants={slideVariant}
-          className="font-sans text-body text-chrome/80 leading-relaxed mb-12 max-w-3xl italic"
-        >
-          Não é curso. Não é bootcamp. Não é leitura passiva. É disciplina de longo prazo com módulos densos, portões de avaliação, e um produto encadeado (Logística) que evolui ao longo dos 5 estágios.
+          Minhas notas de estudo de engenharia de software, organizadas por estágio.
         </motion.p>
 
         <motion.div variants={slideVariant} className="flex flex-wrap items-center gap-6 sm:gap-8 mb-16">
@@ -78,12 +71,12 @@ export function Hero({ totalModules, activeModule }: HeroProps) {
             </Link>
           ) : (
             <Link
-              href="/modules/n01"
+              href="/modules/01-01"
               className="font-sans text-caption tracking-luxury uppercase border border-platinum text-platinum
                          px-6 sm:px-8 py-3 hover:bg-platinum hover:text-obsidian transition-colors duration-300
                          focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-platinum"
             >
-              Begin → N01
+              Begin → 01-01
             </Link>
           )}
           <Link

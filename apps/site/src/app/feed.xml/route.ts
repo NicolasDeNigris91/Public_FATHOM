@@ -47,7 +47,7 @@ export async function GET() {
     <title>Fathom — Módulos concluídos</title>
     <link>${escapeXml(SITE_URL)}</link>
     <atom:link href="${escapeXml(`${SITE_URL}/feed.xml`)}" rel="self" type="application/rss+xml" />
-    <description>Trilha mastery-based de Novice a Staff/Principal. Módulos com status done.</description>
+    <description>Notas de estudo de engenharia de software. Módulos com status done.</description>
     <language>pt-BR</language>
     <lastBuildDate>${now}</lastBuildDate>
     <generator>Fathom site</generator>

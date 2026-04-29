@@ -1,8 +1,8 @@
-# PROGRESS — Framework de Maestria Full Stack
+# PROGRESS — Fathom
 
-**Estágio ativo:** Novice
+**Estágio ativo:** Fundamentos
 **Módulo ativo:** — (nenhum iniciado ainda)
-**Próximo módulo:** N01 — Computation Model
+**Próximo módulo:** 01-01 — Computation Model
 **Atualizado em:** 2026-04-28
 
 > Este arquivo é a fonte de verdade do progresso. O mentor DEVE lê-lo a cada `SessionStart` e atualizá-lo após cada portão (ver `MENTOR.md` §4).
@@ -11,121 +11,121 @@
 
 ---
 
-## Estágio 1 — Novice
+## Estágio 1 — Fundamentos
 
 | ID | Módulo | Conceitual | Prático | Conexões | Status |
 |----|--------|:---:|:---:|:---:|:------:|
-| N01 | Computation Model | ⬜ | ⬜ | ⬜ | LOCKED |
-| N02 | Operating Systems | ⬜ | ⬜ | ⬜ | LOCKED |
-| N03 | Networking | ⬜ | ⬜ | ⬜ | LOCKED |
-| N04 | Data Structures | ⬜ | ⬜ | ⬜ | LOCKED |
-| N05 | Algorithms | ⬜ | ⬜ | ⬜ | LOCKED |
-| N06 | Programming Paradigms | ⬜ | ⬜ | ⬜ | LOCKED |
-| N07 | JavaScript Deep | ⬜ | ⬜ | ⬜ | LOCKED |
-| N08 | TypeScript Type System | ⬜ | ⬜ | ⬜ | LOCKED |
-| N09 | Git Internals | ⬜ | ⬜ | ⬜ | LOCKED |
-| N10 | Unix CLI & Bash | ⬜ | ⬜ | ⬜ | LOCKED |
-| N11 | Concurrency Theory | ⬜ | ⬜ | ⬜ | LOCKED |
-| N12 | Cryptography Fundamentals | ⬜ | ⬜ | ⬜ | LOCKED |
-| N13 | Compilers & Interpreters | ⬜ | ⬜ | ⬜ | LOCKED |
-| N14 | CPU Microarchitecture | ⬜ | ⬜ | ⬜ | LOCKED |
-| N15 | Math Foundations | ⬜ | ⬜ | ⬜ | LOCKED |
-| **CAPSTONE-novice** | HTTP server from scratch | — | ⬜ | — | LOCKED |
+| 01-01 | Computation Model | ⬜ | ⬜ | ⬜ | LOCKED |
+| 01-02 | Operating Systems | ⬜ | ⬜ | ⬜ | LOCKED |
+| 01-03 | Networking | ⬜ | ⬜ | ⬜ | LOCKED |
+| 01-04 | Data Structures | ⬜ | ⬜ | ⬜ | LOCKED |
+| 01-05 | Algorithms | ⬜ | ⬜ | ⬜ | LOCKED |
+| 01-06 | Programming Paradigms | ⬜ | ⬜ | ⬜ | LOCKED |
+| 01-07 | JavaScript Deep | ⬜ | ⬜ | ⬜ | LOCKED |
+| 01-08 | TypeScript Type System | ⬜ | ⬜ | ⬜ | LOCKED |
+| 01-09 | Git Internals | ⬜ | ⬜ | ⬜ | LOCKED |
+| 01-10 | Unix CLI & Bash | ⬜ | ⬜ | ⬜ | LOCKED |
+| 01-11 | Concurrency Theory | ⬜ | ⬜ | ⬜ | LOCKED |
+| 01-12 | Cryptography Fundamentals | ⬜ | ⬜ | ⬜ | LOCKED |
+| 01-13 | Compilers & Interpreters | ⬜ | ⬜ | ⬜ | LOCKED |
+| 01-14 | CPU Microarchitecture | ⬜ | ⬜ | ⬜ | LOCKED |
+| 01-15 | Math Foundations | ⬜ | ⬜ | ⬜ | LOCKED |
+| **CAPSTONE-fundamentos** | HTTP server from scratch | — | ⬜ | — | LOCKED |
 
 ---
 
-## Estágio 2 — Apprentice
+## Estágio 2 — Plataforma
 
 | ID | Módulo | Conceitual | Prático | Conexões | Status |
 |----|--------|:---:|:---:|:---:|:------:|
-| A01 | HTML/CSS/Tailwind | ⬜ | ⬜ | ⬜ | LOCKED |
-| A02 | Accessibility | ⬜ | ⬜ | ⬜ | LOCKED |
-| A03 | DOM & Web APIs | ⬜ | ⬜ | ⬜ | LOCKED |
-| A04 | React Deep | ⬜ | ⬜ | ⬜ | LOCKED |
-| A05 | Next.js | ⬜ | ⬜ | ⬜ | LOCKED |
-| A06 | React Native | ⬜ | ⬜ | ⬜ | LOCKED |
-| A07 | Node.js Internals | ⬜ | ⬜ | ⬜ | LOCKED |
-| A08 | Backend Frameworks | ⬜ | ⬜ | ⬜ | LOCKED |
-| A09 | Postgres Deep | ⬜ | ⬜ | ⬜ | LOCKED |
-| A10 | ORMs | ⬜ | ⬜ | ⬜ | LOCKED |
-| A11 | Redis | ⬜ | ⬜ | ⬜ | LOCKED |
-| A12 | MongoDB | ⬜ | ⬜ | ⬜ | LOCKED |
-| A13 | Auth (OAuth2/JWT) | ⬜ | ⬜ | ⬜ | LOCKED |
-| A14 | Real-time (WS/SSE/WebRTC) | ⬜ | ⬜ | ⬜ | LOCKED |
-| A15 | Search Engines & IR | ⬜ | ⬜ | ⬜ | LOCKED |
-| A16 | Graph Databases | ⬜ | ⬜ | ⬜ | LOCKED |
-| A17 | Native Mobile (iOS/Android) | ⬜ | ⬜ | ⬜ | LOCKED |
-| A18 | Payments & Billing | ⬜ | ⬜ | ⬜ | LOCKED |
-| A19 | i18n / l10n | ⬜ | ⬜ | ⬜ | LOCKED |
-| **CAPSTONE-apprentice** | Logística v1 (full stack monolith) | — | ⬜ | — | LOCKED |
+| 02-01 | HTML/CSS/Tailwind | ⬜ | ⬜ | ⬜ | LOCKED |
+| 02-02 | Accessibility | ⬜ | ⬜ | ⬜ | LOCKED |
+| 02-03 | DOM & Web APIs | ⬜ | ⬜ | ⬜ | LOCKED |
+| 02-04 | React Deep | ⬜ | ⬜ | ⬜ | LOCKED |
+| 02-05 | Next.js | ⬜ | ⬜ | ⬜ | LOCKED |
+| 02-06 | React Native | ⬜ | ⬜ | ⬜ | LOCKED |
+| 02-07 | Node.js Internals | ⬜ | ⬜ | ⬜ | LOCKED |
+| 02-08 | Backend Frameworks | ⬜ | ⬜ | ⬜ | LOCKED |
+| 02-09 | Postgres Deep | ⬜ | ⬜ | ⬜ | LOCKED |
+| 02-10 | ORMs | ⬜ | ⬜ | ⬜ | LOCKED |
+| 02-11 | Redis | ⬜ | ⬜ | ⬜ | LOCKED |
+| 02-12 | MongoDB | ⬜ | ⬜ | ⬜ | LOCKED |
+| 02-13 | Auth (OAuth2/JWT) | ⬜ | ⬜ | ⬜ | LOCKED |
+| 02-14 | Real-time (WS/SSE/WebRTC) | ⬜ | ⬜ | ⬜ | LOCKED |
+| 02-15 | Search Engines & IR | ⬜ | ⬜ | ⬜ | LOCKED |
+| 02-16 | Graph Databases | ⬜ | ⬜ | ⬜ | LOCKED |
+| 02-17 | Native Mobile (iOS/Android) | ⬜ | ⬜ | ⬜ | LOCKED |
+| 02-18 | Payments & Billing | ⬜ | ⬜ | ⬜ | LOCKED |
+| 02-19 | i18n / l10n | ⬜ | ⬜ | ⬜ | LOCKED |
+| **CAPSTONE-plataforma** | Logística v1 (full stack monolith) | — | ⬜ | — | LOCKED |
 
 ---
 
-## Estágio 3 — Professional
+## Estágio 3 — Produção
 
 | ID | Módulo | Conceitual | Prático | Conexões | Status |
 |----|--------|:---:|:---:|:---:|:------:|
-| P01 | Testing | ⬜ | ⬜ | ⬜ | LOCKED |
-| P02 | Docker | ⬜ | ⬜ | ⬜ | LOCKED |
-| P03 | Kubernetes | ⬜ | ⬜ | ⬜ | LOCKED |
-| P04 | CI/CD | ⬜ | ⬜ | ⬜ | LOCKED |
-| P05 | AWS Core | ⬜ | ⬜ | ⬜ | LOCKED |
-| P06 | IaC (Terraform/Pulumi) | ⬜ | ⬜ | ⬜ | LOCKED |
-| P07 | Observability | ⬜ | ⬜ | ⬜ | LOCKED |
-| P08 | Applied Security (OWASP) | ⬜ | ⬜ | ⬜ | LOCKED |
-| P09 | Frontend Performance | ⬜ | ⬜ | ⬜ | LOCKED |
-| P10 | Backend Performance | ⬜ | ⬜ | ⬜ | LOCKED |
-| P11 | Systems Languages (Go/Rust) | ⬜ | ⬜ | ⬜ | LOCKED |
-| P12 | WebAssembly | ⬜ | ⬜ | ⬜ | LOCKED |
-| P13 | Time-Series & Analytical DBs | ⬜ | ⬜ | ⬜ | LOCKED |
-| P14 | Graphics, Audio & Codecs | ⬜ | ⬜ | ⬜ | LOCKED |
-| P15 | Incident Response & On-Call | ⬜ | ⬜ | ⬜ | LOCKED |
-| P16 | Estimation & Technical Planning | ⬜ | ⬜ | ⬜ | LOCKED |
-| P17 | Accessibility Testing & Automation | ⬜ | ⬜ | ⬜ | LOCKED |
-| P18 | Cognitive Accessibility | ⬜ | ⬜ | ⬜ | LOCKED |
-| **CAPSTONE-professional** | Logística v2 (production-ready) | — | ⬜ | — | LOCKED |
+| 03-01 | Testing | ⬜ | ⬜ | ⬜ | LOCKED |
+| 03-02 | Docker | ⬜ | ⬜ | ⬜ | LOCKED |
+| 03-03 | Kubernetes | ⬜ | ⬜ | ⬜ | LOCKED |
+| 03-04 | CI/CD | ⬜ | ⬜ | ⬜ | LOCKED |
+| 03-05 | AWS Core | ⬜ | ⬜ | ⬜ | LOCKED |
+| 03-06 | IaC (Terraform/Pulumi) | ⬜ | ⬜ | ⬜ | LOCKED |
+| 03-07 | Observability | ⬜ | ⬜ | ⬜ | LOCKED |
+| 03-08 | Applied Security (OWASP) | ⬜ | ⬜ | ⬜ | LOCKED |
+| 03-09 | Frontend Performance | ⬜ | ⬜ | ⬜ | LOCKED |
+| 03-10 | Backend Performance | ⬜ | ⬜ | ⬜ | LOCKED |
+| 03-11 | Systems Languages (Go/Rust) | ⬜ | ⬜ | ⬜ | LOCKED |
+| 03-12 | WebAssembly | ⬜ | ⬜ | ⬜ | LOCKED |
+| 03-13 | Time-Series & Analytical DBs | ⬜ | ⬜ | ⬜ | LOCKED |
+| 03-14 | Graphics, Audio & Codecs | ⬜ | ⬜ | ⬜ | LOCKED |
+| 03-15 | Incident Response & On-Call | ⬜ | ⬜ | ⬜ | LOCKED |
+| 03-16 | Estimation & Technical Planning | ⬜ | ⬜ | ⬜ | LOCKED |
+| 03-17 | Accessibility Testing & Automation | ⬜ | ⬜ | ⬜ | LOCKED |
+| 03-18 | Cognitive Accessibility | ⬜ | ⬜ | ⬜ | LOCKED |
+| **CAPSTONE-producao** | Logística v2 (production-ready) | — | ⬜ | — | LOCKED |
 
 ---
 
-## Estágio 4 — Senior
+## Estágio 4 — Sistemas
 
 | ID | Módulo | Conceitual | Prático | Conexões | Status |
 |----|--------|:---:|:---:|:---:|:------:|
-| S01 | Distributed Systems Theory | ⬜ | ⬜ | ⬜ | LOCKED |
-| S02 | Messaging (Kafka/RabbitMQ) | ⬜ | ⬜ | ⬜ | LOCKED |
-| S03 | Event-Driven Patterns | ⬜ | ⬜ | ⬜ | LOCKED |
-| S04 | Resilience Patterns | ⬜ | ⬜ | ⬜ | LOCKED |
-| S05 | API Design Avançado | ⬜ | ⬜ | ⬜ | LOCKED |
-| S06 | Domain-Driven Design | ⬜ | ⬜ | ⬜ | LOCKED |
-| S07 | Architectures | ⬜ | ⬜ | ⬜ | LOCKED |
-| S08 | Services vs Monolith vs Serverless | ⬜ | ⬜ | ⬜ | LOCKED |
-| S09 | Scaling | ⬜ | ⬜ | ⬜ | LOCKED |
-| S10 | AI/LLM em Sistemas | ⬜ | ⬜ | ⬜ | LOCKED |
-| S11 | Web3 / Blockchain | ⬜ | ⬜ | ⬜ | LOCKED |
-| S12 | Tech Leadership | ⬜ | ⬜ | ⬜ | LOCKED |
-| S13 | Streaming & Batch Processing | ⬜ | ⬜ | ⬜ | LOCKED |
-| S14 | Formal Methods (TLA+) | ⬜ | ⬜ | ⬜ | LOCKED |
-| S15 | OSS Maintainership | ⬜ | ⬜ | ⬜ | LOCKED |
-| S16 | Product, Business & Unit Economics | ⬜ | ⬜ | ⬜ | LOCKED |
-| **CAPSTONE-senior** | Logística v3 (distribuído escalável) | — | ⬜ | — | LOCKED |
+| 04-01 | Distributed Systems Theory | ⬜ | ⬜ | ⬜ | LOCKED |
+| 04-02 | Messaging (Kafka/RabbitMQ) | ⬜ | ⬜ | ⬜ | LOCKED |
+| 04-03 | Event-Driven Patterns | ⬜ | ⬜ | ⬜ | LOCKED |
+| 04-04 | Resilience Patterns | ⬜ | ⬜ | ⬜ | LOCKED |
+| 04-05 | API Design Avançado | ⬜ | ⬜ | ⬜ | LOCKED |
+| 04-06 | Domain-Driven Design | ⬜ | ⬜ | ⬜ | LOCKED |
+| 04-07 | Architectures | ⬜ | ⬜ | ⬜ | LOCKED |
+| 04-08 | Services vs Monolith vs Serverless | ⬜ | ⬜ | ⬜ | LOCKED |
+| 04-09 | Scaling | ⬜ | ⬜ | ⬜ | LOCKED |
+| 04-10 | AI/LLM em Sistemas | ⬜ | ⬜ | ⬜ | LOCKED |
+| 04-11 | Web3 / Blockchain | ⬜ | ⬜ | ⬜ | LOCKED |
+| 04-12 | Tech Leadership | ⬜ | ⬜ | ⬜ | LOCKED |
+| 04-13 | Streaming & Batch Processing | ⬜ | ⬜ | ⬜ | LOCKED |
+| 04-14 | Formal Methods (TLA+) | ⬜ | ⬜ | ⬜ | LOCKED |
+| 04-15 | OSS Maintainership | ⬜ | ⬜ | ⬜ | LOCKED |
+| 04-16 | Product, Business & Unit Economics | ⬜ | ⬜ | ⬜ | LOCKED |
+| **CAPSTONE-sistemas** | Logística v3 (distribuído escalável) | — | ⬜ | — | LOCKED |
 
 ---
 
-## Estágio 5 — Staff / Principal
+## Estágio 5 — Amplitude
 
 | ID | Módulo | Conceitual | Prático | Conexões | Status |
 |----|--------|:---:|:---:|:---:|:------:|
-| ST01 | Build-from-Scratch Track | ⬜ | ⬜ | ⬜ | LOCKED |
-| ST02 | Multi-Domain Capstones | ⬜ | ⬜ | ⬜ | LOCKED |
-| ST03 | Conway's Law & Org Architecture | ⬜ | ⬜ | ⬜ | LOCKED |
-| ST04 | Paper Reading & Research | ⬜ | ⬜ | ⬜ | LOCKED |
-| ST05 | Public Output | ⬜ | ⬜ | ⬜ | LOCKED |
-| ST06 | Mentorship at Scale | ⬜ | ⬜ | ⬜ | LOCKED |
-| ST07 | Embedded & IoT (opcional) | ⬜ | ⬜ | ⬜ | LOCKED |
-| ST08 | Hardware Design Fundamentals (opcional) | ⬜ | ⬜ | ⬜ | LOCKED |
-| ST09 | Bioinformatics & Scientific Computing (opcional) | ⬜ | ⬜ | ⬜ | LOCKED |
-| ST10 | Game Development Pipeline (opcional) | ⬜ | ⬜ | ⬜ | LOCKED |
-| **CAPSTONE-staff** | Specialization + Portfolio + Promo Case | — | ⬜ | — | LOCKED |
+| 05-01 | Build-from-Scratch Track | ⬜ | ⬜ | ⬜ | LOCKED |
+| 05-02 | Multi-Domain Capstones | ⬜ | ⬜ | ⬜ | LOCKED |
+| 05-03 | Conway's Law & Org Architecture | ⬜ | ⬜ | ⬜ | LOCKED |
+| 05-04 | Paper Reading & Research | ⬜ | ⬜ | ⬜ | LOCKED |
+| 05-05 | Public Output | ⬜ | ⬜ | ⬜ | LOCKED |
+| 05-06 | Mentorship at Scale | ⬜ | ⬜ | ⬜ | LOCKED |
+| 05-07 | Embedded & IoT (opcional) | ⬜ | ⬜ | ⬜ | LOCKED |
+| 05-08 | Hardware Design Fundamentals (opcional) | ⬜ | ⬜ | ⬜ | LOCKED |
+| 05-09 | Bioinformatics & Scientific Computing (opcional) | ⬜ | ⬜ | ⬜ | LOCKED |
+| 05-10 | Game Development Pipeline (opcional) | ⬜ | ⬜ | ⬜ | LOCKED |
+| **CAPSTONE-amplitude** | Specialization + Portfolio + Promo Case | — | ⬜ | — | LOCKED |
 
 ---
 
@@ -155,7 +155,7 @@
 
 ## Paper Reading Log
 
-> Registro de papers lidos (§13 do STUDY-PROTOCOL e ST04). Formato: `YYYY-MM-DD | título | venue/ano | pass-level (1/2/3) | linkado-em (módulo/projeto)`.
+> Registro de papers lidos (§13 do STUDY-PROTOCOL e 05-04). Formato: `YYYY-MM-DD | título | venue/ano | pass-level (1/2/3) | linkado-em (módulo/projeto)`.
 
 (vazio)
 
@@ -171,7 +171,7 @@
 
 ## Public Output Tracking
 
-> Output público acumulado (§14 do STUDY-PROTOCOL e ST05). Formato: `YYYY-MM-DD | tipo (post/talk/oss/release) | título | URL`.
+> Output público acumulado (§14 do STUDY-PROTOCOL e 05-05). Formato: `YYYY-MM-DD | tipo (post/talk/oss/release) | título | URL`.
 
 (vazio)
 
@@ -179,7 +179,7 @@
 
 ## Mentorship Tracking
 
-> Registro privado de mentees (ST06). Não inclua dados pessoais sensíveis aqui — use doc separado privado se preciso. Aqui só counts e status.
+> Registro privado de mentees (05-06). Não inclua dados pessoais sensíveis aqui — use doc separado privado se preciso. Aqui só counts e status.
 
 (vazio)
 
@@ -229,8 +229,8 @@
 ### Repos pessoais
 - **Estudos pessoais** (notes, anki, journal): URL.
 - **Capstone repo** Logística: URL.
-- **OSS lib mantida** (S15 / ST05): URL.
-- **Portfolio site** (ST05): URL.
+- **OSS lib mantida** (04-15 / 05-05): URL.
+- **Portfolio site** (05-05): URL.
 
 ### Workflow tools
 - **Git config**: (usuário, signing key se ativo).

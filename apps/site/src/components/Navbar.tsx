@@ -120,7 +120,7 @@ export function Navbar() {
             <span className="hidden sm:inline opacity-80">K</span>
           </button>
           <Link
-            href="/modules/n01"
+            href="/modules/01-01"
             className="hidden sm:inline-block font-sans text-caption tracking-luxury uppercase border border-mist text-chrome
                        px-5 py-2 hover:border-platinum hover:text-platinum transition-colors duration-300
                        focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-platinum"
@@ -164,13 +164,13 @@ export function Navbar() {
             })}
             <li className="pt-2 border-t border-mist/30">
               <Link
-                href="/modules/n01"
+                href="/modules/01-01"
                 onClick={closeMobile}
                 className="block font-sans text-caption tracking-luxury uppercase
                            border border-mist text-chrome px-5 py-3 mt-3
                            text-center hover:border-platinum hover:text-platinum transition-colors duration-200"
               >
-                Begin → N01
+                Begin → 01-01
               </Link>
             </li>
           </ul>

@@ -83,9 +83,9 @@ function extractFirstHeading(md: string): string | null {
 
 function moduleOrder(rawId: string): number {
   if (rawId.startsWith('CAPSTONE')) return 999;
-  const m = rawId.match(/^([A-Z]+)(\d+)$/);
+  const m = rawId.match(/^\d{2}-(\d{2})$/);
   if (!m) return 1000;
-  return parseInt(m[2], 10);
+  return parseInt(m[1], 10);
 }
 
 export async function getStageModules(stage: StageMeta): Promise<ModuleSummary[]> {
@@ -101,7 +101,7 @@ export async function getStageModules(stage: StageMeta): Promise<ModuleSummary[]
     const parsed = matter(raw);
     const fm = (parsed.data ?? {}) as ModuleFrontmatter;
 
-    const idMatch = fileName.match(/^([A-Z]+\d+|CAPSTONE-[a-z]+)/);
+    const idMatch = fileName.match(/^(\d{2}-\d{2}|CAPSTONE-[a-z]+)/);
     const rawId = idMatch ? idMatch[1] : fileName.replace(/\.md$/, '');
     const id = rawId.toLowerCase();
     const slug = fileName.replace(/\.md$/, '').toLowerCase();
@@ -146,7 +146,7 @@ export async function getModuleByRawId(rawId: string): Promise<ModuleFull | null
     const dir = path.join(FRAMEWORK_ROOT, stage.dir);
     const files = await listMd(dir);
     for (const fileName of files) {
-      const idMatch = fileName.match(/^([A-Z]+\d+|CAPSTONE-[a-z]+)/);
+      const idMatch = fileName.match(/^(\d{2}-\d{2}|CAPSTONE-[a-z]+)/);
       const fileRawId = idMatch ? idMatch[1] : fileName.replace(/\.md$/, '');
       if (fileRawId.toLowerCase() === rawId.toLowerCase()) {
         const filePath = path.join(dir, fileName);

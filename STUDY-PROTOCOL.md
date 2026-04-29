@@ -95,7 +95,7 @@ Se você precisou usar termos sem explicar (ex: escreveu "MVCC garante consisten
 5. Cicle: ler suficiente → tentar → travar → ler específico.
 6. Termine a Teoria Hard depois que você implementou o suficiente pra ter intuição.
 
-Isso aplica especialmente a módulos práticos (`A04 React`, `A09 Postgres`, `P02 Docker`). Pra módulos puramente conceituais (`S01 Distributed Systems Theory`), leia mais primeiro — não tem o que codar até entender a teoria.
+Isso aplica especialmente a módulos práticos (`02-04 React`, `02-09 Postgres`, `03-02 Docker`). Pra módulos puramente conceituais (`04-01 Distributed Systems Theory`), leia mais primeiro — não tem o que codar até entender a teoria.
 
 ---
 
@@ -175,7 +175,7 @@ Mantenha, no seu repo pessoal de estudos:
 - **`open-questions.md`** — dúvidas pendentes
 - **`failures-log.md`** — onde você travou em cada Desafio, o que aprendeu
 - **`journal.md`** — descobertas não-óbvias por módulo (lições que você não vai re-derivar)
-- **`papers/`** — Q&A notes por paper (ST04 protocolo, mas começa cedo)
+- **`papers/`** — Q&A notes por paper (05-04 protocolo, mas começa cedo)
 - **`code/`** — implementações dos Desafios de Engenharia (cada um seu próprio repo git, idealmente)
 
 ---
@@ -205,7 +205,7 @@ Spaced re-test transforma o framework de **certificado pontual** em **manutenç�
 
 **Princípio:** ler paper é diferente de ler blog. Sem método, paper é overwhelming. O protocolo de three-pass (Keshav) torna sustentável.
 
-**Procedimento (resumo; detalhes em ST04):**
+**Procedimento (resumo; detalhes em 05-04):**
 1. **Pass 1 (5-10 min)**: título, abstract, intro, conclusion, refs. Decisão: prosseguir?
 2. **Pass 2 (1h)**: leitura cuidadosa, ignore proofs/details. Note figures.
 3. **Pass 3 (4+ hrs)**: re-implement na cabeça, identifique assumptions, locate flaws. Write summary.
@@ -221,9 +221,9 @@ Spaced re-test transforma o framework de **certificado pontual** em **manutenç�
 
 **Cadence:** 1 paper / semana ou 1 / 2 semanas, slot fixo.
 
-**Quando começar:** opcional no Apprentice; recomendado a partir do Professional; obrigatório no Senior+.
+**Quando começar:** opcional no Plataforma; recomendado a partir do Professional; obrigatório no Senior+.
 
-**Reading list:** comece em `framework/00-meta/reading-list.md` + `elite-references.md`. Expanda no ST04 se chegar lá.
+**Reading list:** comece em `framework/00-meta/reading-list.md` + `elite-references.md`. Expanda no 05-04 se chegar lá.
 
 ---
 
@@ -232,7 +232,7 @@ Spaced re-test transforma o framework de **certificado pontual** em **manutenç�
 **Princípio:** projeto privado é prática; projeto público é investigação. Audiência (mesmo pequena) força clarity, gera feedback inesperado, e cria histórico verificável.
 
 **Procedimento:**
-- Cada Capstone (Novice/Apprentice/Professional/Senior/Staff) **deve** ter pelo menos:
+- Cada Capstone (Fundamentos/Plataforma/Professional/Senior/Staff) **deve** ter pelo menos:
   - Repo público no GitHub.
   - README claro: goals, non-goals, demo, run-locally.
   - Decisões documentadas (ADRs ou decision log).
@@ -246,7 +246,7 @@ Spaced re-test transforma o framework de **certificado pontual** em **manutenç�
 **Por que importa:**
 - Recruiters / peer review futuro veem progressão real.
 - Você se obriga a clean code (alguém vai ler).
-- Output cumulativo vira portfolio (ST05 amplifica).
+- Output cumulativo vira portfolio (05-05 amplifica).
 
 ---
 

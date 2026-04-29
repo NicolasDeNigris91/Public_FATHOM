@@ -18,9 +18,9 @@ export default async function NowPage() {
   const all = await getAllModules();
   const totals = snap ? summarize(snap.rows) : null;
 
-  const nextRawId = snap?.nextModule.match(/^([A-Z]+\d+|CAPSTONE-[a-z]+)/)?.[1];
+  const nextRawId = snap?.nextModule.match(/^(\d{2}-\d{2}|CAPSTONE-[a-z]+)/)?.[1];
   const nextMod = nextRawId ? await getModuleByRawId(nextRawId) : null;
-  const activeRawId = snap?.activeModule.match(/^([A-Z]+\d+|CAPSTONE-[a-z]+)/)?.[1];
+  const activeRawId = snap?.activeModule.match(/^(\d{2}-\d{2}|CAPSTONE-[a-z]+)/)?.[1];
   const activeMod = activeRawId ? await getModuleByRawId(activeRawId) : null;
 
   const stage = activeMod
@@ -115,7 +115,7 @@ export default async function NowPage() {
             <p className="font-sans text-body text-chrome leading-relaxed mb-8 max-w-2xl">
               PROGRESS.md ainda está em estado fresh. O caminho recomendado é:
               fazer Self-Assessment honesto pra calibrar onde você realmente
-              está, escolher um plan, e abrir N01.
+              está, escolher um plan, e abrir 01-01.
             </p>
             <div className="flex flex-wrap gap-6">
               <Link
@@ -133,11 +133,11 @@ export default async function NowPage() {
                 Study Plans →
               </Link>
               <Link
-                href="/modules/n01"
+                href="/modules/01-01"
                 className="font-sans text-caption tracking-luxury uppercase text-chrome hover:text-pearl
                            transition-colors duration-300"
               >
-                N01 — Computation Model →
+                01-01 — Computation Model →
               </Link>
             </div>
           </div>

@@ -9,11 +9,11 @@
 ## O que está pronto
 
 ### Conteúdo curricular
-- **5 estágios**: Novice (15 módulos), Apprentice (19), Professional (18), Senior (16), Staff/Principal (10) = **78 módulos** + 5 capstones.
+- **5 estágios**: Fundamentos (15 módulos), Plataforma (19), Professional (18), Senior (16), Staff/Principal (10) = **78 módulos** + 5 capstones.
 - Capstone único encadeado: Logística v0 → v1 → v2 → v3 → v4. Documentado em `CAPSTONE-EVOLUTION.md`.
 - Cobertura: foundations CS → aplicações full-stack → operações → arquitetura distribuída → specialização Staff.
 - 6 tracks de Staff specialization (Distributed, Platform, Frontend, Data/ML, Security, Founding).
-- Especialidades opcionais: ST07 Embedded/IoT, ST08 Hardware Design, ST09 Bioinformatics/Scientific, ST10 Game Development.
+- Especialidades opcionais: 05-07 Embedded/IoT, 05-08 Hardware Design, 05-09 Bioinformatics/Scientific, 05-10 Game Development.
 
 ### Protocolos pedagógicos
 - `STUDY-PROTOCOL.md` com 16 seções: Feynman, Active Recall, Spaced Repetition, Deliberate Practice, Spaced Re-Test, Paper Reading, Public Capstone, Cohort/Peer, Journal de descobertas.
@@ -45,7 +45,7 @@
 - `STUDY-PROTOCOL.md` — disciplinas cognitivas.
 
 ### Profundidade
-Sprint 1 batch 1 elevou 6 módulos chave (N04, N15, A02, A05, S05, S04) com 1.100+ linhas adicionais. Total framework: ~28.000 linhas de conteúdo técnico denso.
+Sprint 1 batch 1 elevou 6 módulos chave (01-04, 01-15, 02-02, 02-05, 04-05, 04-04) com 1.100+ linhas adicionais. Total framework: ~28.000 linhas de conteúdo técnico denso.
 
 ---
 
@@ -75,11 +75,11 @@ Sprint 1 batch 1 elevou 6 módulos chave (N04, N15, A02, A05, S05, S04) com 1.10
 
 1. **Solo absoluto tem teto**. Framework é mais útil com peer humano + job real + mentor ocasional. Solo sem nenhum canal externo entrega ~70% do potencial.
 
-2. **Profundidade desigual residual**. Após Sprint 1 batch 1, ainda há ~7 módulos abaixo de 280 linhas (A16, N13, A17, A15, ST02, etc.). SN-007 audit reconheceu; aprofundamento triggered por uso real, não preemptivamente.
+2. **Profundidade desigual residual**. Após Sprint 1 batch 1, ainda há ~7 módulos abaixo de 280 linhas (02-16, 01-13, 02-17, 02-15, 05-02, etc.). SN-007 audit reconheceu; aprofundamento triggered por uso real, não preemptivamente.
 
 3. **Stack bias**. Heavy em Node/TypeScript/Postgres/Redis/React. STACK-COMPARISONS.md cobre conceitualmente; idioms locais (Java/Spring, Python/Django, etc.) ainda exigem catch-up specific.
 
-4. **AI/LLM (S10) datado**. Tooling do ecossistema de modelos muda mensalmente. Foundation conceitual envelhece menos.
+4. **AI/LLM (04-10) datado**. Tooling do ecossistema de modelos muda mensalmente. Foundation conceitual envelhece menos.
 
 5. **Não substitui produção real**. Senior real exige produção em job; framework prepara mas não simula politics, legacy, deadlines, time mediano.
 
@@ -92,7 +92,7 @@ Sprint 1 batch 1 elevou 6 módulos chave (N04, N15, A02, A05, S05, S04) com 1.10
 3. Leia `MENTOR.md` (protocolo do mentor).
 4. Faça `framework/00-meta/SELF-ASSESSMENT.md` honestamente.
 5. Escolha plan em `framework/00-meta/STUDY-PLANS.md`.
-6. Abra `framework/01-novice/N01-computation-model.md` e comece pela §1.
+6. Abra `framework/01-fundamentos/01-01-computation-model.md` e comece pela §1.
 
 Próximas ações esperadas: iniciar journal pessoal, configurar Anki, achar peer/cohort, documentar Personal Stack em `PROGRESS.md`.
 
@@ -114,7 +114,7 @@ Framework te dá mapa. Você anda o território.
 Atualizações futuras virão de:
 - Uso real revelando lacunas.
 - Feedback de cohort/peers.
-- Tecnologia evoluindo (S10 stack de modelos, novas RFCs).
+- Tecnologia evoluindo (04-10 stack de modelos, novas RFCs).
 - DECISION-LOG entries reabertas.
 
 Sem promessa de cadence. Framework é vivo, mas não vira tarefa diária.

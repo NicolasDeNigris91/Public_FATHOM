@@ -4,7 +4,7 @@ import { getRootDoc } from './content';
 export type GateMark = 'passed' | 'in_progress' | 'pending' | 'locked' | 'refresh';
 
 export interface ProgressRow {
-  rawId: string;       // N01, A09, CAPSTONE-novice
+  rawId: string;       // 01-01, 02-09, CAPSTONE-fundamentos
   module: string;
   conceitual: GateMark;
   pratico: GateMark;

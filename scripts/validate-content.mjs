@@ -33,11 +33,11 @@ const QUIET = argv.has('--quiet');
 const JSON_OUT = argv.has('--json');
 
 const STAGES = [
-  { dir: '01-novice', prefix: 'N' },
-  { dir: '02-apprentice', prefix: 'A' },
-  { dir: '03-professional', prefix: 'P' },
-  { dir: '04-senior', prefix: 'S' },
-  { dir: '05-staff', prefix: 'ST' },
+  { dir: '01-fundamentos' },
+  { dir: '02-plataforma' },
+  { dir: '03-producao' },
+  { dir: '04-sistemas' },
+  { dir: '05-amplitude' },
 ];
 
 // Issue tracking — collected per source so we can group by file in output.
@@ -105,19 +105,19 @@ async function listModuleIds() {
     for (const f of entries) {
       if (!f.endsWith('.md')) continue;
       if (f === 'README.md') continue;
-      const id = f.match(/^([A-Z]+\d+|CAPSTONE-[a-z]+)/)?.[1];
+      const id = f.match(/^(\d{2}-\d{2}|CAPSTONE-[a-z]+)/)?.[1];
       if (id) ids.add(id);
     }
   }
   return ids;
 }
 
-const MODULE_ID_RE = /^[A-Z]+\d+$/;
+const MODULE_ID_RE = /^\d{2}-\d{2}$/;
 
 async function checkModule(filePath, fileName, knownIds) {
   const raw = await fs.readFile(filePath, 'utf8');
   const { fm } = parseFrontmatter(raw);
-  const idMatch = fileName.match(/^([A-Z]+\d+|CAPSTONE-[a-z]+)/);
+  const idMatch = fileName.match(/^(\d{2}-\d{2}|CAPSTONE-[a-z]+)/);
   const id = idMatch ? idMatch[1] : fileName;
   const isCapstone = id.startsWith('CAPSTONE');
   const rel = path.relative(REPO_ROOT, filePath).replaceAll('\\', '/');

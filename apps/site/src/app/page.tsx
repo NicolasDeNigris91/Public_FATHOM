@@ -12,7 +12,7 @@ export default async function HomePage() {
   const moduleCount = allModules.filter((m) => !m.rawId.startsWith('CAPSTONE')).length;
 
   const snap = await loadProgress();
-  const activeRawId = snap?.activeModule.match(/^([A-Z]+\d+|CAPSTONE-[a-z]+)/)?.[1];
+  const activeRawId = snap?.activeModule.match(/^(\d{2}-\d{2}|CAPSTONE-[a-z]+)/)?.[1];
   const activeMod = activeRawId ? await getModuleByRawId(activeRawId) : null;
   const heroActive = activeMod
     ? { id: activeMod.id, rawId: activeMod.rawId, title: activeMod.title }
@@ -38,7 +38,7 @@ export default async function HomePage() {
           <EyebrowHeading
             eyebrow="Cinco Estágios"
             title="A trajetória"
-            subtitle="Cada estágio resolve um teto diferente. Mastery não é cumulativa por linhas de código — é cumulativa por capacidade de explicar o interno e provar com código."
+            subtitle="Cada estágio resolve um teto diferente. Estudo de longo prazo, com critério de conseguir explicar o interno e provar com código."
           />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-16">

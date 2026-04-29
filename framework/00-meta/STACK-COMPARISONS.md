@@ -18,7 +18,7 @@ Se você sabe Postgres MVCC, sabe Postgres MVCC sob qualquer linguagem. Se você
 
 ---
 
-## 1. Backend frameworks (mapeamento A07-A08)
+## 1. Backend frameworks (mapeamento 02-07-02-08)
 
 | Pattern | Node | Java | Python | Ruby | Go | .NET | PHP |
 |---|---|---|---|---|---|---|---|
@@ -32,11 +32,11 @@ Se você sabe Postgres MVCC, sabe Postgres MVCC sob qualquer linguagem. Se você
 | DI container | NestJS, tsyringe | Spring, Quarkus DI, Guice | dependency-injector, FastAPI Depends | dry-system | wire, fx | built-in MS.Extensions.DI | Symfony DI, Laravel container |
 | Test framework | Vitest, Jest, Mocha | JUnit 5, Spock | pytest, unittest | RSpec, Minitest | testing, ginkgo, testify | xUnit, NUnit, MSTest | PHPUnit, Pest |
 
-**Conexão A07/A08**: cada stack tem seu equivalent direto. Pleno bom em Node + Express equivalent é Pleno bom em Java + Spring Boot — mesmas decisões de design (middleware/filters/interceptors), apenas vocabulário muda.
+**Conexão 02-07/02-08**: cada stack tem seu equivalent direto. Pleno bom em Node + Express equivalent é Pleno bom em Java + Spring Boot — mesmas decisões de design (middleware/filters/interceptors), apenas vocabulário muda.
 
 ---
 
-## 2. Concurrency model (mapeamento N11, A07)
+## 2. Concurrency model (mapeamento 01-11, 02-07)
 
 | Stack | Modelo dominante | Primitives | Async I/O | Compartilhado |
 |---|---|---|---|---|
@@ -57,11 +57,11 @@ Se você sabe Postgres MVCC, sabe Postgres MVCC sob qualquer linguagem. Se você
 - **Virtual threads / fibers / goroutines** (Java Loom, Go, Erlang/Elixir, Kotlin coroutines): M:N scheduling.
 - **GIL languages** (Python, Ruby, JS): tradeoff simplicity ↔ parallelism.
 
-**Implicação concrete**: race condition formal de N11 § 2.1 vale em todas. Memory model x86 vs ARM vale em todas. Lock-free CAS é universal. Mutex syntax muda.
+**Implicação concrete**: race condition formal de 01-11 § 2.1 vale em todas. Memory model x86 vs ARM vale em todas. Lock-free CAS é universal. Mutex syntax muda.
 
 ---
 
-## 3. Auth (mapeamento A13)
+## 3. Auth (mapeamento 02-13)
 
 | Pattern | Node (Passport, lucia-auth, custom) | Java (Spring Security) | Python (Authlib, fastapi-users) | Ruby (Devise) | Go (goth, oauth2) | .NET (ASP.NET Identity, IdentityServer) | PHP (Laravel Sanctum/Passport, Symfony Security) |
 |---|---|---|---|---|---|---|---|
@@ -72,11 +72,11 @@ Se você sabe Postgres MVCC, sabe Postgres MVCC sob qualquer linguagem. Se você
 | 2FA / TOTP | speakeasy, otpauth | passay, googleauth | pyotp | rotp | xlzd/gotp | Otp.NET | Spomky-Labs/otphp |
 | Passkeys / WebAuthn | @simplewebauthn/server | webauthn4j | webauthn (py_webauthn) | webauthn-ruby | go-webauthn | Microsoft.AspNetCore.Authentication, Fido2NetLib | Web-Auth/webauthn-lib |
 
-Conceitos N12/A13 (cripto + flows OAuth2) são spec-driven (RFC 6749, 7519, 8252, 8628, 9068). Implementação muda; spec não.
+Conceitos 01-12/02-13 (cripto + flows OAuth2) são spec-driven (RFC 6749, 7519, 8252, 8628, 9068). Implementação muda; spec não.
 
 ---
 
-## 4. ORM / Database access (mapeamento A09, A10)
+## 4. ORM / Database access (mapeamento 02-09, 02-10)
 
 | Stack | "Fat" ORM (active record) | "Thin" query builder | Raw SQL | Async-friendly? |
 |---|---|---|---|---|
@@ -95,7 +95,7 @@ Conceitos N12/A13 (cripto + flows OAuth2) são spec-driven (RFC 6749, 7519, 8252
 
 ---
 
-## 5. Testing (mapeamento P01)
+## 5. Testing (mapeamento 03-01)
 
 | Test type | Node | Java | Python | Ruby | Go | .NET | PHP |
 |---|---|---|---|---|---|---|---|
@@ -111,7 +111,7 @@ Conceitos N12/A13 (cripto + flows OAuth2) são spec-driven (RFC 6749, 7519, 8252
 
 ---
 
-## 6. Observability (mapeamento P07)
+## 6. Observability (mapeamento 03-07)
 
 | Stack | Logs estruturados | Métricas | Tracing | Tools comuns |
 |---|---|---|---|---|
@@ -127,7 +127,7 @@ Conceitos N12/A13 (cripto + flows OAuth2) são spec-driven (RFC 6749, 7519, 8252
 
 ---
 
-## 7. Deploy / containers (mapeamento P02-P06)
+## 7. Deploy / containers (mapeamento 03-02-03-06)
 
 Idioms de Dockerfile e K8s manifests são universais. Diferenças:
 
@@ -144,7 +144,7 @@ Idioms de Dockerfile e K8s manifests são universais. Diferenças:
 
 ---
 
-## 8. Performance idioms (mapeamento P10)
+## 8. Performance idioms (mapeamento 03-10)
 
 | Stack | Profiler dominante | Flamegraph | Quick wins |
 |---|---|---|---|
@@ -160,7 +160,7 @@ Idioms de Dockerfile e K8s manifests são universais. Diferenças:
 
 ---
 
-## 9. Real-time / WebSocket (mapeamento A14)
+## 9. Real-time / WebSocket (mapeamento 02-14)
 
 | Stack | WS lib | Pub-sub local | Frameworks de salas |
 |---|---|---|---|
@@ -176,7 +176,7 @@ Idioms de Dockerfile e K8s manifests são universais. Diferenças:
 
 ---
 
-## 10. Frontend frameworks (mapeamento A04-A05)
+## 10. Frontend frameworks (mapeamento 02-04-02-05)
 
 | Pattern | React | Vue | Svelte | SolidJS | Angular | Qwik |
 |---|---|---|---|---|---|---|
@@ -190,7 +190,7 @@ Idioms de Dockerfile e K8s manifests são universais. Diferenças:
 
 ---
 
-## 11. Mobile (mapeamento A06, A17)
+## 11. Mobile (mapeamento 02-06, 02-17)
 
 | Cross-platform | Native iOS | Native Android |
 |---|---|---|
@@ -204,7 +204,7 @@ Idioms de Dockerfile e K8s manifests são universais. Diferenças:
 
 ---
 
-## 12. AI/LLM clients (mapeamento S10)
+## 12. AI/LLM clients (mapeamento 04-10)
 
 | Stack | OpenAI / Anthropic SDK | Vector DBs |
 |---|---|---|
@@ -332,7 +332,7 @@ Não tente cobrir **todas** as stacks. Foco no top 8-10 com market share real.
 Excluído explicitamente:
 - COBOL (legacy, mas hire pool restrito a banks).
 - Erlang/Elixir além de menção (nicho mas powerful — dedicado se virar foco).
-- Lisp / Scheme / Haskell além de N06 (academic relevance, low job market).
+- Lisp / Scheme / Haskell além de 01-06 (academic relevance, low job market).
 - Crystal, Nim, V, Zig (early adoption).
 
 Se você estuda stack outside coverage, encontra equivalents com mesmo método. Conceitos atravessam.

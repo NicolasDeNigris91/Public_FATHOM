@@ -26,7 +26,7 @@ export default function AboutPage() {
 
         <div className="mt-16 space-y-8 font-sans text-body-lg text-platinum leading-relaxed">
           <p>
-            Fathom é um framework pessoal de estudo full stack. Começa em <Link href="/modules/n01" className="text-gold-leaf underline underline-offset-4 hover:text-pearl">N01 — Computation Model</Link> e termina no capstone Staff/Principal.
+            Fathom é meu caderno pessoal de estudo de engenharia de software. Começa em <Link href="/modules/01-01" className="text-gold-leaf underline underline-offset-4 hover:text-pearl">01-01 — Computation Model</Link> e termina no capstone do estágio 5.
           </p>
           <p>
             Cinco estágios. 78 módulos. Cinco capstones encadeados em torno de um único produto (Logística) que evolui de servidor HTTP from scratch até sistema distribuído multi-region em 4 incrementos.

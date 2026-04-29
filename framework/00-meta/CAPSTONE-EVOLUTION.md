@@ -6,13 +6,13 @@ A ideia central do framework é não pular pra "microservices distribuídos com 
 
 ---
 
-## v0 — HTTP server from scratch (CAPSTONE-novice)
+## v0 — HTTP server from scratch (CAPSTONE-fundamentos)
 
 **Não é Logística ainda.** É a fundação técnica.
 
 - HTTP/1.1 server em Node puro (sem `http`, sem Express).
 - Parser manual (request line, headers, body com `Content-Length` e `chunked`).
-- Cache LRU em memória (hash map + linked list — usa N04).
+- Cache LRU em memória (hash map + linked list — usa 01-04).
 - Keep-alive correto.
 - CLI de logs estruturados.
 - Test de carga `wrk` mantendo correção sob concorrência.
@@ -23,7 +23,7 @@ A ideia central do framework é não pular pra "microservices distribuídos com 
 
 ---
 
-## v1 — Logística monolítica (CAPSTONE-apprentice)
+## v1 — Logística monolítica (CAPSTONE-plataforma)
 
 **Primeira versão de produto.** Full-stack monolith deployable, multi-tenant.
 
@@ -34,10 +34,10 @@ A ideia central do framework é não pular pra "microservices distribuídos com 
 - Cache: Redis (geocoding, sessions, rate limit).
 - Auth: OAuth2 (Google/GitHub) + JWT/sessions.
 - Real-time: WebSocket pra tracking + mapa.
-- Mobile: app nativo (iOS Swift OU Android Kotlin) consumindo a API (extensão A17).
-- Pagamentos: Stripe Connect Express com idempotency + ledger double-entry (A18).
-- Search: Meilisearch ou Postgres FTS pra search de pedidos (A15).
-- i18n: pt-BR, en-US, es-MX (A19).
+- Mobile: app nativo (iOS Swift OU Android Kotlin) consumindo a API (extensão 02-17).
+- Pagamentos: Stripe Connect Express com idempotency + ledger double-entry (02-18).
+- Search: Meilisearch ou Postgres FTS pra search de pedidos (02-15).
+- i18n: pt-BR, en-US, es-MX (02-19).
 - Deploy: Railway.
 
 **Atores:** lojistas, entregadores, clientes (3 roles).
@@ -63,7 +63,7 @@ A ideia central do framework é não pular pra "microservices distribuídos com 
 
 ---
 
-## v2 — Logística production-ready (CAPSTONE-professional)
+## v2 — Logística production-ready (CAPSTONE-producao)
 
 **Mesma v1, mas operada em produção séria.** Refactor + ops.
 
@@ -77,7 +77,7 @@ A ideia central do framework é não pular pra "microservices distribuídos com 
    - Métricas Prometheus (RED + USE).
    - Tracing OpenTelemetry (req propaga atra serviços).
    - Dashboards Grafana com 4 sinais dourados.
-   - Alerting com burn-rate multi-window (P15).
+   - Alerting com burn-rate multi-window (03-15).
 5. **Security pentest** (OWASP Top 10):
    - SQLi, XSS, IDOR, SSRF, CSRF cobertos.
    - Remediations documentadas.
@@ -88,18 +88,18 @@ A ideia central do framework é não pular pra "microservices distribuídos com 
    - Frontend Core Web Vitals Lighthouse ≥ 95.
 7. **TDD** em pelo menos 1 módulo novo (ex: cálculo de rota com Dijkstra).
 8. **Analytics**:
-   - Pipeline OLTP → CDC → ClickHouse / TimescaleDB (P13).
-   - Dashboards de unit economics (S16) com GMV, churn cohort, LTV.
-9. **Incident response** (P15):
+   - Pipeline OLTP → CDC → ClickHouse / TimescaleDB (03-13).
+   - Dashboards de unit economics (04-16) com GMV, churn cohort, LTV.
+9. **Incident response** (03-15):
    - SLOs declarados (P95 < 800ms, success rate ≥ 99.5%).
    - 6+ runbooks.
    - 2 game days realizados com postmortems blameless.
    - Disaster Recovery drill com restore real.
-10. **a11y CI gates** (P17):
+10. **a11y CI gates** (03-17):
     - axe + Pa11y + Lighthouse a11y em CI.
     - Score ≥ 95.
     - User testing com PWD.
-11. **Planning rigor** (P16): plan-v2 doc com PERT, risk register, critical path. Re-plan na metade. Postmortem do plano.
+11. **Planning rigor** (03-16): plan-v2 doc com PERT, risk register, critical path. Re-plan na metade. Postmortem do plano.
 
 **O que muda:**
 - Monolito **vira modular monolith** (ou pequenos serviços já neste estágio).
@@ -113,18 +113,18 @@ A ideia central do framework é não pular pra "microservices distribuídos com 
 
 ---
 
-## v3 — Logística distribuída escalável (CAPSTONE-senior)
+## v3 — Logística distribuída escalável (CAPSTONE-sistemas)
 
 **Redesign arquitetural.** Decomposição em bounded contexts; mensageria; sharding; event-driven.
 
 **O que entra:**
 
-1. **Bounded contexts explícitos** (DDD, S06):
+1. **Bounded contexts explícitos** (DDD, 04-06):
    - **Orders**: lifecycle de pedido.
    - **Delivery / Tracking**: assignment + pings + location.
-   - **Payments**: ledger + reconciliation + Stripe (A18).
+   - **Payments**: ledger + reconciliation + Stripe (02-18).
    - **Identity**: auth, tenants, RBAC.
-   - **Routing**: optimization (graph DBs A16, OR-Tools).
+   - **Routing**: optimization (graph DBs 02-16, OR-Tools).
    - **Notifications**: emails, push, SMS.
 2. **Services** (microservices ou modular monolith — decisão com ADR):
    - Cada bounded context ganha module/service próprio.
@@ -136,25 +136,25 @@ A ideia central do framework é não pular pra "microservices distribuídos com 
 5. **Outbox pattern** pra publishing reliable de eventos.
 6. **Sharding** Postgres por região geográfica (regiões = shards).
 7. **Read replicas** multi-region (latency local).
-8. **Resilience patterns** (S04):
+8. **Resilience patterns** (04-04):
    - Rate limiting (token bucket) por tenant.
    - Circuit breaker em calls inter-service.
    - Bulkheads.
    - Retry com jitter.
-9. **API design** (S05): gRPC inter-service, REST público, GraphQL no BFF se justificado.
-10. **Streaming pipeline** (S13):
+9. **API design** (04-05): gRPC inter-service, REST público, GraphQL no BFF se justificado.
+10. **Streaming pipeline** (04-13):
     - Flink ou ksqlDB processando event stream.
     - Real-time SLA monitor.
     - Anomaly detection.
     - Lakehouse Iceberg pra histórico.
-11. **AI/LLM** (S10): RAG pra suporte ("onde está meu pedido?") com embeddings em pgvector + retrieval híbrido.
-12. **TLA+ specs** (S14):
+11. **AI/LLM** (04-10): RAG pra suporte ("onde está meu pedido?") com embeddings em pgvector + retrieval híbrido.
+12. **TLA+ specs** (04-14):
     - Outbox formalizado.
     - Idempotent payment retry.
     - Courier dispatch single-assignment.
 13. **8+ ADRs** documentando decisions arquiteturais.
 14. **Carga simulada com k6**: cenários de baseline, spike, kill broker, kill shard, latência alta. Relatório de comportamento.
-15. **Web3 stretch**: smart contract pra liquidação P2P entre lojistas e entregadores em rede de teste (S11).
+15. **Web3 stretch**: smart contract pra liquidação P2P entre lojistas e entregadores em rede de teste (04-11).
 
 **O que muda:**
 - Monolito → bounded contexts decompostos.
@@ -169,7 +169,7 @@ A ideia central do framework é não pular pra "microservices distribuídos com 
 
 ---
 
-## v4 — Specialization Showcase (CAPSTONE-staff)
+## v4 — Specialization Showcase (CAPSTONE-amplitude)
 
 **Não é v4 do produto.** É a **cristalização da carreira** sobre a Logística + outputs cumulativos.
 
@@ -183,13 +183,13 @@ Você escolhe **track** entre 6:
 
 Cada track aprofunda uma dimensão da Logística + integra outputs do Estágio 5:
 
-- ST01 (build-from-scratch): toy DB, queue, runtime, scheduler.
-- ST02 (multi-domain): 3 capstones em fintech, real-time, ML pipeline (fora-de-Logística).
-- ST03 (Conway's Law): proposta org da Logística.
-- ST04 (paper habit): paper implementado, blog post.
-- ST05 (public output): blog stream + 1 talk.
-- ST06 (mentorship): 3 mentees acompanhados.
-- ST07 (embedded, opcional): tracker IoT real.
+- 05-01 (build-from-scratch): toy DB, queue, runtime, scheduler.
+- 05-02 (multi-domain): 3 capstones em fintech, real-time, ML pipeline (fora-de-Logística).
+- 05-03 (Conway's Law): proposta org da Logística.
+- 05-04 (paper habit): paper implementado, blog post.
+- 05-05 (public output): blog stream + 1 talk.
+- 05-06 (mentorship): 3 mentees acompanhados.
+- 05-07 (embedded, opcional): tracker IoT real.
 
 **Output cumulativo:**
 - Portfolio site próprio.
@@ -234,11 +234,11 @@ Esse é o gym de carreira. Sem isso, você lê DDIA mas nunca **viveu**. Com iss
 
 Logística ao longo da trajetória toca **quase todo módulo do framework**:
 
-- N01-N15: fundamentos que sustentam código.
-- A01-A19: cada subdomain que aplicação real precisa.
-- P01-P17: ops, qualidade, perf, segurança.
-- S01-S16: arquitetura, distribuído, leadership, business.
-- ST01-ST07: build-from-scratch, multi-domain, public output, mentoria.
+- 01-01-01-15: fundamentos que sustentam código.
+- 02-01-02-19: cada subdomain que aplicação real precisa.
+- 03-01-03-17: ops, qualidade, perf, segurança.
+- 04-01-04-16: arquitetura, distribuído, leadership, business.
+- 05-01-05-07: build-from-scratch, multi-domain, public output, mentoria.
 
 Use este doc como mapa quando estiver em um estágio: lembre-se onde você está, o que vem antes, o que vem depois, e qual dor cada estágio existe pra te ensinar.
 
