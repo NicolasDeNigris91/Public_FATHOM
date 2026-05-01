@@ -233,6 +233,92 @@ DevTools Performance tab mostra forced reflow como warning. Pratique abrir Perfo
 
 `requestAnimationFrame(cb)` agenda cb pra próximo frame, ajuda batching. `requestIdleCallback(cb)` roda em idle entre frames, bom pra trabalho não-urgente (analytics, prefetch).
 
+### 2.12 Service Workers e PWA
+
+Service Worker é **proxy programável entre app e network** rodando em thread separada. Foundation pra Progressive Web Apps (PWA): offline, install, push, background sync.
+
+#### Lifecycle
+
+```
+register → installing → installed (waiting) → activating → activated → idle ↔ fetching/working
+```
+
+- **install** (`self.addEventListener('install', e => ...)`)`: pre-cache assets críticos via `caches.open('v1').then(c => c.addAll([...]))`.
+- **activate**: limpa caches antigos. `clients.claim()` força controle de tabs já abertas.
+- **fetch**: intercepta toda request da página controlada. `e.respondWith(...)` substitui resposta.
+- **message**: comunicação com page via `postMessage`.
+- **push**: notificação chegou (vide §abaixo).
+- **sync**: background sync trigger.
+
+#### Caching strategies (decisão por tipo de recurso)
+
+| Strategy | Comportamento | Quando |
+|---|---|---|
+| **Cache-first** | Cache → fallback network | Assets estáticos versionados (CSS, JS hash) |
+| **Network-first** | Network → fallback cache | HTML de página (sempre fresh quando online) |
+| **Stale-while-revalidate** | Retorna cache imediato + revalida async | API de dados que toleram 1 versão stale |
+| **Network-only** | Sempre network | POST, PUT, payments — nunca cache |
+| **Cache-only** | Sempre cache | Asset offline-first conhecido |
+
+Lib canônica: **Workbox** (Google). Abstração production-ready com strategies, cleanup, precaching.
+
+```js
+import {registerRoute} from 'workbox-routing';
+import {CacheFirst, NetworkFirst, StaleWhileRevalidate} from 'workbox-strategies';
+
+registerRoute(({request}) => request.destination === 'image',
+  new CacheFirst({cacheName: 'images'}));
+registerRoute(({url}) => url.pathname.startsWith('/api/'),
+  new StaleWhileRevalidate({cacheName: 'api'}));
+```
+
+#### Web Push notifications
+
+Permite engagement quando page fechada (PWA-only em iOS 16.4+, sempre em Android/desktop):
+
+1. App pede `Notification.requestPermission()`.
+2. Subscribe via `pushManager.subscribe({applicationServerKey: VAPID_PUBLIC})`.
+3. Subscription enviado pro backend (endpoint URL, p256dh, auth keys).
+4. Backend envia push via Web Push Protocol (RFC 8030 + VAPID RFC 8292) — libs: `web-push` (Node), `pywebpush` (Py).
+5. Service Worker recebe `push` event, mostra `self.registration.showNotification(...)`.
+
+Privacy: usuários odeiam push spam. Peça permission só após value clearly demonstrated; deixe opt-out fácil.
+
+#### Background Sync e Periodic Background Sync
+
+- **Background Sync** (`registration.sync.register('tag')`): quando user offline, registra; quando volta online, SW dispara `sync` event. Use pra POSTs que falharam.
+- **Periodic Background Sync** (`registration.periodicSync.register('news', {minInterval: ...})`): browser agenda fetch periódico. Suporte limitado (Chrome só, com PWA installed). Valor questionável.
+
+#### App installation (PWA install prompt)
+
+`beforeinstallprompt` event fires quando navegador acha PWA instalável (Manifest válido + SW registered + critérios engagement). Capture, mostre UI custom, depois `e.prompt()`. Manifest mínimo:
+
+```json
+{
+  "name": "Fathom Logística",
+  "short_name": "Logística",
+  "start_url": "/",
+  "display": "standalone",
+  "icons": [{"src":"/icon-512.png","sizes":"512x512","type":"image/png"}]
+}
+```
+
+#### Pegadinhas reais
+
+- **SW versionado é mandatório**: cache antigo segura asset velho. Pre-cache key deve incluir hash/build version. Sem isso, deploy "não chega" pra users com SW.
+- **Update flow**: SW novo fica `waiting` até todas tabs fecharem. Force update via `skipWaiting()` + `clients.claim()` em activate, ou aviso UI "nova versão disponível, reload".
+- **Debug**: Chrome DevTools → Application → Service Workers. Use "Update on reload" durante dev.
+- **Scope**: SW em `/sw.js` controla todo origin; SW em `/app/sw.js` controla só `/app/*`. Erro comum.
+- **iOS limitações**: Web Push só funciona em PWA installed (16.4+); no install prompt nativo (user precisa "Add to Home Screen" manual via Share Sheet).
+
+#### Quando NÃO usar PWA
+
+- App é puro consumo passivo de conteúdo, sem necessidade offline → web normal.
+- Você não quer manter SW versionado (overhead operacional).
+- Stack já tem app nativo + web; PWA paralelo é redundância.
+
+Cruza com **02-05** (Next.js next-pwa plugin), **02-14** (push real-time), **03-09** (PWA acelera perceived perf).
+
 ---
 
 ## 3. Threshold de Maestria

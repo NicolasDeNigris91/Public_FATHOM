@@ -98,6 +98,43 @@ Edge runtime executa perto do user: TTFB baixo. Pra rotas que não dependem de D
 
 Static generation (SSG) > SSR > CSR em TTFB e LCP, when possible. Cache HTML no CDN.
 
+### 2.6.1 Edge functions e edge rendering, deep
+
+Edge é a tendência dominante 2024-2026 pra UX-critical paths. Plataformas usam **V8 isolates** (não containers Lambda-style) — runtime sandboxado de ~5MB que sobe em ~5-50ms cold (vs Lambda Node ~200-1000ms cold).
+
+**Players principais:**
+
+| Plataforma | Runtime | Limite CPU/req | Cold start | Pricing model | Forte em |
+|---|---|---|---|---|---|
+| **Cloudflare Workers** | V8 isolate (workerd) | 50ms (Bundled) / 30s (Unbound) | < 5ms | Por requisição + duration | Edge global, KV, R2, D1 |
+| **Vercel Edge Functions** | Vercel Edge Runtime (V8) | ~30s | ~10-50ms | Por GB-hour + invocations | Integração Next.js |
+| **Deno Deploy** | Deno (V8 + Rust) | 50ms-isolate | ~10ms | Por request + GB | Standards-aligned, Web APIs |
+| **Bun edge runtimes** (emerging) | Bun (JSC) | varia | ~ms | Provider-dependent | Throughput, npm compat |
+| **AWS Lambda@Edge / CloudFront Functions** | Node container / V8 | 5s / 1ms | 100-1000ms / sub-ms | AWS pricing | AWS-native, custom logic |
+
+**Constraints reais que mordem:**
+- **Sem Node APIs**: `fs`, `child_process`, native modules não funcionam. Use Web Standards (`fetch`, `crypto.subtle`, `URL`, Streams).
+- **Sem long-running connections**: pool de DB tradicional (pg/mysql2) não roda. Use **Hyperdrive** (Cloudflare), **Neon serverless driver**, **Planetscale serverless**, **Supabase REST**.
+- **Memory cap baixo** (~128MB típico) — não cabem libs gigantes (FFmpeg, headless Chrome).
+- **CPU time bilhado** — loops pesados em hot path destroem custo.
+- **Bundle size cap**: Cloudflare Workers free 1MB / paid 10MB compressed; Vercel Edge ~4MB.
+
+**Quando edge ganha:**
+- TTFB crítico em geo distribuído (e-commerce, mídia, marketplaces) — distribuição de 200+ POPs vence latência.
+- Auth / JWT verify / rate limit no path antes do origin.
+- A/B testing rewrites, redirects, header manipulation.
+- Image optimization on-the-fly.
+- Edge config / feature flags em microsegundos.
+
+**Quando edge perde:**
+- Heavy DB queries com transactions complexas (use origin).
+- Workloads que precisam de Node APIs ou native modules.
+- Sub-rotas que dependem de cache local quente (Lambda warm container vence).
+
+**Padrão arquitetural Logística**: edge **handle auth + rate limit + i18n routing**, encaminha pra origin (Railway/Fastify) só pra rotas dinâmicas com DB. Pages estáticas + API leve em edge; transactional API em origin. Latência p99 cai pra metade ou menos em users distantes do origin region.
+
+Cruza com **02-05** (Next.js routing edge runtime), **02-07** (porque Node APIs não estão lá), **04-09** (latência ao escalar).
+
 ### 2.7 Hydration cost
 
 Após HTML render, React precisa "hidratar", anexar event listeners. Bundle JS executa em main thread. Em apps grandes, hydration de página inteira trava interação por segundos.

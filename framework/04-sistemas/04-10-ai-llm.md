@@ -113,10 +113,27 @@ Embeddings:
 - **Open-source**: Sentence-Transformers, jina-embeddings.
 - Dimensões: 384, 768, 1024, 1536, 3072, maior = mais expressivo, mais storage.
 
-Vector DBs:
-- **pgvector** (Postgres extension), para muitos casos é suficiente. Indexes IVFFlat, HNSW.
-- **Qdrant, Weaviate, Milvus**: dedicated.
-- **Pinecone**: managed.
+Vector DBs em 2026 — matriz de decisão:
+
+| DB | Modelo | Indexes | Hybrid search | Filter perf | Ops | Quando |
+|---|---|---|---|---|---|---|
+| **pgvector** | Postgres extension | IVFFlat, HNSW (0.5+) | Manual (query joins) | Excelente (Postgres planner) | Zero (já tem Postgres) | Default em 2026 até > 10M vectors ou QPS > 500 |
+| **Qdrant** | Rust dedicated | HNSW, scalar quantization | Built-in (BM25 + vector) | Excelente (payload filtering) | Self-host fácil ou managed | Filter-heavy queries, multi-tenant via collections |
+| **Weaviate** | Go dedicated | HNSW + variants | Built-in (BM25 + vector + reranker) | Bom | Self-host médio ou managed | Hybrid search nativo, GraphQL API |
+| **Milvus** | Go + C++ dedicated | HNSW, IVF, DiskANN, GPU | Built-in (sparse + dense) | Bom em escala | Operação complexa (etcd + minio + 10+ services) | > 100M vectors, throughput extremo |
+| **Pinecone** | Managed proprietário | Proprietary | Sparse-dense hybrid | Bom | Zero (managed) | Quer managed e tolera lock-in + custo |
+| **Chroma** | Python dedicated | HNSW | Manual | Ok | Self-host simples | Prototyping, single-node, Python-first |
+| **LanceDB** | Rust + Apache Arrow | IVF, HNSW | Sim | Excelente em columnar | Embedded ou serverless | Multimodal, dataset grande em S3 |
+| **Vespa** | JVM dedicated | HNSW + tensor | Native (BM25 + vector + ML ranking) | Excelente | Operação complexa | Search com ML ranking nativo (Yahoo, Spotify) |
+
+**Heurística pragmática 2026:**
+- **< 1M vectors + você já tem Postgres**: pgvector. Simples, transações, joins, sem nova ferramenta.
+- **1M-100M + filter-heavy** (multi-tenant, complex `WHERE`): **Qdrant** ou pgvector com índices compostos.
+- **> 100M vectors + throughput sustained > 1k QPS**: Milvus, Vespa, ou Pinecone (managed se ops é constraint).
+- **Hybrid search nativo importante** (não quer reescrever query layer): Weaviate ou Vespa.
+- **Multimodal (imagem + texto + audio)**: LanceDB ou Vespa.
+
+**Anti-padrão**: jogar tudo no Pinecone porque "managed é fácil". Custo escala não-linear; lock-in é real; Postgres pgvector cobre 80% dos casos com dor operacional zero.
 
 ### 2.9 RAG advanced
 

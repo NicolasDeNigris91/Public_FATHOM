@@ -20,6 +20,16 @@ Tipos:
 
 ## 2026
 
+### 2026-05-01, Review wave 4 — modern frontiers (edge, supply chain, AI ops, vector DBs, PWA)
+
+Quarta onda do audit cross-stage. Foca em fronteiras modernas que faltavam profundidade adequada — temas onde o framework precisa estar em 2026, não em 2022.
+
+- **edit** [`framework/03-producao/03-09-frontend-performance.md`](../03-producao/03-09-frontend-performance.md), nova §2.6.1 "Edge functions e edge rendering, deep" — players (Cloudflare Workers, Vercel Edge, Deno Deploy, Lambda@Edge) com matriz de runtime/limites/cold start/pricing, constraints reais (sem Node APIs, sem long-running connections, memory cap, CPU bilhado), padrão arquitetural pra Logística (edge auth + rate limit, origin pra DB pesado).
+- **edit** [`framework/03-producao/03-08-applied-security.md`](../03-producao/03-08-applied-security.md) §2.14, supply chain reescrito do zero — 6 camadas de threat (CVEs, dependency confusion, typosquatting, compromised maintainer estilo xz-utils 2024, build system compromise SolarWinds, registry compromise), SLSA 1-4 com critérios, Sigstore stack (cosign + Fulcio + Rekor) com keyless OIDC, SBOM (CycloneDX + SPDX + syft) com exemplo, in-toto attestations, stack mínimo defensável 2026 em 9 itens.
+- **edit** [`framework/03-producao/03-07-observability.md`](../03-producao/03-07-observability.md), nova §2.19 "AI Ops & LLM observability" — métricas únicas (per-call/per-conversation/per-eval/per-tool), failure modes únicos (hallucination, tool argument drift, cost spike, latency tail, quality drift silencioso), OpenTelemetry GenAI semantic conventions, comparação de 5 tools (LangSmith, Langfuse, Helicone, Phoenix, W&B/Weave), padrão de span hierárquico, eval automation offline+online com golden dataset, cost trap de tracing exhaustivo.
+- **edit** [`framework/04-sistemas/04-10-ai-llm.md`](../04-sistemas/04-10-ai-llm.md) §2.8 (vector DBs), matriz comparativa expandida com 8 entradas (pgvector, Qdrant, Weaviate, Milvus, Pinecone, Chroma, LanceDB, Vespa) com modelo, indexes, hybrid search, filter perf, ops, quando usar. Heurística pragmática 2026 + anti-padrão "Pinecone porque é fácil".
+- **edit** [`framework/02-plataforma/02-03-dom-web-apis.md`](../02-plataforma/02-03-dom-web-apis.md), nova §2.12 "Service Workers e PWA" deep — lifecycle (install/activate/fetch/message/push/sync), 5 caching strategies em matriz (cache-first, network-first, SWR, network-only, cache-only) com Workbox exemplo, Web Push (RFC 8030 + VAPID) com flow completo, Background Sync vs Periodic Sync, install prompt + Manifest mínimo, pegadinhas reais (versioning, update flow, scope, iOS limitações), quando NÃO usar PWA.
+
 ### 2026-05-01, Review wave 3 — operational meta docs + 05-07/05-08 integration
 
 Terceira onda do audit cross-stage. Foca em meta docs operacionais que estavam ausentes (operação reativa do estudo) + clarificação de relação entre módulos opcionais.

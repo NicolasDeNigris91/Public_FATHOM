@@ -253,6 +253,58 @@ Pratique:
 - Retention policies (logs 7 dias, metrics 30 dias, archives no 04-03).
 - Aggregate edge: OTel Collector dedupa, sample.
 
+### 2.19 AI Ops & LLM observability
+
+Aplicação com LLM core (chat, agent, RAG) tem **observability shape diferente** de microservice tradicional. Métricas, custos e modos de falha próprios. Em 2026, virou frente própria.
+
+**O que rastrear (mínimo viável):**
+
+- **Per-call**: prompt tokens, completion tokens, model name, latency p50/p99, TTFT, cost ($/call), cache hit/miss, tool calls feitos.
+- **Per-conversation**: turns, total tokens cumulativos, cost cumulativo, satisfação (👍/👎 ou rating implícito).
+- **Per-eval**: score em rubric (helpfulness, accuracy, harmlessness), comparação A/B entre prompts/models.
+- **Per-tool**: tool calls successful vs failed, retries, args distribution (pra detectar prompts gerando args ruins).
+
+**Failure modes únicos:**
+- **Hallucination**: LLM inventa fato. Detecta via grounding eval (resposta deve citar source do contexto).
+- **Tool argument drift**: LLM gera argumento que não é esperado pelo tool schema (regression em prompt change).
+- **Cost spike**: usuário/agent em loop disparando 100+ chamadas. Alarme em $/user/dia > N.
+- **Latency tail**: TTFT > 5s = abandono. P99 mais importante que p50.
+- **Quality drift silencioso**: model novo é melhor em benchmark, pior em sua tarefa específica. Eval contínuo é proteção.
+
+**OpenTelemetry GenAI semantic conventions** (2024+): atributos padrão `gen_ai.system`, `gen_ai.request.model`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `gen_ai.response.finish_reasons`. Use isso desde dia 1; libs upstream estão adotando.
+
+**Tools especializadas (2026):**
+
+| Tool | Foco | Quando |
+|---|---|---|
+| **LangSmith** | Tracing + eval em LangChain/LangGraph apps | Default se stack já é LangChain |
+| **Langfuse** (open-source) | Tracing, eval, prompt management | Self-host, multi-framework |
+| **Helicone** | Proxy-based tracing (zero code) | Prototyping, multi-LLM apps |
+| **Phoenix** (Arize, open-source) | LLM eval + RAG-specific debugging | Foco em RAG quality |
+| **Weights & Biases (W&B) / Weave** | ML experiment tracking + LLM | Stack já em W&B |
+
+**Padrão de tracing recomendado:**
+```typescript
+// span pai por conversa, child por turn, grandchild por tool call
+span("conversation", {conversation_id})
+  span("turn", {turn_index, model})
+    span("llm.completion", {prompt_tokens, completion_tokens, cost})
+    span("tool.call", {tool_name, args, result_summary})
+    span("rag.retrieve", {query, num_docs, similarity_top})
+```
+
+**Eval automation (não opcional em 2026):**
+- **Offline eval**: dataset curado de 50-500 cases representativos. Roda em CI a cada prompt/model change. Block deploy em regression.
+- **Online eval**: 1-5% de tráfego live é amostrado, scored async via LLM-as-judge ou human feedback. Detecta drift.
+- **Golden dataset**: cresce com bugs reais reportados (cada bug vira case no eval).
+
+**Cost trap a evitar:**
+Tracing TODO call LLM com prompt + response inteiros = span 10-100x maior que normal. Sample agressivamente:
+- Head-based: 100% das conversas marcadas debug, 5-10% das normais.
+- Tail-based via OTel Collector: 100% das que tiveram error / latência > p99 / cost > threshold.
+
+Cruza com **04-10** (LLM systems) e **04-09** (observability cost discipline ao escalar).
+
 ---
 
 ## 3. Threshold de Maestria
