@@ -173,6 +173,55 @@ Buffer pra unknowns. Comunicar incerteza honestamente; não compromise data quan
 
 Estimativa muito otimista é mentira; muito conservadora vira self-fulfilling lazy. Honestidade.
 
+#### Decisão entre métodos, com base em data
+
+| Método | Acurácia (sem-historic) | Tempo de cerimônia | Quando |
+|---|---|---|---|
+| **T-shirt** (S/M/L/XL) | ±50% | 2-5min/item | Default pra times novos; bom pra triagem |
+| **Story points** (Fibonacci 1/2/3/5/8/13) | ±30% após 5+ sprints calibrados | 5-10min/item planning poker | Times maduros com velocity histórica estável |
+| **3-point PERT** (O/M/P, expectativa = (O + 4M + P)/6) | ±20% se você tem dados de variance | 10-15min/item | Roadmaps trimestrais, não daily ops |
+| **#NoEstimates** | n/a | 0min | Times Elite (DORA) que entregam < 1d/item; foco em throughput |
+
+**Story points é mais caro, não mais preciso, em times novos.** Pesquisa do CMU (Cohn, McConnell) mostra: até 5+ sprints com mesmo time + mesma stack, story points ≈ random. T-shirt + reflexão honesta vence.
+
+**Erro sistemático**: estimativa de mediana é, em média, 2x baixa. Razão: você lembra do happy path; bugs/discovery são esquecidos até aparecerem. Fix:
+1. Estimate raw → multiplique por 1.5-2x antes de comprometer publicamente (Hofstadter's Law calibration).
+2. Track **estimate vs actual** por 3-6 meses; calcule fator de correção pessoal.
+3. Re-estimate pelo menos no meio do work; recheck assumptions.
+
+#### RICE pra priorização (não estimativa)
+
+RICE = `(Reach × Impact × Confidence) / Effort`. Útil pra **escolher entre features**, não pra estimar uma:
+
+- **Reach**: usuários afetados / período (números reais).
+- **Impact**: 0.25 (pouco), 0.5, 1, 2, 3 (massivo). Subjetivo mas calibrado.
+- **Confidence**: 50% / 80% / 100%. < 50% indica que precisa research, não build.
+- **Effort**: pessoa-semana / pessoa-mês.
+
+Exemplo Logística:
+- "Adicionar PIX": Reach 10k lojistas/mês × Impact 2 (conversão paga) × Confidence 80% / Effort 6 pessoa-semanas = **2667**.
+- "Refactor de cor do botão": Reach 100k × Impact 0.25 × Confidence 100% / Effort 0.5 = **5000**.
+- O número grosso não diz "é 2x melhor"; serve pra **separar ordem de magnitude** entre dezenas de candidatos. Se diferença é < 2x, refeito é noise.
+
+#### Planning poker variantes
+
+- **Async planning poker** (Slack bot ou Linear/Jira plugin): cada um vota privado, reveal simultâneo. Evita ancoragem por sênior falar primeiro.
+- **Magic estimation** (silent grouping): cards stickies em parede; equipe ordena por tamanho relativo em silêncio. 5x mais rápido pra triagem de 50+ items.
+- **Bucket system**: buckets fixos (S/M/L). Item entra no bucket que se encaixa. Bom pra refinamento contínuo.
+
+#### Comunicação de incerteza
+
+Aprenda a falar com incerteza calibrada:
+- "**Confiança alta** (já fizemos similar 3x): 1-2 sprints."
+- "**Média** (depende de spike em X): 2-4 sprints, valido em 1 semana."
+- "**Baixa** (research-heavy): time-box 2 semanas pra spike, depois reestimo."
+
+Stakeholder não precisa de número; precisa de range + datas de re-decisão.
+
+**Anti-padrão**: estimativa única + fake confidence pra agradar PM. Quando der ruim, perde credibilidade técnica + relação. Honesto e early > otimista e tarde.
+
+Cruza com **03-16** (estimation & technical planning) e **04-16** (unit economics impact da prioritização).
+
 ### 2.13 Build vs buy
 
 Decisão recorrente:

@@ -20,6 +20,16 @@ Tipos:
 
 ## 2026
 
+### 2026-05-01, Review wave 8 — staff rigor (refresh rotation, mutation testing, estimation, aggregate refactor, OLAP decision tree)
+
+Oitava onda do audit cross-stage. Foca em rigor que separa Staff de Senior — execução defensável de patterns onde quem decide errado paga preço caro em produção.
+
+- **edit** [`framework/02-plataforma/02-13-auth.md`](../02-plataforma/02-13-auth.md) §2.15, refresh token rotation com family-based replay detection (RFC 9700 BCP 2025) — schema Postgres com family_id + parent_jti + status, algoritmo atômico Postgres advisory lock, family invalidation em replay detection com security event, sliding vs absolute vs híbrido com cap, storage trade-off matrix (HttpOnly cookie / localStorage / in-memory + cookie / mobile keychain), detecção avançada (fingerprint check, geo-velocity, concurrent device cap).
+- **edit** [`framework/03-producao/03-01-testing.md`](../03-producao/03-01-testing.md) §2.9, mutation testing com Stryker concretamente — config completa stryker.conf.json com incremental + thresholds, 9 operadores canônicos com exemplos (ArithmeticOperator, ConditionalExpression, EqualityOperator, etc.), interpretação de output (survived / killed / timeout / no coverage), 3 tipos de reação a survived mutants, anti-padrão da obsessão por 100%, threshold pragmático por tipo de código, onde rodar (PR-level / nightly / pre-release).
+- **edit** [`framework/04-sistemas/04-12-tech-leadership.md`](../04-sistemas/04-12-tech-leadership.md) §2.12, estimation com data — matriz de decisão entre T-shirt / story points / 3-point PERT / NoEstimates com acurácia + tempo de cerimônia + quando, story points é mais caro não mais preciso em times novos (CMU research), erro sistemático 2x baixa de mediana (Hofstadter calibration), RICE pra priorização (não estimativa) com exemplo concreto Logística, planning poker variantes (async, magic estimation, bucket), comunicação de incerteza calibrada com 3 níveis.
+- **edit** [`framework/04-sistemas/04-06-domain-driven-design.md`](../04-sistemas/04-06-domain-driven-design.md) §2.8, aggregate design rules expandido com heurísticas concretas — 5 critérios em ordem de peso (invariant boundary, lifecycle, co-modificação, tamanho carregado, concurrency contention), 5 sinais de aggregate grande demais, **caso real de refactor Logística** (Order V1 anti-padrão com tracking pings dentro vs V2 com 5 aggregates separados), migração incremental sem big-bang, deploy reversível por passo.
+- **edit** [`framework/03-producao/03-13-time-series-analytical-dbs.md`](../03-producao/03-13-time-series-analytical-dbs.md) §2.15, decision tree analytics 2026 com 7 cenários — Postgres BRIN + matviews / TimescaleDB / ClickHouse / DuckDB embedded / BigQuery-Snowflake / Druid-Pinot real-time / lakehouse Iceberg + ClickHouse, com volume threshold + custo + curva de aprendizado + quando vira dor pra cada um. Matriz resumida por estágio Logística (v1 → v4) com recomendação específica.
+
 ### 2026-05-01, Review wave 7 — elite depth (Tokio internals, distributed rate limit, Apollo Router, BuildKit multi-arch, Server Actions)
 
 Sétima onda do audit cross-stage. Profundidade técnica em frentes onde Senior+ precisa de rigor de elite — código de produção real, não demo de tutorial.

@@ -113,6 +113,68 @@ Em projetos JS/TS modernos, "Repository" pode ser exagero, `db.query` em camada 
 
 Anti-padrão: aggregate gigantesco abrange domínio inteiro. Lock contention, slow loads.
 
+#### Heurísticas concretas pra dimensionamento
+
+Como decidir o que entra ou sai de um aggregate é onde Senior se diferencia. Critérios em ordem de peso:
+
+1. **Invariant boundary** (peso máximo): se 2 entidades compartilham regra de consistência **transacional** ("soma de items = total do pedido"), ficam no mesmo aggregate. Se a regra tolera eventual ("notificação enviada após pedido criado"), separa.
+2. **Lifecycle alinhado**: criado/deletado juntos? Mesmo aggregate. Lifecycles independentes? Separe.
+3. **Co-modificação**: análise de últimos 6 meses de PRs — se duas entidades sempre mudam juntas, possivelmente mesmo aggregate. Se cada uma evolui isolada, separe.
+4. **Tamanho carregado**: aggregate com >50 entities carregadas em transação típica = red flag. Latência de fetch + lock contention vão doer.
+5. **Concurrency contention**: alta probabilidade de 2+ users editando concurrent? Subdivide pra reduzir contenção.
+
+**Sinais que aggregate ficou grande demais:**
+
+- Repository tem método `loadXWithFullDependencies` que joina 5+ tabelas.
+- 1 update no aggregate trava locks em rows não relacionadas semanticamente.
+- Você adiciona campos só pra evitar fetch de outro aggregate ("vou guardar courierName no Order pra não precisar carregar Courier").
+- Testes do domínio precisam construir fixture de 200 linhas pra qualquer cenário.
+- Over 500 lines de código no `Order.java` / `order.ts`.
+
+**Caso real Logística — refactor de Order:**
+
+V1 (anti-padrão, common em apps imaturos):
+```typescript
+class Order {
+  id: OrderId; tenantId: TenantId; status: OrderStatus;
+  customer: Customer;                        // entidade carregada
+  items: OrderItem[];                        // 1-50 items
+  payments: Payment[];                       // histórico de tentativas
+  shipments: Shipment[];                     // múltiplos splits
+  trackingPings: TrackingPing[];             // N pings GPS (centenas)
+  notes: Note[];                             // notas colaborativas
+
+  addPing(p: TrackingPing) { this.trackingPings.push(p); /* save aggregate inteiro */ }
+}
+```
+
+Cada GPS ping (1/30s) re-salva pedido inteiro. Lock contention enorme; latência subindo.
+
+V2 (refactor com critérios acima):
+
+| Aggregate | Entities root | Invariants protegidos |
+|---|---|---|
+| **Order** | Order + OrderItems + OrderTotal | sum(items.price) = order.total; status state machine |
+| **PaymentLedger** (separado) | PaymentAttempt list | idempotency keys, total captured ≤ authorized |
+| **Shipment** (separado) | Shipment + ShipmentItems | splits válidos cobrem all OrderItems |
+| **TrackingHistory** (separado, time-series, não DDD aggregate) | TrackingPing append-only stream | nenhum (write-only stream) |
+| **OrderNotes** (CRDT, ver 04-01) | Y.Doc per order | convergência eventual |
+
+Cross-aggregate: events. `OrderCreated` → notification + analytics. `PaymentCaptured` → atualiza Order status via handler que **carrega Order, atualiza, salva** — NÃO joga payment dentro do aggregate Order.
+
+#### Quando aggregate é "grande demais" mas você não pode quebrar agora
+
+Migração incremental:
+1. Identifique campo/coleção de alta contention.
+2. Crie repository separado pra ele com `id_aggregate_pai` como FK.
+3. Migra writes (queue jobs) sem mexer em reads ainda.
+4. Migra reads (CQRS read model que junta).
+5. Remove código no aggregate antigo.
+
+Cada passo deployable, reversível. Nunca faça big-bang refactor de aggregate em produção sem feature flag + canary.
+
+Cruza com **04-03** (events cross-aggregate via outbox), **02-09 §2.13.1** (CDC viabiliza views derivadas sem dual-write), **04-08 §2.20** (extract criteria; mesma lógica pra serviços).
+
 ### 2.9 Domain events
 
 Eventos do domínio comunicam mudanças significativas:
