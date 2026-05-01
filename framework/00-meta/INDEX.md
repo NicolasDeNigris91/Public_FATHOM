@@ -8,7 +8,7 @@
 
 - **5 estágios** (Fundamentos, Plataforma, Professional, Senior, Staff/Principal).
 - **78 módulos** (15 Fundamentos + 19 Plataforma + 18 Professional + 16 Senior + 10 Staff) + **5 capstones**.
-- **17 metas em `00-meta/`**: INDEX, CAPSTONE-EVOLUTION, CHANGELOG, GLOSSARY, MODULE-TEMPLATE, RUBRIC, SELF-ASSESSMENT, INTERVIEW-PREP, ANTIPATTERNS, DECISION-LOG, SPRINT-NEXT, CODEBASE-TOURS, STACK-COMPARISONS, STUDY-PLANS, RELEASE-NOTES, elite-references, reading-list.
+- **19 metas em `00-meta/`**: INDEX, CAPSTONE-EVOLUTION, CHANGELOG, GLOSSARY, MODULE-TEMPLATE, RUBRIC, TROUBLESHOOTING, PEER-REVIEW-PROTOCOL, SELF-ASSESSMENT, INTERVIEW-PREP, ANTIPATTERNS, DECISION-LOG, SPRINT-NEXT, CODEBASE-TOURS, STACK-COMPARISONS, STUDY-PLANS, RELEASE-NOTES, elite-references, reading-list.
 - **4 raiz**: README.md, MENTOR.md, PROGRESS.md, STUDY-PROTOCOL.md.
 
 Note: 05-07-05-10 (embedded, hardware, bioinformatics, game dev) são **opcionais**: escolha conforme eixo de carreira.
@@ -20,6 +20,8 @@ Note: 05-07-05-10 (embedded, hardware, bioinformatics, game dev) são **opcionai
 - [CODEBASE-TOURS.md](CODEBASE-TOURS.md), 20 guided reading tours em repos canônicos.
 - [STACK-COMPARISONS.md](STACK-COMPARISONS.md), patterns cross-stack (Node/Java/Python/Ruby/Go/.NET/PHP/Rust/Elixir).
 - [RUBRIC.md](RUBRIC.md), critério explícito pra passou/falhou em cada um dos 3 portões; complemento operacional do MENTOR.md §3.
+- [TROUBLESHOOTING.md](TROUBLESHOOTING.md), padrões de falha durante o estudo (portões, cadência, modos, capstone, output público) com diagnóstico + ação concreta.
+- [PEER-REVIEW-PROTOCOL.md](PEER-REVIEW-PROTOCOL.md), operacional pra Modo B do MENTOR.md — formação de cohort, cadência semanal, condução de portões, calibração externa anti-conforto.
 
 ---
 

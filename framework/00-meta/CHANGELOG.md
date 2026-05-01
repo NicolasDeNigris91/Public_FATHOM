@@ -20,6 +20,16 @@ Tipos:
 
 ## 2026
 
+### 2026-05-01, Review wave 3 — operational meta docs + 05-07/05-08 integration
+
+Terceira onda do audit cross-stage. Foca em meta docs operacionais que estavam ausentes (operação reativa do estudo) + clarificação de relação entre módulos opcionais.
+
+- **add** [`framework/00-meta/TROUBLESHOOTING.md`](TROUBLESHOOTING.md), padrões reais de falha durante o estudo organizados em 7 categorias (portões repetidos, cadência insustentável, problemas de modo A/B/D, capstone scope creep, output público estagnado, mentees esgotando, recovery). Cada padrão tem sintoma + diagnóstico + ação concreta. Referência primária quando aluno trava.
+- **add** [`framework/00-meta/PEER-REVIEW-PROTOCOL.md`](PEER-REVIEW-PROTOCOL.md), operacional concreto pro Modo B do MENTOR.md. Composição de cohort, 3 ritos semanais (standup async, sessão técnica síncrona, paper club mensal), procedimento detalhado pra conduzir e receber portões, padrão de feedback honesto sem destruir relação, calibração externa trimestral anti-eco-chamber, anti-patterns observados, quando dissolver cohort.
+- **edit** [`framework/05-amplitude/05-07-embedded-iot.md`](../05-amplitude/05-07-embedded-iot.md) §4, header explícito sobre relação com 05-08: 05-07 cobre lado firmware, 05-08 cobre lado hardware do mesmo dispositivo. MCU e sensors devem ser consistentes.
+- **edit** [`framework/05-amplitude/05-08-hardware-design.md`](../05-amplitude/05-08-hardware-design.md) §4, integração explícita com 05-07: PCB hospeda firmware do 05-07; bring-up valida ambos. Critério "use mesmo MCU/sensors" elimina retrabalho.
+- **edit** [`framework/00-meta/INDEX.md`](INDEX.md), contagem de metas atualizada (17→19, considerando RUBRIC já adicionado em wave 1); links pra TROUBLESHOOTING e PEER-REVIEW-PROTOCOL adicionados na seção de "Outros documentos vivos".
+
 ### 2026-05-01, Review consolidado + ajustes de profundidade
 
 Audit cross-stage retornou 12 ações prioritárias. Aplicado em 2 ondas neste ciclo:

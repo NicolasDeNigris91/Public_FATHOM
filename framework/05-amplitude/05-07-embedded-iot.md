@@ -233,6 +233,8 @@ Você precisa, sem consultar:
 
 Construir **tracker IoT mínimo** integrado à Logística, opcional simulado em ESP32 dev kit ($10).
 
+**Relação com 05-08 (Hardware Design)**: este desafio cobre o **lado firmware** (MQTT, sleep, OTA, buffer, telemetry). O desafio do 05-08 cobre o **lado hardware** do mesmo dispositivo (schematic + PCB + BOM + manufacturing files). Use **MCU e sensors consistentes** entre os dois (ESP32 + GPS NEO-6M + DHT22 é uma escolha viável que aparece em ambos os módulos). Se você está fazendo o eixo embedded/hardware completo (track A/B do CAPSTONE-amplitude com foco IoT), o output integrado é firmware-em-PCB-custom validado por bring-up real.
+
 ### Especificação
 
 **Hardware** (escolha 1 path):
