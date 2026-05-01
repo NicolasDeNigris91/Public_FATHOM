@@ -126,6 +126,79 @@ Coverage = quantas linhas executam. Mutation score = quantas regressões os test
 
 Custo: roda suite N x mutations vezes. Use em CI nightly ou pré-release, não em cada PR.
 
+#### Stryker concretamente (TS/JS)
+
+```json
+// stryker.conf.json
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "packageManager": "pnpm",
+  "testRunner": "vitest",
+  "vitest": { "configFile": "vitest.config.ts" },
+  "reporters": ["html", "clear-text", "progress", "dashboard"],
+  "mutate": [
+    "src/**/*.ts",
+    "!src/**/*.test.ts",
+    "!src/**/*.fixture.ts",
+    "!src/main.ts"
+  ],
+  "thresholds": { "high": 80, "low": 70, "break": 65 },
+  "concurrency": 4,
+  "timeoutMS": 60000,
+  "incremental": true,
+  "incrementalFile": ".stryker-tmp/incremental.json",
+  "ignorePatterns": ["node_modules", "dist", ".next"]
+}
+```
+
+`incremental: true` (Stryker 7+): só re-muta o que mudou desde último run. Com isso, em CI nightly mutation score completo demora 30-60min na primeira vez; subsequente, 2-5min se PR pequeno.
+
+#### Operadores de mutação canônicos
+
+Stryker injeta automaticamente — você não escolhe. Os mais frequentes:
+
+| Operador | Exemplo | Detecta |
+|---|---|---|
+| **ArithmeticOperator** | `a + b` → `a - b` | Math correctness |
+| **ConditionalExpression** | `x > 0` → `x >= 0` (boundary) ou `false` | Branch coverage real |
+| **EqualityOperator** | `===` → `!==` | Inversões silenciosas |
+| **LogicalOperator** | `&&` → `\|\|` | And/or swap |
+| **BlockStatement** | `{ doX(); doY() }` → `{}` | Side effects testados |
+| **StringLiteral** | `"foo"` → `""` | Hard-coded matters |
+| **BooleanLiteral** | `true` → `false` | Default flag check |
+| **OptionalChaining** | `a?.b` → `a.b` | Null handling |
+| **MethodExpression** | `arr.filter(...)` → `arr` | Filter realmente filtra |
+
+#### Como ler resultados (e não cair em obsessão)
+
+Output mostra **survived mutants** (testes não pegaram) e **killed** (pegaram).
+
+```
+Ran 250 tests in 4m 12s
+Mutants:
+  Killed:    187 (74.8%)
+  Survived:   42 (16.8%)  ← olhe pra estes
+  Timeout:    14 ( 5.6%)
+  No coverage:  7 ( 2.8%)
+Mutation score: 74.8% (above low threshold 70)
+```
+
+**Reagindo a survived mutants:**
+
+1. **Mutant válido não pego** → escreva teste pra ele. Maioria dos casos.
+2. **Mutant equivalente** (muda código mas comportamento idêntico, ex: `i++` → `++i` em loop independente) → marque com `// Stryker disable next-line all` no source. Aceitar 5-10% equivalentes é normal.
+3. **Mutant em código morto** (cobertura claim 100% mas aquela branch nunca dispara em teste real) → revisita: ou teste cobre, ou código deveria ser deletado.
+
+**Anti-padrão**: perseguir 100% mutation score. Diminishing returns brutais — 80% custa horas, 95% custa semanas. **Threshold pragmático**: 70-80% em código de domínio crítico (payment, auth, calc), 50-60% em UI / glue code, dispensável em scaffolding.
+
+#### Onde rodar
+
+- **PR-level**: `--since main` mode em PRs grandes; muta só arquivos mudados. ~30s-2min.
+- **Nightly CI**: full run, baseline atualizado. Falha PR se score cai > 5% vs baseline.
+- **Pre-release gate**: full run + threshold absoluto.
+
+Pra módulos críticos (Logística payment ledger §02-18), aplique sempre antes de release. Mutation testing já capturou em produção bugs reais que coverage 100% não pegaria — referencia: Stripe blog post 2022 sobre mutation testing em ledger.
+
 ### 2.10 Property-based testing
 
 - **fast-check** (TS/JS), **Hypothesis** (Python), **proptest** (Rust).

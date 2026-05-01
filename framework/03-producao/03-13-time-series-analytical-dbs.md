@@ -163,6 +163,60 @@ Anti-pattern: 1 row por insert no ClickHouse. Mata performance.
 
 Regra: se queries são "point lookup ou small range" → OLTP. Se são "scan e agregue muito" → OLAP. Misto: replica OLTP → OLAP via CDC.
 
+#### Decision tree analytics 2026 — Logística como exemplo
+
+Cenário: Logística v2 precisa analytics — daily revenue por lojista, courier utilization, time-to-delivery por região, cohort de clientes. Volume cresce de 1M pings/dia em v1 pra 100M pings/dia em v3. Decision tree por estágio:
+
+**Cenário 1: < 1M rows agregadas/dia, < 1k MAU dashboard**
+- **Postgres com índices BRIN + materialized views**. Custos zero (DB já existe). BRIN indexes em colunas time-ordered (`created_at`, `delivered_at`) consomem ~0.01% do espaço de B-Tree e queries de agregação por range são 10-100x mais rápidas.
+- Refresh materialized views via cron (Airflow / Dagster overkill aqui — `pg_cron` ou GitHub Actions cron HTTP).
+- Quando vira dor: dashboard demora > 5s, ou refresh excede janela noturna.
+
+**Cenário 2: 1M-100M rows/dia, < 100 dashboards concurrent**
+- **TimescaleDB** (Postgres extension): hypertables (sharding automático por tempo), continuous aggregates (materialized views auto-refreshed em insert), compression em chunks antigos (10-100x reduction).
+- DX praticamente igual a Postgres puro: mesmo SQL, mesmo driver, mesma transação. Migration suave de §2.14.
+- Custos: Timescale Cloud ~$30-300/mês pra Logística médio; self-host em Postgres existente é ~zero.
+- Quando vira dor: queries agregadas de billion+ rows demoram, ou throughput de insert satura write workers.
+
+**Cenário 3: 100M+ rows/dia, dashboards complexos com joins, multi-tenant SaaS**
+- **ClickHouse**: column-store distribuído state-of-art. Insert throughput 100k-1M rows/s/node. Queries em billion-row tables em < 1s com índices skipping certos.
+- Curva de aprendizado: é DB diferente (não-Postgres). MergeTree engine variants, materialized views como pipelines de ingestion. ALTER caro; schema evolution exige planejamento.
+- ClickHouse Cloud (~$200-2k/mês) ou self-host (3-node em ARM Graviton ~$300/mês). Comparação Snowflake/BigQuery: ClickHouse vence em $/query absoluto, perde em "managed completo + access control + integrations".
+- Quando vira dor: você precisa transactional (ACID com strong consistency em writes) — então ClickHouse não cabe; volta pra Timescale ou Postgres.
+
+**Cenário 4: ad-hoc analytics interno, dataset cabe em laptop ou single-node**
+- **DuckDB** embedded. Lê Parquet/CSV/JSON direto, query SQL Postgres-compatible, zero infra.
+- Use case Logística: `analyst.duckdb` carrega dump diário do Postgres + S3 logs, gera relatórios em 30s.
+- Integra com Python/notebook (`pandas.read_sql_query(... duckdb ...)`).
+- Limitação: single-node; dataset > RAM precisa estratégia (lazy scan + limits).
+
+**Cenário 5: SaaS analítico managed, time prefere zero-ops**
+- **BigQuery**, **Snowflake**, **Athena** (S3 + Iceberg/Hive metastore).
+- Pricing por query (BigQuery on-demand) ou compute warehouse (Snowflake): pode explodir. **Always set query cost cap**.
+- Vence quando: time pequeno, sem infra eng dedicado, OK com lock-in cloud, queries complex com governança / row-level security nativa.
+- Anti-padrão comum: começar com Snowflake "porque é fácil"; em 2 anos, $50k/mês de bill que ClickHouse self-managed faria com $2k.
+
+**Cenário 6: real-time interactive dashboards (sub-segundo)**
+- **Apache Druid** (Imply Polaris managed) ou **Apache Pinot** (StarTree managed). Streaming ingest direto de Kafka, queries < 100ms em dashboards com filtros.
+- Use case: Logística "métricas em tempo real do supply chain" — SLA < 1s pra dashboard com 50 widgets.
+- Custo operacional alto self-managed; Druid/Pinot têm 10+ services pra rodar.
+
+**Cenário 7: lakehouse (data lake + warehouse semantics)**
+- **Iceberg** + ClickHouse / Trino / Spark. Tabelas Iceberg em S3, metadata em catalog (AWS Glue, Nessie). Multi-engine: ClickHouse query mesma tabela que Spark batch.
+- 2026 é ano de adoção mainstream (Snowflake, Databricks, BigQuery suportam Iceberg native).
+- Use case: dados do Logística viram lake (auditoria + ML training data); ClickHouse + DuckDB consomem mesmo lake.
+
+#### Matriz resumida pra Logística
+
+| Estágio Logística | Volume | Recomendação |
+|---|---|---|
+| v1 (CAPSTONE-plataforma) | < 100k pedidos | Postgres + BRIN + matviews |
+| v2 (CAPSTONE-producao) | 1-10M pedidos/mês | Postgres OLTP + TimescaleDB pra tracking pings + DuckDB pra ad-hoc |
+| v3 (CAPSTONE-sistemas) | 100M+ pings/dia | OLTP Postgres + ClickHouse via CDC pra analytics + Iceberg pra histórico |
+| v4 (CAPSTONE-amplitude) | + ML pipeline + multi-region | Adiciona Druid/Pinot pra real-time supply chain dashboard |
+
+Cruza com **02-09 §2.13.1** (CDC alimenta o pipeline OLTP → OLAP), **04-13** (streaming engines fazem transformação no caminho), **04-09 §2.14** (custo cloud quando volume cresce).
+
 ### 2.16 Druid e Pinot
 
 Real-time OLAP otimizado pra dashboards interativos com latency baixa. Apache Druid (Imply), Apache Pinot (LinkedIn). Dimensão de tempo central; segmentos em hot tier; queries via SQL/JSON.
