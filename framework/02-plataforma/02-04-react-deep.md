@@ -200,6 +200,149 @@ Use cases:
 
 Streaming SSR em React 18+: o servidor manda HTML em pedaços conforme suspense boundaries resolvem. Cliente hydrata progressivamente. UX melhor (TTFB rápido, conteúdo não-crítico depois).
 
+#### Suspense + Error Boundaries — recovery em produção
+
+Suspense sozinho captura **pending**; Error Boundary captura **rejected**. Pareados, são contrato completo de async UI. Em produção, app sem error boundary leva white screen no primeiro erro de fetch — inaceitável.
+
+**Hierarquia de boundaries pra Logística dashboard:**
+
+```tsx
+// app/dashboard/page.tsx — granular boundaries por widget
+import { Suspense } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
+
+export default function DashboardPage() {
+  return (
+    <div className="grid grid-cols-3 gap-4">
+      {/* Cada widget tem own boundary — falha localizada não derruba página */}
+      <Widget title="Pedidos hoje">
+        <ErrorBoundary FallbackComponent={WidgetErrorFallback} onReset={() => /* refetch */}>
+          <Suspense fallback={<WidgetSkeleton />}>
+            <OrdersTodayCount />
+          </Suspense>
+        </ErrorBoundary>
+      </Widget>
+
+      <Widget title="Couriers ativos">
+        <ErrorBoundary FallbackComponent={WidgetErrorFallback}>
+          <Suspense fallback={<WidgetSkeleton />}>
+            <ActiveCouriers />
+          </Suspense>
+        </ErrorBoundary>
+      </Widget>
+
+      <Widget title="Receita semanal">
+        <ErrorBoundary FallbackComponent={WidgetErrorFallback}>
+          <Suspense fallback={<ChartSkeleton />}>
+            <WeeklyRevenue />
+          </Suspense>
+        </ErrorBoundary>
+      </Widget>
+    </div>
+  );
+}
+
+function WidgetErrorFallback({ error, resetErrorBoundary }: any) {
+  return (
+    <div role="alert" className="p-4 border-red-300 rounded">
+      <p className="text-red-700">Não foi possível carregar este painel.</p>
+      <button onClick={resetErrorBoundary} className="text-blue-600 underline">
+        Tentar novamente
+      </button>
+      {process.env.NODE_ENV === 'development' && (
+        <pre className="text-xs mt-2">{error.message}</pre>
+      )}
+    </div>
+  );
+}
+```
+
+**Retry com React Query reset (pattern canônico):**
+
+```tsx
+'use client';
+import { useQueryErrorResetBoundary } from '@tanstack/react-query';
+import { ErrorBoundary } from 'react-error-boundary';
+
+export function DashboardWithReset({ children }: { children: React.ReactNode }) {
+  const { reset } = useQueryErrorResetBoundary();
+  return (
+    <ErrorBoundary
+      onReset={reset}                      // limpa cache + dispara refetch
+      FallbackComponent={WidgetErrorFallback}
+    >
+      <Suspense fallback={<DashboardSkeleton />}>
+        {children}
+      </Suspense>
+    </ErrorBoundary>
+  );
+}
+```
+
+#### Transitions — UI responsivo durante mudança de estado
+
+`useTransition` marca update como **non-urgent**: usuário pode clicar em outra coisa enquanto componente carrega. Não trava input.
+
+```tsx
+'use client';
+import { useTransition, useState } from 'react';
+
+export function TenantSwitcher({ tenants }: { tenants: Tenant[] }) {
+  const [selectedId, setSelectedId] = useState(tenants[0].id);
+  const [isPending, startTransition] = useTransition();
+
+  return (
+    <>
+      <select
+        value={selectedId}
+        onChange={(e) => {
+          startTransition(() => setSelectedId(e.target.value));
+        }}
+        disabled={false}                   // não bloqueia mesmo durante pending
+      >
+        {tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+      </select>
+      <span className={isPending ? 'opacity-50' : ''}>
+        <Suspense fallback={<DashboardSkeleton />}>
+          <Dashboard tenantId={selectedId} />
+        </Suspense>
+      </span>
+    </>
+  );
+}
+```
+
+Sem transition: select trava 200-800ms enquanto Dashboard carrega. Com transition: select responde imediato; Dashboard fica "stale + dim" até next data chegar.
+
+#### `useDeferredValue` — defer derivação cara
+
+Diferente de transition (que defere setState), `useDeferredValue` pega valor já-mudado e atrasa render do dependente:
+
+```tsx
+function SearchableOrderList({ search }: { search: string }) {
+  const deferredSearch = useDeferredValue(search);
+  // Lista re-filtra com deferred; input continua snappy
+  const filtered = useMemo(() =>
+    expensiveFilter(deferredSearch),
+    [deferredSearch]
+  );
+  return <List items={filtered} />;
+}
+```
+
+Usuário digita rápido → `search` atualiza imediato (input responsive); `filtered` atualiza atrasado (sem trava).
+
+#### Pegadinhas em produção
+
+- **Error boundary não pega**: erros em event handlers, async (sem throw em render), SSR. Para event handlers use try/catch + setState; para async, libs Suspense-aware fazem isso.
+- **`onReset` sem `useQueryErrorResetBoundary`**: cache stale persiste; reset visual mas data não recarrega.
+- **Boundary too broad**: 1 boundary no root = 1 erro tudo cai. Granular > coarse, sempre.
+- **Skeleton vs Spinner**: layout shift quando spinner sai. Use skeleton com mesmas dimensões do conteúdo final.
+- **Streaming SSR + Error Boundary**: erro durante stream pode resultar em half-rendered HTML; configure Next.js `error.tsx` per route segment como segunda linha.
+- **Sentry / observability**: error boundary deve reportar pra observability stack. `componentDidCatch(error, info)` ou `onError` em react-error-boundary → `Sentry.captureException(error, { contexts: { react: info } })`.
+
+Cruza com **03-09 §2.7** (hydration cost de streaming SSR), **03-07 §2.19** (error tracking em frontend), **02-04 §2.9.1** (Server Actions também precisam error boundary no client).
+
 ### 2.9 Server Components (RSC)
 
 RSC é uma mudança fundamental no modelo. Componentes podem rodar **só no servidor**, não enviam JS pro cliente, podem `await` direto (assíncronos).

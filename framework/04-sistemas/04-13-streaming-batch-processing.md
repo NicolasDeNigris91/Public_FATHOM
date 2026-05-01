@@ -275,6 +275,166 @@ Macro `partitions_to_replace()`: define quais partições reprocessar (últimos 
 
 Cruza com **04-13 §2.12** (CDC alimenta merge incremental), **04-13 §2.14** (data quality tests devem cobrir uniqueness e completeness pós-incremental), **03-13 §2.15** (decisão lakehouse vs warehouse afeta strategies disponíveis), **04-13 §2.16** (exactly-once semantics na ingestão é pré-requisito pra append).
 
+#### 2.9.2 Pipeline real Logística — dbt + Iceberg + ClickHouse
+
+Cenário concreto: CDC do Postgres OLTP (02-09 §2.13.1) escreve raw events em S3 (formato Parquet, table format Iceberg). dbt transforma raw → staging → marts em ClickHouse. Stack 2026-canônica.
+
+**Estrutura de projeto:**
+```
+logistics-analytics/
+├── dbt_project.yml
+├── models/
+│   ├── sources.yml          # raw tables em Iceberg via ClickHouse external table
+│   ├── staging/
+│   │   ├── stg_orders.sql
+│   │   ├── stg_payments.sql
+│   │   └── stg_tracking_pings.sql
+│   ├── intermediate/
+│   │   └── int_order_with_payments.sql
+│   └── marts/
+│       ├── fct_daily_revenue.sql
+│       ├── fct_courier_utilization.sql
+│       └── dim_lojista.sql
+├── tests/
+│   └── assert_revenue_positive.sql
+├── snapshots/
+│   └── snap_lojista_tier.sql
+└── seeds/
+    └── tier_pricing.csv
+```
+
+**Sources com Iceberg:**
+```yaml
+# models/sources.yml
+version: 2
+sources:
+  - name: raw_logistics
+    schema: iceberg.lakehouse.logistics
+    description: "CDC events from Postgres OLTP via Debezium → S3 Iceberg"
+    tables:
+      - name: orders_cdc
+        identifier: orders_cdc
+        description: "Append-only stream of order changes"
+        loaded_at_field: cdc_ts
+        freshness:
+          warn_after: { count: 30, period: minute }
+          error_after: { count: 2, period: hour }
+      - name: payments_cdc
+        identifier: payments_cdc
+      - name: tracking_pings
+        identifier: tracking_pings
+        meta:
+          retention_days: 90       # custom meta pra lifecycle policy
+```
+
+**Modelo staging (parse + dedup CDC):**
+```sql
+-- models/staging/stg_orders.sql
+{{ config(
+    materialized='incremental',
+    unique_key='order_id',
+    on_schema_change='append_new_columns',
+    incremental_strategy='delete+insert'
+) }}
+
+WITH ranked AS (
+  SELECT
+    after.id           AS order_id,
+    after.tenant_id    AS tenant_id,
+    after.status       AS status,
+    after.total::numeric(12,2) AS total,
+    after.created_at   AS created_at,
+    cdc_ts             AS updated_at,
+    op,
+    ROW_NUMBER() OVER (PARTITION BY after.id ORDER BY cdc_ts DESC) AS rn
+  FROM {{ source('raw_logistics', 'orders_cdc') }}
+  {% if is_incremental() %}
+    WHERE cdc_ts > (SELECT MAX(updated_at) FROM {{ this }})
+  {% endif %}
+)
+SELECT order_id, tenant_id, status, total, created_at, updated_at
+FROM ranked
+WHERE rn = 1 AND op != 'd'    -- mantém só última versão; descarta deletes do mart
+```
+
+**Mart com facto agregado:**
+```sql
+-- models/marts/fct_daily_revenue.sql
+{{ config(
+    materialized='table',
+    engine='SummingMergeTree(revenue)',
+    order_by='(tenant_id, day)',
+    partition_by='toYYYYMM(day)'
+) }}
+
+SELECT
+  date_trunc('day', o.created_at)::date AS day,
+  o.tenant_id,
+  COUNT(*)                              AS orders,
+  SUM(o.total)                          AS revenue,
+  AVG(o.total)                          AS avg_ticket
+FROM {{ ref('stg_orders') }} o
+WHERE o.status IN ('delivered', 'in_transit')
+GROUP BY 1, 2
+```
+
+**Tests + freshness:**
+```yaml
+# models/marts/schema.yml
+version: 2
+models:
+  - name: fct_daily_revenue
+    description: "Daily revenue per tenant for finance dashboards"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [day, tenant_id]
+    columns:
+      - name: tenant_id
+        tests: [not_null]
+      - name: revenue
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+```
+
+**Snapshot pra dimensão SCD Type 2:**
+```sql
+-- snapshots/snap_lojista_tier.sql
+{% snapshot snap_lojista_tier %}
+{{ config(target_schema='snapshots', unique_key='tenant_id',
+          strategy='check', check_cols=['tier', 'plan']) }}
+SELECT tenant_id, tier, plan, updated_at FROM {{ source('raw_logistics', 'tenants') }}
+{% endsnapshot %}
+```
+
+#### Iceberg em produção 2026 — o que vale saber
+
+- **Multi-engine**: mesma tabela Iceberg lida por ClickHouse, Trino, Spark, DuckDB, Snowflake. Padrão sem lock-in (Apache Iceberg 1.5+, 2024).
+- **Time travel**: `SELECT ... FROM table FOR VERSION AS OF '<snapshot_id>'`. Útil pra auditoria + replay.
+- **Schema evolution sem rewrite**: add column, drop column, rename — sem reprocessar arquivos.
+- **Partition evolution**: muda partition spec sem migration. Hive não tem.
+- **Metadata catalog**: AWS Glue, Nessie (versioned, git-like), Polaris (Apache, 2024+), Tabular (commercial). Polaris emergiu como neutral default em 2025-2026.
+- **Compaction**: pequenos arquivos viram problema; rode `OPTIMIZE table` periodicamente (ClickHouse) ou Iceberg `rewrite_data_files` action.
+- **Vacuum**: snapshots antigos consomem storage; expire snapshots > N dias.
+
+#### Orquestração no exemplo
+
+dbt jobs em **Dagster** (recomendado 2026 sobre Airflow pra novos projetos): cada model é asset; dependências automáticas; freshness checks built-in.
+
+```python
+# dagster definitions
+from dagster_dbt import DbtCliResource, dbt_assets
+
+@dbt_assets(manifest='target/manifest.json')
+def logistics_dbt_assets(context, dbt: DbtCliResource):
+    yield from dbt.cli(['build'], context=context).stream()
+```
+
+Schedule: hourly pra staging, daily pra marts. Failure alert pra Slack via Dagster sensors.
+
+Cruza com **02-09 §2.13.1** (CDC fonte do pipeline), **03-13 §2.15** (decision tree de OLAP onde dbt + Iceberg cabe), **02-09 §2.13** (Materialize alternativa real-time pra alguns marts).
+
 ### 2.10 Orchestration: Airflow, Dagster, Prefect
 
 Pipelines têm dependências, schedules, retries, alerts.
