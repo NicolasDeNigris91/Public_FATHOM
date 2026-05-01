@@ -324,6 +324,12 @@ Você precisa, sem consultar:
 
 **Stop-loss**: este é desafio pedagógico. Ordering protótipo (~$50-100) é stretch. Schematic + PCB design + quote já satisfazem threshold. Se não quer gastar, pare antes de fab.
 
+**Integração explícita com 05-07**: este PCB é o hardware onde **roda o firmware do desafio 05-07**. Use o **mesmo MCU e sensors** escolhidos lá (ESP32 + GPS NEO-6M + DHT22, ou STM32L4 + módulo equivalente). 05-07 e 05-08 não são desafios redundantes; são **dois lados do mesmo dispositivo**:
+- 05-07 (firmware): MQTT + sleep + OTA + buffer offline + telemetry. Roda em dev kit ou simulado.
+- 05-08 (hardware): schematic + PCB layout + BOM + manufacturing files do dispositivo final.
+
+Se você fez 05-07 com Path A (ESP32 dev kit), este PCB é a evolução: mesmo MCU, mesmas APIs, mas placa custom com power management adequado, antenas com clearance, footprint compacto. Bring-up do PCB rev A em 05-08 stretch valida o firmware 05-07 no hardware real — esse é o ciclo completo de specialization em embedded/hardware.
+
 ### Restrições
 
 - Sem clone de design existente; design seu (referenciar app circuits de datasheets ok).
