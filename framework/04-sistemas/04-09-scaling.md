@@ -97,6 +97,143 @@ Reduz latency user-facing; adiciona eventual consistency.
 
 Egress da CDN é mais barato que de cloud regional; reduz cost.
 
+### 2.7.1 Distributed rate limiting, deep
+
+Rate limit single-instance é trivial (counter em memória). Distribuído (N instâncias balanceadas) exige store compartilhado. **Redis + Lua atomic** é padrão.
+
+**Algoritmos comparados:**
+
+| Algoritmo | Memória/key | Smoothness | Burst handling | Implementation |
+|---|---|---|---|---|
+| **Fixed window counter** | 1 int | Hard edges (boundary effect: 2x rate em fronteira) | Permite burst no início | Trivial |
+| **Sliding window log** | N timestamps (N = rate) | Perfeito | Restritivo | Memory custoso em rate alto |
+| **Sliding window counter** | 2 ints (prev + curr window) | Aproximação do log com weighted average | Suave, eficiente | Padrão recomendado |
+| **Token bucket** | 1 int (tokens) + 1 timestamp (last refill) | Suave | Permite burst até bucket cap | Padrão pra burst-friendly |
+| **Leaky bucket** | 1 int (queue level) | Suave | Sem burst | Modela como queue |
+
+#### Sliding window log atomic via Lua
+
+Mais preciso, ideal pra rate limits estritos (auth, payments) onde precisão > custo de memória:
+
+```lua
+-- KEYS[1] = "ratelimit:user:123"
+-- ARGV[1] = window_ms (ex: 60000)
+-- ARGV[2] = max_requests (ex: 100)
+-- ARGV[3] = now_ms (ex: 1714583492000)
+-- ARGV[4] = request_id (uuid)
+
+local key       = KEYS[1]
+local window    = tonumber(ARGV[1])
+local maxreqs   = tonumber(ARGV[2])
+local now       = tonumber(ARGV[3])
+local req_id    = ARGV[4]
+local cutoff    = now - window
+
+-- Limpa entries fora da janela
+redis.call('ZREMRANGEBYSCORE', key, 0, cutoff)
+
+-- Conta entries dentro da janela atual
+local count = redis.call('ZCARD', key)
+
+if count >= maxreqs then
+  local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
+  local retry_after = (oldest[2] + window - now)   -- ms até libertar slot
+  return {0, count, retry_after}
+end
+
+-- Registra request atual
+redis.call('ZADD', key, now, req_id)
+redis.call('PEXPIRE', key, window)
+return {1, count + 1, 0}
+```
+
+Cliente Node:
+```typescript
+const SCRIPT_SHA = await redis.scriptLoad(LUA_SCRIPT);
+
+async function rateLimit(userId: string, windowMs = 60_000, maxReqs = 100) {
+  const [allowed, count, retryAfterMs] = await redis.evalSha(SCRIPT_SHA, {
+    keys: [`ratelimit:user:${userId}`],
+    arguments: [String(windowMs), String(maxReqs), String(Date.now()), randomUUID()]
+  });
+  if (!allowed) {
+    throw new RateLimitError({ count, retryAfterMs });
+  }
+}
+```
+
+Atomicidade: Lua script roda single-threaded em Redis; `ZREMRANGE + ZCARD + ZADD` são uma transação implícita. **Sem race entre instâncias**.
+
+#### Token bucket atomic
+
+Mais barato em memória (2 valores por key), permite burst bounded:
+
+```lua
+-- ARGV: capacity, refill_per_sec, now_ms, cost(=1 default)
+local key       = KEYS[1]
+local capacity  = tonumber(ARGV[1])
+local refill    = tonumber(ARGV[2])      -- tokens/sec
+local now       = tonumber(ARGV[3])
+local cost      = tonumber(ARGV[4])
+
+local data = redis.call('HMGET', key, 'tokens', 'last_refill')
+local tokens   = tonumber(data[1]) or capacity
+local last     = tonumber(data[2]) or now
+
+-- Refill baseado em tempo passado
+local elapsed_sec = (now - last) / 1000
+tokens = math.min(capacity, tokens + elapsed_sec * refill)
+
+if tokens < cost then
+  redis.call('HMSET', key, 'tokens', tokens, 'last_refill', now)
+  redis.call('PEXPIRE', key, math.ceil(capacity / refill * 1000) + 1000)
+  return {0, tokens}
+end
+
+tokens = tokens - cost
+redis.call('HMSET', key, 'tokens', tokens, 'last_refill', now)
+redis.call('PEXPIRE', key, math.ceil(capacity / refill * 1000) + 1000)
+return {1, tokens}
+```
+
+#### Padrão Logística multi-tier
+
+```typescript
+// Premium: 1000 req/min, burst 100
+// Standard: 100 req/min, burst 20
+// Free: 30 req/min, burst 5
+const tiers = {
+  premium:  { capacity: 100, refillPerSec: 1000/60 },
+  standard: { capacity: 20,  refillPerSec: 100/60 },
+  free:     { capacity: 5,   refillPerSec: 30/60 },
+};
+
+app.use(async (req, res, next) => {
+  const tenant = req.tenant;  // do middleware auth
+  const { capacity, refillPerSec } = tiers[tenant.tier];
+
+  try {
+    await tokenBucket(`rl:${tenant.id}`, capacity, refillPerSec);
+    next();
+  } catch (e) {
+    res.status(429)
+       .header('Retry-After', Math.ceil(e.retryAfterMs / 1000).toString())
+       .header('X-RateLimit-Limit', String(capacity))
+       .header('X-RateLimit-Remaining', String(e.tokens))
+       .json({ error: 'rate_limited', retry_after_ms: e.retryAfterMs });
+  }
+});
+```
+
+#### Caveats em produção
+
+- **Redis cluster + slot assignment**: keys `{tenant.id}` com hash tag pra forçar mesmo slot se você precisa script atômico cross-key.
+- **Failover Redis**: durante failover (segundos), rate limit fica permissivo. Acceptable se SLA de RL é "best effort"; pra strict (anti-abuse), rejeite quando Redis down (`fail closed`).
+- **Clock drift entre instâncias**: use `now_ms` calculado em Redis (`redis.call('TIME')`) em vez de cliente, pra evitar discrepância.
+- **Distributed counters podem driftar** em failover sem persistence; aceitável pra rate limit (drift de 1 janela), inaceitável pra billing.
+
+Cruza com **04-04 §2.7** (rate limiting fundamentals) e **04-04 §2.24** (bulkhead per-tenant).
+
 ### 2.8 Geo-distribution
 
 Multi-region:
