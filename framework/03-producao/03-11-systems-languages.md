@@ -277,6 +277,104 @@ Rust: explicit `async fn`, Future trait, runtime (Tokio) escolhido. Mais ceremon
 
 Go é mais fácil de adotar pra backend. Rust é mais expressivo pra sistemas onde async coexiste com sync.
 
+#### Tokio internals e armadilhas reais
+
+Tokio é o runtime async dominante em Rust 2026 (~90% do ecosystem backend). Anatomia mínima que separa quem usa de quem entende:
+
+**Modelo de execução:**
+- **Tasks** (`tokio::spawn`): unidades de trabalho cooperativo. Cada task vira state machine compilada do `async fn` (cada `.await` é um suspend point).
+- **Reactor** (mio underlying): epoll/kqueue/IOCP que multiplexa I/O.
+- **Scheduler**: 2 modos — `multi_thread` (default, work-stealing entre N threads) ou `current_thread` (single-thread, sem Send required).
+- **Workers blocking**: `tokio::task::spawn_blocking` envia trabalho CPU-bound pra thread pool separada (não trava o reactor).
+
+**Pin e por que existe:**
+
+`async fn` compila pra state machine que pode conter referências auto-referenciais (variável local apontando pra outra variável local na mesma struct). Mover essa struct na memória invalida ponteiros. **`Pin<&mut T>`** garante que valor não move depois de pinned.
+
+```rust
+use std::pin::Pin;
+
+async fn read_file() -> String {
+    let mut buf = String::new();
+    let f = File::open("x").await?;
+    f.read_to_string(&mut buf).await?;  // buf é referenciado pela future de read
+    buf
+}
+// Future tem &mut buf interno. Pin garante que future não move após poll.
+```
+
+99% do código de aplicação não toca `Pin` direto (compiler resolve). Você encontra quando: implementa `Future` manualmente, escreve combinator, faz FFI com C async.
+
+**Send vs !Send em práticas:**
+
+Multi-thread runtime exige tasks `Send` (movíveis entre threads). Holding `Rc<T>` (não-Send) ou `RefCell<T>` ao longo de `.await` quebra:
+
+```rust
+// NÃO COMPILA em multi-thread runtime
+async fn bad() {
+    let rc = Rc::new(42);
+    some_io().await;     // Rc atravessa await ⇒ task precisa ser Send ⇒ erro
+    println!("{}", rc);
+}
+```
+
+**Solução pragmática**: use `Arc<T>` (Send + Sync) ou `tokio::sync::Mutex` (Send), ou faça scope que dropa antes do await:
+
+```rust
+async fn good() {
+    {
+        let rc = Rc::new(42);
+        println!("{}", rc);
+    }                    // rc dropado antes do await
+    some_io().await;
+}
+```
+
+**Holding lock across await — antipattern crítico:**
+
+```rust
+// DEADLOCK iminente em produção
+let guard = std::sync::Mutex::lock(&data).unwrap();
+some_io().await;          // task suspende SEGURANDO lock
+process(&*guard);          // outra task que tenta lock fica bloqueada
+```
+
+Padrões de fix:
+1. **Drop antes do await**: copie valor, libere lock, depois await.
+2. **`tokio::sync::Mutex`**: lock async-aware; `.lock().await` em vez de `.lock()`. Lock é cancellation-safe e libera ao await externo se necessário.
+3. **Reestruture**: lock só guarda computação CPU-only; I/O fora do escopo do lock.
+
+```rust
+// Padrão recomendado
+let snapshot = data.lock().unwrap().clone();   // libera lock
+let result = some_io(snapshot).await;
+data.lock().unwrap().merge(result);            // re-lock pra mutação
+```
+
+**Function coloring custo real:**
+
+Async é "viral" em Rust: `fn foo()` chama `async fn bar()` precisa virar `async fn`. Mover library de sync pra async é refactor cross-código.
+
+Mitigações:
+- **`block_on`**: `tokio::runtime::Handle::current().block_on(future)` chama async de contexto sync. Custoso (cria runtime ad-hoc) e perigoso (deadlock se chamado dentro de runtime). Use só em main, tests, FFI.
+- **`futures::executor::block_on`**: para libs que não querem dependência de Tokio.
+- **`pollster`**: micro executor pra cases simples.
+
+**Decisão runtime:**
+
+| Workload | Runtime |
+|---|---|
+| Backend HTTP general purpose | `#[tokio::main]` (multi_thread default) |
+| Embedded / WASM / sem threads | `current_thread` flavor |
+| GUI app (precisa main thread) | `current_thread` + `LocalSet` |
+| CPU-heavy intercalado com IO | `multi_thread` + `spawn_blocking` pro CPU |
+
+**Observabilidade:**
+- **`tokio-console`**: top-style UI mostra tasks vivas, tempo bloqueado, contention. Use em dev/staging quando suspeita de task stuck.
+- **`tracing` + `tracing-subscriber`**: logging estruturado com spans seguindo task hierarchy.
+
+Cruza com **01-11** (memory model + sync primitives), **02-07** (Node single-thread vs Tokio multi-thread comparação), **04-04** (deadline propagation com `tokio::time::timeout`).
+
 ---
 
 ## 3. Threshold de Maestria

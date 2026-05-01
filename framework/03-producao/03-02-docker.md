@@ -113,6 +113,90 @@ RUN --mount=type=cache,target=/pnpm/store pnpm install --frozen-lockfile
 ```
 Próximo build reusa store mesmo se Dockerfile mudou.
 
+#### Multi-arch builds (linux/amd64 + linux/arm64)
+
+ARM ganhou prod em 2024-2026: AWS Graviton (~20-40% cheaper que x86), Apple Silicon dev, Cloudflare/Fly.io edge ARM-only. Imagem **single-arch** trava deploy em provider ARM.
+
+```bash
+# Setup uma vez
+docker buildx create --name multiarch --driver docker-container --bootstrap --use
+
+# Build cross-arch + push manifest list
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  --tag ghcr.io/me/api:v1.2.3 \
+  --push \
+  .
+```
+
+Resultado: registry tem **manifest list** apontando 2 images (uma por arch); pull do consumidor ARM puxa só a ARM. `docker pull` resolve automaticamente.
+
+**Performance**: building ARM em runner x86 usa QEMU emulation — 5-10x mais lento. Soluções:
+- **Runners ARM nativos**: GitHub Actions `runs-on: ubuntu-24.04-arm` (free pra public repos). Build paralelo per-arch, depois merge manifest com `docker buildx imagetools create`.
+- **Cross-compile no app**: build binário Go/Rust em x86 com `GOARCH=arm64`, copie pra image. Skip emulation.
+
+#### Cache backends pra CI
+
+Build local usa cache local. CI sem cache backend = build do zero todo run (lento, caro).
+
+```bash
+# Registry-based cache (push/pull cache layer pra registry)
+docker buildx build \
+  --cache-from type=registry,ref=ghcr.io/me/api:buildcache \
+  --cache-to type=registry,ref=ghcr.io/me/api:buildcache,mode=max \
+  --tag ghcr.io/me/api:latest \
+  --push .
+
+# GitHub Actions cache (10GB free, expira em 7 dias sem hit)
+docker buildx build \
+  --cache-from type=gha \
+  --cache-to type=gha,mode=max \
+  --tag ghcr.io/me/api:latest \
+  --push .
+
+# S3 cache (custom, controlled retention)
+docker buildx build \
+  --cache-from type=s3,region=us-east-1,bucket=my-buildcache \
+  --cache-to type=s3,region=us-east-1,bucket=my-buildcache,mode=max \
+  ...
+```
+
+`mode=max` exporta TODOS os layer intermediários (incluindo do builder stage). `mode=min` exporta só o final. Use `max` em CI sério, `min` se cache budget é restrito.
+
+#### Secrets mount avançado
+
+```dockerfile
+# Dockerfile
+RUN --mount=type=secret,id=npm_token,target=/root/.npmrc \
+    --mount=type=secret,id=aws_creds,target=/root/.aws/credentials \
+    npm install && \
+    aws s3 cp s3://artifacts/foo .
+```
+
+```bash
+# Build invocation
+DOCKER_BUILDKIT=1 docker build \
+  --secret id=npm_token,src=$HOME/.npmrc \
+  --secret id=aws_creds,src=$HOME/.aws/credentials \
+  -t myimage .
+
+# CI (secrets vindo de env, não files)
+echo -n "$NPM_TOKEN" | docker buildx build --secret id=npm_token,src=/dev/stdin ...
+```
+
+Secret **não** fica em nenhuma layer da imagem final — montado em build-time só. Diferente de `ARG` (que vaza em `docker history`) ou `ENV` (que persiste).
+
+#### Output formats
+
+```bash
+# OCI tarball local (pra inspeção, não-registry distribution)
+docker buildx build --output type=oci,dest=image.tar ...
+
+# Plain filesystem (pra extract artifacts sem container)
+docker buildx build --output type=local,dest=./out ...
+# Use case: build Next.js, extrair só /app/out pra servir em S3 + CloudFront.
+```
+
 ### 2.7 .dockerignore
 
 Crucial. Sem ele, `COPY . .` envia node_modules, .git, build outputs pra contexto de build. Build lento e imagem inflada.

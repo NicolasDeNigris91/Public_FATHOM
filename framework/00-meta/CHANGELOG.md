@@ -20,6 +20,16 @@ Tipos:
 
 ## 2026
 
+### 2026-05-01, Review wave 7 — elite depth (Tokio internals, distributed rate limit, Apollo Router, BuildKit multi-arch, Server Actions)
+
+Sétima onda do audit cross-stage. Profundidade técnica em frentes onde Senior+ precisa de rigor de elite — código de produção real, não demo de tutorial.
+
+- **edit** [`framework/03-producao/03-11-systems-languages.md`](../03-producao/03-11-systems-languages.md) §2.17, Tokio internals em profundidade — modelo de execução (tasks, reactor, scheduler, blocking), Pin e por que existe (state machine self-referential), Send vs !Send com exemplos compiláveis, holding lock across await como antipattern crítico (3 padrões de fix), function coloring custo real (block_on caveats), decisão runtime por workload, observability (tokio-console + tracing).
+- **edit** [`framework/04-sistemas/04-09-scaling.md`](../04-sistemas/04-09-scaling.md) nova §2.7.1, distributed rate limiting deep — comparação de 5 algoritmos (fixed window, sliding log, sliding counter, token bucket, leaky bucket), Lua script atomic completo pra sliding window log + token bucket, padrão Logística multi-tier com Retry-After + X-RateLimit headers, caveats em produção (Redis cluster slot tags, failover fail-closed vs fail-open, clock drift via redis.call('TIME')).
+- **edit** [`framework/04-sistemas/04-05-api-design.md`](../04-sistemas/04-05-api-design.md) §2.20, Apollo Router (Rust) deep — pipeline de query (parse → planner → execução → compose), exemplo de query plan Logística com `_entities` resolution, config TOML production-ready (timeouts por subgraph, retry, telemetry OTLP), caveats (N+1 cross-subgraph, schema evolution coordenada, composition errors, auth distribuído).
+- **edit** [`framework/03-producao/03-02-docker.md`](../03-producao/03-02-docker.md) §2.6, BuildKit advanced — multi-arch builds (linux/amd64 + linux/arm64) com manifest list, ARM nativo runners GHA vs QEMU emulation, cache backends pra CI (registry, gha, s3) com mode=max vs min, secrets mount avançado (não vaza em layer/ARG/ENV), output formats (oci tarball, plain filesystem).
+- **edit** [`framework/02-plataforma/02-04-react-deep.md`](../02-plataforma/02-04-react-deep.md) nova §2.9.1, Server Actions deep — modelo mental, exemplo Logística com `'use server'` + Zod validation + RLS Postgres + revalidatePath, useActionState + useFormStatus + useOptimistic patterns, pegadinhas reais (encryption keys multi-instance, CSRF built-in, args serializáveis, validação server obrigatória, long-running actions com queue), quando NÃO usar Server Actions.
+
 ### 2026-05-01, Review wave 6 — applied patterns (CRDTs, hybrid search, deadline propagation, bulkhead, chaos)
 
 Sexta onda do audit cross-stage. Foca em **código real e patterns aplicados** que separam Senior de Staff — temas onde o framework já tinha conceito mas faltava implementação executável Monday morning.

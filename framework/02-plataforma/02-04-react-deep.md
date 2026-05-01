@@ -224,6 +224,112 @@ Modelo de "ilhas": página é majoritariamente HTML estático (RSC), com ilhas d
 
 Implicação: muito do que se fazia com `useEffect` pra carregar data agora é `await` direto no server. `getServerSideProps` é history.
 
+### 2.9.1 Server Actions, deep
+
+Server Actions (estável Next.js 14+, padrão em Next.js 16) são funções com `'use server'` chamáveis do client como mutations. Substituem o ritual REST/tRPC para cenários CRUD do mesmo app.
+
+**Modelo mental:**
+- Server Component renderiza form ou button → declara handler com `'use server'`.
+- Next gera **endpoint encrypted automatic** + cliente fetch transparente; React serializa args e response.
+- Server Action é **mutation**: invalida cache (revalidatePath / revalidateTag) e dispara re-render do RSC dependente.
+
+```tsx
+// app/orders/new/page.tsx (Server Component)
+import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
+import { db } from '@/db';
+import { auth } from '@/auth';
+
+const CreateOrderSchema = z.object({
+  customer_email: z.string().email(),
+  items: z.array(z.object({ sku: z.string(), qty: z.number().int().positive() })).min(1),
+  notes: z.string().max(500).optional(),
+});
+
+async function createOrder(prevState: unknown, formData: FormData) {
+  'use server';                                       // marker — NÃO vai pro client bundle
+  const user = await auth();
+  if (!user) return { error: 'unauthorized' };
+
+  const parsed = CreateOrderSchema.safeParse({
+    customer_email: formData.get('email'),
+    items: JSON.parse(formData.get('items') as string),
+    notes: formData.get('notes'),
+  });
+  if (!parsed.success) return { error: 'invalid', issues: parsed.error.flatten() };
+
+  // Tenant isolation — RLS via Postgres role/setting
+  const order = await db.transaction(async tx => {
+    await tx.execute(`SET LOCAL app.tenant_id = '${user.tenantId}'`);
+    return tx.insert(orders).values({ ...parsed.data, tenant_id: user.tenantId }).returning();
+  });
+
+  revalidatePath('/orders');                          // RSC list re-renders sem manual mutation
+  return { ok: true, id: order[0].id };
+}
+
+export default function NewOrderPage() {
+  return <NewOrderForm action={createOrder} />;       // Client Component imports server action
+}
+```
+
+```tsx
+// components/new-order-form.tsx (Client Component)
+'use client';
+import { useActionState, useFormStatus } from 'react';
+
+export function NewOrderForm({ action }: { action: any }) {
+  const [state, formAction] = useActionState(action, null);
+  const { pending } = useFormStatus();
+  return (
+    <form action={formAction}>
+      <input name="email" type="email" required />
+      <input name="items" type="hidden" defaultValue="[]" />
+      <textarea name="notes" />
+      <button disabled={pending}>{pending ? 'Criando…' : 'Criar pedido'}</button>
+      {state?.error && <p className="error">{state.error}</p>}
+      {state?.ok && <p>Pedido {state.id} criado.</p>}
+    </form>
+  );
+}
+```
+
+**Optimistic UI** com `useOptimistic`:
+
+```tsx
+'use client';
+import { useOptimistic } from 'react';
+
+function OrderList({ orders, deleteAction }) {
+  const [optimistic, addOptimistic] = useOptimistic(orders, (state, id) =>
+    state.filter(o => o.id !== id)
+  );
+  return optimistic.map(o => (
+    <button key={o.id} onClick={async () => {
+      addOptimistic(o.id);                  // UI atualiza imediato
+      await deleteAction(o.id);             // server action async
+      // se falhar, useOptimistic reverte; combine com toast de erro
+    }}>Cancelar pedido {o.id}</button>
+  ));
+}
+```
+
+**Pegadinhas reais que mordem:**
+- **Args são serializados**: você não pode passar function, Date sem cuidado, Map/Set, ou anything non-serializable. FormData ou plain objects.
+- **Encryption keys**: Next gera key por build — em deploy multi-instance, todas as instâncias precisam mesma key (env `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`). Sem isso, "Failed to find Server Action" em mismatched routes.
+- **CSRF protection**: built-in via origin header check. Custom fetch fora de `<form action>` ou `useActionState` pode bypass — sempre prefer abstractions oficiais.
+- **Validação obrigatória server-side**: client `<input required>` é UX, não security. **Sempre** Zod ou similar no server action.
+- **Long-running actions**: > 30s vão estourar function timeout em serverless. Use queue (Inngest, Trigger.dev, BullMQ) e Server Action só dispara o job.
+- **Tenant isolation**: Server Action tem mesmo escopo de auth que page. Mas RLS no DB é defesa final — não confie só em check em código.
+- **Type safety**: action retorna `Promise<unknown>` por default. Use `ServerActionState<T>` pattern com Zod schemas pra type-safe round-trip.
+
+**Quando NÃO usar Server Actions:**
+- API pública consumida por mobile app / 3rd party → use REST/tRPC/GraphQL com versioning explícito.
+- Operações que precisam middleware customizado (rate limit per-route, custom headers) → API route.
+- Read-heavy (data fetching) → Server Components diretos, não actions.
+
+Server Actions são pra **mutations do same-app**. Para tudo mais, fica em padrões anteriores.
+
 ### 2.10 Padrões de gerenciamento de state
 
 Estado local: `useState`/`useReducer`.

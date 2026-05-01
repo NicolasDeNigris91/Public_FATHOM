@@ -376,6 +376,84 @@ type User @key(fields: "id") {
 
 Alternativas: GraphQL Mesh, Hasura, mantém-monolith.
 
+#### Apollo Router (Rust) e query planner
+
+Apollo Router (Rust, 2022+) substituiu Apollo Gateway (Node) como o gateway de produção. Anatomia operacional:
+
+**Router pipeline em 1 query:**
+1. **Parse + validate** contra supergraph schema (composto de subgraphs em build time, via `rover supergraph compose`).
+2. **Query planner** decompõe query em **fetch graph**: nodes = chamadas a subgraphs, edges = dependências de dados.
+3. **Execução** segue plan: chamadas paralelas onde possível, sequenciais onde dependentes.
+4. **Compose response**: monta JSON final juntando resultados.
+5. **Defer/stream** suportados (incremental delivery).
+
+**Exemplo de query plan** pra Logística:
+```graphql
+query OrderWithCourier($id: ID!) {
+  order(id: $id) {        # Orders subgraph
+    id
+    total
+    courier {              # cross-subgraph
+      id
+      name                 # Couriers subgraph
+      rating
+    }
+  }
+}
+```
+
+Plan gerado:
+```
+Fetch(Orders) {
+  query { order(id: $id) { id total courier { __typename id } } }
+}
+Flatten(path: "order.courier") {
+  Fetch(Couriers) {
+    query($representations: [_Any!]!) {
+      _entities(representations: $representations) {
+        ... on Courier { name rating }
+      }
+    }
+  }
+}
+```
+
+`__typename + id` (entity representation) é como subgraphs se referenciam — Couriers resolve `Courier` por `_entities` resolver baseado em `@key(fields: "id")`.
+
+**Apollo Router em produção:**
+- Binário Rust ~20MB. Performance ~10x do gateway Node em throughput.
+- Config TOML: timeouts por subgraph, traffic shaping, plugins (Rhai script ou Rust nativo).
+- Telemetry OTLP nativo (cruza com 03-07): traces propagam por subgraphs.
+- Defer: cliente recebe partial response inicial (`@defer` em fragment lento), atualizações chegam via multipart HTTP.
+- Subgraph-level caching com `@cacheControl` directives.
+
+```toml
+# router.yaml
+supergraph:
+  listen: 0.0.0.0:4000
+  introspection: false  # production: false
+traffic_shaping:
+  all:
+    timeout: 5s
+  subgraphs:
+    payment-service:
+      timeout: 10s          # payment é mais lento
+      experimental_retry:
+        min_per_sec: 10
+        retry_percent: 0.2
+telemetry:
+  exporters:
+    tracing:
+      otlp:
+        endpoint: http://collector:4317
+```
+
+**Caveats reais 2026:**
+- **N+1 entre subgraphs**: query mal-modelada vira N chamadas a Couriers; resolva com `_entities` batching (default) + DataLoader patterns dentro de cada subgraph.
+- **Schema evolution coordenada**: removing field exige todos os subgraphs publicarem nova versão antes do supergraph compor — sem isso, build do supergraph quebra.
+- **Composition errors em CI**: `rover supergraph compose` falha em conflitos (mesmo type definido em 2 subgraphs sem `@shareable`). Bloqueie merge.
+- **Auth distribuído**: gateway valida token, propaga via `request.context.auth` pra subgraphs. Subgraph pode fazer authz fina; mas duplicação de logic é risco.
+
 ### 2.21 gRPC streaming bidirectional
 
 gRPC suporta 4 modos:
