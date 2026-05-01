@@ -155,14 +155,86 @@ Lib: **helmet** (Express/Fastify), **`@fastify/helmet`**.
 
 **Secret scanning**: GitHub native, **gitleaks**, **trufflehog**. Roda em pre-commit + CI.
 
-### 2.14 Supply chain (03-04 review)
+### 2.14 Supply chain security, deep
 
-- Dependabot/Renovate.
-- SCA tools: Snyk, Trivy fs/repo mode, Socket.
-- SBOM gerado (syft).
-- Image signing (cosign).
-- Lockfile sempre.
-- Pinning by digest em prod imagens.
+Em 2026, supply chain virou frente principal: SolarWinds (2020), Codecov (2021), Log4Shell (2021), 3CX (2023), `xz-utils` backdoor (2024). Defesa mudou de "atualizar deps" pra **stack inteiro de attestation, signing, SBOM, provenance**.
+
+#### Camadas de threat
+
+1. **Dependency vulnerabilities** (CVEs em libs): SCA tradicional pega.
+2. **Dependency confusion**: namespace squatting interno → pacote público com mesmo nome (Birsan, 2021).
+3. **Typosquatting**: `reqests` em vez de `requests`, `colorama` malicioso.
+4. **Compromised maintainer**: `xz-utils` 2024 — atacante ganhou trust por anos antes de injetar backdoor.
+5. **Build system compromise**: SolarWinds 2020 — código malicioso injetado durante build, não no source.
+6. **Compromised registry / mirror**: pacotes alterados em trânsito.
+
+#### SLSA (Supply chain Levels for Software Artifacts)
+
+Framework canônico (Google + OpenSSF). 4 níveis de garantia:
+
+| Nível | Garantia | Como atinge |
+|---|---|---|
+| **SLSA 1** | Build process documentado | Build script versionado, output identificável |
+| **SLSA 2** | Build provenance, version controlled | Build em CI versionado, provenance gerada |
+| **SLSA 3** | Build platform isolada, source verificável | Builder hardenizado, provenance autenticada |
+| **SLSA 4** | Two-party review, hermetic builds | Reproducible builds, two-person review obrigatório |
+
+Em 2026, **SLSA 3 é alvo realista** pra prod sério; SLSA 4 é raro fora de Google/Cloud-native critical infra.
+
+#### Sigstore stack
+
+Sistema de assinatura sem gerenciamento de chaves persistentes. Padrão emergente:
+
+- **cosign**: CLI pra assinar blobs / container images. `cosign sign --identity-token $OIDC_TOKEN ghcr.io/me/img:tag`.
+- **Fulcio**: CA que emite cert short-lived (10min) bound a OIDC identity (GitHub Actions, Google, etc.).
+- **Rekor**: transparency log imutável (Trillian) — toda assinatura registrada publicly.
+- **Cosign verify**: `cosign verify --certificate-identity ... --certificate-oidc-issuer ...`.
+
+Resultado: assinatura tem **provenance verificável** (CI workflow X em GitHub repo Y assinou), sem PGP key management.
+
+#### SBOM (Software Bill of Materials)
+
+Inventário formal de dependências e suas versões. Formatos:
+
+- **CycloneDX** (OWASP, JSON/XML): rico em metadata de segurança, vulnerability cross-ref, VEX statements.
+- **SPDX** (Linux Foundation, ISO standard): foco em licensing, compliance.
+
+Geradores: **Syft** (Anchore, multi-formato), **CycloneDX CLI**, **GitHub native** (Dependency Graph).
+
+Exemplo mínimo (CycloneDX):
+```json
+{
+  "bomFormat": "CycloneDX", "specVersion": "1.5",
+  "components": [{"type":"library", "name":"react", "version":"19.1.0",
+                  "purl":"pkg:npm/react@19.1.0"}]
+}
+```
+
+Em produção 2026, SBOM gerado em CI, anexado a release, **assinado com cosign**, versionado.
+
+#### in-toto attestations
+
+Padrão pra **provenance metadata** (quem buildou, quando, com qual source, qual builder). Predicates: `slsa-provenance`, `vuln-scan`, `test-result`, `sbom`.
+
+```bash
+cosign attest --predicate provenance.json --type slsaprovenance ghcr.io/me/img@sha256:...
+```
+
+Permite chains: image foi buildada por GH Actions workflow X que rodou test suite Y com result Z, tudo verificável on-demand.
+
+#### Stack mínimo defensável em 2026
+
+1. **Lockfile pinned** (package-lock, pnpm-lock, Cargo.lock, go.sum).
+2. **Pin by digest** em prod containers: `image: ghcr.io/me/api@sha256:abc...` (não `:latest`, não `:v1`).
+3. **SCA em CI**: Snyk / Trivy / Socket / Dependabot / Renovate. PR-blocking em high/critical.
+4. **SBOM gerado** em build step, salvo como release asset.
+5. **Sign com cosign** (image + SBOM) usando keyless OIDC.
+6. **Provenance attestation** (SLSA 2-3) gerada por CI.
+7. **Verify em deploy**: `cosign verify` antes de pull em K8s (admission controller via Kyverno / OPA Gatekeeper / Connaisseur).
+8. **Allowlist/denylist** de fontes: registries internos > public; review manual pra deps novos com poucos contributors.
+9. **Reproducible builds** quando possível (Nix, Bazel) — comparar build local vs CI deve dar mesmo hash.
+
+Cruza com **03-04** (CI/CD pipeline implementa isso), **04-15** (OSS maintainers do outro lado).
 
 ### 2.15 SAST, DAST, IAST
 
