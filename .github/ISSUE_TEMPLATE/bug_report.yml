@@ -1,0 +1,45 @@
+name: Bug report
+description: Report a broken link, build failure, or incorrect content in Fathom.
+title: "[bug] "
+labels: ["bug", "triage"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - framework content (markdown)
+        - apps/site (Next.js)
+        - validation script
+        - CI workflow
+        - other
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+    validations:
+      required: true
+
+  - type: textarea
+    id: where
+    attributes:
+      label: Where (path / URL / commit)
+      description: File path, page URL, or commit SHA.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
