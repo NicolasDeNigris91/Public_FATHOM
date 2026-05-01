@@ -188,6 +188,71 @@ Streaming replication é simples: réplica é cópia exata. Logical é onde Seni
 - **Failover de logical slots**: réplica streaming preserva logical slots pra failover automatic. Antes era manual.
 - **`pg_createsubscriber`**: converte streaming standby em subscriber de logical replication com 1 comando, mata o gap "preciso ressincar tudo do zero pra mudar pra logical".
 
+**Aplicação concreta em Logística v2 → v3 (CDC pra event bus):**
+
+Logística v2 grava `orders`, `payments`, `couriers` em Postgres direto (monolito modular). Em v3 (Estágio 4), CDC expõe esses writes como eventos Kafka sem dual-write:
+
+```yaml
+# Debezium connector config (Kafka Connect) pra outbox padrão
+{
+  "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+  "database.hostname": "postgres-rw.production",
+  "plugin.name": "pgoutput",
+  "publication.name": "outbox_pub",
+  "slot.name": "outbox_slot",
+  "table.include.list": "public.outbox",
+  "transforms": "outbox",
+  "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
+  "transforms.outbox.table.field.event.type": "event_type",
+  "transforms.outbox.route.topic.replacement": "logistics.${routedByValue}"
+}
+```
+
+Schema da tabela `outbox` mínima:
+```sql
+CREATE TABLE outbox (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  aggregate_type TEXT NOT NULL,    -- "Order", "Payment"
+  aggregate_id UUID NOT NULL,
+  event_type TEXT NOT NULL,        -- "OrderCreated", "PaymentCaptured"
+  payload JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+ALTER TABLE outbox REPLICA IDENTITY FULL;  -- DELETE replication
+CREATE PUBLICATION outbox_pub FOR TABLE outbox;
+```
+
+App grava em transação atômica:
+```sql
+BEGIN;
+INSERT INTO orders (...) VALUES (...);
+INSERT INTO outbox (aggregate_type, aggregate_id, event_type, payload)
+  VALUES ('Order', $1, 'OrderCreated', $2);
+COMMIT;
+```
+
+Debezium consume, publica em Kafka topic `logistics.OrderCreated`, deleta linha do outbox. Workers downstream (notifications, analytics, search index) consumem evento. Cruza com **04-03 §2.8** (outbox pattern completo) e **04-02** (Kafka).
+
+**Monitoramento crítico em produção:**
+```sql
+-- Slot lag em bytes (alarmar > 1GB)
+SELECT slot_name, pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn) AS lag_bytes
+FROM pg_replication_slots WHERE active;
+
+-- Idade do slot (alarmar > 1h sem progresso)
+SELECT slot_name, EXTRACT(EPOCH FROM (now() - last_msg_receipt_time)) AS idle_seconds
+FROM pg_stat_replication;
+```
+
+Alertas Prometheus: `pg_replication_slot_retained_bytes > 1e9` ou `pg_replication_lag_seconds > 60`. Slot abandonado enche `pg_wal/` em horas; evento real visto em produção (tools: pgwatch2, postgres_exporter).
+
+**HA com Patroni (padrão 2026 pra Postgres self-managed):**
+- **Patroni** (Zalando) coordena via **etcd/Consul/ZK** quem é primary, gerencia failover automático.
+- **Synchronous standby names**: `synchronous_standby_names = 'ANY 1 (replica1, replica2)'` exige 1 réplica syncada antes de commit (RPO ≈ 0, latência +1-3ms).
+- **Async** default: RPO de segundos, latência igual single-node.
+- **PgBouncer** na frente do VIP do Patroni; failover é invisível pra app (poucos segundos de connection drop).
+- Gerenciados (Aiven, Crunchy Bridge, Neon, Supabase) já fazem isso por você. Em managed cloud, paga premium pra não pensar nisso.
+
 ### 2.14 Postgres 17/18, features que mudam o jogo
 
 Postgres ciclo anual; vale acompanhar releases recentes porque mudam patterns operacionais.

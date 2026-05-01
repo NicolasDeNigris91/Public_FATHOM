@@ -20,6 +20,16 @@ Tipos:
 
 ## 2026
 
+### 2026-05-01, Review wave 5 — industrial depth (CDC/Patroni, real-time scaling, DORA, embedded Rust, hardware bring-up)
+
+Quinta onda do audit cross-stage. Refinamentos cirúrgicos de profundidade industrial onde aluno Senior+ precisa de rigor operacional concreto.
+
+- **edit** [`framework/02-plataforma/02-09-postgres-deep.md`](../02-plataforma/02-09-postgres-deep.md) §2.13.1, aplicação concreta de CDC pra Logística v2→v3 (Debezium + outbox table + Postgres publication + transação atômica + slot lag monitoring com SQL queries + alertas Prometheus). Patroni HA com synchronous standby names e PgBouncer. Cruza com 04-02 e 04-03.
+- **edit** [`framework/02-plataforma/02-14-realtime.md`](../02-plataforma/02-14-realtime.md) §2.8, expansão real-time scaling com Soketi vs Centrifugo deep (matriz de modelo/protocolo/forte/limita), exemplo Soketi setup pra Logística, Centrifugo unique strengths (history buffer + presence + GRPC), sticky session cookie hash vs IP hash com pegadinha mobile carrier NAT, cardinality de canais (problema de 1M canais one-to-one), padrão Logística (tenant/courier/order channels), presence em escala.
+- **edit** [`framework/03-producao/03-04-cicd.md`](../03-producao/03-04-cicd.md) §2.16, DORA metrics deep — definição operacional + fonte + cálculo de cada métrica, implementação prática em GitHub Actions + Postgres (workflow YAML + SQL query weekly), categorias DORA 2024 (Elite/High/Medium/Low) com thresholds, comparação de tools (LinearB, Sleuth, Faros, DIY Grafana), 3 anti-padrões (otimizar deploy freq isolado, lead-time errado, vanity metrics). Cruza com 03-15 e 04-12.
+- **edit** [`framework/05-amplitude/05-07-embedded-iot.md`](../05-amplitude/05-07-embedded-iot.md) §2.12, embedded Rust em profundidade — HAL trait pattern com exemplo vendor-neutral, no_std vs std vs std-com-allocator, async runtimes (embassy + RTIC + Tock OS comparados), embassy Logística firmware example, defmt logging compactado, probe-rs debugger universal, decisão Rust vs C em 2026.
+- **edit** [`framework/05-amplitude/05-08-hardware-design.md`](../05-amplitude/05-08-hardware-design.md) §4, bring-up day playbook — sequência de 6 etapas (pre-power inspection → power-up isolado → programming interface → periférico por periférico → connectivity stack → soak test) com tempo estimado e armadilhas; tabela de common failures com sintomas/causas/tempo médio até fix; skills críticos não-óbvios (datasheet completo, scope/logic analyzer, hot air rework). Calibração realista: 1-3 dias primeiro bring-up, 4-8 horas quando experiente.
+
 ### 2026-05-01, Review wave 4 — modern frontiers (edge, supply chain, AI ops, vector DBs, PWA)
 
 Quarta onda do audit cross-stage. Foca em fronteiras modernas que faltavam profundidade adequada — temas onde o framework precisa estar em 2026, não em 2022.

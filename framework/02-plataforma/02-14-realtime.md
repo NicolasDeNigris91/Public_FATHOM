@@ -153,6 +153,64 @@ Patterns:
 
 Trade-off: servers mantêm estado (lista de sockets). Restart drops conexões. Clients reconectam.
 
+#### Soketi e Centrifugo, deep
+
+Em 2026 essas duas dominam self-host. Decisão:
+
+| Tool | Modelo | Protocolo | Forte em | Limita em |
+|---|---|---|---|---|
+| **Soketi** (open-source) | Pusher-protocol-compatible | WebSocket clássico, channel-based | Drop-in pra apps que usavam Pusher (lib JS Pusher cliente igual); presence channels nativos | Presence em escala extrema (cardinality alta); features só do protocolo Pusher |
+| **Centrifugo** (open-source) | Bidirectional WS / SSE / SockJS | Próprio + GRPC + HTTP API server-side | History + recovery (cliente reconecta e recebe missed messages); presence + join/leave; tokens JWT-based; client SDKs em 10+ langs | Curva de aprendizado maior; menos adoção que Pusher protocol |
+
+**Soketi setup pra Logística:**
+```js
+// Server emite evento via Pusher SDK (que aponta pro Soketi)
+import Pusher from 'pusher';
+const soketi = new Pusher({ host:'soketi.internal', port:'6001', useTLS:false, ... });
+await soketi.trigger(`courier-${courierId}`, 'location-update', { lat, lng });
+
+// Client (Pusher JS SDK)
+const client = new Pusher(KEY, { wsHost: 'rt.logistica.com', cluster: '' });
+client.subscribe(`courier-${courierId}`).bind('location-update', (data) => mapUpdate(data));
+```
+
+Soketi escala horizontalmente via Redis adapter (broadcast cross-instance). Benchmark publicado: 1M+ conn/instance em 2GB RAM.
+
+**Centrifugo unique strengths:**
+- **History buffer** (configura por channel): cliente reconecta e pede missed events com `since` pointer; sem você implementar replay.
+- **Presence**: `client.getPresence(channel)` lista quem está online. Logística usa pra "couriers ativos agora" sem polling DB.
+- **Server-side API via GRPC**: alta perf pra eventos com burst alto.
+- **Channel namespaces**: politica/permissão por padrão de nome (`logistics:courier:*`).
+
+#### Sticky sessions: cookie hash vs IP hash
+
+L4 LB (NLB AWS, HAProxy mode tcp): só vê IP. **Source IP affinity** funciona até NAT gateway (corp office, mobile carrier). Em mobile carrier com NAT compartilhado, milhares de users vão pro mesmo server — hot spot.
+
+L7 LB (ALB AWS, Nginx, Cloudflare): cookie injection (`AWSALBAPP-x`, `lb_session`). **Cookie-hash sticky** distribui uniformemente, sobrevive a NAT, é o padrão moderno.
+
+Pegadinha: se bypass do LB (apps mobile chegando direto via DNS round-robin), sticky não funciona. Mande cliente sempre via LB, nunca direto a backend.
+
+#### Cardinality de canais
+
+WebSocket scale-out via Redis pub/sub: cada canal subscrito em N instâncias = N×Redis SUBSCRIBE.
+
+- **10k canais × 50 instâncias** = 500k Redis subscriptions. Redis aguenta, mas latência de subscribe sobe.
+- **1M canais one-to-one** (canal por user) = problema. Use **shared channels com routing client-side** (1 canal `tenant-X` com payload contendo `targetUserId`).
+
+Padrão Logística:
+- `tenant-${tenantId}` (broadcast pra dashboard de lojista, dezenas de subscribers).
+- `courier-${courierId}` (1-2 subscribers, usuário + admin).
+- `order-${orderId}` (lifecycle do pedido, dezenas de updates, fecha após delivered).
+
+Limpeza: canais com 0 subscribers há > 5min são liberados (Centrifugo TTL config; em Soketi, manual via API).
+
+#### Presence em escala
+
+Centrifugo presence é Redis-backed, ~100k presence updates/s por instance. Pusher presence (Soketi) similar. Acima disso:
+- **Sample**: presence atualiza a cada 5s, não a cada msg.
+- **Aggregate**: "47 couriers online" em vez de lista completa.
+- **Sharded channels**: `couriers-shard-${id % 16}` reduz fan-out por broadcast.
+
 ### 2.9 Sticky session e load balancer
 
 L4 (TCP) load balancer: cookies não enxergáveis; sticky por IP. Funciona até NAT.
