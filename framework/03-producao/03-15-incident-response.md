@@ -88,6 +88,86 @@ IC mantém: war room (Slack/Zoom), timeline, decisões, action items. Decisões:
 
 Em times pequenos, mesma pessoa acumula papéis. Mas explicitar quem está em cada papel evita caos.
 
+#### First 15 minutes — script operacional
+
+Os primeiros 15 minutos definem se incidente vira pequeno bug ou page-1-news. Roteiro:
+
+**T+0 (alarme dispara, on-call recebe page):**
+1. Acknowledge em < 5 min (SLA típico).
+2. Open incident channel (`#incident-2026-05-01-tracking-down` em Slack — naming consistente).
+3. Post inicial fixo (template):
+   ```
+   :rotating_light: NEW INCIDENT
+   Severity: SEV2 (suspect)
+   Trigger: Tracking endpoint p99 > 5s for 3 min
+   IC: @yourname
+   Status: Investigating
+   Will update at HH:MM (5min from now)
+   ```
+
+**T+0 a T+5 (triagem):**
+4. Confirma severidade via dashboards: error rate, latency p99, traffic patterns, recent deploys.
+5. Decide se escala pra SEV1 (paging adicional) ou SEV2 (continua solo).
+6. Anota timeline em mensagem fixa do canal:
+   ```
+   T+02 — Confirmed: tracking endpoint p99 6.2s, error rate 3% (baseline 0.05%)
+   T+03 — Last deploy 2h ago, irrelevant
+   T+05 — Postgres pg_stat_activity shows long-running queries on `tracking_pings` table
+   ```
+
+**T+5 a T+10 (mitigation > investigation):**
+7. **Stop the bleeding** primeiro (§2.7), root cause depois.
+8. Ações reversíveis preferidas: rollback, feature flag off, traffic shift, scale up. Última opção: kill query/process.
+9. Comunica decisão antes de executar:
+   ```
+   IC decision @ T+07: scaling tracking-svc HPA min 5 → 15. Will observe for 3 min.
+   ```
+
+**T+10 a T+15 (status update + handoff prep):**
+10. Status page atualizado (template em §2.13).
+11. Identifica handoff se incidente vai durar > 1h (timezone shift, oncall pessoal limit).
+12. Timeline atualizada com cada decisão.
+
+#### Decision log template (in-channel)
+
+Cada decisão importante vira mensagem do IC com este formato:
+```
+DECISION @ T+XX
+What: [ação concreta]
+Why: [hipótese sustentada por evidência]
+Risk: [o que pode dar errado]
+Reversal: [como desfazer se errado]
+Observed effect: [após executar, o que aconteceu]
+```
+
+Exemplo:
+```
+DECISION @ T+22
+What: Disabling feature flag `realtime_tracking_v2` for all tenants
+Why: New code path correlates with p99 spike start (deploy hash abc123 at T-95min)
+Risk: Tenants on v2 lose live updates; fall back to 30s polling
+Reversal: Re-enable flag in LaunchDarkly; instant
+Observed effect: T+23 — p99 dropped 6.2s → 280ms. Error rate 3% → 0.04%. Confirmed root cause.
+```
+
+Esse formato em produção significa: postmortem se escreve sozinho. Timeline + Why + Reversal estão prontos.
+
+### 2.6.1 War-room rituals (Slack/Zoom)
+
+Discipline operacional dentro do canal/call:
+
+- **Pinned message** com IC atual + status + último update time. Atualiza a cada 15-30min mesmo sem progresso ("Still investigating, no new info — next update HH:MM").
+- **Threaded discussions** pra investigação técnica; **canal main** só pra decisões e updates externos. Senão channel vira ilegível.
+- **Voice channel paralelo** (Zoom/Discord) pra debug rápido entre 2-3 pessoas; resultado vai pra canal text.
+- **No silent investigation**: se você está olhando algo, fala. "Estou olhando logs do payment-svc T-30min; status em 5min". Senão IC não sabe o que está coberto.
+- **Timeboxing**: se uma hipótese não rendeu em 10min, IC chama outra direção.
+- **Eat / break protocol**: incidente longo (> 2h), IC força rotation. SME esgotado é SME que erra.
+
+Anti-patterns:
+- IC vira debugger ("eu fix isso, não toca"). Promove novo IC e vire SME.
+- "Já vi isso antes": confirme com dados antes de assumir.
+- Lurkers (10+ pessoas no canal sem papel): pede pra silenciar ou sair. Voyeurismo de incidente é bullshit.
+
 ### 2.7 Blast radius e mitigation patterns
 
 Antes de fix, **stop the bleeding**:
@@ -109,6 +189,81 @@ Senior **resiste** ao impulso de "find root cause primeiro". Mitigar > investiga
 - **Post-incident**: comunicação detalhada (postmortem público se SaaS B2B, resumo se B2C).
 
 Atlassian/Cloudflare/GitHub têm bons exemplos públicos. Estude.
+
+#### Templates concretos
+
+**Status page — Investigating** (publica em < 10min):
+```
+[INVESTIGATING] Elevated error rates on tracking endpoint
+HH:MM UTC — We are investigating reports of slow page loads and elevated
+error rates affecting real-time tracking for some customers. Order
+creation and payment processing remain operational. Next update HH:MM UTC.
+```
+
+**Status page — Identified** (após mitigation começar):
+```
+[IDENTIFIED] Cause identified, mitigation in progress
+HH:MM UTC — We have identified a configuration change related to a
+recent deploy that is causing the elevated latency. We are rolling
+back the change and expect recovery within 15 minutes. Other services
+unaffected. Next update HH:MM UTC.
+```
+
+**Status page — Monitoring**:
+```
+[MONITORING] Mitigation deployed, monitoring for stability
+HH:MM UTC — Rollback completed at HH:MM UTC. Latency and error rates
+have returned to baseline. We are monitoring closely for the next 30
+minutes before marking resolved.
+```
+
+**Status page — Resolved**:
+```
+[RESOLVED] Incident resolved
+HH:MM UTC — All systems are operating normally. We will publish a full
+post-incident report within 5 business days. We apologize for the
+disruption and thank you for your patience.
+```
+
+**Customer email (para tenants high-tier após SEV1/SEV2):**
+```
+Subject: Service disruption on YYYY-MM-DD — what happened and what's next
+
+Hello [tenant name],
+
+Between HH:MM and HH:MM UTC on YYYY-MM-DD, our [feature] experienced
+[symptom — slow loading / elevated errors / partial unavailability].
+You may have seen [observable effect].
+
+What happened (briefly): [1-2 sentence root cause, no jargon].
+
+Impact on you: [specific to this tenant if known, e.g. "12 of your
+orders had delayed status updates between 14:00-14:18, but no orders
+were lost or double-charged"].
+
+What we did: [mitigation taken].
+
+What we're doing next: [concrete actions with owners and rough dates].
+
+Full post-incident report: [link, by date].
+
+Direct contact for questions: [name + email].
+
+— [team or company]
+```
+
+**Anti-patterns em comms**:
+- "Vamos investigar" sem timeline → cliente não sabe quando voltar.
+- "Não foi nossa culpa" / "fornecedor X falhou" → você é responsável pelo seu serviço, mesmo se causa é upstream.
+- Linguagem técnica em status público (`Postgres connection pool exhausted because pgbouncer transaction mode...`). Traduza pra impacto observável.
+- Promessa de recovery sem dado (`em 5 minutos`). Use `we expect within X minutes, will update by Y`.
+- Postmortem com "lessons learned" vazias. Cada lição = action item com owner + due date.
+
+Estude exemplos canônicos publicados:
+- **Cloudflare** ([blog.cloudflare.com](https://blog.cloudflare.com/tag/postmortem/)): técnicos profundos, padrão da indústria.
+- **GitHub** ([github.blog/tag/availability-report](https://github.blog/category/engineering/infrastructure/)): mensais com lessons.
+- **Atlassian** ([atlassian.com/engineering](https://www.atlassian.com/engineering)): customer comms exemplares.
+- **AWS post-event summary**: terse, focado em customer impact.
 
 ### 2.9 Postmortem: blameless
 

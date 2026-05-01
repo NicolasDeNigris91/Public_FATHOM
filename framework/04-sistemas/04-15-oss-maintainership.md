@@ -173,6 +173,63 @@ Maintainers queimam. Modelos:
 
 Sem money, top 0.1% projetos sustentam-se via voluntariado; resto dies of attrition.
 
+#### Números reais 2026
+
+Para calibrar expectativas de quem entra em OSS:
+
+| Tier | Projeto exemplo | Funding mensal típico | Maintainers full-time |
+|---|---|---|---|
+| **Hobby** | 99% dos projetos GitHub | $0 | 0 |
+| **Visível, sem funding** | Maioria de libs npm com 100k weekly DL | $50-300 (GitHub Sponsors esparso) | 0 (todos voluntários) |
+| **Tidelift / pequeno corp sponsor** | Libs maduras citadas em compliance | $1k-10k | 0-1 part-time |
+| **Foundation-backed** | curl, OpenSSL, Linux kernel subsystems | $50k-500k | 1-5 |
+| **Open core / dual-license SaaS** | Sentry, GitLab, MongoDB, Cal.com, Plausible | $1M-1B+ ARR | 50-2000 |
+| **Hyperscaler-funded** | React (Meta), TypeScript (Microsoft), Rust (Foundation + corps) | n/a (subsidized) | 5-50+ |
+
+**Reality check**: blogs e talks idealizam OSS sustentável; verdade é que 80% dos maintainers críticos estão burnt out, sub-financiados, e visivelmente cansados (Eghbal, *Working in Public*, 2020). xz-utils 2024 (compromised maintainer) é exemplo extremo de single-maintainer projeto crítico.
+
+#### Dual-licensing — armadilha legal real
+
+"Open-source + commercial" parece simples; tem nuances que mordem:
+
+- **CLA (Contributor License Agreement) é mandatório** se você vai relicenciar contribuições futuras. Sem CLA, contribuição vem sob a licença OSS atual, e você não pode vender comercialmente sem permissão de cada contribuidor.
+- **Discrepância CLA vs DCO**: GitHub default é DCO (Developer Certificate of Origin), que NÃO transfere copyright. Pra dual-licensing, precisa CLA explícito (FOSS Foundation ICLA, MongoDB CLA, etc.).
+- **Contribuições não-substantivas (typos, docs)**: zona cinzenta. Conservador: CLA pra todo PR.
+- **Backlash de comunidade**: CLA percebido como "vou monetizar contribuição alheia". Hashicorp 2023 mudança Terraform → BSL gerou OpenTofu fork; community signaling era unanimous. Se for adotar CLA, comunique cedo e justifique.
+
+#### Casos canônicos a estudar
+
+**Hashicorp BSL switch (2023)**:
+- Mudou Terraform / Vault / Consul de MPL 2.0 (OSS) → BSL (Business Source License). Não é OSI-approved; é "fair-code".
+- Causa stated: cloud providers (especialmente AWS) construindo SaaS no código sem contribuir.
+- Resultado: OpenTofu fork (Linux Foundation) virou substituto OSS aceito; Terraform mantém share enterprise. Lição: **mudar licença em projeto consolidado quase sempre dispara fork credível**.
+
+**MongoDB SSPL (2018)**:
+- Mudou de AGPL → SSPL (Server Side Public License). SSPL exige código de toda stack se você oferece DBaaS. OSI rejeitou como não-OSS.
+- AWS DocumentDB foi reposta com fork pre-SSPL; mas MongoDB Atlas (managed) virou stream principal de revenue.
+- Lição: licenças "anti-cloud" funcionam pra **cap revenue de competitors**, não eliminam.
+
+**Redis license switch (2024)**:
+- BSD → SSPL/RSALv2 dual. Razão similar a MongoDB. Valkey fork (Linux Foundation, AWS-backed) emergiu rapidamente.
+- Em 2026, ecossistema fragmentado (Redis comercial vs Valkey OSS). Apps novos preferem Valkey por default.
+
+**Sentry FUNDING.yml caso de sucesso**:
+- Sentry funcional-source (FSL); core OSS, recursos premium em SaaS hosted. ARR 9 dígitos. Maintainers pagos full-time, comunidade ativa.
+- Modelo replicável: Cal.com, Plausible, PostHog. Pattern: complexity de self-host empurra mainstream pra SaaS pago, OSS mantém legitimacy + signal de qualidade.
+
+#### Decisão pragmática pra OSS author
+
+Se você é solo maintainer:
+- **Antes de ARR $0-5k/mês**: GitHub Sponsors + signal honesto (`FUNDING.yml` no repo) + Tidelift se passes critérios.
+- **$5k-50k/mês**: avalie open core hosted; CLA bem antes de qualquer mudança de licença.
+- **$50k+/mês**: time de 2-5 + considere foundation OR commercial entity dual-license OR sale to acquirer.
+
+Se você usa OSS comercialmente:
+- **Sponsor proporcionalmente** ao quanto seu negócio depende (Hashicorp blog: `0.5-1% revenue → OSS sustainability`).
+- **Don't free-ride sobre maintainer queimado** — sai pela culatra (xz-utils, log4j 2021, etc.).
+
+Cruza com **05-05** (public output como força de visibilidade pro projeto) e **04-12 §2.13** (build vs buy decision considera sustainability do upstream).
+
 ### 2.13 Documentation e DX
 
 Doc divide adoption. Categorias (Diataxis):

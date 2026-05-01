@@ -160,6 +160,166 @@ Issues:
 - **Cache penetration**: keys que sempre miss (atacante varre random ids). Cache miss negativo (`NULL`) com TTL curta protege.
 - **Cache stampede**: rebuild simultâneo. Probabilistic early expiration (renew antes de TTL bater).
 
+#### Stampede protection em código
+
+Em produção, hot key expirando dispara N requests batendo DB simultaneamente. Em SaaS médio (10k req/s) com cache miss síncrono, cada miss vira ~50ms × 10k = stress catastrófico no DB. Padrões em ordem de complexidade:
+
+**1. Singleflight (request coalescing in-process)**
+
+Mais simples e barato; resolve stampede dentro de uma instância. Múltiplas chamadas concurrentes pra mesma key compartilham 1 fetch:
+
+```typescript
+class Singleflight<T> {
+  private inflight = new Map<string, Promise<T>>();
+
+  async do(key: string, fetcher: () => Promise<T>): Promise<T> {
+    const existing = this.inflight.get(key);
+    if (existing) return existing;             // junta na request em curso
+
+    const p = fetcher().finally(() => this.inflight.delete(key));
+    this.inflight.set(key, p);
+    return p;
+  }
+}
+
+const flight = new Singleflight<Order>();
+
+async function getOrder(id: string): Promise<Order> {
+  const cached = await redis.get(`order:${id}`);
+  if (cached) return JSON.parse(cached);
+
+  return flight.do(`order:${id}`, async () => {
+    const order = await db.queryOne(`SELECT * FROM orders WHERE id=$1`, [id]);
+    await redis.setEx(`order:${id}`, 60, JSON.stringify(order));
+    return order;
+  });
+}
+```
+
+Limita a **1 fetch por instância**. N instâncias em load balancer = N fetches simultâneos no pior caso. Para serviços com 10-50 instâncias e DB resiliente, isso já basta.
+
+**2. Distributed lock (singleflight cross-instance)**
+
+Para alta cardinalidade de instâncias ou DB sensível, lock no Redis:
+
+```typescript
+async function getOrderWithLock(id: string): Promise<Order> {
+  const cacheKey = `order:${id}`;
+  const lockKey = `lock:${cacheKey}`;
+
+  const cached = await redis.get(cacheKey);
+  if (cached) return JSON.parse(cached);
+
+  // Tenta pegar lock — TTL evita deadlock se holder crashar
+  const lockToken = randomUUID();
+  const acquired = await redis.set(lockKey, lockToken, { NX: true, PX: 5_000 });
+
+  if (!acquired) {
+    // Outro está fetchando; espera + retry com backoff
+    await sleep(50 + Math.random() * 100);
+    return getOrderWithLock(id);             // recursão limitada via timeout externo
+  }
+
+  try {
+    // Double-check: outro pode ter populado entre nosso get e lock
+    const recheck = await redis.get(cacheKey);
+    if (recheck) return JSON.parse(recheck);
+
+    const order = await db.queryOne(`SELECT * FROM orders WHERE id=$1`, [id]);
+    await redis.setEx(cacheKey, 60, JSON.stringify(order));
+    return order;
+  } finally {
+    // Libera lock só se ainda é nosso (Lua script atomic — evita unlock de outro holder)
+    await redis.eval(`
+      if redis.call('get', KEYS[1]) == ARGV[1] then
+        return redis.call('del', KEYS[1])
+      else return 0 end
+    `, { keys: [lockKey], arguments: [lockToken] });
+  }
+}
+```
+
+Cuidado: lock pode reter request por segundos se DB lento. Combine com **timeout no caller** e fallback (return stale value se cache tem versão velha disponível).
+
+**3. Probabilistic early refresh (XFetch — Vattani et al, 2015)**
+
+Em vez de esperar TTL bater, request renova **probabilisticamente** mais cedo conforme TTL se aproxima do fim. Spreading natural elimina spike de stampede.
+
+```typescript
+// Salva valor + delta (custo médio do fetch) + tempo de expiração absoluto
+async function setProbabilistic(key: string, value: any, ttl: number, delta: number) {
+  await redis.setEx(key, ttl, JSON.stringify({
+    v: value,
+    d: delta,                                  // segundos típicos do fetch
+    expires_at: Date.now() / 1000 + ttl
+  }));
+}
+
+async function getProbabilistic<T>(key: string, fetcher: () => Promise<{ v: T; d: number }>, ttl: number): Promise<T> {
+  const raw = await redis.get(key);
+  if (!raw) {
+    const { v, d } = await fetcher();
+    await setProbabilistic(key, v, ttl, d);
+    return v;
+  }
+
+  const { v, d, expires_at } = JSON.parse(raw);
+  const now = Date.now() / 1000;
+  // Beta = 1 default; ajuste pra mais agressivo (refresh mais cedo) ou conservador
+  const beta = 1.0;
+  const xfetch = -d * beta * Math.log(Math.random());
+
+  if (now - xfetch >= expires_at) {
+    // Em background, refresh
+    fetcher().then(({ v: nv, d: nd }) => setProbabilistic(key, nv, ttl, nd))
+             .catch(err => log.warn('refresh failed', err));
+  }
+  return v;
+}
+```
+
+Resultado: chave com TTL de 60s, fetch de ~100ms → renovação começa a acontecer ~5s antes; spread por aprox 5-10s; zero stampede.
+
+**4. Stale-while-revalidate (Cloudflare-style)**
+
+Variante do (3): TTL real estendido (`stale_ttl > fresh_ttl`); responde stale enquanto revalida em background.
+
+```typescript
+async function getSWR<T>(key: string, fetcher: () => Promise<T>, freshTtl = 60, staleTtl = 600): Promise<T> {
+  const raw = await redis.get(key);
+  if (raw) {
+    const { v, fresh_until } = JSON.parse(raw);
+    if (Date.now() / 1000 > fresh_until) {
+      // Stale; revalida em background, retorna stale agora
+      flight.do(key, async () => {
+        const fresh = await fetcher();
+        await redis.setEx(key, staleTtl, JSON.stringify({ v: fresh, fresh_until: Date.now()/1000 + freshTtl }));
+        return fresh;
+      });
+    }
+    return v;
+  }
+  const fresh = await fetcher();
+  await redis.setEx(key, staleTtl, JSON.stringify({ v: fresh, fresh_until: Date.now()/1000 + freshTtl }));
+  return fresh;
+}
+```
+
+Pareo com singleflight (`flight.do`) evita stampede de revalidate; user nunca espera fetch.
+
+#### Decisão pragmática
+
+| Cenário | Pattern |
+|---|---|
+| 1-3 instâncias, hot key conhecido | Singleflight in-process |
+| 10+ instâncias, DB sensível | Distributed lock + double-check |
+| Hot keys de alta cardinalidade não previsíveis | XFetch probabilistic refresh |
+| User-facing onde stale é OK por segundos | Stale-while-revalidate |
+
+Anti-padrão: jittered TTL "resolve" stampede. Não resolve; só desloca. Usar com singleflight ou XFetch.
+
+Cruza com **04-04 §2.5** (circuit breaker fecha quando cache+DB ambos falham) e **04-09 §2.7.1** (rate limit cobre cache penetration).
+
 ### 2.12 Distributed locks: SETNX, Redlock
 
 Lock simples:

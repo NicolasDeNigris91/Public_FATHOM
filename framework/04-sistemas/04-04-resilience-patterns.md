@@ -139,6 +139,116 @@ Como:
 
 Retry storm: cada layer retries N vezes. 3 layers x 3 retries = 27x carga em downstream falhando. Normalmente: retries só na camada mais externa (cliente edge); inner calls fail-fast.
 
+#### Jittered exponential backoff — implementação completa
+
+AWS Architecture Blog (Marc Brooker, 2015) compara 3 estratégias de jitter; **decorrelated jitter** vence em throughput sob contention. Implementação production-ready:
+
+```typescript
+type RetryConfig = {
+  baseMs: number;        // delay inicial, ex: 100
+  maxMs: number;         // cap por tentativa, ex: 30_000
+  maxAttempts: number;   // 3-5 típico; nunca infinito
+  totalBudgetMs?: number; // deadline absoluto pra retry chain
+  retryableErrors: (err: unknown) => boolean;
+  onRetry?: (attempt: number, delayMs: number, err: unknown) => void;
+};
+
+class RetryError extends Error {
+  constructor(public attempts: number, public lastError: unknown) {
+    super(`Failed after ${attempts} attempts`);
+  }
+}
+
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  config: RetryConfig
+): Promise<T> {
+  const startedAt = Date.now();
+  let lastDelay = config.baseMs;
+  let lastErr: unknown;
+
+  for (let attempt = 1; attempt <= config.maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+
+      // Não-retriable: bail imediato
+      if (!config.retryableErrors(err)) throw err;
+
+      // Última tentativa: bail
+      if (attempt === config.maxAttempts) break;
+
+      // Calcula delay com decorrelated jitter (Marc Brooker pattern):
+      // sleep = min(maxMs, random(baseMs, lastDelay * 3))
+      const upperBound = Math.min(config.maxMs, lastDelay * 3);
+      const delayMs = config.baseMs + Math.random() * (upperBound - config.baseMs);
+      lastDelay = delayMs;
+
+      // Respeita budget total se configurado
+      if (config.totalBudgetMs && Date.now() - startedAt + delayMs > config.totalBudgetMs) {
+        break;
+      }
+
+      config.onRetry?.(attempt, delayMs, err);
+      await sleep(delayMs);
+    }
+  }
+
+  throw new RetryError(config.maxAttempts, lastErr);
+}
+
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+```
+
+#### Comparação dos 3 jitters canônicos
+
+| Estratégia | Fórmula | Concorrência | Quando |
+|---|---|---|---|
+| **No jitter** | `delay = base * 2^attempt` | Catastrófica em N clientes (thundering herd) | Nunca em produção |
+| **Full jitter** | `delay = random(0, base * 2^attempt)` | Boa; spread uniforme | Default sano; baixo overhead |
+| **Decorrelated jitter** | `delay = min(max, random(base, last * 3))` | Vence em contention alta (AWS bench) | Retry pesado em recursos saturados |
+
+Brooker mostrou: em 100k clientes batendo serviço degradado, **decorrelated** entrega ~30% mais throughput de retry sucesso vs **full jitter**. Para casos comuns, full jitter é OK.
+
+#### Uso real Logística — chamada a Stripe API
+
+```typescript
+import Stripe from 'stripe';
+const stripe = new Stripe(process.env.STRIPE_KEY!);
+
+async function captureWithRetry(paymentIntentId: string, idempotencyKey: string) {
+  return retryWithBackoff(
+    () => stripe.paymentIntents.capture(paymentIntentId, undefined, {
+      idempotencyKey,        // CRITICAL: retry sem idempotency duplica cobrança
+    }),
+    {
+      baseMs: 200,
+      maxMs: 10_000,
+      maxAttempts: 4,
+      totalBudgetMs: 30_000,
+      retryableErrors: (err) => {
+        if (!(err instanceof Stripe.errors.StripeError)) return false;
+        // Retry: rate limit, server error, network. Não retry: auth, validation, fraud.
+        return ['rate_limit_error', 'api_connection_error', 'api_error'].includes(err.type);
+      },
+      onRetry: (attempt, delayMs, err) =>
+        log.warn({ attempt, delayMs, err: err.code }, 'Stripe capture retrying'),
+    }
+  );
+}
+```
+
+#### Caveats que mordem em produção
+
+- **`idempotencyKey` é OBRIGATÓRIO** em retry de mutação (payment, delivery dispatch, send notification). Sem ele, retry duplica side effect.
+- **`Retry-After` header** (HTTP 429 / 503): respeite. `delayMs = max(decorrelated_calc, retry_after_header_ms)`. Ignorar é hostil ao upstream.
+- **Layer-only retry**: retry só na borda (gateway / job worker). Inner service-to-service: fail-fast com circuit breaker (§2.5). Evita 27x amplification.
+- **Cancelable**: integre `AbortSignal` pra interromper retry chain quando deadline expira (§2.2).
+- **Jittered shutdown**: em redeploy, instances param ao mesmo tempo; retry pra reconnect causa thundering herd ao novo cluster. Add jitter em graceful shutdown delay também.
+
+Cruza com **04-04 §2.4** (idempotency é pré-requisito), **04-04 §2.5** (circuit breaker complementa retry), **04-04 §2.2** (deadline propagation cancela retry chain).
+
 ### 2.4 Idempotency revisited
 
 Retry sem idempotência = duplicação. Problema crítico em pagamentos, mensagens, mutations.
