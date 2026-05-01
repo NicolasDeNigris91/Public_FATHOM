@@ -20,6 +20,16 @@ Tipos:
 
 ## 2026
 
+### 2026-05-01, Review wave 9 — operational fluency (EXPLAIN forensic, cache stampede, IC rituals, OSS funding, jittered backoff)
+
+Nona onda do audit cross-stage. Foca em fluência operacional — frentes onde dev mediano "sabe que existe" mas trava na hora de aplicar; código e templates production-ready.
+
+- **edit** [`framework/02-plataforma/02-09-postgres-deep.md`](../02-plataforma/02-09-postgres-deep.md) §2.9, EXPLAIN ANALYZE forensic guide — workflow forense em 5 passos (identificar nó dominante, comparar rows estimado/actual, conferir Buffers, distinguir Filter vs Index Cond, comparar plano esperado), caso real Logística (query 4823ms → 0.4ms = ~12000x via composite + partial + INCLUDE index), 4 anti-patterns (EXPLAIN sem ANALYZE, otimizar por cost, CONCURRENTLY ausente, índice "pra todo filter"), ferramentas (explain.dalibo, depesz, pg_stat_statements, auto_explain).
+- **edit** [`framework/02-plataforma/02-11-redis.md`](../02-plataforma/02-11-redis.md) §2.11, cache stampede protection completo — 4 patterns em código (Singleflight in-process, distributed lock com double-check + Lua atomic unlock, XFetch probabilistic refresh com beta tunable, stale-while-revalidate Cloudflare-style), matriz de decisão por cenário, anti-padrão de jittered TTL solo.
+- **edit** [`framework/03-producao/03-15-incident-response.md`](../03-producao/03-15-incident-response.md) §2.6, IC playbook completo — first 15 minutes script (T+0 a T+15 com ações concretas), decision log template (What/Why/Risk/Reversal/Observed effect), nova §2.6.1 war-room rituals (pinned message, threaded discussions, voice channel paralelo, no silent investigation, timeboxing, eat/break protocol), 3 anti-patterns. §2.8 expandido com 4 templates concretos de status page (Investigating/Identified/Monitoring/Resolved) + customer email completo + 5 anti-patterns + canonical examples.
+- **edit** [`framework/04-sistemas/04-15-oss-maintainership.md`](../04-sistemas/04-15-oss-maintainership.md) §2.12, OSS sustainability deep — números reais 2026 por tier (hobby → hyperscaler-funded), reality check sobre burnout, dual-licensing armadilha legal (CLA mandatório vs DCO), 4 casos canônicos (Hashicorp BSL 2023 → OpenTofu fork, MongoDB SSPL 2018, Redis 2024 → Valkey, Sentry FSL sucesso), decisão pragmática por estágio de ARR.
+- **edit** [`framework/04-sistemas/04-04-resilience-patterns.md`](../04-sistemas/04-04-resilience-patterns.md) §2.3, jittered exponential backoff implementação completa — TypeScript production-ready com decorrelated jitter (Marc Brooker AWS pattern 2015), comparação 3 estratégias (no jitter / full jitter / decorrelated), exemplo Logística com Stripe API + idempotencyKey + retryable error filter, 5 caveats que mordem em produção (idempotency obrigatório, Retry-After respect, layer-only retry, AbortSignal, jittered shutdown).
+
 ### 2026-05-01, Review wave 8 — staff rigor (refresh rotation, mutation testing, estimation, aggregate refactor, OLAP decision tree)
 
 Oitava onda do audit cross-stage. Foca em rigor que separa Staff de Senior — execução defensável de patterns onde quem decide errado paga preço caro em produção.

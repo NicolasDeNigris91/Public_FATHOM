@@ -124,6 +124,94 @@ Sinais a procurar:
 
 Use `EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)` como padrão.
 
+#### Forensic guide — como ler plan sem chutar
+
+Plan é **árvore lida bottom-up, inside-out**: nodes mais indentados executam primeiro; output sobe pro pai. Tempo `actual time=A..B` é **A = startup time** (até primeira row), **B = total time**. **`actual rows × loops`** é volume real movido pelo nó.
+
+**Workflow forense em 5 passos:**
+
+1. **Identificar o nó dominante**: aquele com maior `actual time × loops` no caminho crítico. Não é sempre a raiz; pode ser um Nested Loop interno.
+2. **Comparar `rows` (estimado) vs `actual rows`**: ratio > 10x → stats erradas; rode `ANALYZE <tabela>` ou aumente `default_statistics_target`.
+3. **Conferir `Buffers`**: `shared read=N` significa N páginas (8KB cada) lidas do disco. Disco = lento; se `shared hit` predominar, dado quente em cache.
+4. **Olhar `Filter` vs `Index Cond`**: `Filter` filtra após scan (caro); `Index Cond` filtra usando índice (barato). Filter com `Rows Removed by Filter` alto = índice mal-escolhido.
+5. **Comparar com plano "esperado"**: você sabe que existe índice em `(tenant_id, status)` mas planner usa Seq Scan? Stats sugerem que filtro é pouco seletivo, ou `enable_seqscan` foi desabilitado, ou tabela é tão pequena que Seq Scan vence.
+
+#### Caso real Logística — query lenta diagnosticada
+
+Query reportada: "dashboard do lojista demora 4-8s para listar últimos 50 pedidos com courier name."
+
+```sql
+EXPLAIN (ANALYZE, BUFFERS, VERBOSE)
+SELECT o.id, o.created_at, o.total, c.name AS courier_name
+FROM orders o
+LEFT JOIN couriers c ON c.id = o.courier_id
+WHERE o.tenant_id = 'abc-123'
+  AND o.status IN ('pending', 'in_transit')
+ORDER BY o.created_at DESC
+LIMIT 50;
+```
+
+Plan diagnóstico simplificado:
+```
+Limit  (actual time=4823.142..4823.156 rows=50 loops=1)
+  ->  Sort  (actual time=4823.140..4823.149 rows=50 loops=1)
+        Sort Key: o.created_at DESC
+        Sort Method: top-N heapsort  Memory: 32kB
+        ->  Hash Left Join  (actual time=98.214..4811.532 rows=287943 loops=1)
+              Hash Cond: (o.courier_id = c.id)
+              ->  Seq Scan on orders o  (actual time=0.018..4302.819 rows=287943 loops=1)
+                    Filter: ((tenant_id = 'abc-123'::uuid) AND (status = ANY ('{pending,in_transit}')))
+                    Rows Removed by Filter: 12_345_678
+                    Buffers: shared read=412_891
+              ->  Hash  (actual time=97.821..97.821 rows=523 loops=1)
+                    Buckets: 1024 ...
+Planning Time: 0.392 ms
+Execution Time: 4823.234 ms
+```
+
+Diagnóstico:
+- **`Seq Scan on orders` removeu 12M+ rows** pelo filtro → falta índice apropriado.
+- **`shared read=412_891`** = 412k páginas × 8KB = ~3.2 GB do disco → cold read da tabela inteira. Painel de monitoring não é só lento, é I/O-disruptivo pra outras queries.
+- Sort `top-N heapsort` ok pro LIMIT, não é gargalo.
+- Hash join secundário; courier table é pequeno, ok.
+
+Fix em ordem de impacto:
+
+```sql
+-- Composite index alinhado ao filtro + ORDER BY + LIMIT.
+-- Critical: status, tenant_id em primeiro pra seletividade boa; created_at DESC pra evitar Sort.
+CREATE INDEX CONCURRENTLY orders_active_by_tenant_idx
+  ON orders (tenant_id, status, created_at DESC)
+  INCLUDE (id, total, courier_id)            -- Index-Only Scan possible
+  WHERE status IN ('pending', 'in_transit'); -- partial index, ~3% da tabela
+```
+
+Re-EXPLAIN após index:
+```
+Limit  (actual time=0.082..0.157 rows=50 loops=1)
+  ->  Index Only Scan using orders_active_by_tenant_idx on orders o  (...rows=50 loops=1)
+        Index Cond: (tenant_id = 'abc-123'::uuid)
+        Heap Fetches: 0
+  -> ... (Hash join trivial pelo Couriers)
+Execution Time: 0.421 ms
+```
+
+**4823 ms → 0.4 ms** (= ~12000x). Index-only scan elimina heap fetch (necessita VACUUM frequente pra `visibility map` ficar atualizado, senão `Heap Fetches > 0`).
+
+#### Anti-patterns observados em produção
+
+- **EXPLAIN sem ANALYZE**: planner estima; pode estar errado por order de magnitude. Sempre ANALYZE em diagnóstico (cuidado em `INSERT/UPDATE/DELETE`: rode dentro de transação + ROLLBACK).
+- **Otimizar pelo `cost`**: cost é heuristic; `actual time` é verdade. Compare actual vs actual entre planos.
+- **Adicionar índice sem `CONCURRENTLY` em prod**: lock exclusive em escrita por minutos. Use `CREATE INDEX CONCURRENTLY` sempre em produção (mais lento, mas não bloqueia DML).
+- **Index "pra todo filter"**: índice tem custo (write amplification, vacuum, espaço). Audit `pg_stat_user_indexes` mensal; remova `idx_scan = 0` há 30+ dias.
+
+#### Ferramentas pra acelerar análise
+
+- **explain.dalibo.com**: visualizador gráfico do plan, identifica nodes problemáticos automaticamente.
+- **explain.depesz.com**: análise textual com colorização por severidade.
+- **pg_stat_statements**: `SELECT * FROM pg_stat_statements ORDER BY total_exec_time DESC LIMIT 20` revela top consumers no histórico.
+- **auto_explain**: log automático de plans de queries lentas (set `log_min_duration_statement = 1000` + carregue `auto_explain` em `shared_preload_libraries`).
+
 ### 2.10 Joins: nested loop, hash, merge
 
 - **Nested Loop**: pra cada row de A, busca em B. Bom se A pequeno e B indexado.
