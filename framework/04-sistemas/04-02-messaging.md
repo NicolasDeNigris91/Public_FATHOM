@@ -257,15 +257,15 @@ Eventos sem schema versioned → consumers quebram quando producer evolui.
 
 Sem schema, eventos viram contrato implícito frágil.
 
-### 2.12 Outbox pattern
+### 2.12 Outbox pattern (visão de transporte)
 
 Problema clássico: app escreve em DB + emite evento. Se app crashar entre os dois, inconsistency.
 
-Solução: na mesma transação DB, escreva em tabela `outbox`. Worker separado lê outbox e publica em broker, marcando processed.
+Solução resumida: na mesma transação DB, escreva em tabela `outbox`. Worker separado lê e publica no broker. CDC (Debezium lendo Postgres logical replication slot) é a alternativa zero-touch pelo lado da aplicação.
 
-Garante atomicidade (DB transaction). Worker pode retry em crash.
+Aqui interessa o **lado messaging**: garantia de **at-least-once** end-to-end exige outbox + idempotência no consumer (§2.10). Sem outbox, "publish após commit" perde eventos em crash; "publish antes do commit" emite eventos fantasma.
 
-CDC alternative: Debezium lê Postgres logical replication slot e emite events de mudanças. Source of truth = DB.
+Padrão completo (semantics, falhas, projeções, integração com saga) é dono de **04-03 §2.8**. Aqui é só o gancho com broker.
 
 ### 2.13 Consumer scaling
 

@@ -20,6 +20,27 @@ Tipos:
 
 ## 2026
 
+### 2026-05-01, Review consolidado + ajustes de profundidade
+
+Audit cross-stage retornou 12 ações prioritárias. Aplicado em 2 ondas neste ciclo:
+
+**Onda 1 — estruturais e críticas:**
+- **add** [`framework/00-meta/RUBRIC.md`](RUBRIC.md), critério explícito de pass/fail nos 3 portões com pesos por dimensão e exemplos. MENTOR.md §3 e INDEX.md atualizados pra apontar pra RUBRIC.
+- **edit** [`framework/04-sistemas/04-02-messaging.md`](../04-sistemas/04-02-messaging.md) §2.12, Outbox encurtado pra "lado messaging"; ownership do padrão completo movido pra 04-03 §2.8.
+- **edit** [`framework/01-fundamentos/01-04-data-structures.md`](../01-fundamentos/01-04-data-structures.md) §2.4, adicionados blocos "Hash function: cryptographic vs distribution" e "Consistent hashing (sharding distribuído)" — fecha gap pré-requisito de 04-09 e 02-11.
+- **edit** [`framework/04-sistemas/04-14-formal-methods.md`](../04-sistemas/04-14-formal-methods.md) §2.9, Lean 4 reposicionado como "emergente, não-production-default"; PBT (fast-check, Hypothesis, PropEr) elevado como entrada saudável antes de TLA+.
+- **edit** [`framework/01-fundamentos/01-14-cpu-microarchitecture.md`](../01-fundamentos/01-14-cpu-microarchitecture.md) §2.8, expandido com condições de auto-vectorization, AoS vs SoA com exemplo C, e custo invisível de AVX-512 frequency throttling.
+- **edit** [`framework/04-sistemas/04-05-api-design.md`](../04-sistemas/04-05-api-design.md) §2.17, webhooks com Idempotency-Key obrigatório, replay defense via timestamp, ordering caveat, referência a AsyncAPI spec.
+- **edit** [`framework/04-sistemas/04-08-services-monolith-serverless.md`](../04-sistemas/04-08-services-monolith-serverless.md), nova §2.19 Multi-tenancy (Pool/Bridge/Silo, RLS exemplo, noisy neighbor mitigations, game day Logística); §2.20 com critérios objetivos de extração.
+- **protocol** MENTOR.md §3, ponteiro adicionado pra RUBRIC.md.
+
+**Onda 2 — quantificação 2026 e rebalanceamentos:**
+- **edit** [`framework/03-producao/03-03-kubernetes.md`](../03-producao/03-03-kubernetes.md) §2.15, Service Mesh expandido com matriz Istio/Linkerd/Cilium/Istio Ambient (overhead, decisão por número de services); §2.18.1 (Alternativas a K8s) movido pra README do estágio.
+- **edit** [`framework/03-producao/README.md`](../03-producao/README.md), nova seção "Quando NOT usar K8s" com tabela completa de alternativas (ECS, Nomad, Fly.io, Cloud Run, Kamal), heurística por tamanho de time, e mito vs realidade. Apresentada antes do módulo 03-03 pra evitar K8s por default.
+- **edit** [`framework/04-sistemas/04-09-scaling.md`](../04-sistemas/04-09-scaling.md) §2.13, observability cost quantificado (Datadog, CloudWatch, OTel self-hosted) com padrões obrigatórios (head/tail-based sampling, retention tiers); §2.14 com tabela de categorias de custo AWS típicas e ordem de ataque pra cortar conta; §2.16 com números reais de WebSocket connections per server (100k-500k tuning, 1M+ benchmarks Soketi/Centrifugo).
+- **edit** [`framework/04-sistemas/04-10-ai-llm.md`](../04-sistemas/04-10-ai-llm.md) §2.14, self-hosted inference com espectro completo (Ollama → llama.cpp → vLLM → SGLang → managed open-weights), quantização GGUF, LoRA/QLoRA pricing; §2.16 com cálculo concreto de prompt caching savings (Sonnet 4.6 system prompt 5k tokens, 90% hit = $40k/mês de economia), model tiering, batch API; §2.17 com tabela TTFT/throughput, streaming UX, parallel tool calls.
+- **ref** [`framework/00-meta/reading-list.md`](reading-list.md), anos de edição adicionados em livros canônicos (CS:APP 3rd 2015, CLRS 4th 2022, SICP JS 2022, Effective TS 2nd 2024, Serious Cryptography 2nd 2024); RFCs novos referenciados (RFC 9700 OAuth BCP 2025, WebAuthn L3 2024); AI Engineering (Chip Huyen 2024) substituiu "Building LLM Applications" como referência canônica; Postgres 16 Internals + DDIA 2nd ed beta sinalizados; MCP spec adicionado.
+
 ### 2026-04-28, Content gap fill: 24+ subseções novas em 16 módulos
 
 Expansão de conteúdo cobrindo gaps detectados em audit interno. Tópicos atualizados pra 2025-2026 reality.

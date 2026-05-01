@@ -252,15 +252,31 @@ Custom metrics via **KEDA** (Kubernetes Event-Driven Autoscaling): scale por que
 
 ### 2.15 Networking: ClusterIP vs Service Mesh
 
-**Service Mesh** (Istio, Linkerd, Cilium Service Mesh) adiciona:
-- mTLS automatic entre serviços.
-- Traffic management (weighted routing, retries, circuit breakers).
-- Observability (metrics, tracing) sem código.
-- Authorization policies.
+**Service Mesh** (Istio, Linkerd, Cilium Service Mesh) adiciona, sem mexer em código de aplicação:
+- **mTLS automático** entre serviços (cert rotation gerenciada).
+- **Traffic management**: weighted routing (canary, blue/green), retries com budget, timeout, circuit breakers.
+- **Observability L7**: metrics RED por route, tracing automático (W3C trace context), access logs.
+- **Authorization policies**: SPIFFE identity + AuthorizationPolicy (cross-namespace, mTLS-aware).
+- **Traffic mirroring**: copia tráfego prod pra staging sem afetar response (shadow deploys).
 
-Sidecar (Istio) ou eBPF-based (Cilium). Cilium ganhou tração em 2024-2026 por menor overhead.
+**Modelos de implementação:**
 
-Em projetos pequenos, mesh é overkill. Em microservices ≥ 10 com necessidade de mTLS e traffic control, vale.
+| Mesh | Modelo | Overhead | Quando |
+|---|---|---|---|
+| **Istio** | Sidecar (Envoy por pod) | ~30-100MB RAM + ~0.5ms latency por hop | Features máximas, multi-cluster, ambient mode (2024+) reduz overhead |
+| **Linkerd** | Sidecar (Rust micro-proxy) | ~10MB RAM, < 1ms p99 | Simplicidade, perf, mTLS sem complexidade |
+| **Cilium Service Mesh** | eBPF kernel-level | ~zero por hop, sem sidecar | Performance crítica, já usa Cilium CNI |
+| **Istio ambient mode** | ztunnel L4 + waypoint L7 sob demanda | Médio | Quem quer Istio mas sem custo de sidecar em todo pod |
+
+**Cilium ganhou tração 2024-2026** por eliminar sidecar (eBPF intercepta no kernel). Trade-off: tooling menos maduro, debugging eBPF é mais hardcore.
+
+**Decisão:**
+- < 5 services: mesh é overkill. mTLS via cert-manager + app-level config.
+- 5-20 services + mTLS obrigatório (compliance): Linkerd (mais simples).
+- 20+ services + traffic shaping complexo: Istio ambient ou Cilium.
+- Multi-cluster + multi-tenant: Istio (federation features).
+
+**Cuidado**: cada mesh introduz **failure mode novo** (control plane down ≠ data plane down em mesh maduro, mas debug fica mais profundo). Game day obrigatório antes de prod.
 
 ### 2.16 Persistent Volumes
 
@@ -337,31 +353,14 @@ for event := range watch(api, "PostgresCluster") {
 - Operator que faz blocking I/O em reconcile (bloqueia outros eventos).
 - Status update sem retry, perdas silenciosas.
 
-### 2.18.1 Alternativas a Kubernetes, quando NÃO usar
+### 2.18.1 Quando NÃO usar Kubernetes
 
-K8s é poderoso, é caro de manter. Senior real escolhe consciente. Stack atual em 2026:
+K8s é poderoso, é caro de manter. Senior real escolhe consciente. Tabela completa de alternativas (ECS, Nomad, Fly.io, Cloud Run, Kamal, etc.) e heurística por tamanho de time vive em [`framework/03-producao/README.md`](README.md#quando-not-usar-k8s) — ali fica visível antes do aluno entrar no módulo, pra evitar que K8s seja escolhido por default.
 
-| Alternativa | Modelo | Melhor pra | Trade-off |
-|---|---|---|---|
-| **AWS ECS / Fargate** | Container scheduler AWS-native | Stack já em AWS, time pequeno | Lock-in pesado, menos primitives |
-| **HashiCorp Nomad** | Scheduler genérico (containers, VMs, JARs, exec) | Multi-runtime, sem K8s overhead | Comunidade menor, ecossistema próprio |
-| **Fly.io** | App platform global anycast | Apps regional/global com SQLite/Litestream | Menos controle low-level, vendor risk |
-| **Railway** | Heroku-style PaaS | MVPs, side projects, monolitos | Não escala em compliance heavy |
-| **Render** | Heroku-style + alguns advanced | Alternativa Heroku moderna | Custos crescem |
-| **Cloud Run / App Runner** | Serverless containers | Bursty traffic, scale-to-zero | Cold start + state externo obrigatório |
-| **Cloudflare Workers / Vercel Functions** | Edge serverless | UX-critical, baixa latência global | Tempo de execução limitado, paradigma diferente |
-| **Kamal** (37signals) | Deploy direto a VMs | Times pequenos que querem servers reais | Você opera VMs |
-
-**Heurística pragmática:**
-- Time **< 5 engineers** + app **< 10 services**: K8s é overhead net-negative. Use Fly.io, Railway, ECS, ou Kamal.
-- Time **5-30 engineers** + crescendo: K8s managed (EKS/GKE) começa a fazer sentido. EKS Auto Mode (2024) reduz drasticamente operação manual.
-- Time **> 30 engineers** + multi-region + heavy compliance: K8s domina. Operadores próprios. Service mesh.
-- **Compliance crítica (PCI, HIPAA)**: K8s viabiliza isolation patterns (network policies, OPA, PSS) que ECS exige reproduzir manualmente.
-
-**Mito vs realidade:**
-- Mito: "K8s escala automaticamente". Realidade: você ainda capacity-planeja, configura HPA/VPA com cuidado, paga por nodes idle.
-- Mito: "K8s previne lock-in cloud". Realidade: você troca lock-in cloud por lock-in K8s ecosystem (CRDs custom, Helm charts próprios). Migrar pra outro cluster é trabalho.
-- Mito: "Vale aprender K8s pra qualquer SRE em 2026". Realidade: pra app simples, Fly.io ou Railway ensina mais sobre app architecture e custa menos tempo.
+Resumo bruto:
+- Time < 5 + app < 10 services: K8s é overhead net-negative.
+- Time 5-30: managed K8s (EKS Auto Mode, GKE Autopilot) começa a justificar.
+- Time > 30 + multi-region + compliance heavy: K8s domina.
 
 ### 2.19 Security
 

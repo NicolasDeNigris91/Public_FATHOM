@@ -1,30 +1,30 @@
 # Reading List, Livros Canônicos
 
-> Esta é a estante da maestria. Cada livro foi escolhido por **autoridade técnica** e **densidade**, não por popularidade. Você não precisa ler todos do começo ao fim, use os módulos como mapa: cada módulo cita o(s) capítulo(s) específico(s) destes livros.
+> Esta é a estante da maestria. Cada livro foi escolhido por **autoridade técnica** e **densidade**, não por popularidade. Você não precisa ler todos do começo ao fim, use os módulos como mapa: cada módulo cita o(s) capítulo(s) específico(s) destes livros. **Anos de edição estão explícitos**: a edição importa, especialmente em livros que envelhecem (cloud, JS, TS, K8s); livros foundationais (DDIA, SICP, OS:TEP) são estáveis.
 
 ---
 
 ## Estágio 1: Fundamentos (Fundamentos & CS)
 
 ### Computer Science Fundamentals
-- **Computer Systems: A Programmer's Perspective** (Bryant & O'Hallaron, 3rd ed), "CS:APP". A bíblia de como o computador realmente funciona. Capítulos 1-9 são essenciais (representation, machine code, processor architecture, memory hierarchy).
-- **Operating Systems: Three Easy Pieces** (Remzi Arpaci-Dusseau), "OS:TEP". Free online em [pages.cs.wisc.edu/~remzi/OSTEP](https://pages.cs.wisc.edu/~remzi/OSTEP/). Único livro de OS que é genuinamente legível. Foco em virtualization, concurrency, persistence.
-- **Computer Networking: A Top-Down Approach** (Kurose & Ross, 8th ed), top-down do HTTP até o cabo. O melhor pra programadores entenderem rede.
+- **Computer Systems: A Programmer's Perspective** (Bryant & O'Hallaron, 3rd ed, 2015), "CS:APP". A bíblia de como o computador realmente funciona. Capítulos 1-9 são essenciais (representation, machine code, processor architecture, memory hierarchy).
+- **Operating Systems: Three Easy Pieces** (Remzi Arpaci-Dusseau, 1.01 ed, 2018, atualizações contínuas online), "OS:TEP". Free online em [pages.cs.wisc.edu/~remzi/OSTEP](https://pages.cs.wisc.edu/~remzi/OSTEP/). Único livro de OS que é genuinamente legível. Foco em virtualization, concurrency, persistence.
+- **Computer Networking: A Top-Down Approach** (Kurose & Ross, 8th ed, 2020), top-down do HTTP até o cabo. O melhor pra programadores entenderem rede.
 
 ### Algorithms & Data Structures
-- **Introduction to Algorithms** (CLRS, 4th ed), denso, formal, completo. Use como referência, não leitura sequencial.
-- **Algorithms** (Sedgewick & Wayne, 4th ed), alternativa mais didática que CLRS. Acompanha curso gratuito em [Coursera Princeton Algorithms](https://www.coursera.org/learn/algorithms-part1).
-- **The Algorithm Design Manual** (Skiena, 3rd ed), pragmático, com "war stories" de como algoritmos são usados na prática.
+- **Introduction to Algorithms** (CLRS, 4th ed, 2022), denso, formal, completo. Use como referência, não leitura sequencial.
+- **Algorithms** (Sedgewick & Wayne, 4th ed, 2011), alternativa mais didática que CLRS. Acompanha curso gratuito em [Coursera Princeton Algorithms](https://www.coursera.org/learn/algorithms-part1).
+- **The Algorithm Design Manual** (Skiena, 3rd ed, 2020), pragmático, com "war stories" de como algoritmos são usados na prática.
 
 ### Programming Paradigms
-- **Structure and Interpretation of Computer Programs** (Abelson & Sussman), "SICP". Free em [mitpress.mit.edu/sites/default/files/sicp](https://web.mit.edu/6.001/6.037/sicp.pdf). O livro que ensina o que é programação, abstração, recursão, linguagens, interpretadores. Se você só ler 1 livro de CS na vida, leia este.
-- **Crafting Interpreters** (Robert Nystrom), free em [craftinginterpreters.com](https://craftinginterpreters.com/). Você implementa 2 interpreters do zero. Ensina paradigmas, parsing, runtime.
+- **Structure and Interpretation of Computer Programs** (Abelson & Sussman, 2nd ed, 1996; JS edition 2022), "SICP". Free em [mitpress.mit.edu/sites/default/files/sicp](https://web.mit.edu/6.001/6.037/sicp.pdf). O livro que ensina o que é programação, abstração, recursão, linguagens, interpretadores. Se você só ler 1 livro de CS na vida, leia este. **Em 2022 saiu edição em JavaScript** (mantém o conteúdo, troca Scheme por JS) — válida se você não quer aprender Scheme; o original em Scheme continua canônico.
+- **Crafting Interpreters** (Robert Nystrom, 2021), free em [craftinginterpreters.com](https://craftinginterpreters.com/). Você implementa 2 interpreters do zero. Ensina paradigmas, parsing, runtime.
 
 ### JavaScript & TypeScript
-- **You Don't Know JS Yet** (Kyle Simpson, 2nd ed), free em [github.com/getify/You-Dont-Know-JS](https://github.com/getify/You-Dont-Know-JS). 6 volumes, leia 1, 2, 4 obrigatoriamente.
-- **JavaScript: The Definitive Guide** (David Flanagan, 7th ed), manual de referência completo.
-- **Programming TypeScript** (Boris Cherny), sistema de tipos profundo.
-- **Effective TypeScript** (Dan Vanderkam), 62 idioms específicos. Leitura curta, alta densidade.
+- **You Don't Know JS Yet** (Kyle Simpson, 2nd ed, 2020-2022), free em [github.com/getify/You-Dont-Know-JS](https://github.com/getify/You-Dont-Know-JS). 6 volumes, leia 1, 2, 4 obrigatoriamente.
+- **JavaScript: The Definitive Guide** (David Flanagan, 7th ed, 2020), manual de referência completo.
+- **Programming TypeScript** (Boris Cherny, 1st ed, 2019). TS evoluiu muito desde 2019 — use como base, complemente com docs oficiais TS 5.x e Effective TypeScript pra material mais atual.
+- **Effective TypeScript** (Dan Vanderkam, 2nd ed, 2024), 83 idioms específicos. **2nd edition (2024) atualizada pra TS 5.x**, leitura curta, alta densidade. Preferir sobre 1st ed.
 
 ### Git
 - **Pro Git** (Scott Chacon), free em [git-scm.com/book](https://git-scm.com/book). Capítulo 10 ("Git Internals") é o que importa pra maestria.
@@ -35,26 +35,26 @@
 - **Advanced Programming in the UNIX Environment** (Stevens & Rago), "APUE". Bíblia da programação Unix em C. Use como referência pra entender syscalls.
 
 ### Concurrency Theory (01-11)
-- **The Art of Multiprocessor Programming** (Herlihy & Shavit). Bíblia.
-- **Is Parallel Programming Hard, And, If So, What Can You Do About It?** (Paul McKenney), gratuito.
-- **C++ Concurrency in Action** (Anthony Williams), apesar do título, principles aplicam universalmente.
+- **The Art of Multiprocessor Programming** (Herlihy & Shavit, 2nd ed, 2020). Bíblia.
+- **Is Parallel Programming Hard, And, If So, What Can You Do About It?** (Paul McKenney, edição 2024 atualizada online), gratuito em [kernel.org/pub/linux/kernel/people/paulmck/perfbook](https://www.kernel.org/pub/linux/kernel/people/paulmck/perfbook/perfbook.html).
+- **C++ Concurrency in Action** (Anthony Williams, 2nd ed, 2019), apesar do título, principles aplicam universalmente.
 
 ### Cryptography Fundamentals (01-12)
-- **Cryptography Engineering** (Ferguson, Schneier, Kohno), referência prática.
-- **Serious Cryptography** (Jean-Philippe Aumasson), moderno, denso.
-- **A Graduate Course in Applied Cryptography** (Boneh, Shoup), gratuito, profundo.
-- **Real-World Cryptography** (David Wong), sem dor.
+- **Cryptography Engineering** (Ferguson, Schneier, Kohno, 2010), referência prática. Datado em alguns capítulos (pré-PQC), mas fundamentos sólidos.
+- **Serious Cryptography** (Jean-Philippe Aumasson, 2nd ed, 2024), **moderno, denso, cobre PQC pós-NIST 2024**. Preferir sobre Ferguson em 2026.
+- **A Graduate Course in Applied Cryptography** (Boneh, Shoup, 2023, draft contínuo), gratuito em [toc.cryptobook.us](https://toc.cryptobook.us/), profundo.
+- **Real-World Cryptography** (David Wong, 2021), sem dor.
 
 ### Compilers & Interpreters (01-13)
-- **Crafting Interpreters** (Robert Nystrom), gratuito em [craftinginterpreters.com](https://craftinginterpreters.com/). Leitura primária.
-- **Engineering a Compiler** (Cooper & Torczon).
-- **Compilers: Principles, Techniques, and Tools** (Aho et al, "Dragon Book").
+- **Crafting Interpreters** (Robert Nystrom, 2021), gratuito em [craftinginterpreters.com](https://craftinginterpreters.com/). Leitura primária.
+- **Engineering a Compiler** (Cooper & Torczon, 3rd ed, 2022).
+- **Compilers: Principles, Techniques, and Tools** (Aho et al, 2nd ed, 2006, "Dragon Book"). Datado em codegen moderno mas teoria continua canônica.
 
 ### CPU Microarchitecture (01-14)
-- **Computer Architecture: A Quantitative Approach** (Hennessy & Patterson). Bíblia.
-- **What Every Programmer Should Know About Memory** (Ulrich Drepper).
-- **Systems Performance** (Brendan Gregg, 2nd ed), também aplicável em 03-10/03-15.
-- **Agner Fog's optimization manuals**: gratuitos.
+- **Computer Architecture: A Quantitative Approach** (Hennessy & Patterson, 6th ed, 2017). Bíblia.
+- **What Every Programmer Should Know About Memory** (Ulrich Drepper, 2007). Datado em números absolutos mas mecanismos continuam corretos; cross-check com material moderno do Brendan Gregg.
+- **Systems Performance** (Brendan Gregg, 2nd ed, 2020), também aplicável em 03-10/03-15.
+- **Agner Fog's optimization manuals** (atualizados anualmente em [agner.org/optimize](https://www.agner.org/optimize/)), gratuitos.
 
 ### Math Foundations (01-15)
 - **Mathematics for Machine Learning** (Deisenroth, Faisal, Ong), gratuito.
@@ -86,23 +86,25 @@
 - **libuv design overview**: [docs.libuv.org/en/v1.x/design.html](http://docs.libuv.org/en/v1.x/design.html).
 
 ### Postgres
-- **PostgreSQL: Up and Running** (Regina Obe & Leo Hsu), pragmático.
-- **The Art of PostgreSQL** (Dimitri Fontaine), pensa em SQL, não em ORM. Excelente.
-- **Use The Index, Luke!** (Markus Winand), free em [use-the-index-luke.com](https://use-the-index-luke.com/). Foco em índices e EXPLAIN. **Leitura obrigatória.**
-- **PostgreSQL Internals**: [postgrespro.com/community/books/internals](https://postgrespro.com/community/books/internals), free, estrutura interna do storage e MVCC.
+- **PostgreSQL: Up and Running** (Regina Obe & Leo Hsu, 4th ed, 2024), pragmático, atualizado pra Postgres 16.
+- **The Art of PostgreSQL** (Dimitri Fontaine, 2nd ed, 2020), pensa em SQL, não em ORM. Excelente.
+- **Use The Index, Luke!** (Markus Winand, atualizado continuamente desde 2011), free em [use-the-index-luke.com](https://use-the-index-luke.com/). Foco em índices e EXPLAIN. **Leitura obrigatória.**
+- **PostgreSQL 16 Internals** (Egor Rogov, 2024): [postgrespro.com/community/books/internals](https://postgrespro.com/community/books/internals), free, estrutura interna do storage e MVCC.
 
 ### Redis
-- **Redis in Action** (Josiah Carlson), datado mas ainda excelente pra padrões.
+- **Redis in Action** (Josiah Carlson, 2013), datado mas ainda excelente pra padrões fundamentais.
 - **Redis docs (oficial)**: [redis.io/docs](https://redis.io/docs/), leia "Data Types" inteiro, "Persistence", "Replication".
+- **Valkey docs**: [valkey.io](https://valkey.io/), fork open-source pós-mudança de licença Redis 2024 — vale acompanhar pra decisões de licensing em 2026+.
 
 ### MongoDB
-- **MongoDB: The Definitive Guide** (Bradshaw, Brazil, Chodorow, 3rd ed).
+- **MongoDB: The Definitive Guide** (Bradshaw, Brazil, Chodorow, 3rd ed, 2019).
 - **Docs oficiais**: [mongodb.com/docs](https://www.mongodb.com/docs/), leia "Aggregation Framework" com cuidado.
 
 ### Auth
-- **OAuth 2 in Action** (Justin Richer & Antonio Sanso), explica os flows com código.
-- **RFC 6749** (OAuth 2.0) e **RFC 7519** (JWT), leia os RFCs originais.
-- **OWASP Cheat Sheet, Authentication**: [cheatsheetseries.owasp.org](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html).
+- **OAuth 2 in Action** (Justin Richer & Antonio Sanso, 2017), explica os flows com código.
+- **RFC 6749** (OAuth 2.0, 2012), **RFC 7519** (JWT, 2015), **RFC 7636** (PKCE, 2015), **RFC 9700** (OAuth 2.0 Best Current Practice, 2025) — leia os RFCs originais. **9700 é leitura obrigatória em 2026** pra reset de mental model.
+- **WebAuthn Level 3** ([w3.org/TR/webauthn-3](https://www.w3.org/TR/webauthn-3/), 2024) e **FIDO2 specs**: passkeys ground truth.
+- **OWASP Cheat Sheet, Authentication**: [cheatsheetseries.owasp.org](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html), atualizado continuamente.
 
 ### Real-time
 - **High Performance Browser Networking** (Ilya Grigorik), free em [hpbn.co](https://hpbn.co/). Capítulos sobre WebSocket, WebRTC, HTTP/2 são canônicos.
@@ -225,11 +227,12 @@
 ## Estágio 4: Sistemas (Arquitetura Distribuída)
 
 ### Distributed Systems (núcleo)
-- **Designing Data-Intensive Applications** (Martin Kleppmann), "DDIA". O livro mais importante desta lista. Leia **integralmente**, anotando. Volte a ele toda vez que tomar uma decisão arquitetural.
-- **Database Internals** (Alex Petrov), internal de DBs distribuídas e single-node. Complementa DDIA.
-- **Designing Distributed Systems** (Brendan Burns), patterns curtos.
-- **Distributed Systems** (Maarten van Steen & Andrew Tanenbaum), free em [distributed-systems.net](https://www.distributed-systems.net/). Acadêmico, sólido.
-- **Site Reliability Engineering** (Google), re-leitura, foco distribuído.
+- **Designing Data-Intensive Applications** (Martin Kleppmann, 1st ed, 2017; **2nd ed in progress, beta chapters online 2024-2025**), "DDIA". O livro mais importante desta lista. Leia **integralmente**, anotando. 1ª edição continua canônica em 2026; acompanhe beta da 2ª.
+- **Database Internals** (Alex Petrov, 2019), internal de DBs distribuídas e single-node. Complementa DDIA.
+- **Designing Distributed Systems** (Brendan Burns, 2nd ed, 2024), patterns curtos.
+- **Distributed Systems** (Maarten van Steen & Andrew Tanenbaum, 4th ed, 2023), free em [distributed-systems.net](https://www.distributed-systems.net/). Acadêmico, sólido.
+- **Understanding Distributed Systems** (Roberto Vitillo, 2nd ed, 2022), pragmático, complemento moderno a DDIA.
+- **Site Reliability Engineering** (Google, 2016) + **The Site Reliability Workbook** (2018), re-leitura com foco distribuído. Free.
 
 ### Messaging
 - **Kafka: The Definitive Guide** (Narkhede et al, 2nd ed).
@@ -256,10 +259,13 @@
 - **Web Scalability for Startup Engineers** (Artur Ejsmont), pragmático.
 
 ### AI/LLM
-- **Anthropic docs**: [docs.anthropic.com](https://docs.anthropic.com/). Leia "Prompt engineering", "Tool use", "Streaming".
-- **OpenAI Cookbook**: [github.com/openai/openai-cookbook](https://github.com/openai/openai-cookbook).
-- **Designing Machine Learning Systems** (Chip Huyen), não é só LLM, mas é crítico pra entender ML systems em produção.
-- **Papers**: leia "Attention Is All You Need" (Vaswani et al, 2017), "Retrieval-Augmented Generation" (Lewis et al, 2020).
+- **Anthropic docs**: [docs.anthropic.com](https://docs.anthropic.com/). Leia "Prompt engineering", "Tool use", "Streaming", "Prompt caching", "Agentic patterns".
+- **Anthropic Engineering blog** ([anthropic.com/engineering](https://www.anthropic.com/engineering)): padrões de agentes, evals, contexto longo.
+- **OpenAI Cookbook** ([github.com/openai/openai-cookbook](https://github.com/openai/openai-cookbook)).
+- **Designing Machine Learning Systems** (Chip Huyen, 2022), não é só LLM, mas é crítico pra entender ML systems em produção.
+- **AI Engineering** (Chip Huyen, 2024), foco em LLM systems, evals, RAG, fine-tuning, deployment. **Leitura obrigatória pra 04-10 em 2026**.
+- **Papers canônicos**: "Attention Is All You Need" (Vaswani et al, 2017), "Retrieval-Augmented Generation" (Lewis et al, 2020), "Constitutional AI" (Bai et al, Anthropic, 2022), "Training language models to follow instructions" (InstructGPT, 2022).
+- **Model Context Protocol (MCP) spec** ([modelcontextprotocol.io](https://modelcontextprotocol.io/), 2024+): padrão emergente pra agent tooling.
 
 ### Web3
 - **Mastering Ethereum** (Andreas Antonopoulos & Gavin Wood), free em [github.com/ethereumbook/ethereumbook](https://github.com/ethereumbook/ethereumbook).
@@ -302,10 +308,10 @@
 - **500 Lines or Less**: collection de small implementations.
 
 ### Multi-Domain Capstones (05-02)
-- **The Pragmatic Programmer** (Hunt, Thomas).
-- **Building LLM Applications for Production** (Chip Huyen).
-- **Practical MLOps** (Noah Gift).
-- Engineering blogs: Stripe, Notion, Figma, Replit, Vercel.
+- **The Pragmatic Programmer** (Hunt, Thomas, 20th anniversary ed, 2019).
+- **AI Engineering** (Chip Huyen, 2024) — substitui efetivamente "Building LLM Applications" como referência pra capstones LLM.
+- **Practical MLOps** (Noah Gift, 2021).
+- Engineering blogs: Stripe, Notion, Figma, Replit, Vercel, Anthropic.
 
 ### Conway's Law & Org Architecture (05-03)
 - **Team Topologies** (Skelton, Pais), bíblia.

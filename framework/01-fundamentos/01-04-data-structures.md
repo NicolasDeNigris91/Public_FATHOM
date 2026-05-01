@@ -119,6 +119,37 @@ hash("foo") % 8 = 3 → slot 3 = [("foo", value)]
 
 **No V8:** `Object` com **shape estável** vira hidden class (otimizado, virtually struct). Adicionar/remover propriedades em runtime quebra otimização.
 
+#### Hash function: cryptographic vs distribution
+
+Confusão comum: usar SHA-256 em hash table (lento, ~500 MB/s) ou MurmurHash em senha (sem pre-image resistance).
+
+- **Distribution hashes** (MurmurHash3, xxHash, SipHash, FNV): foco em **uniformidade + velocidade** (1-10 GB/s). Sem garantia criptográfica. Default em hash tables, sharding, Bloom filters.
+- **Cryptographic hashes** (SHA-256, BLAKE3): foco em **collision/pre-image resistance**. Mais lentos (50-500 MB/s). Use em integrity, signatures, content addressing (Git, IPFS) — ver 01-12.
+- **SipHash** é meio-termo: rápido o suficiente pra hash table + resiste a hash-flooding DoS. Rust `HashMap` e Python `dict` usam por default.
+
+#### Consistent hashing (sharding distribuído)
+
+Hash table convencional usa `hash(key) % N`. Quando N muda (adicionar/remover shard), **quase todas as chaves remapeiam** — invalidação cache massiva, redistribuição catastrófica.
+
+**Consistent hashing** (Karger et al, 1997): mapeia chaves e nós no mesmo **hash ring** circular `[0, 2³²)`. Chave vai pro próximo nó horário. Adicionar/remover nó remapeia apenas `K/N` das chaves.
+
+```
+ring: [0 ... 2^32)
+nodes A, B, C → posições determinísticas no ring
+key → hash(key) → primeiro node em sentido horário
+```
+
+**Virtual nodes**: cada nó físico ocupa M posições (M=128 típico) pra reduzir variância de carga (sem virtual nodes, distribuição é Poisson, hot spots aparecem).
+
+**Onde aparece**:
+- Memcached client-side (Ketama).
+- Redis Cluster (16384 hash slots, variante).
+- DynamoDB, Cassandra (partitioning).
+- CDN edge selection.
+- Discord guild routing.
+
+**Limitação**: load skew quando keys têm distribuição não-uniforme (1 tenant gigante). Mitigação: **rendezvous hashing** (HRW) ou **jump consistent hash** (Lamping & Veach, 2014, Google). Pré-requisito mental pra 04-09 (scaling) e 02-11 (Redis Cluster).
+
 ### 2.5 Trees, visão geral
 
 Estrutura hierárquica: nó com filhos.

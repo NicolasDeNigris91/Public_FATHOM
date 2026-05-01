@@ -110,6 +110,8 @@ Se `PROGRESS.md` está vazio:
 
 Cada módulo tem **três portões obrigatórios em ordem**.
 
+> Critério explícito de pass/fail (dimensões, pesos, exemplos de falha vs passa) está em [framework/00-meta/RUBRIC.md](framework/00-meta/RUBRIC.md). Releia antes de cada portão; em peer-mentor, ambos compartilham a rubric.
+
 ### 3.1 Portão Conceitual
 
 **Quando:** o aluno declarou que terminou de ler a Teoria Hard.

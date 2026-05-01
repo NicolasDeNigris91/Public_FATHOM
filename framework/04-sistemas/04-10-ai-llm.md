@@ -187,13 +187,26 @@ OTel + tools (LangSmith, Helicone, Langfuse).
 
 ### 2.14 Self-hosted inference
 
-Vença custo + privacy:
-- **vLLM**, **TGI**: serving engines.
-- **Ollama**: local dev/small.
-- **llama.cpp**: CPU/edge.
-- **GPU clusters**: H100, A100. Throughput consciente.
+Vença custo + privacy. Espectro de maturidade:
+- **Ollama**: dev local, prototyping. Não é production engine.
+- **llama.cpp**: CPU + edge devices (laptops, Raspberry Pi 5, mobile via MLC). Quantização GGUF (4-bit, 5-bit) viabiliza Llama 3.1 8B em laptop com 16GB RAM.
+- **vLLM**: production grade, throughput high (PagedAttention). Default serving engine pra Llama, Mistral, Qwen self-hosted.
+- **TGI** (HuggingFace Text Generation Inference): vLLM-compete, ecossistema HF.
+- **SGLang**: emergente em 2025, structured outputs eficientes.
+- **GPU clusters**: H100 (~$2-4/h on-demand AWS), H200, B200 (Blackwell, 2025+), A100 (legado, mais barato).
 
-Em prod sério: managed (Anthropic/OpenAI) salvo motivo forte (privacy law strict, fine-tune custom).
+**Quantização** é o multiplicador silencioso: GGUF Q4_K_M roda Llama 3.1 70B em uma única H100 80GB com perda de qualidade ~2-3% em benchmarks. Q8 ~zero perda, dobra de RAM.
+
+**Middle ground (managed inference de open weights)**:
+- **Replicate**, **Together AI**, **Fireworks**, **Anyscale**, **HuggingFace Inference Endpoints**: você roda Llama/Mistral/Qwen com SLA, sem operar GPU. Custo ~30-50% acima de DIY mas zero ops.
+
+**Decisão pragmática:**
+- Default: **managed (Anthropic / OpenAI)**. Tempo é mais caro que tokens.
+- Privacy law strict (HIPAA, EU data residency em casos extremos): managed open-weights em região correta, ou DIY.
+- Volume estável > 100M tokens/dia + perfil tolerante a hosting: DIY vLLM em H100 reservada começa a ganhar.
+- Edge / offline (mobile, on-device): llama.cpp + quantização.
+
+Fine-tuning de modelo small (7B-14B) via **LoRA** ou **QLoRA** em 2026 custa ~$200-1000 em compute e cabe em 1 H100. Antes de Anthropic/OpenAI fine-tuning, considere se LoRA em Llama/Qwen + serving próprio resolve.
 
 ### 2.15 Fine-tuning vs prompt engineering
 
@@ -206,22 +219,45 @@ Default: prompt + RAG. Fine-tune só com dataset robusto (10k+) e razão clara.
 
 ### 2.16 Costs em scale
 
-App popular com LLM core feature pode gastar $10k+/mês fácil:
-- Cached prompts.
-- Smaller model pra subset of tasks (Haiku pra triagem; Opus só pra hardness).
-- Prompt compactação.
-- Cache responses comuns (semantic cache via embeddings).
-- Stream + early stop quando user satisfied.
+App popular com LLM como core feature passa de $10k/mês trivialmente. Ordem de magnitude (preços públicos Anthropic em 2026, Sonnet 4.6 como referência):
 
-Rate limit per tenant, free tier limits.
+- **Sonnet 4.6**: ~$3/M input + $15/M output. Conversa típica de chat (2k input + 500 output) = ~$0.014/turn. 1M turns/mês = $14k.
+- **Haiku 4.5**: ~$0.80/M input + $4/M output. ~5x mais barato que Sonnet. Use pra triagem, classificação, tools simples.
+- **Opus 4.7**: ~$15/M input + $75/M output. Reserve pra raciocínio profundo, agentes longos, code edition crítico.
+
+**Prompt caching (Anthropic ephemeral cache)**: cache hit cobra ~10% do preço de input. Em SaaS com **system prompt de 5k tokens reutilizado** em 100k requests/dia:
+- Sem cache: 5000 × 100000 × $3/M = **$1.500/dia**.
+- Com cache (90% hit rate): 0.1 × 5000 × 100000 × $3/M + cache write = **~$165/dia**.
+- Economia: ~$40k/mês em uma única feature. **Faça primeiro, antes de qualquer otimização**.
+
+**Padrões adicionais por ordem de impacto:**
+1. **Model tiering** (Haiku triagem → Sonnet default → Opus só hard cases). Pode cortar 60-80% se a distribuição for skewed.
+2. **Semantic cache**: embedding da query, lookup similar > 0.95 cosine, retorna resposta cached. Funciona em FAQs, suporte L1.
+3. **Output truncation**: `max_tokens` apertado evita modelo viajar; cobre via `stop_sequences`.
+4. **Streaming + early stop**: client cancela stream quando UX já tem o suficiente (botão "para" ou heuristic).
+5. **Batch API** (Anthropic Message Batches): 50% off pra workloads não-real-time (jobs noturnos, backfills).
+6. **Rate limit por tenant + free tier limits**: protege bill explosion por abuso (1 user disparando 1k chamadas/min).
+
+**Observability cost trap**: tracing toda chamada LLM com prompt + response inteiro multiplica span size por 10-100x vs span normal. Use **head-based sampling** (full conversation amostra) ou **tail-based** (samp anomalias: erro, latência > p99, custo > X). Senão observability cost ultrapassa LLM cost.
 
 ### 2.17 Latency considerations
 
-Cold prompt: 1-3s pra primeiro token. Then ~30-100 tokens/s.
-Cache hit: ~30% latency reduction.
-Streaming: perceived latency cai pra ms.
+Números típicos 2026 (Anthropic Sonnet 4.6, 1k input tokens):
 
-Em UX agent, usuário aguarda em sequência de tool calls. Show progresso ("Buscando pedidos…", "Reagendando…").
+| Métrica | Sem otimização | Com otimização |
+|---|---|---|
+| Time to first token (TTFT) | 800-2000ms | 200-500ms (cache hit + region próxima) |
+| Throughput per stream | 30-100 tok/s | mesmo (model-bound) |
+| Prompt cache hit latency | — | ~10-30% redução em TTFT |
+
+**Streaming via SSE muda tudo na UX**: TTFT é o que o usuário sente. Cold sync (block até resposta completa) com 5s output total = "lento". Stream mostrando primeiro token em 400ms = "responsivo", mesmo com mesma duração total. **Stream sempre que UX permitir** — só não-stream se workflow exige resposta atomic (ex: structured JSON pra DB write).
+
+Em UX agent multi-step, usuário aguarda sequência de tool calls. Padrões:
+- **Status updates explícitos**: "Buscando pedidos…", "Reagendando entrega…" (cada tool call emite UI event).
+- **Optimistic preview**: mostre o plano antes de executar ("Vou (1) cancelar este pedido (2) reembolsar (3) notificar — confirma?"). Reduz wait perceptual.
+- **Parallel tool calls**: quando 2+ tools são independentes, dispare juntos via Anthropic batched tool use (Sonnet 4.6+ suporta nativamente).
+
+Cruza com **02-14** (streaming SSE/WebSocket), **03-09** (perceived latency UX), **04-09** (LLM observability cost trap).
 
 ### 2.18 Quando LLM é certo
 

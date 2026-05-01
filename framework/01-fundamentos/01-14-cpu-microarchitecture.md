@@ -104,6 +104,36 @@ Auto-vectorization: compiladores tentam. Hand-written via intrinsics (`_mm256_ad
 
 Speedup 4-16x em loops vetorizáveis (numeric, hashing, image, audio, ML inference). Wide use em libs (BLAS, SIMD-JSON, ClickHouse vectorized engine).
 
+**Condições pra auto-vectorization acontecer:**
+- Loop com trip count fixo (ou inferível).
+- Sem loop-carried dependencies (`x[i] = x[i-1] + 1` não vetoriza).
+- Sem branches dependentes de dados dentro do hot path (ou mascaráveis via predicação).
+- Acessos contíguos e alinhados a fronteira do vector register.
+- `restrict` / `noalias` informando compilador que ponteiros não overlap.
+
+Verifique com `gcc -O3 -fopt-info-vec` / `clang -Rpass=loop-vectorize` antes de assumir.
+
+**Data layout: AoS vs SoA**
+
+Mesmos dados, layouts diferentes mudam tudo:
+
+```c
+// Array of Structures (AoS): natural pra OO, mata SIMD.
+struct Particle { float x, y, z, m; } a[N];
+
+// Structure of Arrays (SoA): SIMD-friendly.
+struct {
+  float x[N];
+  float y[N];
+  float z[N];
+  float m[N];
+} s;
+```
+
+Loop somando `x[i]` em AoS lê 16B mas usa só 4B útil por iteração (waste de banda + cache). Em SoA, AVX2 carrega 8 floats `x` contíguos em um único registro, vetoriza limpo. ECS (game engines, Bevy/Unity DOTS) é SoA por princípio. ClickHouse, Apache Arrow, Pandas (interno) são SoA. Cruza com 01-04 §2.2 (cache locality) e 01-04 §2.4 (Robin Hood hash table SoA quando perf é crítica).
+
+**Custo invisível**: SIMD width crescendo (AVX-512 em 512b) traz **frequency throttling** em x86 — códigos AVX-512 derrubam clock do core, às vezes anulando o ganho. Mensure ciclo a ciclo (PMU) antes de acreditar em "AVX-512 é 8x mais rápido".
+
 ### 2.9 SMT / Hyper-Threading
 
 Two logical threads compartilham um core físico. Compartilham execution units; cada um seu register file e arquivo de estado.

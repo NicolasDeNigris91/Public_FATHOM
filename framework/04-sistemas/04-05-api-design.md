@@ -305,17 +305,19 @@ Decisão deve ser stable; mudar quebra all integrations.
 
 API outbound (server → cliente). Protocolo:
 - POST com JSON event.
-- Signature header (HMAC) pra verify.
-- Retries com backoff.
-- Idempotency hint (event ID).
+- Signature header (HMAC-SHA256 sobre raw body + timestamp) pra verify autenticidade. Replay defense: rejeite eventos com timestamp > 5min (ataque de replay).
+- Retries com backoff exponencial + jitter, idealmente até 24-72h pra absorver outage do consumer.
+- **Idempotency-Key obrigatório**: cada delivery do mesmo evento carrega o mesmo `Event-Id`. Consumer deve dedupe via Redis SET com TTL (24h+) ou tabela `webhook_processed(event_id PRIMARY KEY)`. Sem isso, retry duplica side effects (dobra cobrança, dobra notificação).
+- Ordering: **não garanta order entre eventos**. Webhooks são best-effort assíncronos; consumer deve tolerar `OrderShipped` chegando antes de `OrderCreated`.
 
 Cliente exposto a internet, recebendo. Documente:
-- Event types e schemas.
-- Retry policy.
-- Replay process.
-- Signature scheme.
+- Event types e schemas (idealmente em **AsyncAPI spec** — análogo a OpenAPI pra event-driven, ver §2.10 e [asyncapi.com](https://www.asyncapi.com)).
+- Retry policy explícita (intervalos, máx tentativas, regra de DLQ).
+- Replay process (UI/API pra reenviar evento de window passada).
+- Signature scheme com exemplo de verificação em 2-3 linguagens.
+- Idempotency contract (qual header carrega o ID, qual TTL esperar).
 
-Best practices: Stripe, GitHub APIs são references.
+Best practices: Stripe, GitHub, Shopify APIs são references — leia o doc deles em vez de inventar.
 
 ### 2.18 Consumer experience
 
