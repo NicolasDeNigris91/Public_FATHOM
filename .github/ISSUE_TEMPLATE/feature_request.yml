@@ -1,0 +1,39 @@
+name: Content suggestion / feature
+description: Suggest a content addition or a site improvement.
+title: "[feat] "
+labels: ["enhancement", "triage"]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options:
+        - new module / topic
+        - reference to add (book / paper / RFC / talk)
+        - correction or improvement to existing content
+        - apps/site improvement (UX, perf, a11y)
+    validations:
+      required: true
+
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Rationale
+      description: Why does this belong in Fathom? Cite a primary source if possible.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
