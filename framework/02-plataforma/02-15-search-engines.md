@@ -99,6 +99,85 @@ Estado da arte. Estratégias:
 
 Elasticsearch 8+, OpenSearch, Vespa, Weaviate suportam híbrido nativamente.
 
+**Exemplo concreto em Postgres** (BM25 via `tsvector` + ANN via `pgvector` + RRF + cross-encoder rerank):
+
+```sql
+-- Schema
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE products (
+  id UUID PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT,
+  tsv tsvector GENERATED ALWAYS AS (
+    setweight(to_tsvector('portuguese', coalesce(title,'')), 'A') ||
+    setweight(to_tsvector('portuguese', coalesce(description,'')), 'B')
+  ) STORED,
+  embedding vector(1024)  -- Cohere embed-v3 dim
+);
+CREATE INDEX ON products USING GIN (tsv);
+CREATE INDEX ON products USING hnsw (embedding vector_cosine_ops) WITH (m=16, ef_construction=64);
+```
+
+```sql
+-- RRF híbrido em CTE
+WITH bm25 AS (
+  SELECT id, ts_rank_cd(tsv, query) AS score, ROW_NUMBER() OVER (ORDER BY ts_rank_cd(tsv, query) DESC) AS rank
+  FROM products, plainto_tsquery('portuguese', $1) query
+  WHERE tsv @@ query
+  ORDER BY score DESC LIMIT 50
+),
+vec AS (
+  SELECT id, 1 - (embedding <=> $2::vector) AS score, ROW_NUMBER() OVER (ORDER BY embedding <=> $2::vector) AS rank
+  FROM products
+  ORDER BY embedding <=> $2::vector LIMIT 50
+)
+SELECT p.id, p.title, p.description,
+       COALESCE(1.0/(60 + b.rank), 0) + COALESCE(1.0/(60 + v.rank), 0) AS rrf_score
+FROM products p
+LEFT JOIN bm25 b USING (id)
+LEFT JOIN vec  v USING (id)
+WHERE b.id IS NOT NULL OR v.id IS NOT NULL
+ORDER BY rrf_score DESC LIMIT 50;
+```
+
+`k = 60` é o constante padrão de RRF (Cormack et al, 2009); raramente vale tunar.
+
+```typescript
+// Cross-encoder rerank — Cohere Rerank API
+import { CohereClient } from 'cohere-ai';
+const cohere = new CohereClient({ token: process.env.COHERE_API_KEY });
+
+async function search(query: string) {
+  const queryEmbedding = await embed(query);                       // text-embedding-3 ou Cohere embed
+  const candidates = await db.query(HYBRID_SQL, [query, queryEmbedding]);    // top 50
+
+  // Rerank com cross-encoder (model = rerank-multilingual-v3.0)
+  const reranked = await cohere.rerank({
+    model: 'rerank-multilingual-v3.0',
+    query,
+    documents: candidates.map(c => `${c.title}. ${c.description}`),
+    topN: 10,                                                       // pega top 10 final
+    returnDocuments: false
+  });
+
+  return reranked.results.map(r => ({
+    ...candidates[r.index],
+    relevance_score: r.relevanceScore                              // 0-1, calibrado
+  }));
+}
+```
+
+**Custo e latência reais 2026** pra híbrido + rerank:
+- BM25 + vector hybrid SQL: 10-30ms p99 em ~1M docs (HNSW + GIN bem indexado).
+- Cohere Rerank top-50→10: 100-300ms (cross-encoder é caro, multilingual).
+- Custo Cohere Rerank: ~$2/1k searches em 2026.
+
+**Quando vale rerank**: relevância importa muito (e-commerce conversion, support tickets); top-1-3 é o que usuário vê. Quando NÃO vale: search interno onde top-20 são todos "good enough" (autocomplete, filter assist).
+
+**Alternativa local**: cross-encoder via `sentence-transformers` em GPU (`mxbai-rerank-base`, `bge-reranker-v2-m3`). 0 custo por query mas precisa GPU; ~$50-100/mês em RunPod spot pra throughput de SaaS médio.
+
 ### 2.8 Postgres como search engine
 
 `tsvector` + GIN index é viável até dezenas de milhões de docs com queries simples. Tem stemming via dicionários (`portuguese`, `english`). Sem facet builtin, sem rerank, sem fuzzy.

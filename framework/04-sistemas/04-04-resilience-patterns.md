@@ -43,6 +43,85 @@ Timeouts por camada:
 
 Em microservices: **deadline propagation**. Upstream passa "tempo restante" pra downstream.
 
+#### Deadline propagation, código real
+
+Sem deadline propagation, cada hop tenta seu próprio timeout. Resultado: cliente já desistiu, mas service A ainda chama B com 5s, B chama C com 5s, todo mundo trabalha à toa, recursos consumidos. **Custo invisível em escala.**
+
+Pseudocódigo padrão (TypeScript-flavored):
+
+```typescript
+// Header propagado: X-Request-Deadline = unix_ms_absoluto
+type Deadline = { atMs: number };
+
+function withDeadline(parent: Deadline, maxBudgetMs: number): Deadline {
+  // Filho herda menor entre o que sobrou e seu max próprio
+  const remaining = parent.atMs - Date.now();
+  return { atMs: Date.now() + Math.min(remaining, maxBudgetMs) };
+}
+
+function remainingMs(d: Deadline): number {
+  return Math.max(0, d.atMs - Date.now());
+}
+
+async function call<T>(svc: string, path: string, deadline: Deadline): Promise<T> {
+  const ms = remainingMs(deadline);
+  if (ms <= 0) throw new DeadlineExceededError(svc);
+
+  // Reserva 50ms de buffer pra processamento local + serialização
+  const downstreamBudget = ms - 50;
+  if (downstreamBudget <= 0) throw new DeadlineExceededError(svc);
+
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const res = await fetch(`https://${svc}${path}`, {
+      signal: ctrl.signal,
+      headers: { 'X-Request-Deadline': String(deadline.atMs) }
+    });
+    return res.json();
+  } finally {
+    clearTimeout(t);
+  }
+}
+```
+
+Handler do gateway (Logística API entry):
+
+```typescript
+app.post('/orders', async (req, res) => {
+  // Cliente HTTP timeout de 5s; deadline absoluto pra todo o flow
+  const deadline = { atMs: Date.now() + 5000 };
+
+  // 1. valida (10ms typical, budget 50ms)
+  const data = await validateInput(req.body, withDeadline(deadline, 50));
+
+  // 2. chama courier-svc (p99 200ms, budget 500ms)
+  const courier = await call<Courier>('courier-svc', '/assign',
+    withDeadline(deadline, 500));
+
+  // 3. chama payment-svc (p99 800ms, budget 1500ms)
+  const payment = await call<Payment>('payment-svc', '/authorize',
+    withDeadline(deadline, 1500));
+
+  // 4. persiste (budget = remaining minus reserva)
+  await db.transaction(async tx => {
+    if (remainingMs(deadline) < 200) throw new DeadlineExceededError('db');
+    await tx.insert(orders).values({ ...data, courier, payment });
+  });
+
+  res.json({ ok: true });
+});
+```
+
+Cada hop downstream lê `X-Request-Deadline`, calcula remaining, recusa work se inviável. **Pegadinha**: clock skew entre hosts > tolerância → deadline absoluto via wall clock falha. NTP sane (drift < 50ms) é pré-requisito; em ambientes com skew alto (containers em hardware velho), use deadline relativo (ms) e re-derive a cada hop.
+
+Implementações production-ready:
+- **gRPC**: `context.WithDeadline` em Go, `Metadata grpc-timeout` em wire.
+- **OpenTelemetry baggage**: propaga `deadline` como W3C baggage.
+- **Anthropic SDK**: passa `signal: AbortSignal` que cascateia.
+
+Cruza com **04-09 §2.13** (observability cost de calls que continuam após cliente desistir) e **04-04 §2.5** (circuit breaker fecha antes de deadline expirar).
+
 ### 2.3 Retries
 
 Retry em failures transientes (network blip, momento de leader election). NUNCA em failures permanentes (4xx auth errors).
@@ -348,6 +427,78 @@ Em sistema:
 Trade-off: isolamento custa recursos (N pools = N * size).
 
 Logística: rate limit por lojista (não 1 cliente abusivo derruba todos).
+
+#### Bulkhead per-tenant em código (Logística multi-tier)
+
+Cenário: lojista premium paga $500/mês com SLA p99 200ms; lojista free com 0% SLA. 1 lojista free com query mal-fatorada não pode degradar premium. Bulkhead via connection pool partitioning:
+
+```typescript
+// db-pools.ts — pools dedicados por tier
+import pg from 'pg';
+
+type Tier = 'premium' | 'standard' | 'free';
+
+const POOLS: Record<Tier, pg.Pool> = {
+  premium: new pg.Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: 20,                      // 20 conexões dedicadas
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 1_000,
+    application_name: 'logistics-premium'
+  }),
+  standard: new pg.Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: 10,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 2_000,
+    application_name: 'logistics-standard'
+  }),
+  free: new pg.Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: 5,                       // free compartilha 5 conexões
+    idleTimeoutMillis: 10_000,    // libera mais agressivo
+    connectionTimeoutMillis: 5_000, // espera mais antes de rejeitar
+    statement_timeout: 10_000,    // mata query > 10s
+    application_name: 'logistics-free'
+  })
+};
+
+export function poolFor(tier: Tier) { return POOLS[tier]; }
+```
+
+Middleware de roteamento:
+
+```typescript
+app.use(async (req, res, next) => {
+  const tenant = await tenantFromAuth(req);   // do JWT (02-13)
+  req.pool = poolFor(tenant.tier);
+  req.tenant = tenant;
+  next();
+});
+
+app.get('/orders', async (req, res) => {
+  // Query usa pool específico do tier
+  const { rows } = await req.pool.query(
+    'SELECT * FROM orders WHERE tenant_id = $1 LIMIT 100',
+    [req.tenant.id]
+  );
+  res.json(rows);
+});
+```
+
+**Resultados observáveis em produção:**
+- 1 lojista free com `WHERE description LIKE '%foo%'` em tabela 100M rows segura **só** o pool free (5 conns). Premium continua snappy.
+- Métricas Prometheus: `pg_pool_active{tier=...}` por tier expõe saturação independente.
+- Alarme: `pg_pool_saturation{tier="premium"} > 0.8` é P1; `tier="free"` é informational.
+
+**Variantes:**
+- **Read pool vs write pool**: separar leituras (réplica read-only) de escritas (primary). Limita blast radius de slow query.
+- **Per-feature pool**: feature crítica (auth, payments) tem pool isolado de feature opcional (analytics dashboard).
+- **Worker isolation via queues**: jobs de cada tier em queue Redis separada com workers próprios. Free não bloqueia premium em backlog.
+
+**Anti-pattern**: 1 pool global compartilhado por todos os tenants/features = noisy neighbor pesado. Você só descobre quando lojista premium liga reclamando enquanto free user roda backup script.
+
+Cruza com **02-09 §2.12** (PgBouncer modes), **04-08 §2.19** (multi-tenancy isolation models — Pool/Bridge/Silo), **04-09 §2.16** (rate limit per tenant em Redis).
 
 ### 2.25 Failover patterns
 

@@ -205,6 +205,105 @@ Runbook desatualizado é pior que ausência (engana). Test em game days.
 3. **Chaos automatizado em staging** (CI ou scheduled).
 4. **Chaos automatizado em prod** com abort/blast radius. Netflix-tier.
 
+#### Game day prático com toxiproxy — Logística scenarios
+
+Toxiproxy (Shopify, Go) é TCP proxy that injects faults. Setup mínimo pra game day em staging Logística:
+
+```bash
+# Sobe toxiproxy entre app e Postgres/Redis
+docker run -d --name toxiproxy --network=logistica-net \
+  -p 8474:8474 -p 5435:5435 -p 6380:6380 \
+  ghcr.io/shopify/toxiproxy
+
+# Cria proxies (CLI ou HTTP API)
+toxiproxy-cli create -l 0.0.0.0:5435 -u postgres-real:5432 postgres
+toxiproxy-cli create -l 0.0.0.0:6380 -u redis-real:6379 redis
+
+# App aponta DATABASE_URL=postgres://...:5435/db; REDIS_URL=redis://...:6380
+```
+
+**Cenário 1 — Postgres latency spike (simula failover lento, IO degraded):**
+```bash
+toxiproxy-cli toxic add postgres -t latency -a latency=500 -a jitter=200
+# Roda durante 5min. Métricas esperadas: p99 latency sobe; circuit breaker em payment-svc abre?
+# Steady-state hipótese: error rate < 1%; SLO p99 < 800ms NÃO É mantido.
+# Aprendizado: precisa async fallback ou maior retry budget.
+toxiproxy-cli toxic remove postgres -n latency_downstream
+```
+
+**Cenário 2 — Redis cache fail (queda total de cache):**
+```bash
+toxiproxy-cli toxic add redis -t down
+# 10min. Hipótese: app degrada para "cache miss" em todas requests; latency sobe mas não falha.
+# Validar: app cai ou recupera-se? Cache stampede protection (singleflight) funcionou?
+# Em Logística: tracking real-time depende de Redis pub/sub — degrada pra polling DB?
+toxiproxy-cli toxic remove redis -n down
+```
+
+**Cenário 3 — Network partition entre app e payment provider (Stripe):**
+```bash
+# Se Stripe API estivesse atrás de toxiproxy
+toxiproxy-cli toxic add stripe -t timeout -a timeout=0   # close conn imediato
+# 15min. Hipótese: orders ficam em estado "payment_pending"; webhook retry quando volta.
+# Test: verifica se nenhuma cobrança duplicou (idempotency-key §2.4 funcionou).
+```
+
+**Cenário 4 — Bandwidth limit (mobile carrier ruim):**
+```bash
+toxiproxy-cli toxic add api-public -t bandwidth -a rate=64   # 64 KB/s
+# Simula 3G lento de courier app no campo. Test: app courier cai ou degrada elegantemente?
+# Long polling timeout? WebSocket reconnect com backoff?
+```
+
+**Cenário 5 — Slow close (TCP ZOMBIE connections):**
+```bash
+toxiproxy-cli toxic add postgres -t slow_close -a delay=30000   # 30s pra fechar
+# 5min. Hipótese: connection pool esgota se cleanup ruim. Detect: `pg_stat_activity` cresce.
+# Force scenario que mata pool com max=20 e descobre: precisamos de `idle_in_transaction_session_timeout`.
+```
+
+**Run it via script (game day automation):**
+
+```bash
+#!/usr/bin/env bash
+# game-day-2026-01.sh
+set -e
+echo "[$(date)] Starting game day. Watcher: $WATCHER_NAME. On-call notified."
+
+declare -a SCENARIOS=(
+  "postgres:latency:latency=500,jitter=200:300"
+  "redis:down::600"
+  "api-public:bandwidth:rate=64:300"
+)
+
+for s in "${SCENARIOS[@]}"; do
+  IFS=':' read -r proxy toxic args duration <<< "$s"
+  echo "[$(date)] Injecting $toxic on $proxy for ${duration}s"
+  toxiproxy-cli toxic add "$proxy" -t "$toxic" $(echo "$args" | tr ',' '\n' | sed 's/^/-a /')
+  sleep "$duration"
+
+  # Abort condition: error rate > 5% interrompe
+  err_rate=$(curl -s prometheus/api/v1/query?query=rate(http_errors[5m]) | jq .data.result[0].value[1])
+  if (( $(echo "$err_rate > 0.05" | bc -l) )); then
+    echo "[$(date)] ABORT: error rate $err_rate > 5%"
+    toxiproxy-cli toxic remove "$proxy" -n "${toxic}_downstream"
+    exit 1
+  fi
+
+  toxiproxy-cli toxic remove "$proxy" -n "${toxic}_downstream"
+  sleep 60   # cooldown entre cenários
+done
+
+echo "[$(date)] Game day complete. Postmortem em 24h."
+```
+
+**Postmortem template após game day** (mesmo se passou):
+- Hipóteses confirmadas / refutadas (lista).
+- Métricas observadas (gráficos Grafana exportados).
+- Bugs descobertos (incluindo "tudo passou mas tive que mexer em X").
+- Action items: PRs de melhoria com owner + deadline.
+- Próximo game day: data + scenarios novos baseados em buracos descobertos.
+
 ### 2.12 Disaster Recovery (DR)
 
 Cenários de "região inteira foi" ou "DB corrompido":
