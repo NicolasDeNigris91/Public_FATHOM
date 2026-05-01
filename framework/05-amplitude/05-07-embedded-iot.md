@@ -156,6 +156,74 @@ Cobertura difícil. Pesquisa ativa.
 
 IDEs: PlatformIO (popular para multi-platform), STM32CubeIDE, Espressif IDF, Zephyr's west.
 
+#### Embedded Rust em profundidade
+
+Rust embedded ganhou maturidade industrial 2023-2026 (Espressif oficializou Rust em ESP32; Linux kernel aceitando drivers em Rust). Stack típico:
+
+**HAL trait pattern** (`embedded-hal` crate): abstrações **vendor-neutral** sobre periféricos.
+
+```rust
+use embedded_hal::digital::OutputPin;
+use embedded_hal::i2c::I2c;
+
+// Driver de sensor escrito uma vez, roda em STM32, ESP32, RP2040, nRF52, ...
+pub struct DhtSensor<I, P> where I: I2c, P: OutputPin {
+    i2c: I,
+    power_pin: P,
+}
+impl<I: I2c, P: OutputPin> DhtSensor<I, P> {
+    pub fn read(&mut self) -> Result<f32, Error> { /* ... */ }
+}
+```
+
+Cada vendor implementa o trait com seu HAL crate (`stm32f4xx-hal`, `esp-hal`, `rp2040-hal`, `nrf-hal`). Driver de aplicação fica portável.
+
+**no_std vs std vs std com allocator custom:**
+- **`#![no_std]`**: sem heap, sem stdlib. Defaults pra MCU pequeno (STM32 Cortex-M0, M3). Tudo `&'static` ou stack-allocated.
+- **`#![no_std]` + `alloc`**: heap via custom allocator (`linked_list_allocator`, `embedded-alloc`). Permite `Box`, `Vec`, mas você decide tamanho do heap.
+- **`std`**: precisa OS abaixo (Linux embarcado, Tock OS). MCUs maiores (Cortex-A) ou embedded Linux.
+
+**Async runtimes em embedded:**
+
+| Runtime | Modelo | Quando |
+|---|---|---|
+| **embassy** | async/await em `no_std`, executor cooperativo, integra HAL async | Default moderno; HAL async em quase todos vendors em 2026 |
+| **RTIC** (Real-Time Interrupt-driven Concurrency) | Static priority scheduling, SoftIRQ-like | Quando timing é crítico (ms determinístico) |
+| **Tock OS** | Multiprocesso real, isolation entre apps | Plataforma multi-tenant em embedded (raro) |
+
+Embassy Logística (firmware do tracker do desafio):
+```rust
+#[embassy_executor::task]
+async fn gps_task(mut uart: Uart<'static>) {
+    let mut buf = [0u8; 256];
+    loop {
+        let n = uart.read(&mut buf).await.unwrap();
+        // parse NMEA, broadcast position via channel
+    }
+}
+
+#[embassy_executor::task]
+async fn telemetry_task(mut socket: TcpSocket<'static>) {
+    Timer::after_secs(30).await;
+    // send batched telemetry via MQTT
+}
+```
+
+**defmt — logging compactado**: serializa logs binários (não strings) → host-side decoder reconstrói. 10-100x menor que `printf`. Crítico em MCU sem console grande.
+
+```rust
+defmt::info!("GPS lock: lat={=f32} lng={=f32}", lat, lng);
+// transmitido como ~10 bytes vs ~80 bytes em printf
+```
+
+**probe-rs — debugger/flasher universal**: substitui OpenOCD + gdb + STLink utility com 1 binário em Rust. `cargo flash --chip STM32F411RETx` ou `cargo embed` (RTT log + flash + reset em 1 comando).
+
+**Quando Rust vs C em 2026:**
+- Projeto novo, sem code base C legado: **Rust**. Memory safety + ergonomia + ecosistema maturando.
+- Sistema existente em C/C++: incremental — driver novo em Rust, link com FFI. Não rewrite.
+- Vendor-locked (proprietary HAL apenas em C): C/C++ até vendor abrir.
+- Time sem Rust skill: cuidado, curva de aprendizado em embedded é dupla (linguagem + embedded constraints). 3-6 meses até produtividade.
+
 ### 2.13 Filesystem em flash
 
 Flash wear-out (NAND). Filesystem aware:

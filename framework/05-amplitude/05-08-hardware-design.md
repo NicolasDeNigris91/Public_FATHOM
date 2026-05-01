@@ -312,9 +312,63 @@ Você precisa, sem consultar:
 5. **Manufacturing files**:
    - Gerber + drill + pick-and-place + BOM CSV.
    - Quote em JLCPCB ou PCBWay (assembly turnkey).
-6. **Plan de bring-up**:
+6. **Plan de bring-up** (playbook detalhado abaixo):
    - Test plan: sequence smoke test → power up → JTAG → firmware load → GPS lock → cell registration.
-   - Risks identificados.
+   - Risks identificados, contingências documentadas.
+
+**Bring-up day playbook** (sequência para ordem de magnitude correta de descoberta de bugs — não pule etapas):
+
+1. **Pre-power inspection** (10 min):
+   - Visual: solder bridges, missing components, wrong orientation (chips, electrolytics, diodes).
+   - Multímetro continuidade: VCC ↔ GND **deve ser circuito aberto** (>10kΩ). Se for short, NÃO ligue. Achar short antes custa 30s; ligar com short queima MCU em segundos.
+   - Verificar polaridade de conectores (USB, JTAG, battery).
+
+2. **Power-up isolado** (15 min):
+   - Bench power supply com **current limit em ~100mA** primeiro. Se draw > expected (datasheet típico < 50mA quiescent), tem short ou pino flutuando.
+   - Mede VCC em test points: regulators OK? Ripple < 50mV?
+   - Mede VCC nos pinos de cada IC: presente em todos? Decoupling caps fazem job?
+   - Se algo aquece > 60°C, KILL POWER. Componente errado, polaridade invertida, ou short.
+
+3. **Programming interface** (15 min):
+   - JTAG/SWD via probe-rs ou ST-Link: `probe-rs list` deve mostrar device.
+   - Read MCU ID register: confirma que MCU vivo + comunica.
+   - Erase flash (sanity), program "blink LED" minimal firmware. Se LED pisca = clock + GPIO + power tudo OK.
+   - Failure aqui é 60% do tempo: clock external crystal não oscila (capacitores carga errados), reset pin float, BOOT pins erradas.
+
+4. **Periférico por periférico** (30-60 min cada):
+   - **Não ligue tudo de uma vez**. Bring up: GPIO → UART → I2C/SPI → timers → ADC → conectividade.
+   - Para cada periférico: scope ou logic analyzer no fio antes de acreditar em qualquer log. Vê signal forma de onda? Trabalha em right voltage levels (3.3V vs 5V vs 1.8V mismatches comem horas)?
+   - I2C silent? Pull-ups presentes (4.7kΩ típico)? Address correto (varia por vendor; manda `i2cdetect`)?
+
+5. **Connectivity stack** (1-2h):
+   - GPS: cold start até primeiro lock pode ser 30s-15min em céu aberto. Indoor = no fix, planeje teste outdoor.
+   - Cellular (NB-IoT/LTE-M): SIM ativada? APN correto? Carrier provisioning? Antena com clearance suficiente (3-5cm de plano metálico)?
+   - WiFi: regulatory domain? Chip frequencies certified for region?
+
+6. **Soak test** (24h):
+   - Firmware completo, scenario realista, log everything via defmt/RTT.
+   - Power consumption profile: corresponde ao calculado? Sleep current < 100µA esperado?
+   - Erros silenciosos: counters de retries, watchdog resets, malloc failures.
+
+**Common failures e diagnóstico:**
+
+| Sintoma | Causa típica | Tempo médio até fix |
+|---|---|---|
+| MCU não enumera em USB/SWD | Clock crystal sem oscilar (caps wrong), boot pins erradas | 1-3h |
+| Sensor I2C "presente" mas data lixo | Endianness, scale factor, init sequence missing | 30min-2h |
+| GPS sem lock indoor | Esperado; precisa outdoor ou patch antenna externa | n/a (test plan issue) |
+| Cell modem timeout em registration | APN, SIM não ativada, sinal fraco | 1-4h (SIM + RF debug) |
+| Battery dura 1/10 do esperado | Sleep state errado (peripheral não suspended), I2C pulldown drenando | 4-8h debug power profiling |
+| Random reset após N horas | Brownout (power supply marginal), watchdog config errada, stack overflow | 2-3 dias intermitente |
+
+**Skills críticos não-óbvios** que separam alguém que faz bring-up rápido de quem fica preso:
+- Ler datasheet de ponta a ponta (250+ páginas) — não pular pra "pinout".
+- Scope/logic analyzer skill: tipicamente 1 semana de prática reverter saber de "ler waveforms".
+- Saber usar uma loupe (10x) pra inspecionar solder.
+- Hot air rework: dessoldar + ressoldar componente errado em 5 min vs 30 min com soldering iron.
+- Multímetro mode certo (continuity, diode, resistance, voltage) na hora certa.
+
+Senior em hardware tem isso como tacit knowledge. Se você está aprendendo, espere bring-up de protótipo simples levar **1-3 dias inteiros** primeira vez; **4-8 horas** quando experiente.
 7. **Doc** `HARDWARE-DECISIONS.md`:
    - MCU choice rationale.
    - Power topology.
