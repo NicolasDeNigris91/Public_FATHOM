@@ -161,21 +161,44 @@ Sem backpressure: build-up até morte.
 
 ### 2.13 Observability em scale
 
-03-07 viu. Em scale:
-- Sampling agressivo em traces.
-- Aggregação edge (OTel collector).
-- Long retention só pra eventos críticos (errors, slow).
-- Dashboards focados em SLO; ignore detail noise.
+03-07 viu. Em scale, observability vira o **maior centro de custo invisível** depois de compute. Ordem de magnitude (preços públicos 2026):
+
+- **Datadog full-stack**: ~$15-23/host/mês + $0.10/M custom metrics + $1.27/M log events ingest. Cluster de 100 hosts com logs verbose passa de $15k/mês trivialmente.
+- **CloudWatch Logs**: $0.50/GB ingest + $0.03/GB storage. App gerando 100k req/s com log médio de 1KB = ~8.6TB/dia = **$130k/mês só ingestion**.
+- **OTel + self-hosted (Grafana stack: Loki/Mimir/Tempo)**: ~70-90% mais barato em volume alto, mas você opera. Break-even tipicamente entre $20k-50k/mês de SaaS.
+
+Padrões obrigatórios pra não sangrar:
+- **Sampling em traces**: head-based (1-10%) pra default; **tail-based** (sample anomalias: erros, p99, latência alta) via OTel Collector pra preservar sinal sem custo.
+- **Sampling em logs**: nunca log INFO em hot path em prod. INFO/DEBUG só por request flag (`x-debug-trace: 1`) ou error rate spike (dynamic verbosity).
+- **Aggregação edge** (OTel Collector como sidecar/DaemonSet): batching, dedup, dropping campos PII antes de enviar pra backend pago.
+- **Retention tiers**: hot 7d (consulta rápida), warm 30d (Glacier-like), cold 1y só pra compliance. CloudWatch Insights cold scan é caro mas raro.
+- **Dashboards SLO-first**: 4 sinais dourados (RED + USE) na home; detail só sob clique. Dashboard com 200 widgets é teatro.
+
+Regra de ouro: **observability cost ≤ 10% do compute cost**. Acima disso, audit emergencial.
 
 ### 2.14 Cost ao scale
 
-CFO entra na conversa:
-- Egress: maior categoria muitas vezes.
-- DB IOPS / RDS instance.
-- Lambda invocations.
-- Logs ingestion.
+CFO entra na conversa. Categorias por ordem típica de magnitude em SaaS escalado em AWS:
 
-Cost-per-request: monitore. Otimize quando aumenta.
+| Categoria | Faixa típica | Drivers principais |
+|---|---|---|
+| **Egress** | 20-40% | Transferências out, NAT, cross-AZ |
+| **Compute (EC2/Fargate/Lambda)** | 25-45% | Right-sizing, reserved/spot mix |
+| **Database (RDS, DynamoDB)** | 10-25% | IOPS, multi-AZ, read replicas |
+| **Observability** | 5-15% | Logs ingest > metrics > traces |
+| **Storage (S3, EBS)** | 3-10% | Tiering, lifecycle |
+
+**Ordem de ataque pra cortar conta sem quebrar prod:**
+1. **Reserved Instances / Savings Plans** em compute estável (1y no upfront ~30-40% off, 3y all upfront ~50-60%).
+2. **Right-sizing** via Compute Optimizer (instâncias com CPU < 20% sustentado).
+3. **Egress**: VPC endpoints (gratuito ou ~$7/mês vs $0.045/GB de NAT), CloudFront pra static, evitar cross-AZ desnecessário (replicar read replicas na mesma AZ do app quando possível).
+4. **Spot** em batch/CI/stateless web com graceful drain (~70-90% off; 1-3min warning).
+5. **Logs**: sampling + retention tiering (item §2.13).
+6. **Idle resources**: NAT GW idle, RDS dev rodando 24/7, EBS snapshots órfãos, EIPs unattached.
+
+**Cost-per-unit-business** (`$/request`, `$/MAU`, `$/GB processado`) é a métrica que importa, não fatura absoluta. Cresce a fatura mas cai o `$/request`? Saudável. Sobe os dois? Investigar agora.
+
+Cruza com **04-16** (unit economics, Rule of 40) e **03-05 §2.19** (FinOps disciplina).
 
 ### 2.15 Database capacity planning
 
@@ -191,9 +214,17 @@ Alarme antes de bater teto. Vertical scale fácil; sharding caro. Plan ahead.
 
 ### 2.16 Real-time em scale
 
-WebSocket connections per server: 10k-100k típicos com tuning. Horizontal scale com fan-out via Redis pub/sub ou Kafka.
+WebSocket connections per server em 2026: **100k-500k** com tuning agressivo (kernel ulimits, ephemeral port range, `SO_REUSEPORT`, epoll edge-triggered, ring buffers ajustados). Soketi, Centrifugo, Pusher publicaram benchmarks acima de 1M conn/host em hardware moderno.
 
-**Push services especializados** (Pusher, Ably, Soketi): millions of concurrent connections via vendor.
+**Limitadores reais antes do CPU:**
+- File descriptors (`ulimit -n`, default Linux ~1024 — suba pra 1M).
+- Ephemeral port range pra outbound (busca em 16384-60999 default; expanda).
+- Memory: ~5-50KB/conn dependendo de buffers; 500k conn × 20KB = 10GB.
+- TLS handshake throughput (CPU); offload pra hardware ou terminate em LB.
+
+**Fan-out cross-instance**: Redis pub/sub (simples, eventual perda em failover), Kafka (durável, mais latência), NATS JetStream (meio-termo).
+
+**Push services especializados**: Pusher, Ably, Soketi (self-host), Centrifugo. Trade entre operar você (custo fixo + skill) ou pagar por mensagem (escala linear, sem dor operacional). Break-even tipicamente em 100M+ messages/mês.
 
 ### 2.17 Eventual consistency em scale
 

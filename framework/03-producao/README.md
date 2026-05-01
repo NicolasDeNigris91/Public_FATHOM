@@ -53,6 +53,40 @@ Aqui você aprende:
 
 ---
 
+## Quando NOT usar K8s
+
+Antes de mergulhar em [03-03](03-03-kubernetes.md), encare a decisão antiarquitetural: 80% dos projetos nunca deveriam tocar Kubernetes. Senior real escolhe consciente — K8s é poderoso e caro de manter.
+
+### Alternativas em 2026
+
+| Alternativa | Modelo | Melhor pra | Trade-off |
+|---|---|---|---|
+| **AWS ECS / Fargate** | Container scheduler AWS-native | Stack já em AWS, time pequeno | Lock-in pesado, menos primitives |
+| **HashiCorp Nomad** | Scheduler genérico (containers, VMs, JARs, exec) | Multi-runtime, sem K8s overhead | Comunidade menor, ecossistema próprio |
+| **Fly.io** | App platform global anycast | Apps regional/global com SQLite/Litestream | Menos controle low-level, vendor risk |
+| **Railway** | Heroku-style PaaS | MVPs, side projects, monolitos | Não escala em compliance heavy |
+| **Render** | Heroku-style + alguns advanced | Alternativa Heroku moderna | Custos crescem |
+| **Cloud Run / App Runner** | Serverless containers | Bursty traffic, scale-to-zero | Cold start + state externo obrigatório |
+| **Cloudflare Workers / Vercel Functions** | Edge serverless | UX-critical, baixa latência global | Tempo de execução limitado, paradigma diferente |
+| **Kamal** (37signals) | Deploy direto a VMs | Times pequenos que querem servers reais | Você opera VMs |
+
+### Heurística pragmática
+
+- Time **< 5 engineers** + app **< 10 services**: K8s é overhead net-negative. Use Fly.io, Railway, ECS, Cloud Run ou Kamal.
+- Time **5-30 engineers** + crescendo: K8s managed (EKS/GKE) começa a fazer sentido. EKS Auto Mode (2024) e GKE Autopilot reduzem operação manual.
+- Time **> 30 engineers** + multi-region + heavy compliance: K8s domina. Operators próprios. Service mesh.
+- **Compliance crítica (PCI, HIPAA, FedRAMP)**: K8s viabiliza isolation patterns (NetworkPolicy, OPA, PSS) que ECS exige reproduzir manualmente.
+
+### Mito vs realidade
+
+- "K8s escala automaticamente" — você ainda capacity-planeja, configura HPA/VPA com cuidado, paga por nodes idle.
+- "K8s previne lock-in cloud" — você troca lock-in cloud por lock-in K8s ecosystem (CRDs custom, Helm charts próprios). Migrar entre clusters é trabalho.
+- "Vale aprender K8s pra qualquer SRE em 2026" — pra app simples, Fly.io ou Railway ensina mais sobre app architecture e custa menos tempo.
+
+**Logística vai pra K8s no Estágio 3 porque o objetivo é aprender as primitives, não porque o produto exige.** Em projeto real, decida com base nos critérios acima antes de provisionar EKS.
+
+---
+
 ## Capstone do estágio 3
 
 [CAPSTONE-producao.md](CAPSTONE-producao.md), **Logística v2**: pegar a v1 do Plataforma e levar pra **production-ready**.

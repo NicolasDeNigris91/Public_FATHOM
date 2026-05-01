@@ -162,12 +162,12 @@ Diferente de model checking. **Theorem prover** ajuda a escrever **prova** de te
 
 **Isabelle/HOL**: mais popular em ambientes acadêmicos europeus. seL4 microkernel formalmente verificado. Mathlib alternativa em Lean.
 
-**Lean 4** (Microsoft Research, **emergente em 2023+**):
-- Linguagem **dual**: pode ser usado como linguagem de programação **e** prover. Muito relevante em 2026.
-- **mathlib4**: maior biblioteca de matemática formalizada do mundo (~1M+ lines), liderada por Kevin Buzzard. Cresceu rápido em 2024-2025.
-- **Performance**: Lean 4 compila pra C, performance comparable a OCaml. Outros provers são interpretativos.
+**Lean 4** (Leonardo de Moura, **emergente em 2023+**):
+- Linguagem **dual**: prover **e** linguagem de programação compilada (gera C). Tração crescendo em 2025-2026, ainda **não-production-default** pra engenharia industrial.
+- **mathlib4**: maior biblioteca de matemática formalizada do mundo (~1M+ lines), liderada por Kevin Buzzard. Foco matemático; aplicabilidade direta em sistemas distribuídos é menor que TLA+.
 - **Tactic language** moderno (`Mathlib.Tactic`) reduz boilerplate vs Coq.
-- Adoção crescente em sistemas reais: Amazon (Cedar policy language verificada em Lean 4), Stripe (alguns componentes).
+- Adoção em produção: Amazon usou pra **provar propriedades** de Cedar (policy language) — não pra implementar Cedar. É o padrão: prover ↔ implementação separada, prova garante propriedade.
+- **Risco**: ecosystem de tooling (IDE, libs de sistemas) ainda imaturo vs Coq/Isabelle. Não aposte carreira; acompanhe.
 
 **Onde theorem provers agregam (em sistemas, não academic):**
 - **Compilers** (CompCert, CakeML).
@@ -183,7 +183,9 @@ Diferente de model checking. **Theorem prover** ajuda a escrever **prova** de te
 3. Componente de OS / kernel onde bug = root.
 4. Smart contracts $$$ que viraram targets de attack.
 
-**Em 2026 vale acompanhar Lean 4**: ferramenta que pode democratizar parte do espaço. Já há tutoriais "Lean for Engineers" emergindo.
+**Em 2026 vale acompanhar Lean 4**, mas sem hype: ainda é ferramenta de pesquisa madura para matemática + nichos específicos (Cedar, alguns componentes), não substituto generalista de TLA+/Alloy/PBT.
+
+**Antes de subir em theorem provers ou TLA+**: domine **property-based testing** (Hypothesis em Python, fast-check em TS, PropEr em Erlang). PBT cobre 30-50% do benefício de formal methods com 5-10% do custo cognitivo. É o ponto de entrada saudável: invariants em código, shrinker descobre minimal counterexample. Só depois disso, escale a TLA+ pra protocolos onde o custo de bug justifique semanas escrevendo spec.
 
 ### 2.10 Onde formal methods agregam
 

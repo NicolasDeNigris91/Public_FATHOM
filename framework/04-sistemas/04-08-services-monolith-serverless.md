@@ -227,7 +227,41 @@ Em 2026, projetos pequenos NÃO devem fazer microservices.
 - **Magic glue**: API Gateway com mil rules orchestrating microservices que deveriam orchestrar via events.
 - **Service that doesn't own data**: read-only "service" que faz pass-through pro DB de outro. Vira API gateway zumbi.
 
-### 2.19 Como decidir
+### 2.19 Multi-tenancy: o eixo silencioso de Logística
+
+Logística é multi-tenant (lojistas isolados). Decisão arquitetural ortogonal a "monolith vs services": **3 modelos de isolation**, com consequências em custo, blast radius e compliance.
+
+| Modelo | Isolation | Custo | Quando |
+|---|---|---|---|
+| **Pool (shared)** | `tenant_id` discriminator + Postgres RLS | Baixo | SMB SaaS, milhares de tenants pequenos |
+| **Bridge (silo parcial)** | Schema-per-tenant no mesmo DB | Médio | Mid-market, customização leve por tenant |
+| **Silo (full)** | DB / cluster / VPC dedicado | Alto | Enterprise, regulatório (HIPAA, on-prem) |
+
+**Pool com Row-Level Security**:
+```sql
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON orders
+  USING (tenant_id = current_setting('app.tenant_id')::uuid);
+```
+Cada conexão seta `app.tenant_id` no início; queries filtram automaticamente. Vantagem: impossível "esquecer o `WHERE tenant_id`". Limite: queries cross-tenant (analytics admin) precisam role privilegiado bypassando RLS.
+
+**Noisy neighbor** é o demônio do pool: 1 tenant gigante lockando tabela ou esgotando connection pool degrada todos. Mitigação:
+- **Connection pool partitioning** por tenant tier (premium tem N conexões dedicadas, free compartilha).
+- **Rate limit por tenant**, não global (token bucket per `tenant_id` em Redis — ver 04-04).
+- **Bulkheads**: workers/queues separados por tier.
+- **Shard hot tenant**: mover tenant gigante pra silo dedicado (extração on-demand).
+
+**Custos cross-cutting** que aparecem em multi-tenant escalado:
+- Backups com PITR per-tenant (compliance pede isolation).
+- Tenant deletion com retention legal (GDPR Article 17 + 30-90 dias retention).
+- Per-tenant rate limit observability (quem está abusando?).
+- Per-tenant cost allocation (showback / chargeback — ver 04-16).
+
+**Game day obrigatório no v3 de Logística**: derrubar 1 tenant fictício de propósito (consumir 100% do pool, lockar tabela, gerar 10x throughput). Confirmar que demais tenants permanecem dentro do SLO. Se não permanecem, multi-tenancy é teatro.
+
+Cruza com **02-09** (RLS), **04-04** (bulkheads, rate limit), **04-09** (sharding by tenant), **03-15** (per-tenant SLO).
+
+### 2.20 Como decidir
 
 Perguntas:
 1. Time atual e expectativa próximos 12-24 meses?
@@ -238,6 +272,14 @@ Perguntas:
 6. Tech stack uniformity vs diversity necessário?
 
 Default: comece monolith modular. Extract services quando dor real (não imaginária) bate.
+
+**Critérios objetivos pra extrair serviço** (todos, não 1 só):
+1. Bounded context tem time owner dedicado.
+2. Cadência de deploy diverge (1x/dia vs 1x/semana).
+3. Requisitos de scale ou latência divergem (read-heavy vs write-heavy).
+4. Modelo de dado se manteve estável por 6+ meses.
+
+Sem 3+ desses, modular monolith é ROI superior.
 
 ---
 

@@ -8,7 +8,7 @@
 
 - **5 estágios** (Fundamentos, Plataforma, Professional, Senior, Staff/Principal).
 - **78 módulos** (15 Fundamentos + 19 Plataforma + 18 Professional + 16 Senior + 10 Staff) + **5 capstones**.
-- **16 metas em `00-meta/`**: INDEX, CAPSTONE-EVOLUTION, CHANGELOG, GLOSSARY, MODULE-TEMPLATE, SELF-ASSESSMENT, INTERVIEW-PREP, ANTIPATTERNS, DECISION-LOG, SPRINT-NEXT, CODEBASE-TOURS, STACK-COMPARISONS, STUDY-PLANS, RELEASE-NOTES, elite-references, reading-list.
+- **17 metas em `00-meta/`**: INDEX, CAPSTONE-EVOLUTION, CHANGELOG, GLOSSARY, MODULE-TEMPLATE, RUBRIC, SELF-ASSESSMENT, INTERVIEW-PREP, ANTIPATTERNS, DECISION-LOG, SPRINT-NEXT, CODEBASE-TOURS, STACK-COMPARISONS, STUDY-PLANS, RELEASE-NOTES, elite-references, reading-list.
 - **4 raiz**: README.md, MENTOR.md, PROGRESS.md, STUDY-PROTOCOL.md.
 
 Note: 05-07-05-10 (embedded, hardware, bioinformatics, game dev) são **opcionais**: escolha conforme eixo de carreira.
@@ -19,6 +19,7 @@ Note: 05-07-05-10 (embedded, hardware, bioinformatics, game dev) são **opcionai
 - [STUDY-PLANS.md](STUDY-PLANS.md), 7 templates de plano por cenário (full-time, part-time, weekend, bootcamp grad, Senior→Staff, career switcher, executive).
 - [CODEBASE-TOURS.md](CODEBASE-TOURS.md), 20 guided reading tours em repos canônicos.
 - [STACK-COMPARISONS.md](STACK-COMPARISONS.md), patterns cross-stack (Node/Java/Python/Ruby/Go/.NET/PHP/Rust/Elixir).
+- [RUBRIC.md](RUBRIC.md), critério explícito pra passou/falhou em cada um dos 3 portões; complemento operacional do MENTOR.md §3.
 
 ---
 
