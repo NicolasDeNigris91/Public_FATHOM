@@ -20,6 +20,16 @@ Tipos:
 
 ## 2026
 
+### 2026-05-01, Review wave 6 — applied patterns (CRDTs, hybrid search, deadline propagation, bulkhead, chaos)
+
+Sexta onda do audit cross-stage. Foca em **código real e patterns aplicados** que separam Senior de Staff — temas onde o framework já tinha conceito mas faltava implementação executável Monday morning.
+
+- **edit** [`framework/04-sistemas/04-01-distributed-systems-theory.md`](../04-sistemas/04-01-distributed-systems-theory.md) §2.18 (CRDT), exemplo concreto Logística com Yjs — server (y-websocket + LeveldbPersistence) e client (provider + awareness + CodeMirror integration) pra notas colaborativas em pedido. Pegadinhas em produção (GC tradeoff, auth no upgrade, permissões custom message types, storage scaling, Yjs vs Automerge decision).
+- **edit** [`framework/02-plataforma/02-15-search-engines.md`](../02-plataforma/02-15-search-engines.md) §2.7, hybrid search com código copiável: schema Postgres com tsvector + pgvector HNSW, SQL CTE de RRF (k=60 padrão Cormack), TypeScript Cohere Rerank com top-50→10. Custos e latências reais 2026 (10-30ms hybrid + 100-300ms rerank, $2/1k searches Cohere). Alternativa local com cross-encoder GPU.
+- **edit** [`framework/04-sistemas/04-04-resilience-patterns.md`](../04-sistemas/04-04-resilience-patterns.md) §2.2, deadline propagation com pseudocódigo TypeScript completo — `withDeadline`, `remainingMs`, `call` com AbortController + reserva de buffer, handler gateway Logística cascateando deadline em 4 hops, X-Request-Deadline header, pegadinha de clock skew, implementations canônicas (gRPC context, OTel baggage, Anthropic SDK).
+- **edit** [`framework/04-sistemas/04-04-resilience-patterns.md`](../04-sistemas/04-04-resilience-patterns.md) §2.24, bulkhead per-tenant em código — pools dedicados por tier (premium 20 conns, standard 10, free 5) com timeouts e statement_timeout próprios, middleware de roteamento, métricas Prometheus por tier, variantes (read/write split, per-feature pools, queue worker isolation), anti-pattern do pool global compartilhado.
+- **edit** [`framework/03-producao/03-15-incident-response.md`](../03-producao/03-15-incident-response.md) §2.11, game day prático com toxiproxy — setup Docker, 5 cenários Logística runnable (Postgres latency, Redis down, payment provider partition, mobile bandwidth limit, TCP slow close), bash script game-day automation com abort condition em error rate > 5%, postmortem template pós-game-day.
+
 ### 2026-05-01, Review wave 5 — industrial depth (CDC/Patroni, real-time scaling, DORA, embedded Rust, hardware bring-up)
 
 Quinta onda do audit cross-stage. Refinamentos cirúrgicos de profundidade industrial onde aluno Senior+ precisa de rigor operacional concreto.

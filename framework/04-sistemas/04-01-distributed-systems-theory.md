@@ -234,6 +234,60 @@ CRDTs são estruturas de dados onde **merge é automatic e determinístico**: in
 
 **Yjs em particular** dominou, biblioteca JS que serializa CRDT pra binary compact, integra com WebRTC/WebSocket pra sync, e tem bindings pra ProseMirror, Quill, Slate, etc. Linear e várias ferramentas SaaS usam.
 
+**Exemplo real Logística** (notas colaborativas em pedido editadas por lojista + suporte simultaneamente):
+
+```typescript
+// Server (Node + y-websocket)
+import { setupWSConnection } from 'y-websocket/bin/utils';
+import { WebSocketServer } from 'ws';
+import { LeveldbPersistence } from 'y-leveldb';
+
+const persistence = new LeveldbPersistence('./yjs-storage');
+const wss = new WebSocketServer({ port: 1234 });
+
+wss.on('connection', (ws, req) => {
+  const docName = new URL(req.url, 'http://x').pathname.slice(1); // ex: order-abc123
+  setupWSConnection(ws, req, { docName, gc: true });
+  // persistence carrega/salva doc automaticamente
+});
+```
+
+```typescript
+// Client (lojista dashboard)
+import * as Y from 'yjs';
+import { WebsocketProvider } from 'y-websocket';
+import { yCollab } from 'y-codemirror.next';
+
+const ydoc = new Y.Doc();
+const provider = new WebsocketProvider(
+  'wss://rt.logistica.com', `order-${orderId}`, ydoc,
+  { params: { token: jwt } }                         // auth no upgrade (02-13)
+);
+const ynotes = ydoc.getText('notes');                // CRDT text type
+
+// awareness = presença + cursor (não persiste, só p2p ephemeral)
+provider.awareness.setLocalStateField('user', {
+  name: currentUser.name, color: '#3b82f6', role: 'lojista'
+});
+
+// Liga ao editor (CodeMirror, ProseMirror, plain textarea via y-textarea)
+const view = new EditorView({
+  state: EditorState.create({
+    extensions: [yCollab(ynotes, provider.awareness)]
+  }),
+  parent: document.querySelector('#notes')
+});
+```
+
+Resultado em produção: lojista edita "Cliente solicita troco de R$ 50" enquanto suporte adiciona "Tentou contato 14h, sem resposta" simultaneamente. Ambos veem updates em tempo real, sem conflict, sem locking, com cursor presence.
+
+**Pegadinhas em produção:**
+- **Garbage collection**: `gc: true` no provider; tombstones senão crescem indefinidamente. Mas GC pode quebrar undo distante; trade-off por feature.
+- **Auth no upgrade**: WebSocket protocol não suporta header `Authorization`; passe via query param, valide no `setupWSConnection` antes de aceitar.
+- **Permissões**: Yjs sync não tem authz nativo. Server precisa filtrar diff por role (suporte vê tudo; cliente externo vê só campos públicos). Implementar via `y-protocols` custom message types, não trivial.
+- **Storage scaling**: LevelDB local ok pra ~1k docs; em escala maior, Postgres com `bytea` por doc, ou Redis com TTL pra docs cold.
+- **Yjs vs Automerge**: Yjs mais maduro em web/text editing; Automerge melhor em ergonomia JSON-like + history, mas overhead maior. Pra Logística (text + collaboration leve) → Yjs.
+
 **Limitações reais:**
 - **State cresce**: tombstones de removes (em OR-Set, RGA) acumulam. Garbage collection precisa de coordination, perde "pure" CRDT-ness.
 - **Merge é commutativo, não comutativo em significado**: se replicas concorrentes editam mesmo objeto de forma "incompatível semanticamente", CRDT converge pra **algum** state, não necessariamente o **certo** semanticamente. Ex: 2 users movem um item pro mesmo slot, quem ganha? CRDT decide via tiebreaker (lexicographic ID); user pode ver inconsistência.
