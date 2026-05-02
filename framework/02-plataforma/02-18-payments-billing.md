@@ -188,6 +188,248 @@ Pagamento offline. Gera boleto, customer paga em banco/app. Liquidação D+1 a D
 
 Cancele automaticamente após vencimento. Dunning: enviar 2º email, gerar 2ª via.
 
+### 2.19 Webhook security + reconciliation patterns + dispute handling
+
+Webhook é o canal de truth assíncrona entre PSP (Stripe/Adyen/Pagar.me/Pix) e seu sistema. Implementação ingênua: 4 vetores de breach + race conditions + reconciliation pesadelo. Esta seção entrega: signature verification production-ready, idempotent processing, ordering handling (out-of-order webhooks), reconciliation diária reconciliando PSP ↔ DB ↔ ledger contábil, dispute (chargeback) workflow.
+
+**Webhook security — 5 layers obrigatórias**:
+
+**2.19.1 Signature verification (Stripe pattern)**:
+
+```typescript
+// app/api/webhooks/stripe/route.ts
+import Stripe from 'stripe';
+const stripe = new Stripe(process.env.STRIPE_SECRET!);
+const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET!;
+
+export async function POST(req: Request) {
+  const payload = await req.text();   // RAW body, NÃO parsed JSON
+  const sig = req.headers.get('stripe-signature');
+  if (!sig) return new Response('Missing signature', { status: 400 });
+
+  let event: Stripe.Event;
+  try {
+    event = stripe.webhooks.constructEvent(payload, sig, WEBHOOK_SECRET);
+  } catch (err) {
+    log.warn({ err }, 'webhook signature failed');
+    return new Response('Invalid signature', { status: 400 });
+  }
+
+  await handleEvent(event);
+  return new Response('ok', { status: 200 });
+}
+```
+
+- **Pegadinha CRÍTICA**: usa `req.text()` (raw body), NÃO `req.json()`. Express `body-parser` precisa `express.raw({ type: 'application/json' })` no path do webhook ANTES do `express.json()`.
+- Sem signature: qualquer um pode POST fake event → conta paga falsa.
+- Stripe sig algoritmo: HMAC-SHA256 de `timestamp.payload` com `WEBHOOK_SECRET`.
+
+**2.19.2 Replay attack — timestamp tolerance**:
+
+- Stripe inclui timestamp em sig header. `constructEvent` valida tolerance default 300s.
+- Set explicit: `stripe.webhooks.constructEvent(payload, sig, secret, 300)`.
+- Sem replay protection: atacante captura webhook legítimo, replays semanas depois.
+
+**2.19.3 Idempotent processing — duplicate event protection**:
+
+```typescript
+async function handleEvent(event: Stripe.Event) {
+  await db.transaction(async (tx) => {
+    const existing = await tx.processedWebhooks.findFirst({ where: { eventId: event.id }});
+    if (existing) {
+      log.info({ eventId: event.id }, 'duplicate, skipping');
+      return;
+    }
+
+    await processStripeEvent(event, tx);
+
+    await tx.processedWebhooks.insert({
+      eventId: event.id,
+      eventType: event.type,
+      processedAt: new Date(),
+    });
+  });
+}
+```
+
+- Stripe envia event 2-3x em casos de timeout. Sem dedupe = double charge update, double email.
+
+**2.19.4 Out-of-order handling**:
+
+- Webhooks NÃO são FIFO. `payment_intent.succeeded` pode chegar ANTES de `payment_intent.created`.
+- **Pattern**: ignore eventos antigos via `event.created` timestamp ou via state machine validation.
+
+```typescript
+await db.payments.update({
+  where: { stripeId: event.data.object.id },
+  data: {
+    status: event.data.object.status,
+    lastEventAt: new Date(event.created * 1000),
+  },
+}, {
+  // Só atualiza se este evento é mais recente que último processado
+  where: { lastEventAt: { lt: new Date(event.created * 1000) }}
+});
+```
+
+**2.19.5 Quick ack + async processing**:
+
+- Webhook handler responde 200 em < 5s. Stripe retries se demorar.
+- Pra processing pesado: enfileire pra worker.
+
+```typescript
+export async function POST(req: Request) {
+  const event = constructAndVerify(...);
+  await db.webhookInbox.insert({ eventId: event.id, payload: event });
+  return new Response('ok', { status: 200 });
+}
+// Worker separado processa inbox (cruza com 04-02 §2.18 inbox pattern)
+```
+
+**Reconciliation — closing the loop daily**:
+
+PSP source of truth pode divergir do seu DB. Webhook lost, partial failure, manual operations no PSP dashboard. Pattern diário:
+
+```typescript
+// Cron 02:00 daily
+async function reconcile() {
+  const yesterday = startOfYesterday();
+
+  const stripeCharges = await stripe.charges.list({
+    created: { gte: yesterday.getTime() / 1000, lt: yesterday.getTime() / 1000 + 86400 },
+    limit: 100,
+  }).autoPagingToArray({ limit: 10000 });
+
+  const dbPayments = await db.payments.findMany({
+    where: { createdAt: { gte: yesterday, lt: addDays(yesterday, 1) }},
+  });
+
+  const stripeMap = new Map(stripeCharges.map(c => [c.id, c]));
+  const dbMap = new Map(dbPayments.map(p => [p.stripeId, p]));
+
+  const missingInDb = stripeCharges.filter(c => !dbMap.has(c.id));
+  const missingInStripe = dbPayments.filter(p => !stripeMap.has(p.stripeId));
+  const stateMismatch = stripeCharges.filter(c => {
+    const db = dbMap.get(c.id);
+    return db && db.status !== c.status;
+  });
+
+  if (missingInDb.length || missingInStripe.length || stateMismatch.length) {
+    await alertOps({
+      date: yesterday,
+      missingInDb: missingInDb.length,
+      missingInStripe: missingInStripe.length,
+      stateMismatch: stateMismatch.length,
+    });
+  }
+
+  await persistReconciliationReport(...);
+}
+```
+
+Reconciliation finds bugs antes que finance fecha mês com balance errado.
+
+**Triple-entry ledger pattern (production-grade)**:
+
+- **PSP charges** (source of truth pra cobrança).
+- **Internal DB payments table** (linked ao order/customer).
+- **Accounting ledger** (immutable double-entry, debit/credit; sem update; só append).
+
+```sql
+CREATE TABLE ledger_entries (
+  id UUID PRIMARY KEY,
+  entry_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  account TEXT NOT NULL,
+  direction TEXT CHECK (direction IN ('debit', 'credit')),
+  amount_minor BIGINT NOT NULL,
+  currency TEXT NOT NULL,
+  reference_id TEXT NOT NULL,    -- ex: stripe_charge_id
+  reference_type TEXT NOT NULL,  -- 'charge', 'refund', 'fee', 'payout'
+  metadata JSONB
+);
+
+-- Index pra reconciliation queries
+CREATE INDEX ON ledger_entries (reference_type, reference_id);
+CREATE INDEX ON ledger_entries (account, entry_at DESC);
+```
+
+Toda transação: 1 charge → 2+ entries (debit customer account, credit revenue). Reconciliation: `sum(credit) - sum(debit)` por account = saldo. Compara com bank/PSP balance. Used by Stripe internally, banks, fintechs.
+
+**Dispute (chargeback) handling**:
+
+Customer abre dispute via banco → PSP suspende fundos → você tem 7-21 dias pra responder.
+
+```typescript
+stripe.events.on('charge.dispute.created', async (event) => {
+  const dispute = event.data.object;
+  await db.disputes.insert({
+    chargeId: dispute.charge,
+    amount: dispute.amount,
+    reason: dispute.reason,           // 'fraudulent', 'product_not_received', etc.
+    evidence_due_by: new Date(dispute.evidence_details.due_by * 1000),
+    status: 'needs_response',
+  });
+  await alertFinance(dispute);
+  await pauseCustomerOrders(dispute.charge);
+});
+```
+
+Evidence package: ordem detail, courier tracking, delivery photo, signed receipt, communication log. **Win rate típico** (Stripe data): 30-50% para fraud/product_not_received se evidence é forte; 0-10% para "credit_not_processed" sem refund record. Loss = chargeback amount + chargeback fee ($15-25). Reincidência alta (> 1%) = PSP impõe higher reserves ou termina conta.
+
+**Pix-specific (Brasil)**:
+
+- PSP envia webhook em pagamento Pix recebido — `pix.received` com `txid`, `e2eId`, valor.
+- Reconciliation Pix: SPI/Bacen tem statements; reconcile diário com batch CNAB ou OpenBanking API.
+- Pix Devolução (refund): janela 90 dias; processada como Pix novo de você → devolvedor.
+
+**Webhook timeout retries — como cada PSP comporta**:
+
+| PSP | Retry policy |
+|---|---|
+| Stripe | 3 dias, exponential backoff (immediate, 1m, 5m, 15m, 1h, ...) |
+| Adyen | 8 retries em 12h |
+| Pagar.me | 5 retries em 24h |
+| Mercado Pago | retries até 24h |
+
+Após max retries: PSP marca como failed; vai pra dashboard. Você precisa monitor + manual recovery.
+
+**Logística end-to-end — payment + webhook + ledger**:
+
+```
+1. Customer paga via Stripe Checkout
+2. Stripe redirect → success URL → DB marca "pending_confirmation"
+3. Stripe envia webhook charge.succeeded
+   → handler verifica sig
+   → check duplicate (processed_webhooks)
+   → atomic TX:
+     - update payments status='succeeded'
+     - insert ledger entries (debit customer / credit revenue / credit Stripe fee)
+     - publish OrderConfirmed event
+   → ack 200
+4. Daily 02:00 cron reconcile:
+   - fetch Stripe charges from last 24h
+   - compare com payments + ledger
+   - alert se mismatch
+5. Webhook charge.dispute.created
+   - pause customer orders
+   - assemble evidence
+   - submit via Stripe API
+```
+
+**Anti-patterns observados**:
+
+- **`req.json()` em webhook**: corrompe raw body; signature falha.
+- **Sem signature verification**: aceita fake webhooks.
+- **Sem idempotency**: duplicate processing on retry.
+- **Processing síncrono pesado**: handler timeout > 5s; PSP retry; spiral.
+- **Sem reconciliation diária**: divergence acumula meses; impossível auditar.
+- **Update payment status sem timestamp check**: out-of-order webhook escreve status antigo sobre novo.
+- **Sem ledger imutável**: bug em update payment loses history; auditoria contábil impossível.
+- **Dispute notification só por email**: perde deadline; chargeback automático; loss garantida.
+- **Webhook secret em código**: vazado em git history; atacante forja sigs. Use env + rotation.
+
+Cruza com **02-18 §2.15** (reconciliation foundation), **02-18 §2.17** (Pix specifics), **04-02 §2.18** (idempotent consumer = pattern do webhook handler), **04-04 §2.4** (idempotency em retries gerais), **03-08 §2.13** (secrets management pra webhook secret), **04-09 §2.20** (load shedding em webhook spike).
+
 ---
 
 ## 3. Threshold de Maestria

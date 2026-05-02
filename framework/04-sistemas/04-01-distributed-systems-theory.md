@@ -325,6 +325,201 @@ Ao desenhar sistema distribuído, perguntar:
 5. O que acontece em partition?
 6. Como retries são idempotent?
 
+### 2.21 Logical clocks deep — Lamport, vector clocks, hybrid logical clocks (HLC)
+
+Wall-clock time (NTP) é mentira em sistemas distribuídos: clock skew de centenas de ms entre nodes, leap second drama, virtualização com VMs cujo clock pula minutos após migration. "Quem aconteceu primeiro?" não pode usar `Date.now()`. Logical clocks resolvem o problema com 3 técnicas progressivas: Lamport timestamps (ordering total mas perde causalidade), vector clocks (causalidade exata mas O(N) bytes), hybrid logical clocks (HLC, melhor dos dois, 2014). CockroachDB, Spanner-like systems e CRDTs todos usam variantes.
+
+**Foundation: o problema de "happened-before"**:
+
+Lamport (1978) define: evento A → B se A precede B na mesma máquina, OU A é send de mensagem que B recebe, OU transitividade via cadeia. Sem ordering causal: cliente A escreve `saldo = 100`, cliente B escreve `saldo = 50`. Qual venceu? NTP timestamp pode dizer A vence quando na verdade B foi causado por A (leu 100, descontou 50). Resultado errado: 100 sobrescreve a operação derivada.
+
+**Lamport timestamp — total ordering, simples**:
+
+```typescript
+class LamportClock {
+  private counter = 0;
+
+  // Antes de evento local
+  now(): number {
+    return ++this.counter;
+  }
+
+  // Ao receber evento de outro node com timestamp T
+  receive(T: number): number {
+    this.counter = Math.max(this.counter, T) + 1;
+    return this.counter;
+  }
+}
+
+// Uso:
+const clock = new LamportClock();
+const event1 = clock.now();              // 1
+sendMessage({ data: 'foo', ts: clock.now() });   // 2
+// Outro node:
+const ts = clock.receive(2);             // max(0, 2) + 1 = 3
+```
+
+**Garantia**: se A → B causally, então `lamport(A) < lamport(B)`. **Limite**: `lamport(A) < lamport(B)` NÃO implica A → B (eventos concorrentes podem ter ordem arbitrária). Usado em Cassandra (timestamps de write), Kafka (offsets dentro de partition), Riak.
+
+**Vector clocks — causalidade exata**:
+
+```typescript
+type VectorClock = Record<string, number>;   // nodeId → counter
+
+class VClock {
+  private vc: VectorClock;
+  constructor(private nodeId: string, initial: VectorClock = {}) {
+    this.vc = { ...initial, [nodeId]: initial[nodeId] ?? 0 };
+  }
+
+  tick(): VectorClock {
+    this.vc[this.nodeId]++;
+    return { ...this.vc };
+  }
+
+  receive(remote: VectorClock): VectorClock {
+    for (const [node, count] of Object.entries(remote)) {
+      this.vc[node] = Math.max(this.vc[node] ?? 0, count);
+    }
+    this.vc[this.nodeId]++;
+    return { ...this.vc };
+  }
+
+  // Compare two VCs
+  static compare(a: VectorClock, b: VectorClock): 'before' | 'after' | 'concurrent' | 'equal' {
+    const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+    let aLessOrEq = true, bLessOrEq = true;
+    for (const k of keys) {
+      const av = a[k] ?? 0, bv = b[k] ?? 0;
+      if (av > bv) bLessOrEq = false;
+      if (av < bv) aLessOrEq = false;
+    }
+    if (aLessOrEq && bLessOrEq) return 'equal';
+    if (aLessOrEq) return 'before';
+    if (bLessOrEq) return 'after';
+    return 'concurrent';
+  }
+}
+```
+
+`compare(a, b) === 'concurrent'` = eventos genuinamente paralelos sem causalidade entre. **Custo**: O(N) bytes por timestamp; N = number of nodes que já tocaram o dado. Em sistema com 1000 clients, VC vira 8KB+ por write. Usado em Riak (sibling resolution), Voldemort, classic CRDTs.
+
+**Vector clock pruning — o trick em produção**:
+
+Estratégia: keep só top-K most recent nodes; TTL para nodes inativos.
+
+```typescript
+function prune(vc: VectorClock, lastSeenAt: Record<string, number>, maxAgeMs = 7 * 86400_000) {
+  const now = Date.now();
+  const pruned: VectorClock = {};
+  for (const [node, count] of Object.entries(vc)) {
+    if (now - (lastSeenAt[node] ?? 0) < maxAgeMs) {
+      pruned[node] = count;
+    }
+  }
+  return pruned;
+}
+```
+
+Trade-off: pruning agressivo causa false-concurrent (loss of causality info); conservador cresce indefinidamente.
+
+**Hybrid Logical Clocks (HLC) — best of both worlds**:
+
+Kulkarni & Demirbas, 2014. Combina wall-clock + logical counter em 64-bit.
+
+```typescript
+type HLC = { wallTime: number; logical: number };
+
+class HybridLogicalClock {
+  private last: HLC = { wallTime: 0, logical: 0 };
+
+  now(): HLC {
+    const wall = Date.now();
+    if (wall > this.last.wallTime) {
+      this.last = { wallTime: wall, logical: 0 };
+    } else {
+      this.last = { ...this.last, logical: this.last.logical + 1 };
+    }
+    return { ...this.last };
+  }
+
+  receive(remote: HLC): HLC {
+    const wall = Date.now();
+    const newWall = Math.max(wall, this.last.wallTime, remote.wallTime);
+    let logical: number;
+    if (newWall === this.last.wallTime && newWall === remote.wallTime) {
+      logical = Math.max(this.last.logical, remote.logical) + 1;
+    } else if (newWall === this.last.wallTime) {
+      logical = this.last.logical + 1;
+    } else if (newWall === remote.wallTime) {
+      logical = remote.logical + 1;
+    } else {
+      logical = 0;
+    }
+    this.last = { wallTime: newWall, logical };
+    return { ...this.last };
+  }
+
+  static compare(a: HLC, b: HLC): -1 | 0 | 1 {
+    if (a.wallTime !== b.wallTime) return a.wallTime < b.wallTime ? -1 : 1;
+    if (a.logical !== b.logical) return a.logical < b.logical ? -1 : 1;
+    return 0;
+  }
+}
+```
+
+**Garantia**: monotônico mesmo com clock skew; close to wall-clock (good pra debugging); 64-bit fits. **Limite**: não detecta concurrency (Lamport-like, não vetor). Pra concurrency precisa MVCC + version vectors. Usado em CockroachDB (default), MongoDB (clusterTime), YugabyteDB.
+
+**Logística — escolha por uso**:
+
+| Cenário | Clock |
+|---|---|
+| Order status updates (LWW); ordering total OK | HLC ou Lamport |
+| Multi-master replication com sibling resolution | Vector clock |
+| Audit log; precisa wall-clock próximo (humans readable) | HLC |
+| Operational counter sob race | Lamport sufficient |
+| CRDT (Yjs, Automerge) com causality | Vector clock interno |
+
+**Production gotchas**:
+- **NTP skew**: HLC é resiliente a alguns segundos de skew, mas drift de horas quebra (max wall-time monotônico fica preso no future). Set `chronyd` ou alike monitoring.
+- **Leap seconds**: smear NTP (Google approach) é safer que step.
+- **VM migration**: clock pode pular minutos. HLC absorve melhor que wall-clock raw.
+- **Persistence**: clock state precisa ser persisted entre restarts. Log último HLC em durable storage; ao boot, `last + 1`.
+
+**Code: integração com message broker**:
+
+```typescript
+// Cada message envia HLC
+const hlc = new HybridLogicalClock();
+
+producer.send({
+  topic: 'orders',
+  messages: [{
+    value: JSON.stringify(order),
+    headers: { hlc: JSON.stringify(hlc.now()) },
+  }],
+});
+
+consumer.run({
+  eachMessage: async ({ message }) => {
+    const remoteHlc: HLC = JSON.parse(message.headers!.hlc!.toString());
+    const newHlc = hlc.receive(remoteHlc);
+    // Process com newHlc atribuído ao evento downstream
+  },
+});
+```
+
+**Anti-patterns observados**:
+- **`Date.now()` pra ordering em distributed system**: clock skew NTP entre nodes destroi correctness.
+- **Lamport como "wall-clock equivalent"**: não é. Sem ordem real ou tempo real significativo.
+- **Vector clock sem pruning**: cresce indefinidamente; bytes overhead engole storage.
+- **HLC não persisted**: restart pode regredir wall-time → causality breakage.
+- **Mistura de clocks** (parte do sistema usa Lamport, parte HLC): comparação cross-component impossível.
+- **`now()` chamado N vezes em mesmo handler**: micro-incrementos sem semantic; gera "timestamps" sequenciais sem causality real.
+- **Sem unit test de causality compare**: edge cases (concurrent vs equal vs before) raramente cobertos.
+
+Cruza com **04-01 §2.16** (idempotência precisa ordering), **04-01 §2.18** (CRDT usa vector internally), **04-02 §2.18** (idempotent consumer + HLC pra ordering), **04-13 §2.16** (exactly-once delivery semântica), **02-09 §2.13** (Postgres logical replication usa LSN, conceito relacionado).
+
 ---
 
 ## 3. Threshold de Maestria

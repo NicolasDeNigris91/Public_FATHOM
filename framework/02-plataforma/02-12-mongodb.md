@@ -265,6 +265,228 @@ Para dúvida típica em backend de aplicação CRUD-ish: comece com Postgres. Ad
 - Atlas faz tudo automated.
 - Compactação: `compact` (libera espaço pós-DELETEs); em replica sets, fazer um nó por vez.
 
+### 2.18 Schema design deep — embed vs reference, aggregation pipeline, transaction limits
+
+MongoDB schema = trade-off contínuo. "Embed everything" vence em read-heavy mas explode em update + atinge 16MB doc limit. "Reference everything" vira N+1 disfarçado em NoSQL. Aggregation pipeline tem 30+ stages, mas mal-orquestrado consome RAM brutal. Transactions custam 2-5x latência vs single-doc atomic ops. Esta seção dá decision tree concreto + código produção.
+
+#### Embed vs reference — decision matrix
+
+| Cenário | Embed | Reference |
+|---|---|---|
+| One-to-few (< 100 children) | ✓ | overkill |
+| One-to-many com bound conhecido (< 1000) | ✓ se < 16MB | ✓ se queries variam |
+| One-to-many unbounded (logs, comments) | ✗ (16MB limit) | ✓ |
+| Many-to-many | ✗ | ✓ (refs ou junction collection) |
+| Acessado SEMPRE junto | ✓ | ✗ |
+| Acessado independente frequente | ✗ | ✓ |
+| Update do child sem ler parent | ✗ | ✓ |
+| Atomicity entre child e parent obrigatória | ✓ (single-doc atomic) | requires transaction |
+
+#### Embed pattern — order com items + courier snapshot
+
+```javascript
+// orders collection
+{
+  _id: ObjectId("..."),
+  tenantId: UUID("..."),
+  status: "in_transit",
+  items: [
+    { productId: ObjectId("..."), name: "Smartphone X", qty: 2, unitPrice: 1500_00, subtotal: 3000_00 },
+    { productId: ObjectId("..."), name: "Capa", qty: 1, unitPrice: 50_00, subtotal: 50_00 }
+  ],
+  courier: {
+    _id: ObjectId("..."),
+    name: "João Silva",
+    vehicle: "moto",
+    phoneSnapshot: "+5511999..."
+  },
+  total: 3050_00,
+  createdAt: ISODate("2026-04-15T..."),
+  statusHistory: [
+    { status: "pending", at: ISODate("...") },
+    { status: "in_transit", at: ISODate("...") }
+  ]
+}
+```
+
+- Reads pra "show order detail" = 1 query, 0 JOINs.
+- Snapshot do courier (`name`, `vehicle`) congela o nome NO MOMENTO da assignação — historical accuracy preservada se courier muda nome depois.
+- **Pegadinha**: courier mudou phone em prod. App mostrando order antiga vê phone antigo. **Decisão correta**: snapshot de campos imutáveis-no-contexto + ref pra source of truth.
+
+#### Reference pattern — events em collection separate
+
+```javascript
+// tracking_pings collection (high-write, unbounded)
+{
+  _id: ObjectId("..."),
+  orderId: ObjectId("..."),
+  courierId: ObjectId("..."),
+  coords: { type: "Point", coordinates: [-46.633, -23.55] },
+  speedKmh: 45.2,
+  accuracyM: 8.5,
+  ts: ISODate("...")
+}
+
+// Index pra lookup por order
+db.tracking_pings.createIndex({ orderId: 1, ts: -1 });
+
+// Time-series collection (Mongo 6+, melhor performance pra time data)
+db.createCollection('tracking_pings', {
+  timeseries: {
+    timeField: 'ts',
+    metaField: 'meta',  // { courierId, orderId }
+    granularity: 'seconds'
+  },
+  expireAfterSeconds: 90 * 24 * 3600
+});
+```
+
+- Embed seria error: 1 order = milhares de pings → bate 16MB doc limit em horas.
+- Time-series collection: comprime time data internamente; indexes automatic em `meta` campos.
+
+#### Schema versioning — escapar de migration nightmare
+
+```javascript
+// Pattern: schemaVersion field + lazy migration
+{
+  _id: ObjectId("..."),
+  schemaVersion: 2,
+  name: "Acme Corp",
+  // v2: added 'tier' field
+  tier: "premium"
+}
+
+// Migration in app code
+function migrateLojista(doc) {
+  if (doc.schemaVersion === 1) {
+    doc.tier = doc.legacyPlan === 'pro' ? 'premium' : 'standard';
+    doc.schemaVersion = 2;
+    db.lojistas.updateOne({ _id: doc._id }, { $set: { tier: doc.tier, schemaVersion: 2 } });
+  }
+  return doc;
+}
+```
+
+- Sem `schemaVersion`: 5 anos de prod = 7 estruturas diferentes na mesma collection. Code precisa handle todas.
+- Lazy migration: paga custo só em docs lidos. Background batch migration pra cleanup.
+
+#### Aggregation pipeline patterns
+
+```javascript
+// Top 10 lojistas por revenue last 30 days, com nome populated
+db.orders.aggregate([
+  { $match: {
+      tenantId: UUID("..."),
+      status: "completed",
+      createdAt: { $gte: ISODate("...") }
+  }},
+  { $group: {
+      _id: "$lojistaId",
+      orderCount: { $sum: 1 },
+      totalRevenue: { $sum: "$total" }
+  }},
+  { $sort: { totalRevenue: -1 }},
+  { $limit: 10 },
+  { $lookup: {
+      from: "lojistas",
+      localField: "_id",
+      foreignField: "_id",
+      as: "lojista",
+      pipeline: [
+        { $project: { name: 1, tier: 1 }}    // só campos necessários
+      ]
+  }},
+  { $unwind: "$lojista" },
+  { $project: {
+      lojistaName: "$lojista.name",
+      tier: "$lojista.tier",
+      orderCount: 1,
+      totalRevenue: 1
+  }}
+]);
+```
+
+- **`$match` PRIMEIRO**: aproveita index. Sem index em `tenantId` + `createdAt`, full collection scan.
+- **`$lookup` com pipeline**: filtra/projeta no lookup; sem isso, traz docs inteiros.
+- **`$project` no fim**: reduz network bytes ao client.
+
+#### Aggregation memory limits
+
+```javascript
+db.orders.aggregate([...], {
+  allowDiskUse: true,    // pra stages que excedem 100MB RAM (sort, group)
+  maxTimeMS: 30000,      // kill após 30s
+  hint: { tenantId: 1, createdAt: -1 }   // force index
+});
+```
+
+- `$sort`/`$group` sem index podem alocar 100MB+ RAM. `allowDiskUse: true` spilla pra disk (lento mas não OOM).
+- **Pegadinha em scale**: 100 queries simultâneas com aggregation pesado = 10GB+ RAM consumido. Use materialized views via `$out` pra pre-computar.
+
+#### `$merge` / `$out` — materialized views
+
+```javascript
+// Materialized daily revenue per tenant
+db.orders.aggregate([
+  { $match: { status: "completed" }},
+  { $group: {
+      _id: { tenant: "$tenantId", day: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" }}},
+      revenue: { $sum: "$total" },
+      orderCount: { $sum: 1 }
+  }},
+  { $merge: {
+      into: "daily_revenue",
+      on: ["_id"],
+      whenMatched: "replace",
+      whenNotMatched: "insert"
+  }}
+]);
+```
+
+- Schedule via cron job. Dashboard query lê de `daily_revenue` direto, < 50ms.
+
+#### Transactions — quando vale e quando NÃO
+
+```javascript
+// Multi-doc atomic — Mongo 4+
+const session = client.startSession();
+try {
+  await session.withTransaction(async () => {
+    await db.orders.insertOne({ ... }, { session });
+    await db.inventory.updateOne(
+      { productId: pid },
+      { $inc: { stock: -1 }},
+      { session }
+    );
+  }, {
+    readConcern: { level: 'snapshot' },
+    writeConcern: { w: 'majority' },
+    maxCommitTimeMS: 5000
+  });
+} finally {
+  await session.endSession();
+}
+```
+
+- **Custo**: 2-5x latência vs single-doc atomic ops.
+- **Limites**: max 16MB de modificações em transação; max 1min duração default; lock contention em mesmo doc.
+- **Quando vale**: cross-collection invariant (decrement inventory + insert order); read isolation snapshot.
+- **Quando NÃO**: 80% dos casos pode ser single-doc atomic via `$set`/`$inc`/`$push` em embedded array. Embed-design correto evita transaction need.
+
+#### Anti-patterns observados
+
+- **Embed unbounded**: comments embedded em post; viral post hits 16MB doc limit. Always cap embed array.
+- **Reference quando embed serve**: `{ orderId, productId }` em items array; cada read faz `$lookup` de products; vira aggregation N+1.
+- **`$lookup` sem índice no `foreignField`**: full scan da collection lookup. Index obrigatório.
+- **Aggregation sem `$match` first**: full collection scan; performance cai 100x em scale.
+- **`allowDiskUse: true` como default**: mascara queries mal-projetadas; lentidão silenciosa. Remova; deixe queries quebrar; force optimization.
+- **Schema sem `schemaVersion`**: app code com 7 if/else por versão.
+- **Transactions pra single-collection update**: overhead inútil. Use single-doc atomic.
+- **Snapshot fields sem TTL/refresh strategy**: courier name muda; orders antigas mostram nome antigo OK; mas profile pic url quebra após 6 meses (CDN delete). Document refresh policy.
+- **`db.collection.find().sort()` sem index compound**: scan + in-memory sort. Compound index `{ filter: 1, sort: -1 }`.
+
+Cruza com **02-12 §2.10** (replica sets — w='majority' pra durability), **02-12 §2.11** (sharding afeta transaction scope), **02-12 §2.16** (anti-patterns gerais), **02-09** (comparação Postgres pra mesmas decisions), **04-13 §2.12** (CDC de Mongo via change streams).
+
 ---
 
 ## 3. Threshold de Maestria

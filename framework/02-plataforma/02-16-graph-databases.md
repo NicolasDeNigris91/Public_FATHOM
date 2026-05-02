@@ -150,6 +150,156 @@ Monitoring: Bolt protocol metrics, slow query log, page cache hit ratio.
 
 ISO/IEC 39075:2024 (GQL) é primeiro standard internacional pra graph query language. Cypher é base. Adoção por Neo4j, AWS Neptune, TigerGraph. Vale acompanhar.
 
+### 2.16 Cypher patterns aplicados — multi-hop, recommendation, fraud, when graph beats SQL
+
+Graph DB perde 90% das vezes pra Postgres + JOIN. Mas em 10% dos casos (multi-hop traversal, recommendation, fraud detection com cycles, knowledge graph), Postgres com 6-level JOIN explode em latência cubica enquanto Neo4j responde em 50ms. Esta seção entrega: 5 padrões Cypher production-ready, decisão "graph vs SQL" com benchmarks reais, integração híbrida (Postgres source + Neo4j projeção), tooling 2026.
+
+#### 2.16.1 Quando graph DB ganha — 4 cenários canônicos
+
+| Cenário | Por que graph vence |
+|---|---|
+| **Multi-hop traversal** (4+ hops) | SQL: N JOINs cubic; Neo4j: index-free adjacency O(N) |
+| **Pathfinding** (shortest path, all paths) | SQL: recursive CTE complexa; Neo4j: shortestPath nativo |
+| **Pattern matching** (subgraphs, motifs) | SQL: vira janela de UNION ALL gigante; Cypher: declarativo |
+| **Variable depth** ("amigos de amigos com filtro") | SQL: recursive CTE com depth dinâmica = pesadelo; Cypher: `*1..5` |
+
+#### 2.16.2 Pattern 1 — Multi-hop friend recommendation (Logística: couriers que conhecem couriers)
+
+```cypher
+MATCH (me:Courier {id: $courierId})-[:WORKED_WITH*2..3]-(suggestion:Courier)
+WHERE NOT (me)-[:WORKED_WITH]-(suggestion)
+  AND suggestion.id <> me.id
+  AND suggestion.active = true
+WITH suggestion, count(*) AS strength
+ORDER BY strength DESC
+LIMIT 10
+RETURN suggestion.id, suggestion.name, strength;
+```
+
+SQL equivalente requer 2-3 self-joins + DISTINCT + window function. Em 1M couriers com avg 50 collaborations, Postgres p99 ~3s; Neo4j ~80ms.
+
+#### 2.16.3 Pattern 2 — Fraud detection via cycle (kickback ring)
+
+```cypher
+// Detecta ciclo de pagamentos suspeito (lojista -> courier -> lojista) em janela
+MATCH (l1:Lojista)-[t1:PAID]->(c:Courier)-[t2:PAID]->(l2:Lojista)
+WHERE t1.amount > 10000 AND t2.amount > 10000
+  AND t1.timestamp < t2.timestamp
+  AND duration.between(t1.timestamp, t2.timestamp).hours < 24
+  AND l1.id <> l2.id
+RETURN l1, c, l2, t1.amount, t2.amount;
+```
+
+SQL: 3-way JOIN com timestamp diff + duration aggregation + nondiagonal filter. Cypher é literal o pattern. Estende fácil pra N-hop: `(l1)-[*1..6]->(l_back)` detecta cycles longos.
+
+#### 2.16.4 Pattern 3 — Shortest path (rota indireta)
+
+```cypher
+MATCH (origin:Hub {city: 'São Paulo'}), (dest:Hub {city: 'Recife'})
+CALL apoc.algo.dijkstra(origin, dest, 'CONNECTS', 'distance_km')
+YIELD path, weight
+RETURN [n IN nodes(path) | n.city] AS route, weight AS totalKm;
+```
+
+APOC plugin: Dijkstra, A*, all shortest paths. 50ms em grafo de 1M nodes.
+
+#### 2.16.5 Pattern 4 — Variable-depth recommendation com filter
+
+```cypher
+// Customers que compraram products parecidos a um specific
+MATCH (target:Product {id: $productId})<-[:BOUGHT]-(buyer:Customer)-[:BOUGHT]->(rec:Product)
+WHERE rec.id <> target.id
+  AND rec.category = target.category
+  AND NOT (target)<-[:SIMILAR_TO]-(rec)
+WITH rec, count(DISTINCT buyer) AS coBuyers
+WHERE coBuyers >= 5
+RETURN rec.id, rec.name, coBuyers
+ORDER BY coBuyers DESC
+LIMIT 20;
+```
+
+#### 2.16.6 Pattern 5 — Subgraph extraction pra ML feature engineering
+
+```cypher
+MATCH (c:Customer {id: $customerId})
+CALL apoc.path.subgraphAll(c, {
+  relationshipFilter: 'BOUGHT|RATED|REVIEWED',
+  maxLevel: 2
+})
+YIELD nodes, relationships
+RETURN nodes, relationships;
+```
+
+Output vira input pra GNN (Graph Neural Network) ou export pra feature store.
+
+#### 2.16.7 Decisão — graph dedicado vs Postgres extensions
+
+| Approach | Bom em | Limita em |
+|---|---|---|
+| **Neo4j / Memgraph (dedicated)** | Multi-hop, complex traversal, OLTP graph | OLTP relacional misto; ops separate |
+| **Postgres + recursive CTE** | < 4 hops, < 1M nodes | Latency cresce cubic; código complexo |
+| **Postgres + Apache AGE** (graph extension) | Graph + relational mesma DB | Newer; performance vs Neo4j ainda atrás |
+| **Postgres + ltree** | Hierarchies (single tree) | Não generalist graph |
+
+#### 2.16.8 Padrão híbrido recomendado em produção
+
+```
+Postgres (source of truth OLTP)
+     |
+     v  CDC (Debezium)
+Kafka
+     |
+     v  Consumer
+Neo4j (graph projection: subset relevante)
+     ^
+     |  Read-only graph queries
+App
+```
+
+- Postgres permanece source: customers, orders, products como tables normais.
+- Neo4j armazena APENAS edges + minimal node metadata necessário pra traversal (bought, rated, friend, etc.).
+- Queries OLTP normais -> Postgres. Queries graph (recommendation, fraud, multi-hop) -> Neo4j.
+- Logística: 2-week setup vs 3-month pra full Neo4j migration; menor risco.
+
+#### 2.16.9 Schema design no graph
+
+- **Node properties**: minimal — id + 2-5 attrs queried em traversal.
+- **Edge properties**: timestamps, weights, confidence scores.
+- **Index obrigatório**: `CREATE INDEX FOR (c:Customer) ON (c.id);`
+- **Constraint pra dedup**: `CREATE CONSTRAINT FOR (c:Customer) REQUIRE c.id IS UNIQUE;`
+
+#### 2.16.10 Performance — quando lento
+
+- **Cartesian explosion**: `MATCH (a), (b)` sem WHERE relacionando = NxM. Sempre conecte com edge.
+- **Variable depth sem limite**: `*1..` (unbounded) explode. Sempre cap: `*1..5`.
+- **Sem index em property filter**: `WHERE n.email = $x` sem index = full node scan.
+- **WITH desnecessário**: query planner às vezes prefere sem WITH; benchmark.
+- **Query cache**: Neo4j cache plans; queries parametrizadas (`$param`) cacheiam; literal values cada vez planejam de novo.
+
+#### 2.16.11 Tooling 2026 comparison
+
+| Tool | Modelo | Forte | Custo |
+|---|---|---|---|
+| **Neo4j 5.x** | Cypher; market leader | Maturity; ecosystem; APOC plugins | Community grátis; Enterprise paga |
+| **Memgraph** | Cypher-compatible, in-memory | 100x faster pra streaming graph | Community grátis; Enterprise paga |
+| **Apache AGE** (Postgres extension) | OpenCypher dialect | Graph + relational mesmo DB | Free, Postgres ecosystem |
+| **TigerGraph** | GSQL (própria); enterprise | Massive scale (10B+ edges) | Enterprise paga |
+| **Amazon Neptune** | Cypher + Gremlin + SPARQL | AWS managed | Pay per hour |
+| **Dgraph** | GraphQL native + DQL | API-friendly; horizontal scale | Open source + cloud |
+
+#### 2.16.12 Anti-patterns observados
+
+- **Migrar tudo pra graph "porque é cool"**: 90% das queries são CRUD relacionais; graph é overhead.
+- **Variable depth sem cap**: `*` (unbounded) num grafo denso = query roda por horas, OOM.
+- **Sem index em node label + property**: full scan; latência cresce com data.
+- **Edge sem direction quando importa**: `(a)-[:KNOWS]-(b)` undirected; pode bater 2x na traversal.
+- **Nodes "obesos"**: 50 properties por node; serialization domina latency.
+- **Substituir Postgres por Neo4j**: Neo4j ACID single-cluster; replication mais frágil que Postgres + Patroni.
+- **Sem batch pra inserts massivos**: 1 INSERT por API call = throughput < 100/s; use `UNWIND` + batched arrays.
+- **`OPTIONAL MATCH` em loop sem WITH**: pode explodir cartesian.
+
+Cruza com **02-16 §2.10** (Postgres híbrido — pattern recomendado), **02-16 §2.12** (casos de uso reais), **04-13 §2.12** (CDC alimenta Neo4j projection), **04-10 §2.x** (GNN consome subgraph extraction), **02-09 §2.7.1** (JSONB indexing pra grafos pequenos no Postgres).
+
 ---
 
 ## 3. Threshold de Maestria
