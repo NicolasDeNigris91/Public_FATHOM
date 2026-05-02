@@ -314,6 +314,83 @@ Como engenheiro full-stack chegando em senior:
 
 Promotion não é linear. Janelas abrem/fecham. Senior+ é compounding: cada ano de boa decisão constrói capital.
 
+### 2.21 Promotion Senior → Staff, processo concreto
+
+Senior é "delivers complex projects independently"; Staff é "**multiplica** o time / org via decisions, mentoria, technical leadership". Diferença não é tempo, é **escopo de impacto**. Promo case mal-conduzido custa 1-2 anos.
+
+#### Diferença operacional Senior vs Staff (Will Larson, Tanya Reilly)
+
+| Dimensão | Senior | Staff |
+|---|---|---|
+| **Escopo** | Feature ou serviço | Plataforma, área cross-time, ou tech direction |
+| **Decisões** | Implementa decisão tomada | Conduz a decisão (RFC, ADR, alignment) |
+| **Tempo investido em código** | 60-80% | 30-60% |
+| **Tempo em design / mentoria / influência** | 20-40% | 40-70% |
+| **Visibilidade** | Time imediato + manager | Manager → director → VP; cross-time |
+| **Failure mode** | Bug em produção | Time inteiro mira direção errada por 6 meses |
+
+#### Artifact requirements (varia por empresa, padrão calibrado)
+
+Promo case Staff defensável tipicamente apresenta:
+
+1. **2-3 projetos cross-time concluídos** com impact mensurável (latência -40%, custo -$200k/mês, retenção +5pp, on-call carga -50%).
+2. **3-5 ADRs** que você liderou (não só escreveu) que afetaram outros times.
+3. **1 RFC organizacional** (technical strategy doc, design principles, platform vision).
+4. **Mentees promoted**: 2-3 ICs que você mentorou viraram Senior ou Staff.
+5. **External signal**: blog post lido externamente, conf talk, OSS contribution sustained, ou cross-org influence (paneling, hiring loop).
+6. **Postmortem authoria**: lead em 2-3 incidentes SEV1/SEV2 com action items entregues.
+7. **Endorsements**: 5-10 colegas (ICs, managers, peers de outros times) escrevem cartas em forms internos.
+
+Empresas tier-1 (Stripe, Google, Anthropic): bar costuma exigir 2 desses 6 itens excepcionais, não 6 mediocre.
+
+#### 30/60/90 day plan tipo (após sinalizar intent ao manager)
+
+**Dia 1-30 — alinhamento e gap analysis:**
+- 1:1 com manager: "estou mirando promo Staff em X meses; quais gaps você vê?". Anote literal.
+- Leia perfis públicos (LinkedIn, blog) de 3 Staff atuais da empresa. Padrão de impact?
+- Self-assessment honesto contra rubric. Onde você está fraco vs claim?
+- Identifique **1-2 problemas org-level não-resolvidos** (deploy lento, alert fatigue, tech debt em lib core, perf gap).
+
+**Dia 31-60 — proposta:**
+- Escreva 1 RFC propondo solução pra 1 dos problemas identificados. Mesmo se rejeitado, sinaliza thinking org-level.
+- Comece **deliberadamente** mentorar 1 Mid-level (visível ao manager).
+- Publique 1 internal blog post substantivo.
+- 1:1 com 2-3 Staff/Principal pedindo critique honesta do plan.
+
+**Dia 61-90 — execução:**
+- Lidere implementação do RFC (se aprovado) ou pivot.
+- Documenta tudo em brag doc (com links, métricas, datas).
+- 1:1 com manager: "estou no track? Que gaps ainda vê?".
+- Acerte timing: comitês de promo têm cycles (típico 6 ou 12 meses). Não submeta fora do ciclo.
+
+#### Defense ritual (apresentação ao comitê)
+
+Tipicamente 30-45 min apresentando + Q&A:
+
+- **5 min**: contexto e claim ("estou requesting Staff. Aqui o que justifica.").
+- **15-20 min**: 2-3 case studies cada com 1 slide: problema, decisão, impact métrico, lessons.
+- **5 min**: como você opera Staff-style hoje (mentoria, RFCs, cross-team).
+- **5-10 min Q&A**: perguntas de stretching ("Como você lida com 2 times priorizando coisas conflitantes?").
+
+**Anti-patterns que matam promo:**
+- "Eu fiz X" em todo case study — Staff é sobre **multiplicação**; "eu liderei X com 5 ICs entregando" é correto.
+- Métricas vagas ("muito mais rápido"). Use números: "p99 800ms → 120ms via Y".
+- Apenas projetos do passado distante. Comitê quer **trend recente** (últimos 6-12 meses).
+- Sem cross-team work. Senior promovido a Staff sem influência fora do time é raro.
+
+#### Quando NÃO buscar promo Staff
+
+- Empresa não tem track Staff aberto (greedy ladder até Senior, depois EM).
+- Você quer escrever código 80% — Staff em maioria das empresas reduz hands-on. Considere "Senior Sênior" se existe.
+- Time/org instável (manager saindo, reorg em curso, layoffs). Adia 6-12 meses.
+- Você tem < 2 anos como Senior na empresa. Bar tipicamente exige 2-3 ciclos demonstrando.
+
+#### Promotion ≠ valor pessoal
+
+Calibração emocional: empresa promove pra **resolver problema de capacity org** (precisa Staff naquela área). Você ser bom não basta; tem que ser bom **e** caber na vaga aberta. Negação de promo não é negação de valor; é miss de timing/fit. Persistência sem amargor + colher signal pra próximo ciclo.
+
+Cruza com **04-12 §2.10** (roadmap técnico) e **05-03** (Conway's Law / org architecture). Será expandido no estágio Amplitude com **05-06 §mentorship** (Staff = mentor escalado) e **CAPSTONE-amplitude**.
+
 ---
 
 ## 3. Threshold de Maestria

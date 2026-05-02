@@ -434,6 +434,77 @@ Cuidados:
 
 Google Bigtable, Spanner, Cassandra usam hedging interno. CRDB (CockroachDB) tem opção config.
 
+#### Backup-after-percentile vs fixed timeout
+
+Hedge com timeout fixo (ex: 50ms) é hack. Timeout deve **adaptar a P95 observado dinamicamente** pra capturar a cauda real:
+
+```typescript
+import { TDigest } from 'tdigest';   // approximate quantile estimator
+
+class AdaptiveHedger {
+  private digest = new TDigest(0.01);   // 1% accuracy
+  private minHedgeAfter = 5;           // ms; floor
+  private maxHedgeAfter = 200;         // ms; ceiling
+
+  hedgeAfter(): number {
+    if (this.digest.size() < 100) return 50;  // sem amostras suficientes, fallback
+    const p95 = this.digest.percentile(0.95);
+    return Math.max(this.minHedgeAfter, Math.min(this.maxHedgeAfter, p95));
+  }
+
+  recordLatency(ms: number) {
+    this.digest.push(ms);
+  }
+
+  async call<T>(replicas: (() => Promise<T>)[]): Promise<T> {
+    if (replicas.length < 2) return replicas[0]();   // sem hedge possível
+
+    const after = this.hedgeAfter();
+    const start = performance.now();
+    const ctrlA = new AbortController();
+    const ctrlB = new AbortController();
+
+    const a = replicas[0]().finally(() => ctrlB.abort());
+    const hedge = new Promise<T>(resolve => setTimeout(() => {
+      const b = replicas[1]();
+      b.finally(() => ctrlA.abort());
+      resolve(b);
+    }, after));
+
+    try {
+      const result = await Promise.race([a, hedge]);
+      this.recordLatency(performance.now() - start);
+      return result;
+    } catch (err) {
+      this.recordLatency(performance.now() - start);
+      throw err;
+    }
+  }
+}
+```
+
+Custo: ~5-10% extra requests (ones que excederiam P95). Benefício real medido em produção (Google Bigtable, 2013): P99 de query lookup cai 30-43% sem aumentar load total.
+
+#### Quando hedge HURTS (anti-cases)
+
+- **Cache-warming queries**: hedge dispara 2 lookups, ambos cache-miss; cache fica "warmed twice" mas DB toma 2x carga sem ganho de latência (cache estava igualmente lento em ambas réplicas).
+- **Quorum reads** (CRDB SERIALIZABLE, Spanner read-write): hedging dobra coordenação cross-region; latência piora.
+- **Backend já saturado**: 5-10% overhead vira tipping point. Antes de hedging, considere capacity planning.
+- **Não-idempotente sem dedupe**: write hedge = double effect. **Validate idempotency** antes de habilitar hedging em path de mutação.
+- **Custo $$$ por request**: Anthropic Claude API call $0.10 cada; 10% hedge = 10% bill aumenta. Avalie ROI.
+
+#### Decisão pragmática
+
+| Cenário | Hedge? |
+|---|---|
+| Read replica de DB + read-only query | ✅ Sim, AdaptiveHedger |
+| LLM call com SLA de latency | ⚠️ Sim, mas com cap absoluto + idempotency-key |
+| Payment capture | ❌ Nunca (idempotency frágil + custo) |
+| Cache lookup | ❌ Não (cache miss → DB hit em ambos) |
+| Cross-region replication read | ✅ Sim, hedge entre regiões mais próximas |
+
+Cruza com **04-09 §2.13** (observability de latency tail é pré-requisito), **04-04 §2.4** (idempotency é mandatory), **04-04 §2.20** (adaptive concurrency limits são complemento).
+
 ### 2.20 Adaptive concurrency limits (Netflix)
 
 Em vez de rate limit fixo, **adapt limit dinamicamente** baseado em latency observada.

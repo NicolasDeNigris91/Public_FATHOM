@@ -92,6 +92,129 @@ Pontos:
 - **Expression index**: `CREATE INDEX ON users (lower(email))` permite query `WHERE lower(email) = ?` usar índice.
 - **Unique index**: garante unicidade. Backed por B-Tree.
 
+#### Partial index — quando vence
+
+Custo de índice = espaço + write amplification. Se 95% das queries filtram por subset (`status = 'pending'`, `deleted_at IS NULL`, `tenant_id = current_tenant`), partial cobre 100% dessas queries com 5% do tamanho.
+
+```sql
+-- Bad: full index (10M rows, 600MB)
+CREATE INDEX ON orders (created_at DESC);
+
+-- Good: partial covers só active orders (50k rows, ~3MB)
+CREATE INDEX ON orders (created_at DESC) WHERE status IN ('pending', 'in_transit');
+```
+
+**Pegadinha**: planner só usa partial se `WHERE` da query é **subset lógico** do `WHERE` do índice. `WHERE status = 'pending'` usa o partial acima; `WHERE status = 'delivered'` não usa (e nem deveria).
+
+Audit em prod:
+```sql
+-- Partial indexes vs full em mesma coluna
+SELECT indexname, indexdef, pg_size_pretty(pg_relation_size(indexname::regclass))
+FROM pg_indexes WHERE tablename = 'orders';
+```
+
+### 2.7.1 JSONB indexing patterns
+
+JSONB é poderoso mas mal-indexado vira full table scan disfarçado. Padrões essenciais:
+
+**`jsonb_path_ops` (containment-only, 2-3x menor que default):**
+```sql
+-- Default GIN: indexa cada key + value
+CREATE INDEX ON events USING gin (payload);
+
+-- Otimizado pra @> (containment): apenas hash de path-value pairs
+CREATE INDEX ON events USING gin (payload jsonb_path_ops);
+
+-- Query usa quando: WHERE payload @> '{"type":"OrderCreated","tenant_id":"abc"}'
+```
+
+`jsonb_path_ops` cobre **só containment (`@>`)**, não `?` (key exists), `?|`, `?&`. Se você só faz containment queries (caso comum), use; ganha 2-3x perf de write + index size menor.
+
+**Expression index sobre path específico (vence GIN em queries point):**
+```sql
+-- Query frequente: payload->>'tenant_id'
+CREATE INDEX ON events ((payload->>'tenant_id'));
+
+-- Postgres trata column-like; planner pega quando WHERE for igual
+SELECT * FROM events WHERE payload->>'tenant_id' = 'abc';
+```
+
+B-tree comum sobre expression é **MUITO** mais rápido que GIN pra equality em path conhecido. Use quando você sabe quais paths importam.
+
+**Composite expression + partial:**
+```sql
+-- Eventos pendentes de processamento, indexed por tenant
+CREATE INDEX ON events ((payload->>'tenant_id'))
+  WHERE payload->>'status' = 'pending';
+```
+
+**`gin_trgm_ops` pra fuzzy search em JSONB:**
+```sql
+CREATE EXTENSION pg_trgm;
+-- Trigram em path específico
+CREATE INDEX ON products USING gin ((metadata->>'name') gin_trgm_ops);
+-- Query: WHERE metadata->>'name' ILIKE '%cell%' OR metadata->>'name' % 'celular'
+```
+
+**Decisão de index pra JSONB:**
+
+| Query pattern | Index ideal |
+|---|---|
+| `payload @> '{"k":"v"}'` (containment) | GIN com `jsonb_path_ops` |
+| `payload->>'k' = 'v'` (equality em path conhecido) | B-tree expression |
+| `payload->>'k' ILIKE '%foo%'` (fuzzy) | GIN trigram em expression |
+| `payload ? 'k'` (key exists) | GIN default (`jsonb_ops`) |
+| Range em path: `(payload->>'amount')::numeric > 100` | B-tree expression com cast |
+
+#### Caso real Logística — events table
+
+Schema:
+```sql
+CREATE TABLE events (
+  id UUID PRIMARY KEY,
+  tenant_id UUID NOT NULL,
+  payload JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+Queries comuns:
+1. Last 50 events por tenant: `WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 50`.
+2. Events de tipo específico em janela: `WHERE tenant_id = $1 AND payload->>'type' = 'OrderCreated' AND created_at > now() - interval '1 day'`.
+3. Search containment: `WHERE payload @> '{"order_id":"xyz"}'`.
+
+Stack de índices ótimo:
+```sql
+-- Cobre (1) e (2) com sorting eliminado
+CREATE INDEX ON events (tenant_id, created_at DESC);
+
+-- Cobre (2) com filter no path; partial reduz espaço
+CREATE INDEX ON events (tenant_id, (payload->>'type'), created_at DESC)
+  WHERE created_at > now() - interval '90 days';   -- só hot data
+
+-- Cobre (3) com containment-only path ops
+CREATE INDEX ON events USING gin (payload jsonb_path_ops);
+```
+
+**Anti-patterns observados:**
+- Único `CREATE INDEX ON events USING gin (payload)` pra "cobrir tudo" → grande, lento em write, e planner às vezes prefere Seq Scan mesmo assim.
+- Sem partial em time-series → índice cresce com tabela; após anos vira maior que dados quentes.
+- B-tree em `payload` direto (nem é tipo válido pra B-tree default; precisa cast).
+
+**Maintenance:**
+```sql
+-- Index bloat audit
+SELECT indexrelid::regclass, pg_size_pretty(pg_relation_size(indexrelid)) AS size,
+       100 * (1 - (pg_relation_size(indexrelid)::float / GREATEST(1, pg_total_relation_size(tablename::regclass)))) AS pct_of_total
+FROM pg_indexes JOIN pg_class ON oid = indexname::regclass
+WHERE schemaname = 'public' ORDER BY pg_relation_size(indexrelid) DESC;
+
+-- Reindex concurrently (Postgres 12+) sem lock prolongado
+REINDEX INDEX CONCURRENTLY events_tenant_payload_idx;
+```
+
+Cruza com **02-09 §2.9** (EXPLAIN forensic em queries JSONB), **02-09 §2.13.1** (CDC de events table feed pipelines analíticos), **04-03 §2.4** (event-carried state com JSONB schema).
+
 ### 2.8 Query planner
 
 Postgres tem planner baseado em custo. Pra cada query:
