@@ -502,6 +502,183 @@ Avalie onde você realmente está e desenhe pra 10x atual, não 1000x.
 
 Conway: scaling tech requer scaling org. Times de plataforma, SREs, dedicated DBA. Sem isso, "escalar arquitetura" sem mãos é fantasia.
 
+### 2.20 Backpressure end-to-end deep — TCP slow-start, app Reactive Streams, queue credit-based flow control
+
+§2.12 introduz backpressure como conceito. §2.20 entra em **mecânica end-to-end** — desde TCP layer (slow-start, congestion window) → application layer (Reactive Streams credit-based) → queue layer (consumer credit, prefetch) → producer layer (rate limit, circuit breaker). Sistema sem backpressure cascateado quebra na fila mais fraca; com backpressure correto, gracefully degrada.
+
+**Layer 1 — TCP backpressure (já vem grátis, mas tem armadilhas)**:
+
+- **Slow-start**: nova connection começa com `cwnd = 10 * MSS` (~14KB), dobra a cada RTT até congestion event.
+- **Sliding window**: receiver anuncia `rwnd` em ACKs; sender limita in-flight bytes a `min(cwnd, rwnd)`.
+- **TCP backpressure ativo**: receiver para de ler do socket → kernel buffer enche → ACKs param → sender bloqueia em `send()`.
+- **Pegadinha**: socket buffer default Linux ~ 200KB. Em conexão alta-latência (> 100ms RTT), throughput max ≈ buffer / RTT = 16Mbps. Sintoma: "rede de 1Gbps mas pega 20Mbps". Fix: `tcp_rmem` / `tcp_wmem` tuning + `net.core.rmem_max` + `SO_RCVBUF` em socket setup. Linux 6+ tem auto-tuning melhor.
+- **HTTP/2 stream-level flow control**: cada stream tem janela própria; aplicação que para de ler body bloqueia stream sem bloquear connection.
+
+```bash
+# Inspecionar cwnd, rwnd, retransmits por socket
+ss -tin
+
+# Tuning kernel (sysctl)
+sysctl -w net.ipv4.tcp_rmem="4096 1048576 16777216"
+sysctl -w net.ipv4.tcp_wmem="4096 1048576 16777216"
+sysctl -w net.core.rmem_max=16777216
+sysctl -w net.core.wmem_max=16777216
+```
+
+**Layer 2 — Application backpressure: Reactive Streams**:
+
+Reactive Streams spec (2014, JEP 266 em Java 9, RxJS 6+, Project Reactor): consumer pede N items; producer respeita. Pattern: `request(N)` upstream, `onNext(item)` downstream. Sem `request`, producer não envia.
+
+```typescript
+import { Subject, mergeMap, throttleTime } from 'rxjs';
+
+// Producer com backpressure-aware flow
+const orderEvents = new Subject<Order>();
+
+orderEvents.pipe(
+  // throttle aplicado quando consumer está lento
+  throttleTime(100),
+  // mergeMap concurrency cap = backpressure ativo
+  mergeMap((order) => processOrder(order), 5), // max 5 concurrent
+).subscribe({
+  next: (result) => log.info({ result }, 'processed'),
+  error: (err) => log.error({ err }),
+});
+```
+
+**Async Iterator pattern (modern, sem RxJS)**:
+
+```typescript
+async function* eventStream(): AsyncGenerator<Order> {
+  while (true) {
+    const batch = await fetchBatch(); // fetches respeitam backpressure naturalmente
+    for (const order of batch) yield order;
+  }
+}
+
+for await (const order of eventStream()) {
+  await processOrder(order); // synchronous — só fetch next quando processou
+}
+```
+
+`for await...of` tem backpressure embutido. `eventStream` só gera próximo batch quando consumer consumiu o anterior. Diferente de "fan-out": aqui processamento sequencial. Pra paralelo bounded:
+
+```typescript
+import pLimit from 'p-limit';
+
+const limit = pLimit(10);
+for await (const order of eventStream()) {
+  await limit(() => processOrder(order));
+  // limit fica full → backpressure pro stream
+}
+```
+
+**Layer 3 — Message queue backpressure**:
+
+RabbitMQ — prefetch + manual ack:
+
+```typescript
+await channel.prefetch(10); // max 10 msgs unacked por consumer
+channel.consume('orders', async (msg) => {
+  if (!msg) return;
+  try {
+    await processOrder(JSON.parse(msg.content.toString()));
+    channel.ack(msg);
+  } catch (err) {
+    channel.nack(msg, false, false); // dead letter
+  }
+});
+```
+
+Sem prefetch: broker dump mensagens no consumer; consumer overwhelmed; OOM ou message loss em crash. Prefetch = credit window. Tune por throughput vs latency.
+
+Kafka — consumer poll + manual offset:
+
+```typescript
+const consumer = kafka.consumer({ groupId: 'orders-processor' });
+await consumer.run({
+  partitionsConsumedConcurrently: 3,
+  eachBatchAutoResolve: false,
+  eachBatch: async ({ batch, resolveOffset, heartbeat, isRunning }) => {
+    for (const message of batch.messages) {
+      if (!isRunning()) break;
+      await processOrder(JSON.parse(message.value!.toString()));
+      resolveOffset(message.offset);
+      await heartbeat();
+    }
+  },
+});
+```
+
+`eachBatchAutoResolve: false` + `resolveOffset` manual = checkpoint só após processar. Crash mid-batch reprocessa o batch (idempotency obrigatória). `partitionsConsumedConcurrently`: bounded parallelism per partition.
+
+SQS — visibility timeout + long polling: receive 10 mensagens; processar; delete. Sem delete em N segundos (visibility timeout) = volta pra queue. Backpressure: limit consumer instances; SQS naturally respeita (poll quando ready).
+
+**Layer 4 — Producer backpressure: load shedding e circuit breaker**:
+
+Load shedding em API: quando saturado, rejeita requests novos com 503 + `Retry-After`. NÃO espera, não enfileira.
+
+```typescript
+// Express middleware
+app.use((req, res, next) => {
+  const queueDepth = getQueueDepth();
+  const concurrentRequests = getConcurrentRequests();
+  if (queueDepth > 1000 || concurrentRequests > 500) {
+    res.status(503).set('Retry-After', '5').json({ error: 'saturated' });
+    return;
+  }
+  next();
+});
+```
+
+Adaptive concurrency (Netflix Concurrency Limits): limit dinâmico baseado em latency observada. Quando latência sobe → limit cai → request rejection sobe → upstream learns.
+
+**Decision tree — drop, buffer, throttle, ou backpressure?**:
+
+| Workload | Recomendação |
+|---|---|
+| Real-time analytics (logs, traces) | **Drop** (head-drop ou tail-drop por sampling). Buffer infinito = OOM. |
+| Financial transaction | **Backpressure + persistent queue**. Nunca drop. Slow OK; loss não. |
+| User-facing API request | **Load shed (503) + Retry-After**. Não fila enorme; cliente decide retry. |
+| Background job (email send) | **Throttle + queue**. Bounded queue; producer espera. |
+| Bulk import | **Backpressure via cursor** (DB cursor + commit periódico). Sem load full em memória. |
+
+**Logística pipeline — backpressure stack completo**:
+
+```
+Mobile app → API Gateway (load shed 503) → Order Service (concurrency limit)
+                                                   ↓
+                                           Postgres OUTBOX (transactional write)
+                                                   ↓
+                                           Debezium CDC → Kafka (partitioned, bounded retention)
+                                                   ↓
+                                           Order Processor (consumer prefetch=10, heartbeat)
+                                                   ↓
+                                           Notification Service (rate-limit por provider)
+```
+
+Cada hop tem backpressure ativo. Spike no mobile não derruba notification — degrada gracefully.
+
+**Observability obrigatório por layer**:
+
+- **TCP**: `ss -tin` mostra cwnd, retransmits. Em scale, eBPF `tcptracer` ou Cilium Hubble.
+- **App**: queue depth, concurrent requests, rejection rate (Prometheus gauges).
+- **Queue**: lag em Kafka (`kafka-consumer-groups --describe`), depth em RabbitMQ (`rabbitmqctl list_queues`), visibility timeout breaches em SQS.
+- **Producer**: 503 rate, `Retry-After` issued, circuit breaker open count.
+
+**Anti-patterns observados**:
+
+- **Buffer unbounded em fila in-memory** (`Queue<T>` sem cap): producer infinitamente faster que consumer → OOM. Sempre bounded.
+- **Drop silencioso sem métrica**: dashboard verde, mensagens sumindo. Counter de drop sempre, alert em > 0.
+- **Retry sem backoff em saturação**: amplifies load 10x quando upstream já sofrendo. Backoff jittered (cruza 04-04 §2.3).
+- **`for...of array` quando array vem de stream**: load tudo em memória primeiro. Use `for await...of` em iterator.
+- **Kafka sem `eachBatchAutoResolve: false`**: crash mid-batch perde mensagens entre offset commit e processamento.
+- **RabbitMQ `prefetch=unlimited`** (default): consumer overwhelmed em spike. Set always.
+- **Load shedding por CPU%**: CPU é lagging indicator; service já degradado. Use queue depth, latency p99, ou adaptive concurrency.
+- **Backpressure só em uma camada**: gargalo move pra próxima sem visibility. Cobrir TODO o pipeline.
+
+Cruza com **04-09 §2.12** (backpressure conceito), **04-09 §2.13** (observability é pré-req), **04-04 §2.3** (jittered backoff em retry), **04-04 §2.20** (adaptive concurrency Netflix), **04-02 §2.x** (queue patterns RabbitMQ/Kafka), **02-09 §2.20** (DB capacity é limit final).
+
 ---
 
 ## 3. Threshold de Maestria
