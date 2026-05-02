@@ -256,6 +256,141 @@ Bounded contexts candidates:
 
 Cada um com modelo próprio. Order em Routing é diferente de Order em Billing.
 
+### 2.17 Specification pattern e invariants no código
+
+Specification pattern encapsula regra de negócio como objeto de primeira classe — combinável, reusável e testável isoladamente. Sem ele, a mesma regra ("este courier pode aceitar este pickup?") aparece duplicada em controller, service, query filter, UI e batch job. Cada cópia drifta no seu próprio ritmo; bug fix em um lugar não propaga. Specification força single source of truth da regra e ainda traduz para SQL — o mesmo predicate roda em-memória (validação de candidate único) e como `WHERE` clause (query de batch).
+
+#### Interface base e composição
+
+```typescript
+interface Specification<T> {
+  isSatisfiedBy(candidate: T): boolean;
+  and(other: Specification<T>): Specification<T>;
+  or(other: Specification<T>): Specification<T>;
+  not(): Specification<T>;
+}
+
+abstract class CompositeSpecification<T> implements Specification<T> {
+  abstract isSatisfiedBy(candidate: T): boolean;
+  and(other: Specification<T>) { return new AndSpecification(this, other); }
+  or(other: Specification<T>) { return new OrSpecification(this, other); }
+  not() { return new NotSpecification(this); }
+}
+
+class AndSpecification<T> extends CompositeSpecification<T> {
+  constructor(private left: Specification<T>, private right: Specification<T>) { super(); }
+  isSatisfiedBy(c: T) { return this.left.isSatisfiedBy(c) && this.right.isSatisfiedBy(c); }
+}
+// OrSpecification, NotSpecification idem.
+```
+
+Specs concretas no Logística:
+
+```typescript
+class CourierIsAvailable extends CompositeSpecification<Courier> {
+  isSatisfiedBy(c: Courier) { return c.status === 'available' && c.activeOrders < c.maxConcurrent; }
+}
+
+class CourierIsInRadius extends CompositeSpecification<Courier> {
+  constructor(private lat: number, private lng: number, private radiusM: number) { super(); }
+  isSatisfiedBy(c: Courier) { return haversine(c.lat, c.lng, this.lat, this.lng) <= this.radiusM; }
+}
+
+class CourierMeetsVehicleRequirement extends CompositeSpecification<Courier> {
+  constructor(private required: VehicleType) { super(); }
+  isSatisfiedBy(c: Courier) { return c.vehicleType === this.required; }
+}
+
+const eligible = new CourierIsAvailable()
+  .and(new CourierIsInRadius(order.lat, order.lng, 5000))
+  .and(new CourierMeetsVehicleRequirement(order.requiredVehicle));
+```
+
+#### Tradução para SQL — o killer feature
+
+```typescript
+interface SqlSpecification<T> extends Specification<T> {
+  toSqlClause(paramOffset: number): { sql: string; params: unknown[] };
+}
+
+class CourierIsAvailableSql extends CourierIsAvailable implements SqlSpecification<Courier> {
+  toSqlClause(offset: number) {
+    return { sql: `status = $${offset} AND active_orders < max_concurrent`, params: ['available'] };
+  }
+}
+```
+
+Composite traduz `and()` para `AND` SQL, indexando params em ordem. Resultado: a mesma `eligible.toSqlClause()` vira `WHERE status = $1 AND active_orders < max_concurrent AND ST_DWithin(location, ST_MakePoint($2, $3)::geography, $4) AND vehicle_type = $5`. Sem isso, querer paridade entre validação in-memory e query batch obriga manter duas cópias da regra — drift garantido em 6 meses.
+
+#### Invariant vs precondition vs validation
+
+Distinção operacional, não acadêmica:
+
+- **Invariant**: condição que o aggregate sempre satisfaz (`Order.total >= 0`, `sum(items.subtotal) === total`). Enforced no constructor e no fim de todo método mutador. Violação é bug — lança `InvariantViolation` (não recuperável). Coberto por unit test do aggregate.
+- **Precondition**: estado necessário para uma operação (`Order.confirm()` requer `status === 'pending'`). Violação é fluxo legítimo — retorna `Result<_, PreconditionFailed>` com razão explícita. API responde 422 com mensagem.
+- **Validation**: input cru de boundary (HTTP body, form). Validar com Zod / class-validator no controller. Aggregate confia que inputs já vieram tipados e válidos; nunca repete validação de formato.
+
+Misturar os três é fonte de bug clássica: validação de email no aggregate (deveria ser no boundary), precondition tratada como invariant (crash em vez de 422), invariant silenciada com `if` defensivo (corrompe estado aos poucos).
+
+#### Encoding patterns
+
+- Constructor privado + smart constructor `Order.create(...)` retornando `Result<Order, InvariantViolation>`. Caller é forçado a tratar falha; impossível instanciar Order inválido.
+- Sem setters públicos. Mutação só por método de domínio (`confirm`, `cancel`, `addItem`) que valida precondition e re-checa invariant.
+- Value objects (`Money`, `Email`, `OrderId`) validam uma vez na criação; aggregate consome sem re-validar.
+- `assertInvariants()` privado chamado no fim de todo método mutador. Centraliza checks; não dispersa.
+
+#### Aggregate completo com pattern
+
+```typescript
+class Order {
+  private constructor(
+    readonly id: OrderId,
+    private status: OrderStatus,
+    private items: ReadonlyArray<OrderItem>,
+    private total: Money,
+  ) {
+    this.assertInvariants();
+  }
+
+  static create(items: OrderItem[], currency: Currency): Result<Order, InvariantViolation> {
+    if (items.length === 0) return Err(new InvariantViolation('Order must have at least 1 item'));
+    const total = items.reduce((acc, i) => acc.add(i.subtotal), Money.zero(currency));
+    return Ok(new Order(OrderId.new(), OrderStatus.Pending, items, total));
+  }
+
+  confirm(): Result<void, PreconditionFailed> {
+    if (this.status !== OrderStatus.Pending) return Err(new PreconditionFailed('Order is not pending'));
+    this.status = OrderStatus.Confirmed;
+    this.assertInvariants();
+    return Ok();
+  }
+
+  private assertInvariants() {
+    if (this.total.isNegative()) throw new InvariantViolation('Order total cannot be negative');
+    if (this.items.length === 0) throw new InvariantViolation('Order cannot have zero items');
+    const sum = this.items.reduce((acc, i) => acc.add(i.subtotal), Money.zero(this.total.currency));
+    if (!sum.equals(this.total)) throw new InvariantViolation('Order total mismatch with items sum');
+  }
+}
+```
+
+#### Anti-padrões observados
+
+- **Anemic domain model**: setter em tudo, lógica em `OrderService` externo. Aggregate vira DTO; invariant vaza para múltiplos services e drifta.
+- **Specification só in-memory, sem `toSqlClause()`**: para filtrar 50k couriers elegíveis, código resgata todos do banco e filtra em JavaScript. OOM em produção. Specification com SQL força paridade e empurra o trabalho para o índice.
+- **Validação duplicada controller + aggregate**: Zod no boundary E `if (!email.includes('@'))` dentro do aggregate. Decida: aggregate trusts (boundary valida) OU aggregate é o boundary (sem validation layer). Não os dois.
+- **`if (status === 'pending') ... else if (...)` espalhado**: substitua por specification com `toSqlClause()` que reusa em query e em código.
+- **Testar specification via mock de aggregate**: testa **specification standalone** com POJOs. Aggregate test cobre só composição (que ele consome a spec correta).
+
+#### Quando specification pattern é overkill
+
+- CRUD trivial sem regras combináveis (admin panel, settings).
+- Regras puramente de UI (form validation visual). Use Zod direto no componente.
+- Time de 2 devs em MVP: cerimônia sem ROI até regras se multiplicarem.
+- Roll-out incremental: comece com 2-3 specs nas regras mais espalhadas (courier eligibility, order confirmation, refund policy). Expanda só quando padrão prova valor.
+
+Cruza com **04-06 §2.7** (tactical patterns são fundação), **04-06 §2.8** (aggregates carregam invariants), **[04-03 §2.4](../04-sistemas/04-03-event-driven-patterns.md)** (event sourcing precisa invariants explícitas para replay determinístico), **[02-09 §2.7.1](../02-plataforma/02-09-postgres-deep.md)** (specifications viram queries SQL com índices apropriados).
+
 ---
 
 ## 3. Threshold de Maestria

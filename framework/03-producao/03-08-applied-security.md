@@ -345,6 +345,193 @@ Layers:
 
 Quando 1 camada falha, próxima ainda barra.
 
+### 2.20 SBOM lifecycle e VEX statements operacionais
+
+SBOM (Software Bill of Materials) virou compliance-checkbox em 2024-2026 — US Executive Order 14028, EU Cyber Resilience Act, NIST SSDF. Mas SBOM gerado uma vez e largado em S3 não vale nada. Operação real exige cinco coisas: (a) SBOM gerado no build, assinado, attestado; (b) ingestão em vulnerability scanner contínuo; (c) VEX statements pra distinguir CVE-presente de CVE-explorável; (d) policy gates em deploy bloqueando builds sem SBOM válida; (e) SBOM diff entre versões pra audit e root-cause de incidentes.
+
+**SBOM formats — escolha e trade-offs**:
+
+| Format | Originador | Strengths | Quando usa |
+|---|---|---|---|
+| **CycloneDX** | OWASP | Rich metadata (services, ML models, formulation, vulnerabilities inline), JSON-first | Default 2026 pra apps modernos; suporta VEX nativamente |
+| **SPDX** | Linux Foundation, ISO/IEC 5962 | Padrão ISO; foco em license compliance | Compliance-driven (federal contracts US, EU CRA) |
+| **SWID** | NIST IR 8060 | Tag pra SW asset tracking (já-instalado) | Inventário endpoint, não build-time |
+
+CycloneDX 1.6+ é default 2026 — VEX statements integradas, melhor tooling, cobertura de ML/AI components.
+
+**Geração no build**:
+
+```dockerfile
+# Multi-stage build com SBOM gerado
+FROM node:20 AS builder
+WORKDIR /app
+COPY package.json pnpm-lock.yaml ./
+RUN corepack enable && pnpm install --frozen-lockfile
+COPY . .
+RUN pnpm build
+
+FROM node:20-slim
+COPY --from=builder /app /app
+WORKDIR /app
+CMD ["node", "dist/server.js"]
+```
+
+```bash
+# CI step — gerar + assinar SBOM
+syft packages dir:. -o cyclonedx-json=sbom.cdx.json
+cosign attest --predicate sbom.cdx.json --type cyclonedx \
+  --key env://COSIGN_KEY \
+  ghcr.io/myorg/logistics-api:${GITHUB_SHA}
+```
+
+`syft` (Anchore) é tool de fato pra discovery; alternativas: `cdxgen`, `trivy sbom`, Docker Scout.
+
+**Anatomia de um SBOM CycloneDX (excerpt)**:
+
+```json
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "serialNumber": "urn:uuid:3e671687-...",
+  "metadata": {
+    "timestamp": "2026-04-15T10:00:00Z",
+    "tools": [{ "vendor": "anchore", "name": "syft", "version": "1.5.0" }],
+    "component": { "type": "application", "name": "logistics-api", "version": "2.3.1" }
+  },
+  "components": [
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/express@4.18.2",
+      "name": "express",
+      "version": "4.18.2",
+      "purl": "pkg:npm/express@4.18.2",
+      "hashes": [{ "alg": "SHA-256", "content": "..." }],
+      "licenses": [{ "license": { "id": "MIT" } }]
+    }
+  ],
+  "dependencies": [
+    { "ref": "logistics-api", "dependsOn": ["pkg:npm/express@4.18.2", "..."] }
+  ]
+}
+```
+
+`purl` (Package URL spec) é o identificador canônico cross-ecosystem. `bom-ref` interno; `dependencies` mapeia o grafo.
+
+**VEX statements — o que mata o ruído de scanner**:
+
+- Sem VEX: scanner reporta "CVE-2024-12345 in lodash@4.17.21" — true mas talvez não-explorável (você usa só `_.get` e a CVE é em `_.merge`).
+- Com VEX: você publica statement "CVE-2024-12345 status: not_affected, justification: vulnerable_code_not_in_execute_path".
+- Resultado: scanner suprime esse alert; ops para de receber 200 alerts/dia onde 195 são noise.
+
+**VEX statuses (CycloneDX VEX vocab)**:
+
+| Status | Significado | Exigência |
+|---|---|---|
+| `not_affected` | Componente está mas vuln não pode ser triggered | Justification obrigatória (ver abaixo) |
+| `affected` | Vuln explorável; sem fix ainda | Anote workaround se houver |
+| `fixed` | Vuln existia mas foi patched | Aponte versão/commit do fix |
+| `under_investigation` | Triagem em andamento | Coloque deadline de re-evaluation |
+
+**Justifications válidas pra `not_affected`** (NTIA-defined):
+
+- `code_not_present`: subcomponente vulnerável foi removido no tree-shake/build.
+- `code_not_reachable`: dependency presente mas código vulnerável não é importado.
+- `requires_configuration`: vuln só ativa com config X que você não usa.
+- `requires_dependency`: precisa de outro componente Y que não está.
+- `requires_environment`: só explora em runtime/OS específico.
+- `protected_by_compiler`: bounds check / type system mata.
+- `protected_at_runtime`: WAF / sandbox bloqueia.
+- `protected_at_perimeter`: serviço não exposto externamente.
+- `protected_by_mitigating_control`: control compensatório.
+
+**VEX statement — exemplo CycloneDX**:
+
+```json
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "vulnerabilities": [
+    {
+      "id": "CVE-2024-12345",
+      "source": { "name": "NVD" },
+      "ratings": [{ "severity": "high", "score": 7.5 }],
+      "affects": [{ "ref": "pkg:npm/lodash@4.17.21" }],
+      "analysis": {
+        "state": "not_affected",
+        "justification": "code_not_reachable",
+        "response": ["will_not_fix"],
+        "detail": "App uses only lodash.get and lodash.set; CVE-2024-12345 in _.merge prototype pollution path is not in execution path. Verified via dependency-tree analysis 2026-04-10."
+      }
+    }
+  ]
+}
+```
+
+**Pipeline integrado — Logística stack**:
+
+```yaml
+# .github/workflows/sbom-pipeline.yml (excerpt)
+- name: Generate SBOM
+  run: syft packages dir:. -o cyclonedx-json=sbom.cdx.json
+
+- name: Sign + attest SBOM to OCI
+  run: |
+    cosign attest --predicate sbom.cdx.json --type cyclonedx \
+      --key env://COSIGN_KEY \
+      ghcr.io/myorg/api:${{ github.sha }}
+
+- name: Scan against vuln DB
+  run: grype sbom:sbom.cdx.json -o json > scan.json
+
+- name: Apply VEX filter
+  run: |
+    grype sbom:sbom.cdx.json \
+      --vex vex/our-statements.cdx.json \
+      --fail-on critical \
+      -o table
+
+- name: Upload to dependency-track
+  run: |
+    curl -X POST "$DT_URL/api/v1/bom" \
+      -H "X-Api-Key: $DT_API_KEY" \
+      -F "project=$DT_PROJECT_UUID" \
+      -F "bom=@sbom.cdx.json"
+```
+
+**Dependency-Track** (OWASP) é o de-facto SBOM portal: ingesta SBOM, monitora CVEs continuamente, aceita VEX, dá API pra policy gates.
+
+**Policy gates em deploy**:
+
+- Block deploy se: (a) novo CVE critical sem VEX statement em < 24h, (b) componente sem licença aprovada, (c) SBOM não-attestada.
+- Implementação: OPA / Conftest policy contra SBOM JSON antes de `kubectl apply` ou `terraform apply`.
+- Exemplo Rego policy minimal:
+
+```rego
+package sbom.policy
+deny[msg] {
+  comp := input.components[_]
+  comp.licenses[_].license.id == "GPL-3.0-only"
+  msg := sprintf("Forbidden license GPL-3.0-only in %s", [comp.name])
+}
+```
+
+**SBOM diff — auditoria de mudanças entre releases**:
+
+- `cyclonedx-cli diff sbom-v2.3.0.json sbom-v2.3.1.json` mostra components added/removed/upgraded.
+- Útil em release notes ("we upgraded openssl from 3.2.0 to 3.2.1 fixing CVE-XXXX").
+- Critical em pós-incident: "what changed entre deploy que quebrou?".
+
+**Anti-patterns observados**:
+
+- SBOM gerado uma vez no build inicial e nunca atualizado. Resolve: gerar a CADA build, attestar.
+- Sem VEX → 200 CVE alerts/dia, time aprende a ignorar, real critical passa despercebido.
+- SBOM em S3 sem ingestão em scanner → relatório morto.
+- VEX `not_affected` sem justification ou detail → audit reprova; alguém vai questionar em 6 meses sem ter contexto.
+- Confiar SBOM gerado em dev workstation (não-reproduzível, missing transitive deps); gere sempre em CI hermetic build.
+- `cosign sign` sem keyless OIDC → key management vira problema; use Sigstore + Fulcio + Rekor (timeline em 03-08 §2.14).
+
+Cruza com **03-08 §2.14** (supply chain layers — VEX é a camada operacional acima de SLSA), **03-04 §2.x** (CI gates pra deploy block), **03-07 §2.18** (alert fatigue mitigada por VEX correto), **03-15** (incident response usa SBOM diff pra root cause).
+
 ---
 
 ## 3. Threshold de Maestria
