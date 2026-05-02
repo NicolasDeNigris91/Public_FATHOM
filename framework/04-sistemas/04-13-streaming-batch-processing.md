@@ -171,6 +171,110 @@ Dependências (`ref`) montam DAG. `dbt run` executa. `dbt test` valida (not_null
 
 dbt = padrão modern de transformations em warehouse (Snowflake, BigQuery, Redshift, ClickHouse).
 
+#### 2.9.1 Incremental strategies, decisão e código real
+
+dbt incremental models são onde times param de "rodar tudo full-refresh" e começam a ter pipelines escaláveis. Mas escolha errada de strategy = registros duplicados, deletes silenciosos, ou full table rewrite mascarado. Quatro strategies oficiais: `append`, `merge`, `delete+insert`, `insert_overwrite`. Cada uma resolve cenário diferente e quebra de jeito específico se aplicada errado.
+
+| Strategy | Como funciona | Quando usa | DB suportado | Custo write | Race conditions |
+|---|---|---|---|---|---|
+| `append` | INSERT só novas rows | Append-only event stream sem updates | Todos | Mínimo | Nenhum (no conflicts) |
+| `merge` | MERGE ON unique_key (UPDATE if exists, INSERT if not) | SCD type 1, dimensões mutáveis | Snowflake, BigQuery, Databricks, Postgres 15+ | Médio | Resolve via merge atomic |
+| `delete+insert` | DELETE rows com `unique_key IN (...)` + INSERT | Postgres < 15, Redshift, fact reload por janela | Todos | Alto (delete cost) | Window de inconsistência entre DELETE e INSERT |
+| `insert_overwrite` | DROP+REPLACE partition específica | Particionado por dia/hora; reload janela completa | BigQuery, Spark, Databricks | Baixo (atomic per partition) | Atomic em partition level |
+
+**`append` deep — o mais simples e mais traiçoeiro.** Bom: page_views, clickstream, raw events. Mau: qualquer source com retries no upstream → duplica. Sempre adicione `dbt_utils.deduplicate` downstream se source tem retry semantics.
+
+```sql
+{{ config(materialized='incremental', incremental_strategy='append') }}
+
+select * from {{ source('events', 'page_views') }}
+{% if is_incremental() %}
+  where event_at > (select max(event_at) from {{ this }})
+{% endif %}
+```
+
+Pegadinha: `event_at > max(event_at)` perde events com `=` exato. Use `>=` + dedupe downstream OU watermark com cushion (`event_at > max(event_at) - interval '1 hour'` + dedupe). Trade-off: cushion captura late-arriving data ao custo de reprocessar window e exigir dedupe explícito.
+
+**`merge` deep — escolha default em modern warehouses.** Snowflake/BigQuery/Databricks: MERGE é atomic, performante, não tem janela de inconsistência. Postgres 15+: também tem MERGE nativo (antes era CTE-com-UPDATE-ou-INSERT trick). `unique_key` é obrigatório e tem que ter unique constraint OU índice unique pra evitar full table scan no MERGE source side.
+
+```sql
+{{ config(
+    materialized='incremental',
+    incremental_strategy='merge',
+    unique_key='order_id',
+    on_schema_change='sync_all_columns'
+) }}
+
+select
+  order_id,
+  customer_id,
+  status,
+  total,
+  updated_at,
+  _airbyte_emitted_at as ingested_at
+from {{ source('app_db', 'orders') }}
+{% if is_incremental() %}
+  where _airbyte_emitted_at > (select max(ingested_at) from {{ this }})
+{% endif %}
+```
+
+Sub-pegadinha: SCD type 2 (history) pede pattern diferente — `dbt_snapshot` ou snapshot table custom; merge sozinho perde history.
+
+**`delete+insert` deep — quando precisa em Postgres < 15 ou window reload.** Cenário: reprocessar últimos 7 dias de fact_sales porque corrigiu source data.
+
+```sql
+{{ config(
+    materialized='incremental',
+    incremental_strategy='delete+insert',
+    unique_key='sale_id'
+) }}
+
+select * from {{ ref('stg_sales') }}
+{% if is_incremental() %}
+  where sale_at >= dateadd('day', -7, current_date)
+{% endif %}
+```
+
+Pegadinha crítica: a window entre DELETE e INSERT (mesmo em transação) tem outras queries lendo zero rows em isolation levels mais frouxos. Read-replica downstream pode renderizar dashboard com 0 rows. Mitigação: rodar em horário de baixa leitura OU usar materialized view sobre snapshot. Custo: 7 dias de DELETE em fact com 100M rows = scan + lock. `unique_key` precisa estar indexado.
+
+**`insert_overwrite` deep — partição particionada vence.** BigQuery / Databricks / Spark com partitioned tables. dbt detecta partições afetadas, dropa, recria.
+
+```sql
+{{ config(
+    materialized='incremental',
+    incremental_strategy='insert_overwrite',
+    partition_by={'field': 'sale_date', 'data_type': 'date', 'granularity': 'day'}
+) }}
+
+select * from {{ ref('stg_sales') }}
+{% if is_incremental() %}
+  where sale_date in ({{ partitions_to_replace() | join(', ') }})
+{% endif %}
+```
+
+Macro `partitions_to_replace()`: define quais partições reprocessar (últimos N dias, ou `var('reload_dates')`). Vantagem: atomic per partition, custo proporcional à window, não scan tabela inteira. Pegadinha: schema change em coluna não-partition pode falhar — força full-refresh.
+
+**Decision tree (operacional)**:
+- Source é append-only, sem retries duplicados? → `append`.
+- Warehouse moderno (Snowflake/BigQuery/Databricks/PG15+) e source pode ter updates? → `merge`.
+- Postgres < 15, Redshift sem MERGE bom, ou precisa janela específica reprocessada? → `delete+insert`.
+- Tabela particionada e reload é por partition unit? → `insert_overwrite`.
+
+**Operational hardening**:
+- **Late-arriving data**: defina `lookback_window` (`var('lookback_hours', 24)`) — sempre reprocesse last N hours pra cobrir events atrasados. Não confie só em `max(event_at)`.
+- **Backfill**: `dbt run --full-refresh -s model_name` recria tudo. Pra backfill por janela, use `--vars '{start_date: 2026-01-01, end_date: 2026-01-31}'` + lógica condicional no model.
+- **Idempotency**: model deve poder rodar 2x mesma janela sem produzir resultados diferentes. Test com `dbt run --vars '{lookback_hours: 48}'` rodado 2x — assertion: row count idêntico.
+- **Monitoring**: `dbt source freshness` + Elementary Data ou re_data pra dashboard de incremental health (last_run_rows_added, model_lag).
+
+**Anti-patterns observados**:
+- `materialized='incremental'` sem `is_incremental()` no SQL → silenciosamente roda full-refresh todo dia mascarado.
+- `unique_key` sem unique constraint na warehouse → MERGE faz full scan; perf degrada com tabela.
+- Misturar `append` com source que retry duplica → registros duplos descobertos 3 meses depois em audit financeiro.
+- Ignorar late-arriving data → events de minutos atrás caem no buraco e nunca são contabilizados.
+- `delete+insert` em horário de pico → dashboards mostram 0 momentaneamente; suporte enche de tickets.
+
+Cruza com **04-13 §2.12** (CDC alimenta merge incremental), **04-13 §2.14** (data quality tests devem cobrir uniqueness e completeness pós-incremental), **03-13 §2.15** (decisão lakehouse vs warehouse afeta strategies disponíveis), **04-13 §2.16** (exactly-once semantics na ingestão é pré-requisito pra append).
+
 ### 2.10 Orchestration: Airflow, Dagster, Prefect
 
 Pipelines têm dependências, schedules, retries, alerts.

@@ -294,6 +294,181 @@ Cruza com **02-14** (streaming SSE/WebSocket), **03-09** (perceived latency UX),
 
 Default: LLM como augment, não core decision-maker, em domínios sensíveis.
 
+### 2.20 Agentic patterns operacionais — planner, critic, tool selection
+
+§2.10 introduz agents como conceito. §2.20 entra em **patterns operacionais** que separam agent que sobrevive em produção de protótipo de demo. Três patterns dominam:
+
+- **Planner-executor split**: LLM gera plano declarativo; executor determinístico roda cada step.
+- **Critic loop**: segundo LLM avalia output do primeiro pra catch errors antes de execução.
+- **Tool selection com retrieval**: catalog indexado escolhe top-k tools relevantes quando inventário > 20.
+
+Cada um endereça modo de falha específico. Combinados, viram backbone de agent operacional.
+
+**Pattern 1: Planner-executor split.** Sem split, LLM "raciocina e age" no mesmo step. Resultado: loop infinito de tool calls, custo explode em minutos, comportamento opaco pra debug. Com split, planner produz JSON/XML estruturado de steps (declarativo, validável); executor (código tradicional) valida schema + roda cada step com observability normal. Vantagens: replay determinístico do mesmo plano, auditoria step-a-step, abort early se step inválido, paralelização de steps independentes.
+
+```typescript
+import { z } from 'zod';
+
+const PlanStep = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal('lookup_courier'),
+    courier_id: z.string().uuid(),
+  }),
+  z.object({
+    action: z.literal('verify_documents'),
+    courier_id: z.string().uuid(),
+    doc_types: z.array(z.enum(['cnh', 'crlv', 'antecedentes'])),
+  }),
+  z.object({
+    action: z.literal('schedule_orientation'),
+    courier_id: z.string().uuid(),
+    slot_iso: z.string().datetime(),
+  }),
+  z.object({
+    action: z.literal('notify_courier'),
+    courier_id: z.string().uuid(),
+    channel: z.enum(['whatsapp', 'sms', 'email']),
+    template: z.string(),
+  }),
+]);
+
+const Plan = z.object({
+  reasoning: z.string().max(500),
+  steps: z.array(PlanStep).min(1).max(10),
+});
+```
+
+Executor com budget cap + audit log:
+
+```typescript
+async function executePlan(plan: Plan, ctx: Context) {
+  const audit: AuditEntry[] = [];
+  for (const step of plan.steps) {
+    const start = Date.now();
+    try {
+      const result = await executeStep(step, ctx);
+      audit.push({ step, status: 'ok', latency_ms: Date.now() - start, result });
+      if (audit.length > 20) throw new Error('Plan exceeded step budget');
+    } catch (err) {
+      audit.push({ step, status: 'error', latency_ms: Date.now() - start, error: String(err) });
+      if (step.action === 'verify_documents') throw err;   // critical: abort
+      // soft errors: log + continue (notify failures are non-blocking)
+    }
+  }
+  await db.audit_log.insert({ trace_id: ctx.trace_id, plan, audit });
+  return audit;
+}
+```
+
+Discriminated union no schema = exhaustive switch no executor (TypeScript compiler reclama de step não tratado). Audit log persiste plano + execução pra postmortem. Budget cap (max steps, max latency total, max tool calls) é mandatory; sem ele, agent runaway custa $1000+ em uma noite — caso real, não hipotético.
+
+**Pattern 2: Critic loop (LLM avalia LLM).** Modo de falha: planner produz output sintaticamente válido (passa Zod) mas semanticamente errado — agendou orientation pra horário inexistente, trocou `courier_id` entre steps, escolheu canal `whatsapp` pra courier sem WhatsApp opt-in. Critic é segundo LLM (mesmo modelo ou diferente) que recebe input + output do planner + system prompt focado em "find errors". Output estruturado: `{ valid: bool, errors: [...] }`. Loop: se critic invalida, retry planner com errors como context. Cap em 3 iterações pra evitar custo runaway.
+
+```typescript
+import Anthropic from '@anthropic-ai/sdk';
+const anthropic = new Anthropic();
+
+async function critiquePlan(input: string, plan: Plan): Promise<{ valid: boolean; errors: string[] }> {
+  const resp = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001',  // critic é mais barato/rápido que planner
+    max_tokens: 500,
+    system: `Você é um critic agent. Recebe input e plano gerado por outro agent.
+Sua tarefa: identificar erros lógicos, datas inválidas, IDs incoerentes, steps fora de ordem.
+Retorne JSON: { "valid": bool, "errors": [string] }. Se valid, errors=[].`,
+    messages: [{
+      role: 'user',
+      content: `INPUT:\n${input}\n\nPLAN:\n${JSON.stringify(plan, null, 2)}`,
+    }],
+  });
+  const text = resp.content[0].type === 'text' ? resp.content[0].text : '';
+  return JSON.parse(text);
+}
+
+async function planWithCritic(input: string, ctx: Context): Promise<Plan> {
+  let lastErrors: string[] | undefined;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const plan = await generatePlan(input, ctx, lastErrors);
+    const review = await critiquePlan(input, plan);
+    if (review.valid) return plan;
+    lastErrors = review.errors;
+  }
+  throw new Error('Failed to produce valid plan after 3 attempts');
+}
+```
+
+Critic usa modelo mais barato (Haiku 4.5) — heurística sólida: planner Sonnet/Opus, critic Haiku. Em produção: ~10-20% das primeiras tentativas falham critic; retry resolve 70-80% delas; resto vai pra fallback humano. Critic com mesmo modelo + mesmo prompt do planner é anti-pattern: vai concordar com mesmos erros (motivated reasoning). Use modelo diferente OU prompt deliberadamente adversarial.
+
+**Pattern 3: Tool selection com retrieval.** Passar 50 tools no system prompt = context pollution + tool selection ruim. Anthropic e OpenAI documentam degradação acima de ~20 tools. Solução: catalog de tools indexado (vector DB ou keyword search). Pre-step roda LLM cheap pra escolher top-k tools relevantes ao query; main agent recebe só esses k.
+
+```typescript
+import { embed } from '@/lib/embeddings';
+
+type ToolDef = {
+  name: string;
+  description: string;
+  embedding?: number[];
+  input_schema: object;
+};
+
+const allTools: ToolDef[] = [
+  { name: 'lookup_courier', description: 'Find courier by id or name', input_schema: {} },
+  { name: 'schedule_pickup', description: 'Schedule pickup with available slot', input_schema: {} },
+  // ... 50+ tools
+];
+
+// Index step (cron / on tool register)
+for (const tool of allTools) {
+  tool.embedding = await embed(`${tool.name}: ${tool.description}`);
+}
+
+async function selectTools(query: string, k = 5): Promise<ToolDef[]> {
+  const queryEmb = await embed(query);
+  return allTools
+    .map(t => ({ tool: t, score: cosineSimilarity(queryEmb, t.embedding!) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, k)
+    .map(s => s.tool);
+}
+
+async function runAgent(query: string) {
+  const tools = await selectTools(query);
+  return anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    tools: tools.map(({ embedding, ...rest }) => rest),  // strip embedding
+    messages: [{ role: 'user', content: query }],
+  });
+}
+```
+
+Embedding model leve (text-embedding-3-small ou cohere embed v3): ~$0.00002 por query, +20ms latency. Combine retrieval + always-include core tools (auth, error handling, escalate_to_human) — top-5 por relevance + 3 fixed. Sem fallback "always include", agent não sabe pedir help quando tools relevantes não foram retrieved.
+
+**Combinando patterns — Logística onboarding agent end-to-end.**
+
+```
+User query → Tool retrieval (top-5 + 3 fixed) → Planner LLM (Sonnet 4.6)
+           → Critic loop (Haiku 4.5, ≤3 iter) → Executor (audit + budget) → Result
+```
+
+Cada bloco é testável isoladamente: planner com golden inputs, critic com adversarial plans, executor com mock context. Custo típico Logística agent (Sonnet 4.6 planner + Haiku 4.5 critic + Sonnet 4.6 main): ~$0.04-0.08 por session, p99 latency 8-15s.
+
+**Anti-patterns observados.**
+
+- Single-LLM "ReAct loop" sem split: opaco, caro, frágil. Refactor pra planner-executor cedo, antes de escala.
+- Critic com mesmo modelo+prompt do planner: motivated reasoning. Modelo diferente ou prompt adversarial.
+- Sem budget caps: dev deixa rodar overnight, conta vem $2k. Hard cap sempre — max steps, max tokens total, max wallclock.
+- Tool retrieval sem fallback "always include": agent sem meta-actions (lookup_help, escalate_to_human) trava silencioso.
+- Audit log faltando latency por step: postmortem sobre slow agent fica cego. Sempre persiste latency + tokens por step.
+- Critic em loop infinito: cap 3 attempts é mandatory. Acima disso, escalar pra human review com plano + errors.
+- Esquecer de logar `reasoning` string do plan: é o ÚNICO sinal de "por que" o plan foi escolhido. Audit sem ela é inútil.
+
+**Quando NÃO usar agentic patterns.**
+
+- Task com path determinístico de 2-3 steps: hard-code, não invoca LLM agent.
+- Decisão crítica financeiramente sem human-in-the-loop: agent erra ~5-10% mesmo com critic. Loop humano em ações irreversíveis.
+- Latency budget < 2s: planner + critic + executor não cabe; use single LLM call ou rule engine.
+
+Cruza com **04-10 §2.10** (agents fundamentos), **04-10 §2.11** (evals validam patterns end-to-end), **04-10 §2.13** (observability LLM mede agent quality), **03-07 §2.19** (AI ops trace agent steps), **03-08 §2.x** (PII em audit log de agent precisa redaction).
+
 ---
 
 ## 3. Threshold de Maestria

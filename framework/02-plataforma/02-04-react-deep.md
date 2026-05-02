@@ -330,6 +330,175 @@ function OrderList({ orders, deleteAction }) {
 
 Server Actions são pra **mutations do same-app**. Para tudo mais, fica em padrões anteriores.
 
+#### 2.9.2 React 19 — `use()` hook e `cache()` em RSC patterns
+
+React 19 (stable 2024) e React Compiler RC (2025) consolidam `use()` e `cache()` como primitivas centrais pra Server Components. `use()` lê promessas/contextos dentro de render conditional; `cache()` deduplica chamadas dentro de uma request. Sem entender, devs escrevem RSC com waterfall N+1, ou client components que poderiam ser server.
+
+**`use()` hook — o que é e o que NÃO é:**
+- Função especial que aceita `Promise<T>` ou `Context<T>` e retorna o valor unwrapped.
+- **Pode ser chamada conditionally e dentro de loops** (diferente de `useState`/`useEffect`). Essa é a feature crítica.
+- Server Component: `use(promise)` suspende até resolve, integra com `<Suspense>` pai.
+- Client Component: `use(promise)` também funciona, mas a promise tem que vir de server (passada como prop ou de cached source) — criar promise inline em client cria loop infinito.
+
+```tsx
+// app/order/[id]/page.tsx (Server Component)
+import { use } from 'react';
+import { db } from '@/lib/db';
+
+export default function OrderPage({ params }: { params: { id: string } }) {
+  const order = use(db.orders.findById(params.id));
+  return (
+    <article>
+      <h1>Order #{order.id}</h1>
+      <Status status={order.status} />
+    </article>
+  );
+}
+```
+
+Sem `await`. `use()` permite usar a promise como valor. Suspende automaticamente até resolve; `<Suspense>` boundary acima mostra fallback.
+
+**`use()` conditional — impossível com hooks tradicionais:**
+
+```tsx
+import { use } from 'react';
+
+export function CourierBadge({
+  courierId,
+  loadDetails,
+  courierPromise,
+}: {
+  courierId: string;
+  loadDetails: boolean;
+  courierPromise: Promise<Courier>;
+}) {
+  if (!loadDetails) return <span>{courierId}</span>;
+  const courier = use(courierPromise);   // OK: dentro do if
+  return <span>{courier.name} ({courier.rating})</span>;
+}
+```
+
+Ganho: lazy-loading sem re-architecture. Componente decide se precisa do dado em render time. Constraint: `courierPromise` é estável (não recriada a cada render). Geralmente passada de server component pai.
+
+**`cache()` — request-scoped memoization:**
+- **Server-only** (não funciona em client; ele lança em build).
+- Memoiza retorno de função pelo hash dos args, escopo é uma server request.
+- Múltiplos componentes na mesma render tree chamando `getOrder(id)` resultam em UMA query DB.
+- Não persiste entre requests (≠ SWR ou React Query); pra cross-request use Next.js `unstable_cache` ou `revalidateTag`.
+
+```tsx
+// lib/data/orders.ts
+import { cache } from 'react';
+import { db } from '@/lib/db';
+
+export const getOrder = cache(async (id: string) => {
+  return db.orders.findById(id);
+});
+
+export const getCourier = cache(async (id: string) => {
+  return db.couriers.findById(id);
+});
+```
+
+```tsx
+// app/order/[id]/page.tsx
+import { getOrder, getCourier } from '@/lib/data/orders';
+import { use } from 'react';
+
+export default function Page({ params }: { params: { id: string } }) {
+  const order = use(getOrder(params.id));
+  return (
+    <>
+      <OrderSummary id={params.id} />
+      <AssignedCourier orderId={params.id} />
+      <h2>Order #{order.id}</h2>
+    </>
+  );
+}
+
+function OrderSummary({ id }: { id: string }) {
+  const order = use(getOrder(id));   // mesma cached promise
+  return <p>Total: {order.total}</p>;
+}
+
+function AssignedCourier({ orderId }: { orderId: string }) {
+  const order = use(getOrder(orderId));   // mesma cached promise; sem 2ª query
+  const courier = use(getCourier(order.courier_id));
+  return <p>Courier: {courier.name}</p>;
+}
+```
+
+Sem `cache()`: 3 queries na DB (uma por componente). Com `cache()`: 1 query pra Order + 1 pra Courier.
+
+**Pegadinha — preload pattern pra evitar waterfall:**
+
+```tsx
+// Bad: waterfall (Page espera Order pra renderizar Items, Items espera Courier...)
+const order = use(getOrder(id));
+const items = use(getOrderItems(id));      // só inicia depois
+const courier = use(getCourier(order.courier_id));   // depende do order
+
+// Good: preload + parallel
+getOrderItems(id);                          // fire-and-forget; promise cached
+const order = use(getOrder(id));
+const items = use(getOrderItems(id));      // promise já em flight; race resolves fast
+```
+
+Pattern oficial: chamar a função (não awaitar) early pra warm o cache; depois `use()` quando precisa. Documentado em https://react.dev/reference/react/cache (preload pattern).
+
+**Combinando use() + cache() + Suspense em Logística:**
+
+```tsx
+// app/dashboard/page.tsx
+import { Suspense, use } from 'react';
+import { getActiveOrders, getCourierStats, preloadCouriers } from '@/lib/data';
+
+export default function Dashboard() {
+  // Preload pra warm cache; render imediato
+  preloadCouriers();
+  return (
+    <>
+      <h1>Operations dashboard</h1>
+      <Suspense fallback={<OrdersListSkeleton />}>
+        <ActiveOrders />
+      </Suspense>
+      <Suspense fallback={<CourierStatsSkeleton />}>
+        <CourierStats />
+      </Suspense>
+    </>
+  );
+}
+
+function ActiveOrders() {
+  const orders = use(getActiveOrders());
+  return <ul>{orders.map(o => <OrderRow key={o.id} order={o} />)}</ul>;
+}
+
+function CourierStats() {
+  const stats = use(getCourierStats());
+  return <StatsTable stats={stats} />;
+}
+```
+
+Cada `<Suspense>` streama independente; user vê skeleton + primeiro card que resolve, depois o segundo.
+
+**Anti-patterns observados:**
+- `use()` no client component com promise criada inline (`use(fetch(url))`): re-renderiza, recria promise, loop infinito. Use só com promise estável (passada de server, ou de `cache()`-d source, ou de React Query).
+- `cache()` em client component: throws no build. Server-only.
+- `cache()` esperando deduplicar entre requests: não, é por request. Pra cross-request use `unstable_cache` (Next) com tags + `revalidateTag`.
+- Esquecer preload: cada `use()` espera sequencial, vira waterfall N+1. Preload no topo da árvore + cache resolve.
+- Misturar `await` e `use()` no mesmo server component: funciona mas fica confuso. Padrão: server component com `async` usa `await`; nested server components usam `use()` de cached promises pra não criar waterfalls.
+- `cache()` keying em objeto inline: `cache(fn)({ id: x })` cria hash novo a cada render porque objeto é nova reference. Use args primitivos.
+
+**`use(Context)` — bonus:** `use(MyContext)` é equivalente a `useContext(MyContext)` mas pode ser conditional. Útil em árvores que entram/saem de provider.
+
+**Quando NÃO usar use() / cache():**
+- SPA pura sem Server Components (CRA, Vite SPA, RN sem RSC): `cache()` não faz sentido (sem request boundary). Use React Query / SWR.
+- Data que muda em client (ações de user): mantenha hooks tradicionais ou Server Actions com revalidate.
+- App pequena sem performance issues: padrão `async`/`await` em server component basta.
+
+Cruza com **02-04 §2.8** (Suspense é o partner natural de `use()`), **02-04 §2.9** (RSC fundamentos), **02-04 §2.9.1** (Server Actions são o complemento mutation-side), **04-09 §2.x** (deduplication padrão também aplica em GraphQL DataLoader).
+
 ### 2.10 Padrões de gerenciamento de state
 
 Estado local: `useState`/`useReducer`.
