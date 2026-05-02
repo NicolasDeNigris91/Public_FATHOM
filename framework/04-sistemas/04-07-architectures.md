@@ -229,6 +229,135 @@ Logística:
 
 Padrão arquitetura por contexto.
 
+### 2.18 Architecture decision por estágio — modular monolith → microservices → serverless com Logística v1→v4
+
+"Microservices vs monolith" é debate falso em 2026. Resposta correta = "depende do estágio". Logística começa modular monolith (1 deploy, fast iteration), evolui pra serviços extraídos quando dor real aparece (org scale, scale técnico independente), serverless para edges (cron, image processing). Decisão por estágio: v1 (PMF), v2 (scale), v3 (multi-team), v4 (regional). Esta seção entrega decision tree concreto + signals que indicam evoluir.
+
+**Stage v1 — modular monolith (PMF, 0-50k MAU, equipe 2-8)**:
+
+```
+logistica-monorepo/
+├── apps/
+│   ├── web/           Next.js
+│   ├── mobile/        Expo
+│   └── api/           Fastify monolith
+├── packages/
+│   ├── core/          Domain logic (shared)
+│   ├── db/            Drizzle schema + queries
+│   ├── auth/          Auth flows
+│   ├── notifications/ Email/SMS/push
+│   └── billing/       Stripe integration
+└── infra/
+    ├── docker-compose.yml  (dev)
+    └── railway.json        (deploy single VM)
+```
+
+- **API**: 1 process, in-process module boundaries via TypeScript imports.
+- **DB**: 1 Postgres com schemas por module (`auth.users`, `orders.orders`, `billing.invoices`).
+- **Deploy**: 1 Dockerfile, 1 binary, push to Railway/Render/Fly.
+- **Iteration speed**: 5min from commit to prod; toda mudança é refactor visível IDE-wide.
+- **Quando NÃO funciona mais**: build > 10min, deploy assusta time inteiro, feature em conflito constantes between PRs.
+
+**Stage v2 — modular monolith + extracted edges (50k-500k MAU, equipe 8-25)**:
+
+- Extrai serviços que SOFREM por estarem no monolito:
+  - **Notifications** (high-volume async): vira service separado consumindo Kafka/RabbitMQ.
+  - **Image processing** (CPU-heavy): serverless function (Lambda/Cloud Run) on-demand.
+  - **Cron jobs** (batch): separate worker pod, sem affecting API latency.
+- **API ainda monolítico**: 80% das features. Não force microservices prematuro.
+- **DB**: começa read replica; same schema.
+- **Deploy**: 3-4 services (api, web, notifications, workers); cada um tem own deploy pipeline.
+- **Org structure**: 2-3 squads, mas todos podem PR no API monolith (ownership por module).
+
+**Stage v3 — service-oriented (500k-5M MAU, equipe 25-100)**:
+
+- Bounded contexts (cruza com 04-06 DDD) extraídos em serviços:
+  - **Identity Service** (auth, users, sessions).
+  - **Orders Service** (CRUD, lifecycle).
+  - **Dispatch Service** (courier matching, routing).
+  - **Notifications Service** (multi-channel).
+  - **Billing Service** (subscriptions, invoices, taxes).
+  - **Analytics Service** (events ingestion, dashboards).
+- **API Gateway** (Kong, Apollo Router, AWS API GW): routing + rate limit + auth.
+- **DB per service**: cada service own DB; cross-service via API/events, NÃO shared schema.
+- **Eventos**: Kafka como spinal cord; outbox pattern (cruza com 04-03 §2.8) pra exactly-once.
+- **Deploy**: 8-15 services; cada team own deploy pipeline.
+- **Quando vale**: time > 25; cada squad ships independently > 1x/dia; bounded contexts são claros (não chumbado).
+
+**Stage v4 — multi-region + edge (5M+ MAU, equipe 100+)**:
+
+- **Regional deployments**: SaaS replicado em US-East, EU-West, BR-São Paulo. Data residency compliance.
+- **Edge functions** (Cloudflare Workers, Vercel Edge): auth checks, rate limit, A/B test routing — sub-50ms global.
+- **Serverless** (Lambda/Cloud Run): bursty workloads (image processing, ML inference, report gen).
+- **Multi-cluster K8s**: cada região cluster separado; service mesh cross-region opcional.
+- **Quando vale**: latency global é vantagem competitiva; compliance regional (GDPR, LGPD); MAU concentrado em > 2 continents.
+
+**Decision tree — quando extrair serviço do monolito**:
+
+```
+Para cada module candidato:
+  1. Tem traffic profile diferente? (high-volume notifications vs low-volume admin)
+     → SIM: candidato.
+  2. Tem scale axis diferente? (CPU-bound image processing vs I/O-bound API)
+     → SIM: candidato.
+  3. Squad dedicada quer deploy independente?
+     → SIM: candidato.
+  4. Tem dependency externa risky? (3rd-party API down derruba monolith)
+     → SIM: isolar pra fault-tolerance.
+  5. Tem compliance/audit boundary? (PII processing isolado)
+     → SIM: extrair pra reduce blast radius.
+
+Se 0-1 sim: NÃO extrair. Custo > benefício.
+Se 2+ sim: candidato; evaluate cost (build, deploy, observability, ops).
+```
+
+**Signals que indicam estágio errado**:
+
+Monolítico estagnado em v1 quando deveria ser v2:
+- Build > 10min.
+- PR conflicts toda semana.
+- Deploy "assustador" (uma feature errada derruba tudo).
+- Time evita refactor por medo.
+
+Microservices prematuro em v2 quando deveria ser v1+extracted:
+- 8 services pra 5 devs (overhead de deploy/observability/contracts).
+- Mudança simples requer PR em 3 repos.
+- Distributed tracing é único jeito de debug.
+- "Distributed monolith": services tightly coupled em events, não escalam isoladamente.
+
+Microservices estagnado em v3 quando deveria ser v4:
+- Latency global > 500ms p99 em mercados secundários.
+- Compliance forcing data residency mas tudo em US.
+- Single region outage = global outage.
+
+**Logística — caminho real recomendado**:
+
+```
+v1 (Year 1, MVP): Monorepo Next.js + Fastify monolith + Postgres + Railway. 5 devs.
+v2 (Year 2, growth): Extract notifications + image processing. Add Redis. Read replica. 12 devs.
+v3 (Year 3-4, scale): Identity + Orders + Dispatch + Billing + Analytics services. K8s. Kafka. 35 devs.
+v4 (Year 5+, global): Multi-region (US, EU, BR). Edge auth. Serverless ML inference. 80+ devs.
+```
+
+**Custo de cada transição (estimativa real)**:
+
+- **v1 → v2** (extract 2-3 services): 2-3 meses, 3-4 devs. Investment em CI/CD, observability básica.
+- **v2 → v3** (full SOA): 9-12 meses, time inteiro. Heavy investment em platform team, service contracts, distributed tracing.
+- **v3 → v4** (multi-region): 6-12 meses, focus team. Database replication strategy, edge infra, compliance work.
+
+**Anti-patterns observados**:
+
+- **Microservices em v1 "porque escalável"**: 6 services antes do PMF; 90% morre ou pivota; refactor desperdiçado.
+- **Monolith em v3 "porque é simples"**: time de 50 devs em 1 repo = PR queue de horas, deploys conflitantes.
+- **Extract por moda, não dor**: "vamos extrair billing" sem signal técnico/org real; cria overhead.
+- **DB compartilhado em microservices**: "soft" microservices; cada service sabe schema do outro; violation de bounded context.
+- **Service mesh em v2 sem necessidade**: Istio em 5 services = ops overhead 4x maior que ganho.
+- **Edge functions em v1**: time perde 1 mês otimizando latency global enquanto produto não tem PMF.
+- **Serverless tudo em v3**: cold start mata p99; bills imprevisíveis em scale; debugging fragmentado.
+- **Zero migration plan**: stage transitions improvisadas; outage durante extract.
+
+Cruza com **04-07 §2.15** (modular monolith concretizado), **04-08 §2.20** (services-monolith-serverless decisão geral), **04-06 §2.3** (bounded contexts são pré-requisito pra service extraction), **04-12 §2.14** (Conway's Law alinha org com arquitetura), **04-09 §2.x** (scale axes informam decisão).
+
 ---
 
 ## 3. Threshold de Maestria
