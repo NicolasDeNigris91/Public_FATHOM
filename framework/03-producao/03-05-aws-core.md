@@ -375,6 +375,180 @@ Em 2025-2026 virou signal de maturidade técnica em diversos contextos (consumer
 
 Pra muitos times é prematuro. Pra times em B2C, governance forte, ou EU compliance: já é parte do trabalho.
 
+### 2.21 AWS cost optimization deep — Reserved/Savings Plans, Spot, S3 storage classes, NAT Gateway armadilha, egress
+
+AWS bill em Logística pode ser optimizado 40-70% sem mudar arquitetura. 5 alavancas: (1) Reserved Instances / Savings Plans (savings 30-72%), (2) Spot pra workloads tolerantes (savings 50-90%), (3) S3 storage classes lifecycle (savings 40-95%), (4) NAT Gateway armadilha ($0.045/GB processed!), (5) Egress (cross-region $0.02/GB; internet $0.09/GB). Esta seção entrega cost engineering production-ready com numbers reais 2026.
+
+**Compute savings — RI vs Savings Plans (2026):**
+
+| Plan | Savings | Commitment | Flexibilidade |
+|---|---|---|---|
+| **Standard RI** | até 72% | 1 ou 3 anos | Lock instance type+region |
+| **Convertible RI** | até 66% | 1 ou 3 anos | Trocar instance family |
+| **Compute Savings Plan** | até 66% | 1 ou 3 anos | Qualquer EC2/Fargate/Lambda em qualquer região |
+| **EC2 Instance Savings Plan** | até 72% | 1 ou 3 anos | Family + region locked |
+| **SageMaker Savings Plan** | até 64% | 1 ou 3 anos | SageMaker only |
+
+- **Recomendação 2026 default**: **Compute Savings Plan 1-year no-upfront** — 50-60% savings, máxima flex.
+- **Quando RI Standard 3-year**: workload comprovadamente steady por 3+ anos (rare em startup).
+
+**Spot — savings 50-90% mas instances podem morrer:**
+
+```bash
+# Spot pra batch jobs / stateless workers
+aws ec2 run-instances \
+  --instance-market-options 'MarketType=spot,SpotOptions={MaxPrice=0.05,InstanceInterruptionBehavior=terminate}' \
+  --instance-type m6i.xlarge \
+  --image-id ami-...
+```
+
+- **Quando vence**: stateless processing, batch jobs, CI runners, ML training, dev/staging environments.
+- **Quando NÃO**: stateful DB primary, single-user SaaS, anything user-facing sem fallback.
+- **Spot interruption notice**: 2 minutos antes de terminate via instance metadata. Apps tem que escutar e drain.
+- **EKS Karpenter**: auto-bid spot + on-demand mix; reagrupa pods em interruption.
+- **Spot Fleet** (legacy) vs **EC2 Fleet** (current): Fleet flexibilizes instance types.
+
+**S3 storage classes — lifecycle pra savings 40-95%:**
+
+| Class | $/GB/mês 2026 | Acesso | Latency | Quando |
+|---|---|---|---|---|
+| Standard | $0.023 | Frequente (> 1x/mês) | ms | Hot data |
+| Standard-IA | $0.0125 | < 1x/mês | ms | Logs 30-90 dias |
+| One Zone-IA | $0.01 | < 1x/mês, replicable | ms | Re-creatable thumbnails |
+| Glacier Instant Retrieval | $0.004 | Quarterly | ms | Old archives instant access |
+| Glacier Flexible | $0.0036 | < 1x/ano | minutes-hours | Compliance archives |
+| Glacier Deep | $0.00099 | < 1x/ano | 12h | Cold archives |
+| Intelligent-Tiering | $0.023 → varia | Auto-tiers | ms | Unknown access pattern |
+
+Logística lifecycle policy:
+
+```json
+{
+  "Rules": [{
+    "Id": "tracking-pings-archive",
+    "Status": "Enabled",
+    "Filter": { "Prefix": "tracking-pings/" },
+    "Transitions": [
+      { "Days": 30, "StorageClass": "STANDARD_IA" },
+      { "Days": 90, "StorageClass": "GLACIER_IR" },
+      { "Days": 365, "StorageClass": "DEEP_ARCHIVE" }
+    ],
+    "Expiration": { "Days": 2555 }
+  }]
+}
+```
+
+- **Pegadinha**: Standard-IA charges minimum 30 days storage + 128KB minimum. Migrar arquivo de 1KB pra IA = anti-savings.
+
+**NAT Gateway — a armadilha invisível ($0.045/GB processed):**
+
+- Se app em private subnet → NAT GW → Internet, paga **$0.045/GB**. Workload com 10TB egress/mês = $450 só de NAT.
+- **Solução 1: VPC Endpoints** pra serviços AWS:
+  ```
+  S3, DynamoDB → Gateway endpoints (FREE, no charge per GB)
+  ECR, Secrets Manager, KMS, etc → Interface endpoints ($0.01/hour + $0.01/GB)
+  ```
+- **Solução 2: NAT Instance** (EC2 pra fazer NAT): single instance ~$5/mês + transfer cost normal $0.09/GB. Vence se NAT < 50GB/mês.
+- **Logística check**: rode `aws ce get-cost-and-usage --filter "DIMENSION/SERVICE=AmazonNatGateway"` mensal — surpresa garantida.
+
+**Data egress — o dragão silencioso:**
+
+| Origem → Destino | $/GB |
+|---|---|
+| EC2 → Internet | $0.09 |
+| EC2 → CloudFront | $0.00 (free pra CF tier 1) |
+| EC2 → outra AZ mesma região | $0.01 |
+| EC2 → outra região | $0.02 |
+| S3 → Internet | $0.09 |
+| S3 → CloudFront | $0.00 |
+
+Logística action items:
+
+- Servir static assets via CloudFront (free egress + cache).
+- Cross-AZ traffic: redesign pra single-AZ se latency permite (mas perde HA).
+- Multi-region replication: data transfer custa real.
+- Stripe webhooks chegando do internet → seu API: incoming gratis. Outbound de você → Stripe API call = pago.
+
+**CloudFront — egress savings + perf:**
+
+- Free tier 1TB/mês egress (2026 update).
+- $0.085/GB depois (vs S3 $0.09 direto). Savings + cache + edge POPs.
+- Cache hit rate > 90% típico pra static assets → reduz origin cost também.
+- **Pegadinha**: CloudFront cache key inclui Host header; subdomains diferentes = cache separado.
+
+**Lambda cost optimization:**
+
+- **Memory tuning**: Lambda billa per GB-second. Sometimes 1024MB memory roda 2x mais rápido que 512MB → 50% menos billed time.
+  - Use **AWS Lambda Power Tuning** tool (open source) pra encontrar sweet spot.
+- **Provisioned Concurrency** pra latency-sensitive: paga $0.00001520/GB-second sempre. Vale só se cold start > 200ms é unacceptable.
+- **ARM Graviton** (`arm64`): 20% cheaper, often faster que x86.
+- **Lambda SnapStart** (Java only): reduz cold start 10x; paga $0.0000178/GB-second.
+
+**Database cost — RDS / Aurora:**
+
+- **Aurora Serverless v2**: scales 0.5 ACU → 128 ACU. 1 ACU = 2GB RAM + ~equivalente CPU. $0.12/ACU-hour.
+- **Reserved Aurora 1-year**: 35% savings vs on-demand.
+- **Read replicas em outra AZ**: data transfer cross-AZ $0.01/GB = pode dominar bill em high-throughput.
+- **Aurora I/O-Optimized** (2023+): pricing alternativo sem charge per I/O. Vence se > 25% bill é I/O.
+- **Backup retention**: cobra storage além da retention default. Set policy.
+
+**FinOps tooling — visibility é prerequisite:**
+
+- **Cost Explorer**: free, AWS native. Filter por tag, service, region.
+- **AWS Budgets**: alertas em projetado/actual.
+- **Cost Anomaly Detection**: ML-based; pega spike inesperado em 24h.
+- **CUR (Cost & Usage Report)**: dump em S3, query com Athena. Single source pra dashboards custom.
+- **Vantage / Cloudability / Apptio**: SaaS FinOps; multi-cloud + recommendations + chargeback.
+- **infracost** (open source): show $ delta em PR de Terraform. PR review com cost visible.
+
+**Tagging strategy obrigatória pra cost attribution:**
+
+```hcl
+# terraform tags em TODO recurso
+tags = {
+  Environment = "prod"
+  Project     = "logistica"
+  Owner       = "platform-team"
+  CostCenter  = "engineering"
+  Service     = "orders-api"
+}
+```
+
+- Sem tags: bill de $40k/mês indistinguível por team/feature/env.
+- Activate cost allocation tags em Billing console (auto após 24h).
+
+**Logística — saving stack típico (60% reduction):**
+
+```
+Before: $40k/mês AWS bill
+Actions:
+  1. Compute Savings Plan 1y → -50% on EC2 ($12k → $6k)
+  2. Spot pra Karpenter dev/staging → -75% ($4k → $1k)
+  3. S3 lifecycle pra tracking-pings archive → -80% storage ($2k → $400)
+  4. VPC Endpoints (S3+DDB+ECR) substituindo NAT → -90% NAT ($800 → $80)
+  5. CloudFront pra static assets → -100% egress de assets ($1.5k → free)
+  6. Aurora Serverless v2 vs reserved m6g.xlarge → -40% off-peak ($2k → $1.2k)
+  7. ARM Graviton em workers → -20% ($1.5k → $1.2k)
+
+After: ~$15k/mês (-62%)
+ROI engineering: ~2 semanas focused work; payback < 1 mês.
+```
+
+**Anti-patterns observados:**
+
+- **No tagging**: cost attribution impossible; bill explica nada.
+- **NAT Gateway pra TUDO**: $0.045/GB compounds; VPC Endpoints free pra S3/DDB.
+- **S3 sem lifecycle**: tracking pings 90 dias → 7 anos em STANDARD = $5k/mês em storage que poderia ser $200.
+- **Reserved 3-year em workload de 6-meses**: lock perdido; wasted commitment.
+- **Spot em workload critical sem fallback**: interruption = downtime.
+- **EBS gp2** em vez de gp3 (default 2026): gp3 30% cheaper + better IOPS baseline.
+- **CloudWatch Logs sem retention**: cobra $0.03/GB-month indefinidamente; set retention 30-90 dias.
+- **Idle resources**: EC2 stopped ainda cobra EBS; Elastic IPs unattached cobram $0.005/hora.
+- **Cross-region replication "pra HA"**: $0.02/GB transfer + $0.023/GB storage 2x.
+- **Lambda max memory "porque sempre"**: tune via Power Tuning; sweet spot tipicamente 512-1024MB.
+
+Cruza com **03-05 §2.17** (custos foundation), **03-05 §2.19** (FinOps), **04-09 §2.14** (cost ao scale geral), **04-16 §2.16** (cost optimization patterns business-level), **03-02 §2.20** (Docker secrets em S3 → use Secrets Manager pra evitar S3 cost).
+
 ---
 
 ## 3. Threshold de Maestria

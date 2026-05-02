@@ -233,6 +233,165 @@ Exits: IPO (raras), acquisition (mais comum), acquihire (talent absorbido), shut
 
 Engineering importa em due diligence: code quality, test coverage, security, IP, key-man dependence.
 
+### 2.19 Unit economics deep — CAC/LTV/payback period com fórmulas, cohort analysis, COGS per request
+
+Engenheiro Staff que entende unit economics ganha argumentos com CFO/founder. "Cobrar mais por feature X?" sem entender LTV é palpite. "Reduzir custo Z?" sem COGS per request é otimização cega. Esta seção entrega: fórmulas exatas (não aproximações), cohort analysis em SQL, decomposição de COGS por componente cloud, decision tree de "quando invest engineering vs go-to-market".
+
+**CAC (Customer Acquisition Cost) — fórmula completa**:
+
+```
+CAC = (Total spend em sales + marketing no período) / (Novos customers acquired no período)
+```
+
+- **Inclui**: salários sales/marketing/SDR, anúncios pagos, content, ferramentas (HubSpot/Salesforce), eventos, agência, PR.
+- **NÃO inclui**: customer success post-sale, product engineering, infrastructure.
+- **Blended CAC** vs **Paid CAC**: blended diz "$200/customer global"; paid CAC isola só $ de mídia paga + ad-attributable conversions. Paid CAC é mais útil pra decisões de canal.
+- **Logística exemplo**: $50k em ads/mês + $30k SDR salário = $80k spend. 200 novos lojistas onboarded → CAC = $400.
+
+**LTV (Lifetime Value) — 3 fórmulas, 3 níveis de precisão**:
+
+Nível 1 — Quick (use no início):
+
+```
+LTV = ARPU × Gross Margin × (1 / Churn rate)
+```
+
+- ARPU = average revenue per user/month.
+- Gross margin = (revenue - COGS) / revenue. Idealmente > 70% pra SaaS.
+- Churn = % monthly customer churn (ex: 3% = 0.03).
+- Logística: ARPU $500/mês × 75% margin × (1/0.03) = $12,500.
+
+Nível 2 — Cohort-adjusted:
+
+```
+LTV = sum over months of ((retained_customers_in_month / initial_cohort) × ARPU × margin)
+```
+
+- Captura curva real de churn (frequentemente decrescente: high churn em mês 1-3, depois plateau).
+- Calcule via SQL em cohorts.
+
+Nível 3 — Discounted (NPV):
+
+```
+LTV = sum over months of ((retention(t) × ARPU × margin) / (1 + discount_rate)^t)
+```
+
+- Aplica discount rate (10-15% anual) pra refletir time value of money.
+- Usado em modelos de M&A, valuation séries B+.
+
+**CAC payback period — métrica que CFO mais olha**:
+
+```
+Payback months = CAC / (ARPU × Gross Margin)
+```
+
+- Logística: $400 / ($500 × 0.75) = $400 / $375 = 1.07 meses.
+- **Saudável** (SaaS B2B SMB): < 12 meses.
+- **Excelente**: < 6 meses.
+- **Vermelho**: > 18 meses (você queima cash até customer pagar de volta).
+
+**LTV:CAC ratio — o número de "saúde"**:
+
+```
+LTV / CAC ratio
+```
+
+- **3:1**: saudável, sustentável.
+- **5:1+**: excelente; pode investir mais agressivamente em growth.
+- **< 1:1**: você paga pra adquirir, perde dinheiro em cada customer; suicídio sem mudanças.
+- **Condição**: LTV usa gross margin, sem ele você está enganando.
+
+**Cohort analysis em SQL**:
+
+```sql
+-- Monthly cohort retention curve
+WITH cohorts AS (
+  SELECT customer_id, date_trunc('month', signup_at) AS cohort_month
+  FROM customers
+),
+activity AS (
+  SELECT customer_id, date_trunc('month', event_at) AS active_month
+  FROM customer_events
+  WHERE event_type = 'invoice_paid'
+),
+joined AS (
+  SELECT c.cohort_month,
+         extract(epoch FROM age(a.active_month, c.cohort_month)) / (86400 * 30) AS months_since_signup,
+         COUNT(DISTINCT a.customer_id) AS active
+  FROM cohorts c
+  LEFT JOIN activity a USING (customer_id)
+  GROUP BY 1, 2
+),
+cohort_size AS (
+  SELECT cohort_month, COUNT(*) AS initial_size
+  FROM cohorts GROUP BY 1
+)
+SELECT j.cohort_month,
+       j.months_since_signup,
+       j.active,
+       ROUND(100.0 * j.active / cs.initial_size, 1) AS retention_pct
+FROM joined j JOIN cohort_size cs USING (cohort_month)
+WHERE j.months_since_signup IS NOT NULL
+ORDER BY j.cohort_month, j.months_since_signup;
+```
+
+- Plot output: x-axis = months_since_signup, y-axis = retention_pct, 1 line por cohort_month.
+- **Healthy SaaS**: cohort line plateau após mês 6-12 em > 60%; declines até zero em 24+ meses = transactional model.
+
+**COGS per request — decomposição engineering-side**:
+
+```
+COGS per request = (cost_compute + cost_db + cost_storage + cost_network + cost_third_party) / requests
+```
+
+- **Logística exemplo, 10M req/mês**:
+  - Compute: $4k (K8s nodes EC2) → $0.0004/req.
+  - DB: $2k (RDS Postgres + ClickHouse) → $0.0002/req.
+  - Storage: $300 (S3 + EBS) → $0.00003/req.
+  - Network: $1.5k (egress + NAT GW) → $0.00015/req.
+  - 3rd party: $800 (Stripe fees + Twilio + Sentry) → $0.00008/req.
+  - **Total: ~$0.00086/req** = $0.86 per 1k requests.
+- Set baseline; track trend over time. Spike sem feature change → bug ou waste.
+
+**Engineering ROI — quando cortar custo vs investir crescimento**:
+
+- **Regra**: se infra custa < 15% de revenue → foco crescimento. > 25% → cost optimization prioritário.
+- **Logística scenario**: $500k MRR, infra $40k = 8% → não otimize, cresça.
+- **Logística scenario**: $200k MRR, infra $60k = 30% → optimization sprint mandatório.
+
+**Logística — modelo end-to-end**:
+
+```
+Lojista pricing tier: $500/mês
+ARPU: $500
+Gross margin: 75% (after Stripe fees + delivery COGS)
+Monthly churn: 3% (sustained year 2+)
+
+LTV = $500 × 0.75 × (1/0.03) = $12,500
+
+Marketing $50k/mês + 2 SDRs $20k = $70k spend
+New lojistas/mês: 175
+CAC = $400
+
+LTV:CAC = 12500/400 = 31:1 (excellent)
+Payback = 400/(500 × 0.75) = 1.07 meses (excellent)
+
+Decision: triple ad spend; LTV bears it.
+```
+
+**Anti-patterns observados**:
+
+- **LTV sem gross margin**: inflados 30-40%. CFO vai catch.
+- **CAC sem salaries de sales/marketing**: subestima 60-80%; só ad spend.
+- **Cohort analysis com lifetime average**: esconde aging effect; new cohorts podem estar piorando enquanto média antiga sustenta.
+- **Payback > 18m em early-stage sem capital**: morre antes de break-even.
+- **COGS per request sem snapshot mensal**: regressão silenciosa em arquitetura.
+- **Ignorar churn enterprise vs SMB separado**: enterprise low-volume high-value, SMB opposite. Mistura mascara.
+- **Otimizar custo com infra < 10% de revenue**: ROI engineering hours melhor em features.
+- **Ignorar discount rate em LTV de série C+**: investidores institucionais usam DCF; sua LTV otimista vira foreshadowing de cap mais baixo.
+
+Cruza com **04-16 §2.13** (engineering levers em economics — onde código direta impacta), **04-16 §2.14** (burn/runway), **04-16 §2.16** (cost optimization patterns), **03-05 §2.19** (FinOps cloud cost engineering), **04-09 §2.14** (cost ao scale).
+
 ---
 
 ## 3. Threshold de Maestria

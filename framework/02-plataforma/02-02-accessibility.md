@@ -316,6 +316,247 @@ Português requer:
 
 LIBRAS (Língua Brasileira de Sinais) é língua oficial. Para conteúdo videos sérios, intérprete em vídeo opcional ou alternativa textual completa.
 
+### 2.17 ARIA patterns aplicados + screen reader testing + automated CI a11y
+
+A11y "esquecido" exclui 15-20% dos users (WHO disability stats), gera risco legal (Lei Brasileira de Inclusão + WCAG ADA US) e perda de revenue documentada (Click-Away Pound Report 2024 estima £17.1bn em UK só por sites inacessíveis). Esta seção entrega 5 ARIA patterns canônicos com código React, screen reader testing workflow real (NVDA/JAWS/VoiceOver), automated CI a11y pra prevent regression, e decision tree de "quando nativo vs quando ARIA".
+
+**First rule of ARIA — não use ARIA**:
+
+- Sempre prefira HTML semântico nativo: `<button>` em vez de `<div role="button">`. Native cobre focus, keyboard, screen reader, browser quirks — tudo de graça.
+- ARIA só pra widgets que HTML não cobre nativamente: tabs, menu, dialog, combobox, slider, accordion, treeview.
+- MDN: "No ARIA is better than bad ARIA". Atributo errado é pior que ausência de atributo — SR anuncia coisas falsas e quebra expectativa do user.
+
+**Pattern 1 — Modal dialog (focus trap + ARIA)**:
+
+```tsx
+import { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+
+export function Modal({ isOpen, onClose, title, children }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const lastFocus = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    lastFocus.current = document.activeElement as HTMLElement;
+    const focusable = ref.current!.querySelector<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    focusable?.focus();
+
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'Tab') trapFocus(e, ref.current!);
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('keydown', handleKey);
+      lastFocus.current?.focus();   // restore focus
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+  return createPortal(
+    <div role="dialog" aria-modal="true" aria-labelledby="modal-title" ref={ref}>
+      <h2 id="modal-title">{title}</h2>
+      {children}
+      <button onClick={onClose} aria-label="Fechar diálogo">×</button>
+    </div>,
+    document.body
+  );
+}
+```
+
+- **`role="dialog"` + `aria-modal="true"`**: SR anuncia "diálogo".
+- **`aria-labelledby`**: associa título; SR lê ao abrir.
+- **Focus trap**: tab cycle dentro do modal; sem isso, user cai no background invisível.
+- **Restore focus**: após close, devolve foco pro trigger original.
+
+**Pattern 2 — Combobox (autocomplete)**:
+
+```tsx
+<div role="combobox" aria-expanded={isOpen} aria-controls="listbox-id" aria-haspopup="listbox">
+  <input
+    type="text"
+    aria-autocomplete="list"
+    aria-activedescendant={activeId}
+    value={query}
+    onChange={...}
+  />
+  {isOpen && (
+    <ul id="listbox-id" role="listbox">
+      {options.map((opt, i) => (
+        <li
+          key={opt.id}
+          id={`option-${opt.id}`}
+          role="option"
+          aria-selected={i === activeIndex}
+        >
+          {opt.label}
+        </li>
+      ))}
+    </ul>
+  )}
+</div>
+```
+
+- **`aria-activedescendant`**: foco "virtual" — input mantém DOM focus, SR anuncia option ativa.
+- **WAI-ARIA APG combobox pattern 1.2**: spec exata; APG fornece reference implementation testada.
+- Em 2026: prefira `<datalist>` se UX permite (HTML nativo, zero ARIA).
+
+**Pattern 3 — Live region (notificação dinâmica)**:
+
+```tsx
+// Status messages após Server Action
+<div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+  {message}
+</div>
+
+// Erros críticos
+<div role="alert" aria-live="assertive">
+  {error}
+</div>
+```
+
+- **`aria-live="polite"`**: SR anuncia quando idle (não interrompe leitura corrente).
+- **`aria-live="assertive"` ou `role="alert"`**: interrompe SR — só pra critical (validation error, action failed).
+- **`aria-atomic="true"`**: SR lê região INTEIRA quando muda (vs só diff).
+- **Pegadinha React**: live region precisa estar no DOM ANTES de receber content. Render initially empty, depois update.
+
+**Pattern 4 — Disclosure (accordion)**:
+
+```tsx
+<button
+  aria-expanded={isOpen}
+  aria-controls="panel-id"
+  onClick={() => setIsOpen(!isOpen)}
+>
+  {title}
+</button>
+<div id="panel-id" hidden={!isOpen}>
+  {content}
+</div>
+```
+
+- **`aria-expanded`**: SR anuncia estado.
+- **`hidden`**: HTML nativo — better que `display: none` via CSS porque inacessível tabbing.
+- **Native `<details>/<summary>`**: alternativa nativa cobre 80% dos casos; use antes de reinventar.
+
+**Pattern 5 — Tabs**:
+
+```tsx
+<div role="tablist" aria-label="Seções da conta">
+  {tabs.map((tab, i) => (
+    <button
+      key={tab.id}
+      role="tab"
+      id={`tab-${tab.id}`}
+      aria-selected={activeTab === tab.id}
+      aria-controls={`panel-${tab.id}`}
+      tabIndex={activeTab === tab.id ? 0 : -1}
+      onClick={() => setActiveTab(tab.id)}
+    >
+      {tab.label}
+    </button>
+  ))}
+</div>
+{tabs.map(tab => (
+  <div
+    key={tab.id}
+    role="tabpanel"
+    id={`panel-${tab.id}`}
+    aria-labelledby={`tab-${tab.id}`}
+    hidden={activeTab !== tab.id}
+  >
+    {tab.content}
+  </div>
+))}
+```
+
+- **`tabIndex={-1}` em tabs inativas**: arrow keys navegam entre tabs (não Tab); Tab vai pro content.
+- **APG tabs pattern**: Home/End/Arrow keys também esperados.
+
+**Screen reader testing — workflow real**:
+
+```
+Setup:
+  - macOS: VoiceOver (built-in, Cmd+F5).
+  - Windows: NVDA (free, github.com/nvaccess/nvda) ou JAWS (paid, more market share enterprise).
+  - Mobile: VoiceOver (iOS), TalkBack (Android).
+
+Workflow per feature:
+  1. Cego: navegue só com keyboard (sem mouse).
+  2. SR ON, monitor off: complete fluxo principal só ouvindo.
+  3. Verifique:
+     - Heading structure (H1 → H2 → H3 sem skip).
+     - Form labels associados (htmlFor + id).
+     - Error messages anunciados.
+     - Modal: focus entra, tab trap, escape close, restore focus.
+     - Live regions: anúncios em mudanças assíncronas.
+
+Cadência: smoke test antes de cada release; full regression a cada quarter.
+```
+
+**Automated CI a11y — catch regressions**:
+
+```typescript
+// playwright a11y test
+import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+
+test('homepage has no critical violations', async ({ page }) => {
+  await page.goto('/');
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])
+    .analyze();
+  expect(results.violations.filter(v => v.impact === 'critical')).toEqual([]);
+});
+
+test('order flow accessible', async ({ page }) => {
+  await page.goto('/orders/new');
+  await page.fill('[name=courier]', 'João');
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toMatchSnapshot('orders-violations.txt');
+});
+```
+
+- **axe-core**: cobre ~57% dos WCAG (não tudo é automatable). Manual testing OBRIGATÓRIO pro resto.
+- **Lighthouse a11y score**: similar coverage; usa axe-core under the hood.
+- **Storybook a11y addon**: testa cada component isoladamente em dev.
+- **CI gate**: PR que adiciona violations critical → block merge.
+
+**Logística — checklist a11y por feature**:
+
+```
+[ ] Skip links pra main content.
+[ ] Heading structure validate (1 H1 per page; sem skip).
+[ ] Form inputs com <label> associado (htmlFor + id).
+[ ] Color contrast > 4.5:1 (WCAG AA) — automated via axe.
+[ ] Focus indicator visível (não outline:none sem replace).
+[ ] Keyboard navigation cobertura: tudo clickable acessível via Tab.
+[ ] Modals: focus trap + escape + restore focus.
+[ ] Live regions pra Server Action result + form errors.
+[ ] Lang attribute em <html lang="pt-BR">.
+[ ] Images: alt text descritivo (vazio se decorativo).
+[ ] Buttons vs Links: <button> pra ação, <a> pra navegação.
+[ ] Mobile: touch target > 44×44px (WCAG 2.5.5 AAA).
+```
+
+**Anti-patterns observados**:
+
+- **`<div onClick>` em vez de `<button>`**: sem keyboard, sem SR semântica.
+- **`outline: none` sem replacement**: keyboard users perdem focus indicator.
+- **`aria-label` em texto visível**: contradição; SR lê aria-label, ignora texto.
+- **Modal sem focus trap**: tab cai background; user perdido.
+- **Live region rendered after content**: SR não anuncia primeira atualização.
+- **`role="button"` em `<a>`**: contradição; use button OR link de navegação.
+- **Skip link invisível**: precisa visível em focus pra keyboard users.
+- **Auto-play video com som**: viola WCAG 1.4.2; user não controla.
+- **Color como única indicação**: red error sem ícone/texto = invisível pra colorblind.
+- **Form com placeholder mas sem label**: placeholder some quando user digita; SR pode não anunciar.
+
+Cruza com **02-02 §2.13** (WCAG 2.2 critérios), **02-02 §2.14** (APG patterns), **02-02 §2.15** (manual audit), **02-04 §2.x** (React component design influencia a11y), **03-01 §2.x** (a11y tests em CI).
+
 ---
 
 ## 3. Threshold de Maestria
