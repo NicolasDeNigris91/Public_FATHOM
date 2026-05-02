@@ -315,6 +315,246 @@ Eventos significam: "logo, o sistema vai estar coerente". UX precisa lidar com:
 
 Read-your-writes UX pattern: após escrita, mostra optimistic UI imediato; backend confirma async.
 
+### 2.18 Idempotent consumer + deduplication strategies — message ID tracking, inbox pattern, exactly-once
+
+"Exactly-once delivery" não existe em sistemas distribuídos (FLP impossibility). O que existe é "at-least-once delivery + idempotent consumer = effectively exactly-once". Sem idempotência, retry de broker (RabbitMQ requeue, Kafka rebalance, SQS visibility timeout) processa mesma mensagem 2x → cobrança duplicada, email duplicado, estoque negativo. Esta seção entrega 4 strategies em código pra Logística + decision tree.
+
+**Foundation: por que retries acontecem**:
+- **Network**: ack do consumer perde antes de chegar no broker. Broker reentrega.
+- **Crash**: consumer processa, antes do ack crasha. Broker reentrega.
+- **Rebalance**: Kafka rebalance move partition mid-batch; novo owner reprocessa offsets não-committados.
+- **Visibility timeout**: SQS visibility timeout expira durante processamento longo; outro worker recebe.
+- **Manual replay**: dev replays de DLQ pra debug; production consumer também recebe.
+
+**Strategy 1: Idempotency table (canonical)**:
+
+```sql
+CREATE TABLE processed_messages (
+  message_id TEXT PRIMARY KEY,
+  processed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  result JSONB
+);
+
+CREATE INDEX ON processed_messages (processed_at);   -- pra cleanup
+```
+
+```typescript
+async function handleMessage(msg: Message) {
+  await db.transaction(async (tx) => {
+    const existing = await tx.processedMessages.findFirst({
+      where: { messageId: msg.id },
+    });
+    if (existing) {
+      log.info({ msgId: msg.id }, 'duplicate, skipping');
+      return existing.result;
+    }
+
+    const result = await processOrderEvent(msg.payload, tx);
+
+    await tx.processedMessages.insert({
+      messageId: msg.id,
+      result,
+    });
+    return result;
+  });
+}
+```
+
+- Mesma transação atomica: idempotency record + side effect. Crash entre eles = retry pega "not processed" e reprocessa.
+- **Cleanup**: `DELETE FROM processed_messages WHERE processed_at < now() - INTERVAL '30 days'` em cron. Sem cleanup, table cresce infinito.
+- **Pegadinha**: side effect EXTERNO (call API, send email) NÃO é transactional com DB. Ver Strategy 4.
+
+**Strategy 2: Natural idempotency via UPSERT/conditional update**:
+
+```typescript
+// Para messages cujo state é absorvable
+async function handleStatusChange(msg: { orderId: string; toStatus: string; eventTime: number }) {
+  // UPSERT com condição: só atualiza se evento é mais recente
+  await db.execute(sql`
+    UPDATE orders
+    SET status = ${msg.toStatus},
+        status_updated_at = to_timestamp(${msg.eventTime})
+    WHERE id = ${msg.orderId}
+      AND status_updated_at < to_timestamp(${msg.eventTime})
+  `);
+}
+```
+
+- Não precisa idempotency table — operação em si é idempotente.
+- Funciona pra: status updates (LWW), counter increments (com event_id check), set membership.
+- NÃO funciona pra: side effects (email), transactional debit/credit (use Strategy 1 ou 3).
+
+**Strategy 3: Inbox pattern (transactional dedup + handoff)**:
+
+```sql
+-- Inbox table: receives messages, decoupled from processing
+CREATE TABLE inbox (
+  message_id TEXT PRIMARY KEY,
+  payload JSONB NOT NULL,
+  received_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  processed_at TIMESTAMPTZ,
+  attempts INT NOT NULL DEFAULT 0,
+  last_error TEXT
+);
+
+CREATE INDEX ON inbox (processed_at) WHERE processed_at IS NULL;
+```
+
+```typescript
+// Receiver: insert atomic; commit ack só após insert ok
+async function receiveMessage(msg: Message) {
+  try {
+    await db.inbox.insert({
+      messageId: msg.id,
+      payload: msg.payload,
+    });
+    await msg.ack();
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      await msg.ack();   // duplicate; já temos
+      return;
+    }
+    await msg.nack();
+  }
+}
+
+// Processor: separate worker, FOR UPDATE SKIP LOCKED
+async function processInbox() {
+  while (true) {
+    const rows = await db.execute(sql`
+      SELECT message_id, payload FROM inbox
+      WHERE processed_at IS NULL
+      ORDER BY received_at
+      LIMIT 10
+      FOR UPDATE SKIP LOCKED
+    `);
+
+    for (const row of rows) {
+      try {
+        await handlePayload(row.payload);
+        await db.inbox.update(row.messageId, {
+          processedAt: new Date(),
+        });
+      } catch (err) {
+        await db.inbox.update(row.messageId, {
+          attempts: sql`attempts + 1`,
+          lastError: String(err),
+        });
+      }
+    }
+    await sleep(100);
+  }
+}
+```
+
+- **Vantagem**: receiver e processor desacoplados. Receiver é fast (só INSERT). Processor pode ter retry policy independente.
+- **`FOR UPDATE SKIP LOCKED`**: 10 workers paralelos sem step on each other.
+- Combina com Outbox no producer (cruza com 04-03 §2.8) pra exactly-once via dual-write evitado.
+
+**Strategy 4: External side effect com saga compensação**:
+
+```typescript
+async function handlePaymentEvent(msg: PaymentEvent) {
+  return db.transaction(async (tx) => {
+    const existing = await tx.processedMessages.findFirst({
+      where: { messageId: msg.id },
+    });
+    if (existing) return existing.result;
+
+    // Step 1: idempotent external call com idempotency key
+    const charge = await stripe.paymentIntents.create({
+      amount: msg.amount,
+      currency: 'brl',
+      customer: msg.customerId,
+    }, {
+      idempotencyKey: msg.id,    // Stripe garante: 2x mesma key = mesma resposta
+    });
+
+    // Step 2: persist + record processed atomic
+    await tx.payments.insert({ orderId: msg.orderId, stripeId: charge.id });
+    await tx.processedMessages.insert({
+      messageId: msg.id,
+      result: { stripeId: charge.id },
+    });
+
+    return { stripeId: charge.id };
+  });
+}
+```
+
+- **Idempotency key obrigatória** em todas APIs externas que fazem state change (Stripe, Twilio, Shippo, payment gateways). Reuse `msg.id` ou hash determinístico de payload.
+- Sem isso, retry executa side effect 2x; cobra cliente 2x.
+
+**Decision tree**:
+
+| Cenário | Strategy |
+|---|---|
+| State update (status, counter, set) | Strategy 2 (UPSERT condicional) |
+| Side effect interno (DB write only) | Strategy 1 (idempotency table) |
+| Receiver overwhelmed por processing time | Strategy 3 (inbox pattern, fast ack) |
+| External API com state change | Strategy 4 (idempotency key + Strategy 1) |
+| Multiple consumers competing | Strategy 1 + Strategy 3 com FOR UPDATE SKIP LOCKED |
+
+**DLQ + poison messages handling**:
+
+```typescript
+const MAX_ATTEMPTS = 5;
+
+async function processWithRetry(msg: Message) {
+  try {
+    await handleMessage(msg);
+    await msg.ack();
+  } catch (err) {
+    const attempts = (msg.headers['x-attempts'] as number) ?? 0;
+
+    if (attempts >= MAX_ATTEMPTS) {
+      await sendToDLQ(msg, err);
+      await msg.ack();   // ack original; DLQ é separate queue
+      alertOps({ msgId: msg.id, err, attempts });
+      return;
+    }
+
+    await msg.nack({
+      requeue: true,
+      headers: { ...msg.headers, 'x-attempts': attempts + 1 },
+    });
+  }
+}
+```
+
+- DLQ retém pra inspeção manual; não processa automatico.
+- Replay de DLQ tem que assumir mensagem PODE ter sido parcialmente processada (Strategy 1 protege).
+- Alert critical em entry pra DLQ; investigation prioritária.
+
+**Logística — Order Outbox + Inbox end-to-end**:
+
+```
+API Order Service:
+  POST /orders → DB transaction:
+    INSERT orders (...)
+    INSERT outbox (event_type='OrderCreated', payload, message_id=uuid())
+
+Outbox Relay (Debezium/polling):
+  SELECT FROM outbox WHERE published=false → publish to Kafka → mark published
+
+Notification Service Consumer (Kafka):
+  Receive msg → Strategy 3 (inbox) → ack Kafka
+  Worker reads inbox (FOR UPDATE SKIP LOCKED):
+    Strategy 4 → call Twilio with idempotencyKey=message_id → mark processed
+```
+
+**Anti-patterns observados**:
+- **Trust em "exactly-once" do broker**: Kafka, NATS JetStream marketing diz "exactly-once" mas é escopo limitado (within Kafka ↔ Kafka via transactions). Cross-system NÃO. Idempotência sempre.
+- **Ack ANTES de processar**: perde mensagem em crash. Ack DEPOIS de commit.
+- **Idempotency check FORA de transação**: race window. Check + insert atomic na mesma transaction.
+- **Sem cleanup de processed_messages**: table cresce infinito; lookup degrada.
+- **DLQ sem alert**: poison messages acumulam silenciosamente; descobre 6 meses depois.
+- **Reprocessar DLQ sem assumir partial processing**: pode duplicar side effect.
+- **`message_id` derivado de timestamp**: 2 mensagens em mesmo ms colidem. Use UUID v7 (timestamp-prefixed) ou ULID.
+- **External call sem idempotency key**: 2x Stripe charge.
+
+Cruza com **04-02 §2.14** (DLQ foundation), **04-03 §2.8** (outbox pattern producer-side), **04-04 §2.4** (idempotency em retry geral), **04-09 §2.20** (backpressure em consumer), **04-13 §2.16** (exactly-once semantics em pipelines analíticos).
+
 ---
 
 ## 3. Threshold de Maestria

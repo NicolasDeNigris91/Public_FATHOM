@@ -426,6 +426,196 @@ Setup OpenTelemetry, Sentry, etc.
 
 **`onRequestError`** (Next 15+) captura errors no servidor com request context.
 
+### 2.21 Partial Pre-Rendering (PPR) + cache layers — Data Cache, Router Cache, Full Route Cache, fetch deduplication
+
+Next.js 15+ tem 4 cache layers distintas + Partial Pre-Rendering (PPR) — modelo híbrido entre static e dynamic em mesma rota. Time que não entende cada layer recebe stale data, sees revalidation que não dispara, ou vê CPU explode com falsos cache hits. Esta seção mapeia comportamento real, código copy-paste, e armadilhas de produção.
+
+**The 4 cache layers — mental model**:
+
+| Layer | Escopo | TTL default | Storage | Invalidação |
+|---|---|---|---|---|
+| **Request Memoization** | Por request HTTP | Request lifetime | RAM do server | Auto end-of-request |
+| **Data Cache** | Cross-request, cross-deployment opcional | `Infinity` (manual) | Filesystem `.next/cache/fetch-cache` ou KV/Redis | `revalidateTag`, `revalidatePath`, `revalidate: N` |
+| **Full Route Cache** | Cross-request | Build-time pra static | `.next/server/app/<route>/.html` | Re-deploy ou ISR revalidate |
+| **Router Cache (Client)** | Por session do browser | 5min static, 30s dynamic | Browser memory | `router.refresh()`, navegação `router.push()` com staleTime |
+
+**Layer 1: Request Memoization (deduplicação automática)**:
+```typescript
+// app/order/[id]/page.tsx
+import { getOrder } from '@/lib/data/orders';
+
+export default async function Page({ params }: { params: { id: string } }) {
+  const order = await getOrder(params.id);
+  return <><Summary id={params.id} /><h1>{order.id}</h1></>;
+}
+
+async function Summary({ id }: { id: string }) {
+  const order = await getOrder(id);   // mesma cached promise: 0 fetches extra
+  return <p>Total: {order.total}</p>;
+}
+```
+- Aplicado a `fetch()` nativo + funções com `cache()` wrapper.
+- **Pegadinha**: NÃO funciona com bibliotecas que não usam `fetch` nativo (axios, @aws-sdk antigo). Wrap com `cache()` manualmente.
+
+**Layer 2: Data Cache — controle explícito**:
+```typescript
+// Cache por 60s
+await fetch(url, { next: { revalidate: 60 } });
+
+// Cache for-ever, invalidate por tag
+await fetch(url, { next: { tags: ['orders'] } });
+
+// No cache (skip Data Cache)
+await fetch(url, { cache: 'no-store' });
+
+// Tag-based invalidation (em Server Action ou Route Handler)
+import { revalidateTag, revalidatePath } from 'next/cache';
+await db.orders.update({ id, status: 'shipped' });
+revalidateTag('orders');           // invalidate específico
+revalidatePath('/dashboard', 'layout');   // invalidate route
+```
+- **Pegadinha**: `revalidate: 0` ≠ `cache: 'no-store'`. `revalidate: 0` ainda cacheia mas re-valida cada request. Mude pra `cache: 'no-store'` quando quer skip total.
+- **Multi-tag**: combine fine-grained + coarse: `tags: ['order:' + id, 'orders']`. Update single order revalida tag específica + lista.
+
+**Layer 3: Full Route Cache (FRC)**:
+- Static pages (sem `cookies()`/`headers()`/dynamic functions): pre-rendered em build, servidas como HTML.
+- Trigger dynamic: `cookies()`, `headers()`, `searchParams`, `cache: 'no-store'`, `revalidate: 0`.
+- Force estático: `export const dynamic = 'force-static'`.
+- Force dynamic: `export const dynamic = 'force-dynamic'`.
+
+**Layer 4: Router Cache (client-side)**:
+- Browser memory; sobrevive entre navegações `router.push`.
+- `staleTime`: 5min pra layout/loading static; 30s pra page dynamic.
+- **Update**: `router.refresh()` re-fetcha da rota atual e atualiza Router Cache + Server Components renderizados.
+- Próxima navegação `router.push('/path')` pega de Router Cache se válido — **não bate no servidor**, mesmo após `revalidateTag`.
+- **Mitigação**: `router.refresh()` após mutation, OU `revalidatePath` no Server Action que retorna no client.
+
+**Partial Pre-Rendering (PPR) — híbrido static/dynamic**:
+```typescript
+// next.config.ts
+export default {
+  experimental: { ppr: 'incremental' },  // 'incremental' permite opt-in por rota
+};
+
+// app/dashboard/page.tsx
+export const experimental_ppr = true;
+
+import { Suspense } from 'react';
+
+export default function Dashboard() {
+  return (
+    <>
+      <StaticHeader />
+      <StaticNav />
+      <Suspense fallback={<DynamicShell />}>
+        <DynamicMetrics />
+      </Suspense>
+      <StaticFooter />
+    </>
+  );
+}
+
+async function DynamicMetrics() {
+  const metrics = await fetch('https://api/metrics', { cache: 'no-store' });
+  return <Metrics data={await metrics.json()} />;
+}
+```
+- PPR pré-renderiza shell static (`StaticHeader`, `StaticFooter`, `<DynamicShell />` placeholder) em build → CDN serve TTFB ~30ms.
+- Dynamic part streama do server depois.
+- **Antes de PPR**: única dynamic call força rota inteira dynamic (TTFB 200ms+).
+
+**Logística — exemplo real de cache stack completo**:
+```typescript
+// app/orders/[id]/page.tsx
+import { Suspense } from 'react';
+import { unstable_cache } from 'next/cache';
+
+export const experimental_ppr = true;
+
+const getOrderCached = unstable_cache(
+  async (id: string) => db.orders.findById(id),
+  ['order-by-id'],
+  { revalidate: 30, tags: ['order:' + 'placeholder'] }   // tag dynamic abaixo
+);
+
+export default async function OrderPage({ params }: { params: { id: string } }) {
+  return (
+    <>
+      <StaticBreadcrumb />
+      <Suspense fallback={<OrderShell />}>
+        <OrderContent id={params.id} />
+      </Suspense>
+    </>
+  );
+}
+
+async function OrderContent({ id }: { id: string }) {
+  const order = await getOrderCached(id);
+  return <OrderDetails order={order} />;
+}
+
+// Server Action pra mutation
+export async function updateOrderStatus(id: string, status: string) {
+  'use server';
+  await db.orders.update(id, { status });
+  revalidateTag('order:' + id);
+}
+```
+- **Stack ativo**: Request Memoization (dedupe), Data Cache (`unstable_cache` com 30s revalidate + tag), Full Route Cache (PPR static shell), Router Cache (client navigation).
+
+**Cache observability — staging vs prod surprises**:
+- `Cache-Control` header em responses: prod retorna `s-maxage=N, stale-while-revalidate`; staging pode retornar `private` se `cookies()` foi tocado.
+- **Debug**: `next build` log mostra `○` (static) `●` (SSG) `ƒ` (dynamic) por rota — confere expectativa.
+- Em runtime: `headers().get('x-nextjs-cache')` retorna `HIT/MISS/STALE/REVALIDATING`.
+- Vercel: log `cache-status` em function logs. Self-host: cache em filesystem `.next/cache/fetch-cache/` (inspecionável).
+
+**Distributed cache em produção (multi-instance)**:
+```typescript
+// next.config.ts — cache handler customizado (Next 14+)
+export default {
+  cacheHandler: require.resolve('./cache-handler.js'),
+  cacheMaxMemorySize: 0,   // disable in-memory; use só Redis
+};
+
+// cache-handler.js
+const Redis = require('ioredis');
+const redis = new Redis(process.env.REDIS_URL);
+
+module.exports = class CacheHandler {
+  async get(key) {
+    const data = await redis.get(`next:${key}`);
+    return data ? JSON.parse(data) : null;
+  }
+  async set(key, data, ctx) {
+    const ttl = ctx?.revalidate ?? 3600;
+    await redis.set(`next:${key}`, JSON.stringify(data), 'EX', ttl);
+    if (ctx?.tags) {
+      for (const tag of ctx.tags) {
+        await redis.sadd(`next:tag:${tag}`, key);
+      }
+    }
+  }
+  async revalidateTag(tag) {
+    const keys = await redis.smembers(`next:tag:${tag}`);
+    if (keys.length) await redis.del(...keys.map(k => `next:${k}`));
+    await redis.del(`next:tag:${tag}`);
+  }
+};
+```
+- Sem custom cache handler em multi-instance: cada pod tem cache local; revalidateTag em pod A não invalida pod B → users veem versões inconsistentes.
+
+**Anti-patterns observados**:
+- **`fetch` em loop sem cache wrapper**: cada call hits backend; Request Memoization ajuda mas só dentro da request.
+- **`router.refresh()` esquecido pós-mutation**: client mostra stale data até next navigation.
+- **`revalidate: 60` em endpoint que muda 100x/seg**: 60s window mostra stale; ou diminua revalidate ou use `cache: 'no-store'` + edge cache.
+- **Multi-instance sem cache handler**: revalidateTag fragmenta consistency.
+- **`cookies()` em layout root**: força toda a árvore dynamic; quebra PPR. Mova `cookies()` pra component leaf dentro de `<Suspense>`.
+- **`unstable_cache` sem keyParts**: chave só pelo nome, args ignorados. Sempre passe `[functionName, ...argsArray]` no segundo parâmetro.
+- **Tag genérica `'data'` pra tudo**: revalidateTag('data') invalida o app inteiro. Tag granular: `'order:' + id`.
+- **Build-time fetch de API que muda**: `generateStaticParams` busca lista que stale em 1h; rotas pre-rendered desatualizadas.
+
+Cruza com **02-05 §2.16** (Server Actions com revalidation), **02-05 §2.18** (ISR fundamentos), **02-04 §2.9** (RSC mental model), **02-04 §2.9.2** (use() + cache() em RSC), **02-11** (Redis como cache handler distribuído).
+
 ---
 
 ## 3. Threshold de Maestria

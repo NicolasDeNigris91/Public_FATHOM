@@ -281,6 +281,205 @@ Default: comece monolith modular. Extract services quando dor real (não imagin�
 
 Sem 3+ desses, modular monolith é ROI superior.
 
+### 2.21 Saga patterns deep — choreography vs orchestration, Temporal/Cadence, compensating transactions
+
+Distributed transaction (2PC) é morta em microservices — performance ruim, dependência hard de coordinator, locks distribuídos travam o sistema sob carga. Saga é o substituto: long-running transaction modelada como sequência de local transactions com compensações em caso de falha. Duas variantes — choreography (event-driven) e orchestration (central coordinator) — com trade-offs claros. Temporal/Cadence/Step Functions são as runtimes 2026 production-ready pra durable workflow.
+
+**Foundation: o problema concreto**
+
+```
+PlaceOrder envolve:
+  1. ReserveInventory (Inventory service)
+  2. ChargePayment (Payment service)
+  3. AssignCourier (Dispatch service)
+  4. SendNotification (Notification service)
+
+Se step 3 falha, precisa:
+  - Refund payment (compensate step 2)
+  - Release inventory (compensate step 1)
+```
+
+**Choreography (event-driven)**
+
+Cada serviço escuta events e emite events; sem coordinator central.
+
+```
+API → emite OrderRequested
+Inventory consumer → reserva → emite InventoryReserved | InventoryFailed
+Payment consumer (escuta InventoryReserved) → cobra → emite PaymentCharged | PaymentFailed
+Dispatch consumer (escuta PaymentCharged) → assign → emite CourierAssigned | DispatchFailed
+Notification consumer (escuta CourierAssigned) → send
+
+Se DispatchFailed:
+  Payment consumer escuta DispatchFailed → refund → emite PaymentRefunded
+  Inventory consumer escuta PaymentRefunded → release → emite InventoryReleased
+```
+
+```typescript
+// Inventory consumer (Kafka)
+await consumer.run({
+  eachMessage: async ({ topic, message }) => {
+    const event = JSON.parse(message.value!.toString());
+    if (topic === 'order-events' && event.type === 'OrderRequested') {
+      try {
+        await reserveInventory(event.orderId, event.items);
+        await producer.send({
+          topic: 'order-events',
+          messages: [{ value: JSON.stringify({ type: 'InventoryReserved', orderId: event.orderId, sagaId: event.sagaId }) }],
+        });
+      } catch (reason) {
+        await producer.send({
+          topic: 'order-events',
+          messages: [{ value: JSON.stringify({ type: 'InventoryFailed', orderId: event.orderId, sagaId: event.sagaId, reason: String(reason) }) }],
+        });
+      }
+    }
+    if (event.type === 'PaymentRefunded') {
+      await releaseInventory(event.orderId);
+      await producer.send({
+        topic: 'order-events',
+        messages: [{ value: JSON.stringify({ type: 'InventoryReleased', orderId: event.orderId, sagaId: event.sagaId }) }],
+      });
+    }
+  },
+});
+```
+
+- **Pros**: serviços loosely coupled; sem central point of failure; cada team owns its events.
+- **Cons**: business logic distribuída entre N consumers — "where is the saga?" é difícil de saber. Debug exige traçar event chain. Cyclic listening é fácil de escrever mal (deadlock event loop).
+
+**Orchestration (central coordinator)**
+
+Um Saga Orchestrator é serviço que invoca steps explicitamente e compensações.
+
+```typescript
+class PlaceOrderSaga {
+  async execute(input: { orderId: string; items: Item[]; userId: string }) {
+    const compensations: Array<() => Promise<void>> = [];
+
+    try {
+      await inventory.reserve(input.orderId, input.items);
+      compensations.unshift(() => inventory.release(input.orderId));
+
+      const charge = await payment.charge(input.userId, computeTotal(input.items));
+      compensations.unshift(() => payment.refund(charge.id));
+
+      const assignment = await dispatch.assignCourier(input.orderId);
+      compensations.unshift(() => dispatch.unassignCourier(assignment.id));
+
+      await notification.send(input.userId, { type: 'OrderConfirmed', orderId: input.orderId });
+
+      return { success: true };
+    } catch (err) {
+      for (const compensate of compensations) {
+        try {
+          await compensate();
+        } catch (compErr) {
+          alertOps({ sagaFailed: true, compErr, originalErr: err });
+        }
+      }
+      throw err;
+    }
+  }
+}
+```
+
+- **Pros**: business logic visível em um lugar; debug fácil; explicit dependencies.
+- **Cons**: orchestrator vira tight coupling; coordinator é SPOF se mal-arquitetado; vira "god service" antipattern se overgrowth.
+
+**Temporal/Cadence — saga como código durable**
+
+```typescript
+// Workflow definition (Temporal SDK)
+import { proxyActivities, ApplicationFailure, workflowInfo } from '@temporalio/workflow';
+import type * as activities from './activities';
+
+const { reserveInventory, releaseInventory, chargePayment, refundPayment, assignCourier, unassignCourier, sendNotification } =
+  proxyActivities<typeof activities>({
+    startToCloseTimeout: '30 seconds',
+    retry: { maximumAttempts: 3 },
+  });
+
+export async function placeOrderWorkflow(input: PlaceOrderInput): Promise<PlaceOrderResult> {
+  const compensations: Array<() => Promise<void>> = [];
+
+  try {
+    await reserveInventory(input.orderId, input.items);
+    compensations.unshift(() => releaseInventory(input.orderId));
+
+    const charge = await chargePayment(input.userId, computeTotal(input.items));
+    compensations.unshift(() => refundPayment(charge.id));
+
+    const assignment = await assignCourier(input.orderId);
+    compensations.unshift(() => unassignCourier(assignment.id));
+
+    await sendNotification(input.userId, { type: 'OrderConfirmed' });
+
+    return { sagaId: workflowInfo().workflowId, status: 'completed' };
+  } catch (err) {
+    for (const c of compensations) {
+      await c(); // Temporal retries automatic
+    }
+    throw ApplicationFailure.create({ message: 'Saga compensated', type: 'SagaFailed' });
+  }
+}
+```
+
+- **Temporal garante**: workflow state persistido entre crashes; retry de activity automatic com backoff; código se parece com transação síncrona mas dura horas/dias.
+- **Activity = side effect** (DB write, API call). Workflow é código determinístico (no random, no `Date.now()` direto, no I/O).
+- Production-ready: Anthropic, Stripe, Snap, Datadog usam.
+
+**Compensating transactions — design rules**
+
+- **Compensation deve ser idempotente**: pode ser called 2x sem efeito duplicado (pode crash mid-compensation).
+- **Order REVERSO**: compensate em LIFO order — last operation compensated first.
+- **Compensation NÃO é "undo perfeito"**: refund de pagamento NÃO é exatamente "uncharge" (pode haver delay, fee). Documente semântica: "best-effort compensation", "eventual reversal", etc.
+- **Não-compensable steps**: send email NÃO pode ser compensated. Posicione last (após all reversible steps).
+- **Pivotal step**: o ponto onde "no turning back" — se passa, completa custo do que vier (ou degrada gracefully). Em PlaceOrder: charge bem-sucedido geralmente é pivotal.
+
+**State machine vs free-form workflow**
+
+- **State machine** (Step Functions, AWS): JSON spec declarativo de states + transitions. Bom pra workflows simples 5-10 steps; visualizável em UI.
+- **Free-form code** (Temporal, Restate): full programming language; loops, conditionals, dynamic compensations. Bom pra workflows complexos, branching dinâmico.
+
+**Choreography vs orchestration — decisão pragmática**
+
+| Critério | Choreography | Orchestration |
+|---|---|---|
+| Steps independentes | Sim | OK |
+| Debug facility | Hard | Easy |
+| Time to onboard new dev | Slow (precisa entender event flow) | Fast (1 service) |
+| Adicionar new step | Edita N consumers | Edita 1 orchestrator |
+| Performance (latency end-to-end) | Igual ou melhor (parallel possível) | Sequencial por default |
+| Fault tolerance | Excelente (loosely coupled) | Boa, mas orchestrator é crítico |
+| When | 3-5 services com clear ownership | > 5 services ou business logic complexa |
+
+**Logística decision**
+
+- PlaceOrder: orchestration via Temporal — too many compensations + business critical visibility.
+- StatusUpdate propagation: choreography via Kafka events — many consumers, parallel, decoupled.
+- **Híbrido**: orchestrator publica events em key transition pra outros services consumirem (analytics, audit, ML).
+
+**Anti-patterns observados**
+
+- **Distributed monolith**: 5 services com tight coupling de events; mudança em qualquer um quebra todos. Sinal: PR toca > 2 services.
+- **Saga sem timeout**: workflow stuck por dias/semanas se 1 step nunca completa. Set timeout per step + global.
+- **Compensation que falha em silêncio**: "best effort" virando "no effort". Compensation falha = page humano.
+- **Coordinator com state em-memória**: crash perde sagas em-flight. Use durable storage (Temporal, DB, ou similar).
+- **Sem saga ID em logs**: impossível correlacionar steps em distributed trace. Propague `sagaId` em event headers + log fields.
+- **Choreography com cyclic event dependencies**: A escuta B, B escuta C, C escuta A → infinite loop. Sequence diagram obrigatório.
+- **Refund-then-charge-again** em vez de charge condicional: doubles fee, complica reconciliação. Pivotal step design.
+
+**Tooling 2026**
+
+- **Temporal (TypeScript/Go/Java/Python)**: market leader pra durable workflows.
+- **Restate** (Rust-based, 2024): newer, lightweight, sem Cassandra dependency.
+- **AWS Step Functions**: serverless, JSON spec, integrado com 200+ AWS services.
+- **Camunda 8 / Zeebe**: BPMN-based, melhor pra workflows business-side com BPMN visual.
+- **Inngest**: dev experience focused, queue + workflow combo.
+
+Cruza com **04-08 §2.14** (event-driven escolha), [**04-02 §2.18**](../04-sistemas/04-02-messaging.md) (idempotent consumer é fundação), [**04-03 §2.8**](../04-sistemas/04-03-event-driven-patterns.md) (outbox pattern alimenta choreography), [**04-04**](../04-sistemas/04-04-resilience-patterns.md) (resilience patterns aplicam a saga steps), [**03-15**](../03-producao/03-15-incident-response.md) (incident response em saga stuck).
+
 ---
 
 ## 3. Threshold de Maestria
