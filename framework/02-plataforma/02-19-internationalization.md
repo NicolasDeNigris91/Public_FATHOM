@@ -116,6 +116,41 @@ Common bugs:
 - Server e DB em tz diferente.
 - "tomorrow at noon" calculado em UTC vs user-tz.
 
+#### Edge cases que mordem em produção
+
+- **Half-hour / quarter-hour timezones**: India `Asia/Kolkata` UTC+5:30; Iran `Asia/Tehran` UTC+3:30; Nepal `Asia/Kathmandu` UTC+5:45; Australian Central UTC+9:30. Filters como `WHERE EXTRACT(HOUR FROM ts) = 9` quebram. Use `EXTRACT(EPOCH FROM ts) / 60` quando precisa precisão sub-hora.
+- **DST transition: spring forward**: 2:30 AM no Brasil em 2019 não existia. `DateTime("2019-11-03 02:30 America/Sao_Paulo")` → ambíguo, libs típicas pulam pra 3:30 ou rejeitam. **Schedule de courier** marcado pra esse minuto: bug silencioso.
+- **DST transition: fall back**: 1:30 AM aconteceu **duas vezes**. Audit log com timestamp local sem offset = ordering ambíguo. Persist UTC SEMPRE.
+- **DST policy mudando**: Brasil aboliu em 2019; Russia em 2014; Mexico em 2022. tzdata atualiza; build cacheado em container velho fica errado. Pin `tzdata >= 2025b` em Dockerfile + audit anual.
+- **Tz não-existentes**: `Africa/Asmera` é alias de `Africa/Asmara`; `US/Pacific` é alias de `America/Los_Angeles`. Use canônico; aliases somem em IANA updates.
+- **Cron em UTC vs local**: K8s CronJob roda em UTC; PostgreSQL `pg_cron` roda em DB tz. "Backup às 3 AM Brasília" requer cuidado.
+- **Recurring events**: "todo domingo às 9 AM" — em UTC ou em local user tz? Se persiste UTC e user move pra outro tz, evento move junto. Persist as `(rrule_text, tz_id)` separados; gera ocorrências on-the-fly.
+- **Date-only vs timestamp**: birthday do user é `1990-05-15` (sem tz). Não converta pra UTC midnight; perde 1 dia em half-tz. Use type `date` puro.
+
+```typescript
+// Padrão sano com Luxon
+import { DateTime } from 'luxon';
+
+// Persist UTC sempre
+const persistedAt = DateTime.now().toUTC().toISO();
+
+// Display em tz do user
+const display = DateTime.fromISO(persistedAt, { zone: 'utc' })
+  .setZone(user.tz)
+  .toLocaleString(DateTime.DATETIME_MED_WITH_WEEKDAY, { locale: user.locale });
+
+// "Tomorrow at 9 AM in user tz" — converte pra UTC pra schedule
+const scheduleAt = DateTime.now().setZone(user.tz)
+  .plus({ days: 1 }).set({ hour: 9, minute: 0, second: 0 })
+  .toUTC().toISO();
+
+// DST safety check: se ambíguo, escolha early
+const ambiguous = DateTime.fromISO('2025-11-02T01:30', { zone: 'America/New_York' });
+if (!ambiguous.isValid) throw new Error('Ambiguous local time during DST transition');
+```
+
+`Temporal` API (TC39 Stage 3, 2026): supersedes Luxon na padronização; `Temporal.ZonedDateTime`, `Temporal.PlainDate`, `Temporal.Duration`. Polyfill estável; rollout nativo browser-by-browser.
+
 ### 2.8 Strings em código vs templates
 
 **Anti-pattern**: `"You have " + n + " orders"`. Concatena gramática.
@@ -180,6 +215,105 @@ Já em 02-18, recall:
 Edge: zero-decimal currencies (JPY, KRW). 100 yen é 100, não 1.00.
 
 Stripe / PSPs lidam minor units: 100 USD = 10000 cents; 100 JPY = 100 (no decimals).
+
+#### Currency precision por ISO 4217 — pegadinhas reais
+
+| Tipo | Exponent | Exemplos | Minor unit pra 1 unit |
+|---|---|---|---|
+| **Zero-decimal** | 0 | JPY, KRW, VND, CLP, ISK, UGX | 1 yen = 1 |
+| **Two-decimal** (default) | 2 | USD, EUR, BRL, GBP, CAD | 1 dollar = 100 cents |
+| **Three-decimal** | 3 | KWD (Kuwait), BHD (Bahrain), OMR (Oman), JOD (Jordan), TND (Tunisia), LYD (Libya), IQD (Iraq) | 1 KWD = 1000 fils |
+| **Four-decimal** (raro, mercados FX) | 4 | UYI (Uruguay indexed), CLF (Chile UF) | 1 unit = 10000 sub |
+
+Hard-coding `* 100` quebra em 3-decimals. Padrão correto:
+
+```typescript
+// API Stripe-style
+const exponentByCurrency: Record<string, number> = {
+  JPY: 0, KRW: 0, VND: 0, CLP: 0, ISK: 0, UGX: 0,
+  KWD: 3, BHD: 3, OMR: 3, JOD: 3, TND: 3, LYD: 3, IQD: 3,
+  // default: 2
+};
+
+function toMinorUnits(amount: string | number, currency: string): bigint {
+  const exp = exponentByCurrency[currency] ?? 2;
+  // Use Decimal lib pra evitar float drift; aqui simplificado
+  const factor = 10n ** BigInt(exp);
+  const [whole, frac = ''] = String(amount).split('.');
+  const fracPadded = frac.padEnd(exp, '0').slice(0, exp);
+  return BigInt(whole) * factor + BigInt(fracPadded || '0');
+}
+
+toMinorUnits('100',     'USD');  // 10000n
+toMinorUnits('100',     'JPY');  // 100n
+toMinorUnits('100.123', 'KWD');  // 100123n
+toMinorUnits('100',     'BRL');  // 10000n
+```
+
+`Intl.NumberFormat` faz display correto automaticamente:
+```typescript
+new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(100);   // "￥100"
+new Intl.NumberFormat('ar-KW', { style: 'currency', currency: 'KWD' }).format(0.123); // "د.ك. ٠٫١٢٣"
+new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(99.9);  // "R$ 99,90"
+```
+
+#### FX rate provider patterns
+
+**Anti-patterns:**
+- Free APIs sem SLA → produção quebra silenciosamente quando provider sai do ar.
+- Cache infinito de FX → conversão desatualizada vira loss financeiro real.
+- 1 cotação pra display + 1 pra settlement → arbitragem pelos clientes.
+
+**Padrão production-ready:**
+
+```typescript
+// FX rates persistidos por dia + provider versioned
+type FxRate = {
+  base: string;           // "USD"
+  quote: string;          // "BRL"
+  rate: string;           // decimal as string ("5.1234")
+  provider: string;       // "openexchangerates" | "ecb" | "fixer"
+  fetched_at: Date;
+  effective_date: string; // "2026-05-01"
+};
+
+// Multi-provider fallback chain
+const providers = [
+  { name: 'ecb', fetch: fetchEcb },                  // free, daily, EUR base
+  { name: 'openexchangerates', fetch: fetchOXR },    // paga, hourly, multi-base
+  { name: 'fixer', fetch: fetchFixer },              // backup
+];
+
+async function refreshFxDaily() {
+  for (const p of providers) {
+    try {
+      const rates = await p.fetch();
+      await db.upsert('fx_rates', rates.map(r => ({ ...r, provider: p.name })));
+      log.info({ provider: p.name, count: rates.length }, 'FX refreshed');
+      return;
+    } catch (err) {
+      log.warn({ provider: p.name, err }, 'FX provider failed, trying next');
+    }
+  }
+  await alertOps('All FX providers failed; rates stale');
+  // NÃO catch silencioso — dados financeiros stale são bug crítico
+}
+```
+
+**Pra settlement (cobrança/pagamento real):**
+- Não converta ao mostrar; converta ao **commit transaction**.
+- Snapshot da rate dentro da transação: `INSERT INTO orders (..., fx_rate_used, fx_provider, fx_at) VALUES (...)`. Cliente pediu reembolso 30 dias depois? Use rate snapshot, não atual.
+- Cobre spread vs rate inter-bancário se você é o "exchanger" (Stripe Connect, Wise pattern).
+
+#### Half-decimal e indexed currencies (CLF, UYI)
+
+- **CLF (Chile Unidad de Fomento)**: indexado a inflação chilena. Cotação muda diariamente pelo Banco Central. Use pra empréstimos longos. Tem 4 decimals.
+- **UYI (Uruguay Unidad Indexada)**: similar.
+- **XAU / XAG / XPT / XPD**: ouro, prata, platina, paládio. Não são moedas, são commodities; ISO 4217 lista mas display difere (`oz tr`).
+
+Se Logística vai operar em LATAM e oferecer pagamento em moeda indexada, separe **money currencies** (BRL, USD, EUR) de **indexed/commodity** (CLF, XAU) em schema; lógica de conversão é diferente.
+
+Cruza com **02-18** (payments deep), **04-09 §2.14** (cost categories de cross-border), **04-16 §2.7** (unit economics requer FX correto).
 
 ### 2.14 Address formats
 
