@@ -551,6 +551,204 @@ Toolings: **Drizzle Kit**, **Prisma Migrate**, **Atlas**, **sqitch**, **Flyway**
 
 RPO depende de WAL archiving frequency. RTO depende de tamanho do basebackup + WAL replay time.
 
+### 2.20 Postgres tuning sob carga — shared_buffers, work_mem, autovacuum, max_connections
+
+Postgres "default" config sai do Debian/Ubuntu otimizado pra rodar em laptop. Em produção com 32GB RAM, default `shared_buffers = 128MB` deixa 99% de RAM ociosa. Tuning é ALAVANCA com 5-50x impact em latency p99 — mas tunar errado (`work_mem` alto + 200 connections) → OOM kill recorrente. Esta seção dá mapa: o que tunar, em que ordem, com que numbers, validados em prod.
+
+**Foundation: 4 categorias de tuning**:
+
+- **Memory** (`shared_buffers`, `work_mem`, `maintenance_work_mem`, `effective_cache_size`).
+- **Connection** (`max_connections`, pgbouncer).
+- **Write/checkpoint** (`wal_buffers`, `checkpoint_*`, `wal_compression`).
+- **Autovacuum** (`autovacuum_*` family).
+
+**Memory tuning — formula pragmática (32GB RAM dedicated server)**:
+
+```ini
+# postgresql.conf
+shared_buffers = 8GB                    # 25% RAM (sweet spot Postgres docs)
+effective_cache_size = 24GB             # 75% RAM (hint pra planner)
+work_mem = 16MB                         # POR operação (sort/hash). Conn × ops × work_mem = total
+maintenance_work_mem = 2GB              # VACUUM/REINDEX/CREATE INDEX standalone
+wal_buffers = 64MB                      # default (-1 = 1/32 shared_buffers, max 16MB) é baixo demais
+```
+
+- **Pegadinha `work_mem`**: 100 connections × 5 ops/query × 16MB = 8GB potencial. Não é por backend; é por NÓ na query plan. Set conservador primeiro, override por session quando precisa: `SET work_mem = '256MB'` antes de query analytical pesada.
+- **`effective_cache_size`**: NÃO aloca; só hint pro planner sobre OS page cache. Set alto pra planner preferir Index Scan sobre Seq Scan.
+- Em K8s pod com `requests.memory = 16GB`: shared_buffers 4GB, effective_cache_size 12GB. Calcule sobre limit, NÃO sobre node total.
+
+**Connection tuning — pgbouncer obrigatório**:
+
+Postgres backend = OS process com ~10MB shared + ~8MB private per connection. 500 connections = ~4GB só de overhead.
+
+**Regra pragmática**: `max_connections` baixo (50-100), pgbouncer transaction-mode na frente.
+
+```ini
+# postgresql.conf
+max_connections = 100                   # baixo + pgbouncer scale
+superuser_reserved_connections = 5
+
+# pgbouncer.ini
+pool_mode = transaction                 # transaction (não session) pra max throughput
+max_client_conn = 5000
+default_pool_size = 25
+reserve_pool_size = 5
+reserve_pool_timeout = 3
+server_idle_timeout = 600
+```
+
+- **Pegadinha transaction-mode**: NÃO suporta `LISTEN/NOTIFY`, prepared statements (Postgres < 14), session-level `SET`, advisory locks session-scoped. Usa session-mode pra esses.
+- Postgres 14+: `pgbouncer` + prepared statements via `track_prepared_statements`.
+
+**Autovacuum tuning — onde 90% das production failures vivem**:
+
+Default autovacuum é tunado pra DB pequeno. Em fact tables 100M+ rows com churn alto, default vacuum demora horas, deixa bloat acumular, query plans ficam errados (estatísticas stale).
+
+```ini
+# postgresql.conf
+autovacuum = on
+autovacuum_max_workers = 6              # default 3; aumenta pra DB com muitas tables
+autovacuum_naptime = 30s                # check interval; default 1min
+autovacuum_vacuum_scale_factor = 0.05   # default 0.2 = 20% changed; baixe pra tabelas grandes
+autovacuum_vacuum_threshold = 50
+autovacuum_analyze_scale_factor = 0.02  # baixe pra estatísticas frescas
+autovacuum_vacuum_cost_limit = 2000     # default 200; aumenta pra vacuum não morrer
+autovacuum_vacuum_cost_delay = 10ms     # default 20ms
+```
+
+**Per-table override pra hot tables**:
+
+```sql
+ALTER TABLE tracking_pings SET (
+  autovacuum_vacuum_scale_factor = 0.02,
+  autovacuum_analyze_scale_factor = 0.01,
+  autovacuum_vacuum_cost_limit = 4000,
+  fillfactor = 90                       -- HOT updates win
+);
+```
+
+**Bloat detection + fix**:
+
+```sql
+-- Tables com mais bloat (% wasted space)
+SELECT schemaname, tablename,
+       pg_size_pretty(pg_relation_size(schemaname||'.'||tablename)) AS size,
+       n_dead_tup, n_live_tup,
+       ROUND(100.0 * n_dead_tup / NULLIF(n_live_tup + n_dead_tup, 0), 2) AS dead_pct,
+       last_autovacuum, last_autoanalyze
+FROM pg_stat_user_tables
+ORDER BY n_dead_tup DESC LIMIT 20;
+
+-- Bloat estimado por extensão pgstattuple
+CREATE EXTENSION pgstattuple;
+SELECT * FROM pgstattuple_approx('public.orders');
+```
+
+Fix:
+
+```bash
+# VACUUM FULL = lock exclusivo (don't in prod)
+# Em prod: pg_repack (extension) faz online
+pg_repack -h db -d logistics -t orders -j 4
+```
+
+**Checkpoint tuning — write spike protection**:
+
+```ini
+checkpoint_timeout = 15min              # default 5min; aumenta pra menos checkpoint pressure
+max_wal_size = 8GB                      # default 1GB; sobe pra absorver write spike
+min_wal_size = 1GB
+checkpoint_completion_target = 0.9      # spread writes em 90% do timeout window
+wal_compression = on                    # CPU < disk IO trade
+```
+
+- **Sintoma de checkpoint pressure**: latency spike a cada 5min em monitoring. `pg_stat_bgwriter.checkpoints_timed` vs `checkpoints_req` — req >> timed = pressure.
+- `wal_compression = on`: trade ~5% CPU por 30-50% menos WAL bytes. Vence em network-attached storage.
+
+**Tuning observability — queries diagnostics**:
+
+```sql
+-- Top queries por tempo total (precisa pg_stat_statements)
+SELECT query, calls, total_exec_time, mean_exec_time, rows
+FROM pg_stat_statements
+ORDER BY total_exec_time DESC LIMIT 20;
+
+-- Cache hit ratio (deve ser > 99% pra working set caber em shared_buffers)
+SELECT sum(heap_blks_read) AS read, sum(heap_blks_hit) AS hit,
+       100.0 * sum(heap_blks_hit) / NULLIF(sum(heap_blks_hit) + sum(heap_blks_read), 0) AS hit_pct
+FROM pg_statio_user_tables;
+
+-- Wait events em tempo real
+SELECT wait_event_type, wait_event, count(*)
+FROM pg_stat_activity
+WHERE state = 'active'
+GROUP BY wait_event_type, wait_event
+ORDER BY count DESC;
+
+-- Connections em uso
+SELECT state, count(*) FROM pg_stat_activity GROUP BY state;
+```
+
+**Logística production config (32GB RAM, 8 vCPU, 1TB SSD)**:
+
+```ini
+# Memory
+shared_buffers = 8GB
+effective_cache_size = 24GB
+work_mem = 32MB
+maintenance_work_mem = 2GB
+wal_buffers = 64MB
+
+# Connection
+max_connections = 100
+
+# Write/Checkpoint
+checkpoint_timeout = 15min
+max_wal_size = 8GB
+checkpoint_completion_target = 0.9
+wal_compression = on
+wal_writer_delay = 200ms
+
+# Query planner
+random_page_cost = 1.1                  # SSD; default 4 assume HDD
+effective_io_concurrency = 200          # SSD high; HDD = 2
+default_statistics_target = 250         # default 100; melhora plans
+
+# Autovacuum
+autovacuum_max_workers = 6
+autovacuum_naptime = 30s
+autovacuum_vacuum_scale_factor = 0.05
+autovacuum_vacuum_cost_limit = 2000
+
+# Logging (pra slow query forensics)
+log_min_duration_statement = 1000       # log queries > 1s
+log_lock_waits = on
+log_temp_files = 0                      # log toda spillage pra disk
+log_autovacuum_min_duration = 1000
+```
+
+\+ pgbouncer transaction-mode com pool_size 25.
+
+**Anti-patterns observados**:
+
+- **`shared_buffers > 40% RAM`**: contention double-buffering com OS cache; perf piora.
+- **`work_mem` alto global** (256MB) com 100 connections: 1 query complexa por conn × 256MB = 25GB potencial → OOM.
+- **`max_connections = 500` sem pgbouncer**: backend overhead come 4GB de RAM ociosos.
+- **Autovacuum desligado** "porque incomoda": bloat compound; query plans rotting; eventual `VACUUM FULL` em manutenção emergencial com lock global.
+- **`checkpoint_timeout = 30min` sem `max_wal_size` aumentado**: WAL enche disco, DB para de aceitar writes.
+- **Sem `log_min_duration_statement`**: slow query investigation cega.
+- **Tunar via blog post genérico sem medir**: aplica config do "PG tuning calculator" que assume workload OLTP, mas você tem analytical mixed.
+
+**Validation toolkit**:
+
+- **`pgbench`** pra workload sintético baseline.
+- **`pg_stat_statements`** + Grafana dashboard pra continuous monitoring.
+- **`auto_explain`** loga plan de queries lentas automaticamente.
+- **`pgbadger`** parse logs em report HTML — visualiza query patterns.
+- **`PgHero`** dashboard quick wins (missing indexes, dead tup, slow queries).
+
+Cruza com **02-09 §2.7** (índices), **02-09 §2.9** (EXPLAIN forensic), **02-09 §2.13** (replication tem implicações de wal_*), **02-09 §2.18** (extensions tipo pg_stat_statements/pgstattuple), **04-09 §2.x** (connection pooling escalando).
+
 ---
 
 ## 3. Threshold de Maestria

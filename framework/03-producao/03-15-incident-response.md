@@ -517,6 +517,198 @@ Senior também serve cuidando do time, não só da uptime.
 
 Tendência matters. Bench externo pouco útil; compare consigo mesmo.
 
+### 2.18 SLO error budget burn rate alerts — multi-window multi-burn-rate
+
+SLO sem burn rate alerts vira poster decoration. Time vê SLO mensal "99.9%" mas só descobre incidente depois que budget já queimou. Multi-window multi-burn-rate (MWMBR), pattern Google SRE Workbook 2018+, é o consenso atual: 4 alerts em 4 janelas distintas pegam fast-burn (page now) e slow-burn (ticket) sem flap. Sem MWMBR, alert ou é tarde demais ou histérico.
+
+**Foundation: error budget mecânica**
+
+- SLO 99.9% mensal = 0.1% budget = 43.2min de erro permitido em 30 dias.
+- Burn rate = quão rápido você gasta vs ritmo "saudável" (que gastaria budget exato em 30d).
+- Burn rate 1x = vai gastar tudo em 30d. Burn rate 14.4x = vai gastar tudo em 2h. Burn rate 6x = vai gastar tudo em 5d.
+
+**Tabela canônica Google SRE — 4 alerts**
+
+| Severity | Burn rate | Long window | Short window | Tempo até budget exhausted |
+|---|---|---|---|---|
+| **Critical (page)** | 14.4x | 1h | 5m | 2h |
+| **Critical (page)** | 6x | 6h | 30m | 5d |
+| **Warning (ticket)** | 3x | 24h | 2h | 10d |
+| **Warning (ticket)** | 1x | 72h (3d) | 6h | 30d |
+
+- Long window: estabilidade contra flap.
+- Short window: precisão temporal (não dispara em incident já recovered).
+- Alert dispara quando AMBAS janelas excedem o burn rate threshold.
+
+**PromQL multi-window — exemplo Logística**
+
+SLI: % de requests HTTP 200-499 (não 5xx) no path `/api/orders`. Target 99.9%.
+
+```promql
+# SLI core: success ratio em janela
+sli:http_success_ratio:5m =
+  sum(rate(http_requests_total{job="api",path="/api/orders",status!~"5.."}[5m]))
+  /
+  sum(rate(http_requests_total{job="api",path="/api/orders"}[5m]))
+
+# Error rate (1 - success)
+slo:http_error_rate:5m = 1 - sli:http_success_ratio:5m
+```
+
+Recording rules pra cada janela:
+
+```yaml
+groups:
+- name: orders_slo_burn
+  interval: 30s
+  rules:
+    - record: slo:burn_rate:5m
+      expr: |
+        (
+          1 - (
+            sum(rate(http_requests_total{job="api",path="/api/orders",status!~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total{job="api",path="/api/orders"}[5m]))
+          )
+        ) / 0.001
+    - record: slo:burn_rate:1h
+      expr: |
+        (
+          1 - (
+            sum(rate(http_requests_total{job="api",path="/api/orders",status!~"5.."}[1h]))
+            /
+            sum(rate(http_requests_total{job="api",path="/api/orders"}[1h]))
+          )
+        ) / 0.001
+    # ... 30m, 6h, 2h, 24h, 6h, 72h
+```
+
+**Alerting rules — 4 alerts MWMBR**
+
+```yaml
+groups:
+- name: orders_slo_alerts
+  rules:
+    - alert: OrdersSLOFastBurn1h
+      expr: slo:burn_rate:1h > 14.4 and slo:burn_rate:5m > 14.4
+      for: 2m
+      labels: { severity: critical, slo: orders_availability }
+      annotations:
+        summary: "Orders SLO burning 14.4x — budget exhaust in 2h"
+        runbook: "https://wiki/runbooks/orders-slo-fast-burn"
+        dashboard: "https://grafana/d/orders-slo"
+
+    - alert: OrdersSLOSlowBurn6h
+      expr: slo:burn_rate:6h > 6 and slo:burn_rate:30m > 6
+      for: 15m
+      labels: { severity: critical, slo: orders_availability }
+      annotations:
+        summary: "Orders SLO burning 6x — budget exhaust in 5d"
+        runbook: "https://wiki/runbooks/orders-slo-slow-burn"
+
+    - alert: OrdersSLOTicketBurn24h
+      expr: slo:burn_rate:24h > 3 and slo:burn_rate:2h > 3
+      for: 1h
+      labels: { severity: warning, slo: orders_availability }
+
+    - alert: OrdersSLOTicketBurn72h
+      expr: slo:burn_rate:72h > 1 and slo:burn_rate:6h > 1
+      for: 3h
+      labels: { severity: warning, slo: orders_availability }
+```
+
+- `for: Xm` adiciona segundo nível de hysteresis. Sem ele, alert flap em transient spike.
+- Severity mapping: `critical` -> PagerDuty/oncall; `warning` -> Linear/Jira ticket auto-criado.
+
+**Routing Alertmanager**
+
+```yaml
+route:
+  receiver: default
+  group_by: [alertname, slo]
+  routes:
+    - matchers: [severity="critical"]
+      receiver: pagerduty
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+    - matchers: [severity="warning"]
+      receiver: linear-jira
+      group_wait: 10m
+      repeat_interval: 24h
+```
+
+**Dashboard Grafana — 3 panels essenciais**
+
+- **Burn rate atual** (gauge): valor em 5m, color thresholds (verde < 1, amarelo 1-3, vermelho > 6).
+- **Budget consumed** (single stat): `100 * (sum(error_count_30d) / (allowed_errors_30d))` com warning > 50%, danger > 80%.
+- **Burn rate over time** (timeseries): 4 lines (5m, 1h, 6h, 24h) overlaid; horizontal lines em thresholds 1x/3x/6x/14.4x.
+
+**SLO definition document — template**
+
+```yaml
+# slos/orders-availability.yaml
+service: orders-api
+slo:
+  name: orders_availability
+  target: 0.999
+  window: 30d
+  description: "% requests com status < 500 no path /api/orders"
+sli:
+  metric: http_requests_total
+  filters: { job: "api", path: "/api/orders" }
+  good: { status: "!~5.." }
+  total: {}
+alerts:
+  - severity: critical
+    burn_rate: 14.4
+    long_window: 1h
+    short_window: 5m
+  - severity: critical
+    burn_rate: 6
+    long_window: 6h
+    short_window: 30m
+  - severity: warning
+    burn_rate: 3
+    long_window: 24h
+    short_window: 2h
+  - severity: warning
+    burn_rate: 1
+    long_window: 72h
+    short_window: 6h
+```
+
+- Tools que processam isso: Pyrra, Sloth (Spotify), OpenSLO spec (CNCF Sandbox 2024).
+- Sloth/Pyrra geram recording rules + alerting rules + dashboards Grafana automatic do YAML.
+
+**Multi-SLO handling**
+
+- Latency SLO (p99 < 300ms) é segundo SLO ortogonal a availability. MWMBR também aplica.
+- Compõe: páginas só quando ambos burn juntos > X horas pode ser pattern (sinaliza incident real, não saturation pontual).
+- Anti-pattern: 1 SLO por endpoint × 50 endpoints = alert spam. Agrupe por user journey ("place order", "track delivery") com SLI composto.
+
+**Anti-patterns observados**
+
+- **Single window alert** (`error_rate > 1% for 5m`): flap; ou tarde demais.
+- **Burn rate sem short window check**: dispara após incident já recovered (long window ainda alto residual).
+- **SLO target irreal (99.999%)**: budget mensal de 26s. Time fica congelado pelo medo; budget queima em qualquer deploy real.
+- **SLO de coisa que customer não vê**: cache hit rate, internal queue depth — vira metric, não SLO. SLO espelha experiência customer.
+- **Sem error budget policy**: budget queima e nada acontece. Policy: budget < 10% -> freeze deploys non-critical até next window.
+- **Alert sem runbook**: oncall acordado às 3h sem ação clara. Toda alert page -> runbook obrigatório com first 3 commands.
+
+**Error budget policy template**
+
+```
+Budget consumed | Action
+----------------+-----------------------------------------
+< 50%           | Continue normal velocity
+50-80%          | Reduce risk: extra review on changes to service
+80-100%         | Freeze non-critical deploys; focus reliability
+> 100%          | Hard freeze; postmortem do que queimou; reset
+```
+
+Cruza com **03-07** (observability foundation pra SLI), **03-15 §2.7** (postmortem), **03-15 §2.10** (runbook é mandatory pra cada SLO alert), **04-12 §2.x** (eng leadership define SLO + budget policy com produto).
+
 ---
 
 ## 3. Threshold de Maestria
