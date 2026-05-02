@@ -306,6 +306,223 @@ Os três rodam JS/TS server-side mas diferem em decisões de design, runtime bas
 - **Edge/serverless novo**: Deno ou Bun, depende de plataforma.
 - **Em time mixed**: padronize um. Coexistência custa onboarding.
 
+### 2.18 Event loop blocking detection + worker_threads vs cluster + libuv pool tuning
+
+Event loop blocking é a causa #1 de p99 latency catastrófico em Node prod. Single CPU-bound task de 200ms congela TODAS connections do process. Sem detection, time só descobre via "site is slow" tickets — quando user já abriu Twitter pra reclamar. §2.18 cobre 4 fronts: (1) detect via `monitorEventLoopDelay` + APM, (2) offload via `worker_threads` (CPU work) ou `cluster` (multi-process), (3) tune libuv thread pool, (4) anti-patterns que matam silenciosamente.
+
+**Detecting blocking — `monitorEventLoopDelay` (Node 11+)**:
+
+```typescript
+import { monitorEventLoopDelay } from 'perf_hooks';
+
+const histogram = monitorEventLoopDelay({ resolution: 20 });
+histogram.enable();
+
+// Expor pra Prometheus
+setInterval(() => {
+  prometheusGauge.set({
+    name: 'nodejs_event_loop_delay_ns',
+  }, {
+    p50: histogram.percentile(50),
+    p99: histogram.percentile(99),
+    max: histogram.max,
+    mean: histogram.mean,
+  });
+  histogram.reset();
+}, 10_000);
+```
+
+- **`resolution: 20`**: sample a cada 20ms. Lower = mais preciso, more overhead.
+- **Healthy**: p99 < 50ms, max < 200ms.
+- **Pathological**: p99 > 200ms = dropping connections; max > 1s = users seeing timeouts.
+- APM (Datadog, New Relic, Sentry) já capturam automatic — habilite alert em p99 > 100ms.
+
+**Why it matters — single CPU work blocks I/O**:
+
+```typescript
+// BAD — 800ms de CPU bloqueia event loop por 800ms
+app.get('/report', (req, res) => {
+  const data = getOrders();
+  const csv = data.map(o => `${o.id},${o.total}`).join('\n');   // CPU
+  for (let i = 0; i < 1_000_000; i++) {
+    processRow(data[i % data.length]);   // CPU
+  }
+  res.send(csv);
+});
+
+// Durante esses 800ms: outros requests aguardam.
+// Liveness probe não responde → K8s mata pod.
+```
+
+**Fix 1: worker_threads pra CPU-bound work**:
+
+```typescript
+// workers/csv-export.js
+const { parentPort } = require('worker_threads');
+
+parentPort.on('message', (orders) => {
+  const csv = orders.map(o => `${o.id},${o.total}`).join('\n');
+  parentPort.postMessage(csv);
+});
+```
+
+```typescript
+// main.ts
+import { Worker } from 'worker_threads';
+import { Piscina } from 'piscina';   // pool de workers
+
+const pool = new Piscina({
+  filename: new URL('./workers/csv-export.js', import.meta.url).pathname,
+  minThreads: 2,
+  maxThreads: 8,
+  idleTimeout: 30_000,
+});
+
+app.get('/report', async (req, res) => {
+  const orders = await getOrders();
+  const csv = await pool.run(orders);   // event loop livre durante CPU work
+  res.send(csv);
+});
+```
+
+- **Piscina** (lib oficial Anna Henningsen) é pool de worker_threads pronto pra produção.
+- Comunicação main ↔ worker via `postMessage` (structured clone). Custo de serialization NÃO vale pra payloads gigantes (> 10MB).
+- **`SharedArrayBuffer`**: zero-copy compartilhamento entre threads. Útil pra image/video processing.
+
+**Fix 2: cluster pra paralelismo de I/O**:
+
+```typescript
+import cluster from 'cluster';
+import os from 'os';
+
+if (cluster.isPrimary) {
+  const workers = process.env.NODE_WORKERS ? parseInt(process.env.NODE_WORKERS) : os.cpus().length;
+  for (let i = 0; i < workers; i++) cluster.fork();
+
+  cluster.on('exit', (worker, code, signal) => {
+    log.warn({ pid: worker.process.pid, code, signal }, 'worker died, restarting');
+    cluster.fork();
+  });
+} else {
+  await import('./server.js');
+}
+```
+
+- cluster module: cada worker é processo separado, cada um com seu event loop.
+- Compartilha porta: kernel round-robina connections.
+- **Em K8s**: NÃO use cluster. K8s é o orquestrador; rode 1 process por pod, escale via HPA. cluster duplica RAM por pod inutilmente.
+- Use cluster em VM tradicional ou bare-metal.
+
+**worker_threads vs cluster — decision**:
+
+| Workload | Use |
+|---|---|
+| CPU-bound (ML inference, image processing, crypto) | worker_threads + Piscina |
+| I/O-bound (HTTP, DB) escalando além de single core | cluster (não-K8s) ou HPA (K8s) |
+| Mixed: API servidor com hot path CPU ocasional | cluster + worker_threads (paralelos) |
+| Native binding bloqueante | worker_threads (isolar) |
+
+**libuv thread pool tuning**:
+
+- Default `UV_THREADPOOL_SIZE = 4`. Operations que usam: `fs.*`, `dns.lookup` (sync resolver), `crypto.pbkdf2`, `crypto.scrypt`, `zlib.*`.
+- 100 simultaneous fs reads + 4 threads = 96 esperando.
+- Tune:
+
+  ```bash
+  UV_THREADPOOL_SIZE=16 node server.js
+  ```
+
+- **Pegadinha**: aumentar `UV_THREADPOOL_SIZE` desperdiça RAM se workload não é I/O fs/crypto. Validate com `monitorEventLoopUtilization` + thread pool saturation metrics.
+
+**`monitorEventLoopUtilization` (Node 14.10+)**:
+
+```typescript
+import { performance } from 'perf_hooks';
+
+let prev = performance.eventLoopUtilization();
+setInterval(() => {
+  const next = performance.eventLoopUtilization();
+  const delta = performance.eventLoopUtilization(next, prev);
+  // delta.utilization 0-1 (% tempo busy)
+  prev = next;
+  prometheusGauge.set('nodejs_event_loop_utilization', delta.utilization);
+}, 10_000);
+```
+
+- Utilization > 0.9 = saturado; scale out OU offload work.
+
+**Diagnostic toolkit — production debugging**:
+
+```bash
+# CPU profile pra detectar hot path
+node --cpu-prof --cpu-prof-dir=./profiles server.js
+# Analyze: chrome://tracing or speedscope
+
+# Heap snapshot
+node --heapsnapshot-signal=SIGUSR2 server.js
+# SIGUSR2 → dumps heap; analyze com Chrome DevTools
+
+# Inspector remoto (cuidado em prod)
+node --inspect=0.0.0.0:9229 server.js
+
+# Trace events (low overhead)
+node --trace-events-enabled --trace-event-categories=v8,node server.js
+```
+
+- **clinic.js** suite (Doctor, Flame, Bubbleprof): production-grade analysis.
+- **0x**: flame graph generator de Node CPU profile.
+
+**Logística stack pragmático**:
+
+```typescript
+// server.ts
+import 'dotenv/config';
+import { monitorEventLoopDelay, performance } from 'perf_hooks';
+import { Piscina } from 'piscina';
+import Fastify from 'fastify';
+
+const histogram = monitorEventLoopDelay({ resolution: 10 });
+histogram.enable();
+
+const cpuPool = new Piscina({
+  filename: new URL('./workers/cpu-tasks.js', import.meta.url).pathname,
+  minThreads: 2,
+  maxThreads: 8,
+});
+
+const app = Fastify();
+
+app.get('/healthz', async () => ({ ok: true }));
+
+app.get('/metrics', async () => {
+  const elu = performance.eventLoopUtilization();
+  return {
+    eventLoopDelayP99Ms: histogram.percentile(99) / 1e6,
+    eventLoopDelayMaxMs: histogram.max / 1e6,
+    eventLoopUtilization: elu.utilization,
+  };
+});
+
+app.post('/cpu-heavy', async (req) => {
+  return cpuPool.run(req.body);   // offload
+});
+
+await app.listen({ port: 8080, host: '0.0.0.0' });
+```
+
+**Anti-patterns observados**:
+
+- **`bcrypt.hashSync` em handler**: bloqueia event loop ~100ms por hash. Use async `bcrypt.hash` ou worker pool.
+- **`JSON.parse` em payload de 10MB**: 50-100ms blocking. Use streaming parser (`JSONStream`).
+- **Loop síncrono em array grande**: `arr.map(heavyFn)` com 100k items. Break com `setImmediate` ou worker.
+- **Sem `monitorEventLoopDelay`**: blocking só descoberto após "site is slow" tickets.
+- **`UV_THREADPOOL_SIZE=64` random**: sem medição da saturação real, só aumenta RAM e contention.
+- **Cluster + K8s**: 4 processes per pod × 10 pods = 40 processes; HPA já faz isso melhor.
+- **`Worker` recriado a cada request**: spawn cost ~50ms; use Piscina pool.
+- **Native bindings em main thread**: native code bloqueante. Sempre worker_threads.
+
+Cruza com **02-07 §2.4** (event loop foundation), **02-07 §2.10** (cluster basics), **02-07 §2.16** (diagnóstico produção), **04-09 §2.20** (backpressure relaciona com saturation), **03-07** (observability captura ELU).
+
 ---
 
 ## 3. Threshold de Maestria
