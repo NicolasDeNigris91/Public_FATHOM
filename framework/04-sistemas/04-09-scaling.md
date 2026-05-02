@@ -79,6 +79,124 @@ Hot key: 1 chave que recebe muito tráfego. Mitigations: replicate em N keys, us
 
 Cache invalidation continua "one of two hard problems".
 
+#### Distributed cache invalidation — patterns reais
+
+L1 (process LRU) é o mais difícil de invalidar: 100 instâncias = 100 caches independentes. TTL curta funciona até dor de stale demais. Padrões:
+
+**1. Pub/sub broadcast (Redis Streams ou pub/sub)**
+
+Instância que muta DB publica invalidação; todas escutam.
+
+```typescript
+const PUBSUB_CHANNEL = 'cache-invalidate';
+
+class L1Cache<V> {
+  private store = new Map<string, { v: V; expiry: number }>();
+  private redis: Redis;
+
+  constructor(redis: Redis) {
+    this.redis = redis;
+    // Subscriber dedicado (Redis pub/sub bloqueia connection)
+    const sub = redis.duplicate();
+    sub.subscribe(PUBSUB_CHANNEL, (err) => err && log.error(err));
+    sub.on('message', (_, key) => {
+      this.store.delete(key);                  // local invalidate
+    });
+  }
+
+  get(key: string): V | undefined {
+    const e = this.store.get(key);
+    if (!e || e.expiry < Date.now()) return undefined;
+    return e.v;
+  }
+
+  set(key: string, v: V, ttlMs: number) {
+    this.store.set(key, { v, expiry: Date.now() + ttlMs });
+  }
+
+  // Quando você muta DB, broadcast invalidate
+  async invalidate(key: string) {
+    this.store.delete(key);                    // local
+    await this.redis.publish(PUBSUB_CHANNEL, key);  // outras instâncias
+  }
+}
+```
+
+Trade-offs: latência de propagation ~1-10ms; **at-most-once** (se subscriber down quando publish, perde invalidate); ok pra cache TTL curta como segunda linha de defesa.
+
+**2. CDC-based invalidation (zero dual-write)**
+
+Em vez de app publicar invalidação, **CDC do Postgres** (Debezium, ver 02-09 §2.13.1) emite evento de mudança; serviço cache-invalidator escuta e dispara invalidations:
+
+```
+Postgres UPDATE orders → WAL → Debezium → Kafka topic logistics.orders
+                                              ↓
+                              cache-invalidator service
+                                              ↓
+                              Redis PUBLISH cache-invalidate "order:{id}"
+                                              ↓
+                              all instances drop L1 entry
+```
+
+Vantagens: aplicação não sabe nada de cache; mudanças de qualquer fonte (admin script, migration, replication) propagam. Source of truth é DB. **At-least-once** garantido por Kafka (consumer commit offset).
+
+Caveat: latência ~50-500ms (CDC + Kafka path). Pra cache de dados quase-real-time, OK; pra dados onde stale por 500ms é inaceitável (rate limit current count), broadcast direto é melhor.
+
+**3. Versioned keys (no-invalidation pattern)**
+
+Em vez de invalidar, **mude a chave**. Cada update incrementa version do object; cache lookup usa `key:v123`. Versão antiga vive até TTL natural.
+
+```typescript
+async function getOrder(id: string): Promise<Order> {
+  // Version vem de Postgres ou Redis counter (atomic via INCR)
+  const version = await redis.get(`order:${id}:version`);
+  const cacheKey = `order:${id}:v${version}`;
+
+  const cached = await redis.get(cacheKey);
+  if (cached) return JSON.parse(cached);
+
+  const order = await db.queryOne(`SELECT * FROM orders WHERE id=$1`, [id]);
+  await redis.setEx(cacheKey, 3600, JSON.stringify(order));
+  return order;
+}
+
+async function updateOrder(id: string, patch: Partial<Order>) {
+  await db.execute(`UPDATE orders SET ... WHERE id=$1`, [...]);
+  await redis.incr(`order:${id}:version`);  // todos os clients verão chave nova
+}
+```
+
+Vantagens: zero invalidation race; old caches expiram naturalmente; **distributed-friendly** (qualquer instância pode update sem coordination).
+
+Custos: storage cache fica maior (versões antigas até TTL); aplicação precisa fetch version antes de cache lookup (1 extra round-trip). Mitigação: `MGET` da version + cached value em pipeline.
+
+**4. Tag-based invalidation (Cloudflare-style)**
+
+CDN-level: cada response carrega `Cache-Tag: tenant:abc, order:xyz`. Invalidate via API:
+```bash
+curl -X POST 'https://api.cloudflare.com/client/v4/zones/Z/purge_cache' \
+  -H 'Authorization: Bearer ...' \
+  --data '{"tags":["order:xyz"]}'
+```
+
+Mesma ideia em app L2 (Redis): chaves carregam tag; `SREM tag:xyz members` + iterate pra invalidar todas que carregam aquela tag. Caro em escala alta de tags.
+
+#### Decisão pragmática
+
+| Cenário | Pattern |
+|---|---|
+| App único + L1 process cache | Pub/sub broadcast (próprio app publish) |
+| Multi-app + DB único + dados que mudam fora da app | CDC-based invalidation |
+| Caches em N edges geográficos | Versioned keys (sem coordination) |
+| CDN content + tagged invalidation | Tag-based via API do CDN |
+
+Anti-padrões:
+- **Cache TTL muito longa "compensada por invalidate"**: invalidate falha → stale infinito. TTL é sempre seguro fallback.
+- **Invalidate síncrono no caminho da request**: trava write se Redis lento. Use fire-and-forget com retry queue.
+- **Sem observability**: monitore cache hit rate por chave; se invalidação storm, hit rate cai abrupto e você descobre só pelo SLO.
+
+Cruza com **02-11 §2.11** (cache stampede protection complementar), **02-09 §2.13.1** (CDC pipeline já existe pra outras finalidades), **04-03 §2.8** (outbox emite eventos que feed invalidação).
+
 ### 2.6 Queue offload
 
 Deslocar trabalho síncrono pra async:

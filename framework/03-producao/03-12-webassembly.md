@@ -92,6 +92,159 @@ Capability-based: módulo recebe handles (file descriptors, sockets), não acess
 
 Roda em: wasmtime, Wasmer, WasmEdge, Spin, browsers via polyfills (limited).
 
+#### Rust → wasm-pack pra browser, fluxo completo
+
+Cenário: Logística precisa parsing pesado de relatórios CSV/PDF no client (privacy: dados não saem do browser). JS é lento pra parse de 100MB+; Rust + Wasm é 5-30x mais rápido.
+
+**Setup:**
+```bash
+cargo install wasm-pack
+mkdir logistics-parser && cd $_
+cargo init --lib
+```
+
+```toml
+# Cargo.toml
+[package]
+name = "logistics-parser"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+serde = { version = "1.0", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
+csv = "1.3"
+js-sys = "0.3"
+
+[profile.release]
+opt-level = "z"          # otimiza por tamanho (Wasm download importa)
+lto = true
+codegen-units = 1
+strip = true
+```
+
+```rust
+// src/lib.rs
+use wasm_bindgen::prelude::*;
+use serde::{Serialize, Deserialize};
+
+#[derive(Serialize, Deserialize)]
+pub struct OrderStat {
+    pub day: String,
+    pub orders: u32,
+    pub revenue: f64,
+}
+
+#[wasm_bindgen]
+pub fn parse_orders_csv(csv_data: &[u8]) -> Result<JsValue, JsValue> {
+    let mut reader = csv::Reader::from_reader(csv_data);
+    let mut by_day: std::collections::HashMap<String, (u32, f64)> = Default::default();
+
+    for record in reader.records() {
+        let r = record.map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let day = r.get(0).unwrap_or("").to_string();
+        let total: f64 = r.get(2).and_then(|s| s.parse().ok()).unwrap_or(0.0);
+        let entry = by_day.entry(day).or_insert((0, 0.0));
+        entry.0 += 1;
+        entry.1 += total;
+    }
+
+    let stats: Vec<OrderStat> = by_day.into_iter()
+        .map(|(day, (orders, revenue))| OrderStat { day, orders, revenue })
+        .collect();
+
+    serde_wasm_bindgen::to_value(&stats).map_err(|e| e.into())
+}
+```
+
+**Build:**
+```bash
+wasm-pack build --target bundler --release
+# Output: pkg/logistics_parser_bg.wasm + pkg/logistics_parser.js (TS bindings)
+```
+
+**Uso no Next.js (Client Component):**
+```tsx
+'use client';
+import init, { parse_orders_csv } from 'logistics-parser';
+
+let initialized = false;
+
+export function ReportUploader() {
+  return <input type="file" accept=".csv" onChange={async (e) => {
+    if (!initialized) { await init(); initialized = true; }
+
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const buf = new Uint8Array(await file.arrayBuffer());
+
+    const start = performance.now();
+    const stats = parse_orders_csv(buf);
+    console.log(`Parsed ${file.size} bytes in ${performance.now() - start}ms`, stats);
+  }} />;
+}
+```
+
+**Bench típico** (100MB CSV em laptop M3): JS papaparse ~12s; Wasm Rust ~800ms. **15x speedup**, sem upload pro server.
+
+#### Component Model + WIT bindings (Preview 2, future)
+
+WIT (WebAssembly Interface Types) define **interfaces tipadas entre componentes** sem JS↔Wasm glue manual. Permite Rust component chamar JS component (ou Python, Go) com type safety bidirecional.
+
+```wit
+// logistics.wit
+package fathom:logistics;
+
+interface parser {
+  record order-stat {
+    day: string,
+    orders: u32,
+    revenue: f64,
+  }
+
+  parse-csv: func(data: list<u8>) -> result<list<order-stat>, string>;
+}
+
+world parser-host {
+  export parser;
+}
+```
+
+```bash
+cargo install cargo-component
+cargo component build --release
+# Gera componente Wasm com interface explícita
+```
+
+Component Model permite **composição**: parser Rust + ML model Python + UI glue JS, todos rodando em mesmo runtime (wasmtime, jco), comunicando via WIT-typed calls. Em 2026, ainda emergente em browser; production-ready em runtimes server-side (Spin, wasmCloud).
+
+#### Edge / serverless deploy real
+
+```bash
+# Spin (Fermyon) — serverless Wasm
+spin new -t http-rust logistics-edge
+cd logistics-edge
+spin build
+spin up                   # local
+spin deploy               # Fermyon Cloud
+```
+
+Cold start ~1-5ms (vs Lambda Node ~200-1000ms). Memory footprint ~5MB (vs Node ~50MB). Bilhado por ms de execução real (não wall clock).
+
+#### Caveats que mordem
+
+- **JS↔Wasm boundary cost**: cada `parse_orders_csv()` chamada custa ~10-50µs de overhead de marshaling. Não chame em loop apertado; passe lote grande.
+- **DOM access**: Wasm não toca DOM; tudo via JS bindings. Image processing OK; UI rendering ainda JS.
+- **Bundle size**: Wasm binary minimal Rust ~15-30KB; com serde + libs sobe pra 100-300KB. `wasm-opt -Oz` reduz mais.
+- **Async em Wasm**: suportado via `wasm-bindgen-futures` mas surface ainda menor que JS-native.
+- **Debug**: source maps Wasm imaturo; debugger Chrome DevTools melhorou em 2024-2026 mas ainda inferior a JS pure debugging.
+
+Cruza com **03-11** (Rust ecosystem source), **03-09 §2.6.1** (edge runtimes podem rodar Wasm directamente), **04-10 §2.14** (inference em Wasm como alternativa offline / privacy-preserving).
+
 ### 2.7 Browser uses
 
 - **Heavy compute**: compressão, encoding video/audio, parsing massivo, ML inference (ONNX Runtime Web, TensorFlow.js Wasm backend).
