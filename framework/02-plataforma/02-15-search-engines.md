@@ -262,6 +262,177 @@ PDFs, Office docs precisam extract antes de indexar. Tools: Apache Tika, Unstruc
 
 Chunking pra RAG: tamanho 200-800 tokens, overlap 10-20%, respeita boundaries (parágrafo, sentença). Métricas dependem disso.
 
+### 2.18 Relevance tuning operacional — synonyms, boosting, learning-to-rank, NDCG@10
+
+§2.13 introduz relevance tuning como conceito. §2.18 entra em **operacionalização**: como medir objetivamente, melhorar deliberadamente, e evitar os 4 modos de regressão silenciosa — synonym overshooting, boost virando spam, BM25 override sem dataset, learning-to-rank treinado em dataset enviesado.
+
+#### Foundation: medir antes de tunar — métricas offline
+
+- **NDCG@10** (Normalized Discounted Cumulative Gain): mede ranking quality, não só recall. `1.0` = perfeito; `>0.7` = bom em search comercial.
+- **MRR** (Mean Reciprocal Rank): focado em first relevant result. `1.0` = sempre top-1. Útil em known-item search (navegacional).
+- **MAP@K**: precision em K rankings ponderado por posição.
+- **Recall@K**: % de relevantes encontrados em top-K. Útil pra avaliar candidate generation (hybrid retrieval) separado de rerank (precision).
+
+Stack típico: recall@100 mede retrieval; NDCG@10 mede ranking final pós-rerank.
+
+#### Golden dataset construction (o blocker em 80% dos times)
+
+- 100-500 query/relevant_docs pairs anotadas por humano.
+- **Source**: query log real (top queries por volume, head + middle) + sintetizadas pra cobrir intent edge cases (longtail, typos, queries multilíngues).
+- **Anotação**: 0/1 binário (mais simples) ou graded 0-3 (mais informativo, NDCG bate certo). Graded paga em discriminação de "perfeito vs bom o suficiente".
+- Re-anotar a cada 6 meses; intent muda com produto, catálogo, sazonalidade.
+- **Tooling**: Argilla (open source, replaces Doccano), Label Studio, Prodigy.
+
+#### Code — measuring NDCG@10 offline
+
+```typescript
+type Judgment = { query: string; doc_id: string; relevance: number };  // 0-3
+
+function dcg(scores: number[]): number {
+  return scores.reduce((acc, s, i) => acc + (Math.pow(2, s) - 1) / Math.log2(i + 2), 0);
+}
+
+function ndcgAtK(judgments: Judgment[], rankedDocIds: string[], k = 10): number {
+  const judgMap = new Map(judgments.map(j => [j.doc_id, j.relevance]));
+  const actual = rankedDocIds.slice(0, k).map(id => judgMap.get(id) ?? 0);
+  const ideal = [...judgMap.values()].sort((a, b) => b - a).slice(0, k);
+  const idealDcg = dcg(ideal);
+  return idealDcg === 0 ? 0 : dcg(actual) / idealDcg;
+}
+
+async function evalSearchPipeline(judgments: Judgment[]): Promise<number> {
+  const queries = [...new Set(judgments.map(j => j.query))];
+  const ndcgs = await Promise.all(queries.map(async q => {
+    const ranked = await searchPipeline(q, { topK: 10 });
+    const qJudg = judgments.filter(j => j.query === q);
+    return ndcgAtK(qJudg, ranked.map(r => r.id));
+  }));
+  return ndcgs.reduce((a, b) => a + b, 0) / ndcgs.length;
+}
+```
+
+Roda em CI antes de mergear mudança em pipeline; se NDCG cai > 2pp, block merge. Stratifica por bucket de query frequency (head/middle/longtail) pra detectar regressão concentrada.
+
+#### Synonyms — armadilha do overshooting
+
+Sem synonyms: query "celular" não acha "smartphone". Recall ruim. Synonyms agressivo: "celular" expande pra `["smartphone", "telefone", "iphone", "android"...]` — top-10 vira lista genérica, precision morre.
+
+**Padrão**: 2-tier synonyms.
+
+- **Bidirectional** (true synonyms): `(celular, smartphone)` — equivalência semântica plena.
+- **One-way** (hyponymy): `iphone => iphone, smartphone, celular` — query "iphone" inclui ancestors, mas query "celular" NÃO traz todos iphones.
+
+Elasticsearch / OpenSearch:
+
+```json
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "synonym_graph": {
+          "type": "synonym_graph",
+          "synonyms": [
+            "celular, smartphone",
+            "iphone => iphone, smartphone, celular",
+            "geladeira, refrigerador"
+          ]
+        }
+      },
+      "analyzer": {
+        "search_analyzer": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": ["lowercase", "synonym_graph", "asciifolding"]
+        }
+      }
+    }
+  }
+}
+```
+
+**Pegadinha**: synonyms só no `search_analyzer`, NÃO no `index_analyzer` — senão perde precision em phrase matching e infla index size.
+
+#### Boosting — quando ajuda e quando vira spam
+
+- **Field boost**: `title^3 description^1` — title vale 3x.
+- **Function score**: boost por popularidade, recência, business signal:
+
+```json
+{
+  "query": {
+    "function_score": {
+      "query": { "match": { "_all": "celular" } },
+      "functions": [
+        { "field_value_factor": { "field": "ctr_30d", "factor": 1.5, "modifier": "log1p" } },
+        { "gauss": { "created_at": { "origin": "now", "scale": "30d", "decay": 0.5 } } }
+      ],
+      "score_mode": "multiply",
+      "boost_mode": "multiply"
+    }
+  }
+}
+```
+
+- **Anti-pattern**: boost > 5x em qualquer field. Top-10 vira "qualquer doc com query no title", ignorando relevance textual real. Cap em 2-3x.
+- **Anti-pattern**: boost recency sem decay — todo doc novo top, conteúdo evergreen invisível.
+
+#### Learning-to-Rank (LTR) — quando vale e quando não
+
+**Quando vale**: tem clickstream (>100k events/mês), business signals (purchase, dwell time), e baseline BM25/hybrid já saturou (NDCG plateau em iterações sucessivas).
+
+**Quando NÃO vale**: dataset frio, equipe < 5 ML eng, modelo vira black box sem ownership, ou produto muda fast (model staleness).
+
+**Pipeline padrão** (Elasticsearch LTR plugin / OpenSearch LTR / Vespa native):
+
+1. **Train**: LightGBM com `(query, doc, features) → graded_relevance`. Features: BM25 score, field length, freshness, popularity, embedding similarity.
+2. **Deploy**: model como rescorer no top-100 BM25 hits (não em todo corpus — latency).
+3. **Online eval**: A/B test com guardrails (zero-result rate, latency p99).
+
+**Top features 2026** (por contribuição típica): query-doc embedding cosine, query-title BM25, click-through rate por query slot, dwell time per query, bid (em commercial search).
+
+#### Code — feature extraction Elasticsearch
+
+```json
+POST _ltr/_featureset/logistica_features
+{
+  "featureset": {
+    "features": [
+      {
+        "name": "title_bm25",
+        "params": ["keywords"],
+        "template": { "match": { "title": "{{keywords}}" } }
+      },
+      {
+        "name": "popularity_log",
+        "template": { "function_score": { "field_value_factor": { "field": "popularity", "modifier": "log1p" } } }
+      },
+      {
+        "name": "freshness_decay",
+        "template": { "gauss": { "created_at": { "origin": "now", "scale": "30d" } } }
+      }
+    ]
+  }
+}
+```
+
+#### Online eval com A/B test
+
+- Split traffic 50/50 entre baseline e candidate ranker. Run 7-14 dias.
+- **Métricas primárias**: CTR top-3, conversion rate (purchase/signup downstream).
+- **Guardrails**: latency p99 (não pode degradar > 10%), zero-result rate (não aumentar), revenue per query.
+- **Significância**: t-test ou Mann-Whitney U; mínimo 10k queries por arm pra detectar lift de 2pp com poder estatístico decente.
+
+#### Anti-patterns observados
+
+- **Synonym aplicado bidirectional sem cuidado**: `(carro, veículo)` mas query "carro" trazendo motos via "veículo". Use one-way pra hierarquia.
+- **Boost por popularidade sem freshness penalty**: top-10 dominado por items velhos com muita view; novo conteúdo invisível, feedback loop negativo.
+- **LTR sem golden dataset offline**: deploy direto em A/B sem saber se modelo melhora ranking — A/B detecta degradação só após perda de revenue.
+- **Embedding search sem rerank**: top-100 vector hits incluem semantically similar mas exatamente errado (query "iphone 15" trazendo "iphone 14" no top-3). Cross-encoder rerank fix.
+- **Esquecer query understanding**: "celular barato" → boost por low price. "celular pra fotografia" → boost por camera spec. Intent detection (LLM zero-shot ou classificador) muda boost dinamicamente.
+- **NDCG melhora offline mas degrada online**: dataset enviesado pra queries comuns; longtail piora. Sempre stratificar eval por query frequency bucket.
+
+Cruza com **02-15 §2.7** (hybrid search foundation), **02-15 §2.13** (relevance tuning intro), **04-10 §2.8** (vector DBs como recall layer), **04-10 §2.11** (evals pattern aplicável a search ranking).
+
 ---
 
 ## 3. Threshold de Maestria

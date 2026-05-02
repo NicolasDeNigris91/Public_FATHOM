@@ -233,6 +233,200 @@ Logística analytics:
 
 Esses queries não cabem bem em OLTP. Pipeline: Postgres OLTP → CDC → ClickHouse/Timescale → dashboards. Mantém OLTP performante; analytics tem palco próprio.
 
+### 2.18 ClickHouse query optimization deep — skip indexes, projections, materialized views
+
+Decisão "ClickHouse" só vence se schema + queries são otimizados. Default de `ORDER BY (timestamp)` em fact table de 10B rows com WHERE em outra coluna = full scan, mesma latência que Postgres pesado. ClickHouse vence quando você usa primary key (sorting key) certo + skip indexes + projections + materialized views — patterns operacionais com código.
+
+**Foundation: sorting key (PRIMARY KEY) escolhido como filtro frequente.**
+
+```sql
+-- Bad: sort por timestamp; queries comuns filtram por tenant
+CREATE TABLE events (
+  event_at DateTime,
+  tenant_id UUID,
+  event_type LowCardinality(String),
+  payload String
+) ENGINE = MergeTree
+ORDER BY (event_at);
+
+-- Good: tenant-first, queries WHERE tenant_id = X filtram blocos cedo
+CREATE TABLE events (
+  event_at DateTime,
+  tenant_id UUID,
+  event_type LowCardinality(String),
+  payload String
+) ENGINE = MergeTree
+ORDER BY (tenant_id, event_type, event_at)
+PARTITION BY toYYYYMM(event_at)
+SETTINGS index_granularity = 8192;
+```
+
+- Sorting key ≠ unique key. ClickHouse não enforces uniqueness em MergeTree.
+- Order columns: most-selective filter primeiro (tenant_id), then secondary (event_type), then time (event_at) pra range scans.
+- `index_granularity = 8192` (default): 1 mark por 8192 rows. Mais granular = mark file maior + lookup mais rápido. Tune só se medir.
+
+**Skip indexes — segundo filtro embutido.**
+
+```sql
+-- Skip index pra coluna NÃO no sorting key
+ALTER TABLE events ADD INDEX idx_event_type event_type TYPE set(100) GRANULARITY 4;
+ALTER TABLE events ADD INDEX idx_user_id user_id TYPE bloom_filter(0.01) GRANULARITY 1;
+ALTER TABLE events ADD INDEX idx_payload_kw payload TYPE tokenbf_v1(8192, 3, 0) GRANULARITY 1;
+```
+
+Tipos:
+- `minmax`: armazena min/max por granule. Vence em range queries.
+- `set(N)`: armazena set de até N values por granule. Vence em equality em coluna low-cardinality.
+- `bloom_filter(p)`: probabilistic, p = false positive rate. Vence em equality em high-cardinality.
+- `tokenbf_v1(size, k, seed)`: bloom filter sobre tokens. Vence em LIKE/IN textual.
+- `ngrambf_v1(n, size, k, seed)`: bloom de n-grams. Vence em LIKE substring.
+
+Pegadinha: skip index NÃO acelera nada se query JÁ filtra granules via sorting key bem. Skip index brilha em queries que NÃO casam com sorting key.
+
+Validate via:
+
+```sql
+EXPLAIN indexes = 1
+SELECT count() FROM events WHERE user_id = 'abc';
+-- Procure: "Skip" sections; "Granules: 12/8000" = pulou 99.85%.
+```
+
+**Projections — segunda cópia ordenada do dado, transparente.**
+
+```sql
+-- Tabela base ordenada por (tenant_id, event_at)
+-- Mas tem dashboard que agrupa por user_id em jornal diário
+ALTER TABLE events ADD PROJECTION p_user_daily (
+  SELECT
+    toDate(event_at) as day,
+    user_id,
+    count() as events_count,
+    countIf(event_type = 'click') as clicks
+  GROUP BY day, user_id
+);
+
+ALTER TABLE events MATERIALIZE PROJECTION p_user_daily;
+```
+
+- ClickHouse 22+ feature. Stored em part dirs, atualizado automaticamente em INSERT.
+- Query `SELECT day, user_id, sum(events_count)` automaticamente roteia pra projection (transparente).
+- Custo: 2x storage; 2x write amplification. Use APENAS quando ROI compensa (dashboard rodando 100x/dia).
+
+**Materialized views — pipeline de transformação on-insert.**
+
+```sql
+-- MV agrega events em métricas hourly em tabela separada
+CREATE TABLE metrics_hourly (
+  hour DateTime,
+  tenant_id UUID,
+  event_type LowCardinality(String),
+  count UInt64,
+  unique_users AggregateFunction(uniq, UUID)
+) ENGINE = AggregatingMergeTree
+ORDER BY (tenant_id, event_type, hour);
+
+CREATE MATERIALIZED VIEW mv_metrics_hourly TO metrics_hourly AS
+SELECT
+  toStartOfHour(event_at) as hour,
+  tenant_id,
+  event_type,
+  count() as count,
+  uniqState(user_id) as unique_users
+FROM events
+GROUP BY hour, tenant_id, event_type;
+```
+
+- MV ≠ Postgres MV: ClickHouse MV é trigger ON INSERT — recebe BLOCO de novos rows, não tabela inteira.
+- `AggregateFunction(uniq, UUID)` + `uniqState`/`uniqMerge` permite incremental aggregation correta (HyperLogLog state).
+- Query final: `SELECT hour, sum(count), uniqMerge(unique_users) FROM metrics_hourly WHERE tenant_id = X GROUP BY hour`.
+- Pegadinha: MV não roda em backfill — só em INSERTs futuros. Pra backfill: `INSERT INTO metrics_hourly SELECT toStartOfHour(event_at), ..., FROM events WHERE event_at < now()`.
+
+**Logística caso real — fact_tracking_pings.**
+
+```sql
+CREATE TABLE fact_tracking_pings (
+  ping_at DateTime64(3),
+  tenant_id UUID,
+  courier_id UUID,
+  order_id UUID,
+  lat Float64,
+  lng Float64,
+  speed_kmh Float32,
+  accuracy_m Float32
+) ENGINE = MergeTree
+ORDER BY (tenant_id, courier_id, ping_at)
+PARTITION BY toYYYYMM(ping_at)
+TTL ping_at + INTERVAL 90 DAY DELETE,
+    ping_at + INTERVAL 7 DAY TO VOLUME 'cold'
+SETTINGS storage_policy = 'hot_cold';
+
+-- Skip pra queries ad-hoc por order
+ALTER TABLE fact_tracking_pings ADD INDEX idx_order order_id TYPE bloom_filter(0.01) GRANULARITY 4;
+
+-- Projection pra trajetória de ordem (queried pelo customer support)
+ALTER TABLE fact_tracking_pings ADD PROJECTION p_by_order (
+  SELECT * ORDER BY (order_id, ping_at)
+);
+```
+
+- TTL com tier cold (S3 backed): hot 7 dias em SSD, depois move pra S3 automatic.
+- Bloom filter resolve "find pings de uma order específica" sem alterar sorting key.
+- Projection `p_by_order`: replica ordenada por `order_id`; query de trajetória usa-a transparente.
+
+**Query rewrite patterns que ganham ordens de magnitude.**
+
+PREWHERE — filtro avaliado ANTES de ler colunas não-filtradas:
+
+```sql
+-- ClickHouse já faz auto, mas pode hint
+SELECT lat, lng FROM fact_tracking_pings
+PREWHERE tenant_id = '...' AND ping_at > now() - INTERVAL 1 HOUR
+WHERE speed_kmh > 80;
+```
+
+PREWHERE: filtro cheap (sorted columns), evita ler colunas pesadas.
+
+`SAMPLE` — query estatística aproximada usando subset:
+
+```sql
+SELECT avg(speed_kmh) FROM fact_tracking_pings
+SAMPLE 0.1
+WHERE tenant_id = '...';
+```
+
+10x menos data, ~3% erro estatístico. Use em dashboards exploratórios. Requer `SAMPLE BY` definido em CREATE TABLE.
+
+`LIMIT N BY` — top-N por grupo sem subquery:
+
+```sql
+-- Top 5 ordens com mais pings por courier
+SELECT courier_id, order_id, count() as pings
+FROM fact_tracking_pings
+GROUP BY courier_id, order_id
+ORDER BY courier_id, pings DESC
+LIMIT 5 BY courier_id;
+```
+
+**Anti-patterns observados.**
+
+- `SELECT *` em wide table: lê todas colunas mesmo precisando 2. ClickHouse columnar: lista colunas explícitas.
+- JOIN heavy em fact tables: ClickHouse JOIN é build-side broadcast por padrão; fact-fact JOIN destrói perf. Use `joinGet`, dictionary, ou denormalize.
+- Skip index sem `EXPLAIN indexes=1` validation: cria índice "porque achei que ajudaria" mas nunca é usado. Sempre validate.
+- Sorting key com 10 colunas: índice mark file enorme; mark lookup lento. Cap em 3-4 colunas.
+- Update/delete frequente: ClickHouse não é OLTP. `ALTER TABLE ... UPDATE` é assíncrono via mutation; lento + perigoso. Use ReplacingMergeTree + `FINAL` ou ReplaceableMergeTree.
+- `ORDER BY` sem `LIMIT`: streams full result; pode quebrar memory limit. Set `max_bytes_before_external_sort` se preciso ordenar muito.
+- Sem PARTITION BY: full-table scan em filter por mês quando podia pular partitions inteiras.
+
+**Diagnostic toolbox.**
+
+- `system.query_log`: query history com type, duration, memory, read_rows.
+- `system.parts`: partições por tabela; busque parts grandes não-merged (`active = 1`, `level` baixo).
+- `system.mutations`: mutations em-flight; órfãs travam space.
+- `clickhouse-benchmark` pra repro testing.
+- `EXPLAIN PIPELINE` pra ver vectorized execution.
+
+Cruza com **03-13 §2.13** (query optimization geral), **03-13 §2.15** (decision tree onde ClickHouse cabe), **04-13 §2.9.1** (dbt incremental + ClickHouse), **04-13 §2.11** (Iceberg como fonte external table).
+
 ---
 
 ## 3. Repeating threshold dropped

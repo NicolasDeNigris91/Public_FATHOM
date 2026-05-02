@@ -375,6 +375,206 @@ Mitigações:
 
 Cruza com **01-11** (memory model + sync primitives), **02-07** (Node single-thread vs Tokio multi-thread comparação), **04-04** (deadline propagation com `tokio::time::timeout`).
 
+### 2.18 Go concurrency patterns aplicados — channels, select, errgroup, context
+
+Go concurrency é "fácil de começar, difícil de fazer certo em produção". Goroutine leak, channel deadlock, context não-propagado, race condition silencioso são as 4 modos de falha que matam apps Go em scale. Esta seção empacota patterns operacionais — código copy-paste-pronto pra Logística pickup dispatcher.
+
+**Pattern 1: errgroup com context cancellation** — substitui `sync.WaitGroup` cru:
+
+```go
+import (
+    "context"
+    "golang.org/x/sync/errgroup"
+)
+
+func dispatchToCouriers(ctx context.Context, order *Order, couriers []*Courier) error {
+    g, ctx := errgroup.WithContext(ctx)
+    g.SetLimit(10)  // bounded concurrency
+
+    for _, c := range couriers {
+        c := c
+        g.Go(func() error {
+            return notifyCourier(ctx, c, order)
+        })
+    }
+    return g.Wait()
+}
+```
+
+- `errgroup.WithContext`: primeira goroutine que retorna erro cancela ctx; outras encerram cedo.
+- `SetLimit(N)`: bounded; sem ele, 10k couriers = 10k goroutines = OOM.
+- `c := c` shadow: closure captura iteração; sem shadow, todas goroutines veem último `c` (Go < 1.22). Em Go 1.22+ o range loop var é per-iteration, mas mantenha shadow pra portabilidade.
+
+**Pattern 2: select com timeout + cancellation:**
+
+```go
+func waitForCourierAck(ctx context.Context, ackCh <-chan Ack) (Ack, error) {
+    timer := time.NewTimer(30 * time.Second)
+    defer timer.Stop()
+
+    select {
+    case ack := <-ackCh:
+        return ack, nil
+    case <-timer.C:
+        return Ack{}, ErrAckTimeout
+    case <-ctx.Done():
+        return Ack{}, ctx.Err()
+    }
+}
+```
+
+- Sempre `defer timer.Stop()` — sem isso, leak de timer goroutine.
+- `ctx.Done()` first-class: sem ele, função ignora cancellation (request cancelado, ainda espera ack).
+- **Anti-pattern**: `time.After(30 * time.Second)` em select — cria timer novo a cada call; em high-throughput loop = leak garantido.
+
+**Pattern 3: context propagation cross-service:**
+
+```go
+func handleOrderRequest(w http.ResponseWriter, r *http.Request) {
+    ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+    defer cancel()
+
+    ctx = context.WithValue(ctx, traceIDKey{}, generateTraceID())
+
+    order, err := svc.CreateOrder(ctx, ...)
+    if err != nil {
+        if errors.Is(err, context.DeadlineExceeded) {
+            http.Error(w, "timeout", http.StatusGatewayTimeout)
+            return
+        }
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+    json.NewEncoder(w).Encode(order)
+}
+```
+
+- **Regra**: ctx é PRIMEIRO arg, sempre. `func Foo(ctx context.Context, ...) error`. Linters (`contextcheck`) reforçam.
+- `r.Context()` propaga cancellation do client (HTTP/2 `RST_STREAM`, client disconnect).
+- `context.WithValue` para request-scoped data (trace_id, user_id), nunca para configuração.
+
+**Pattern 4: pipeline com channels (fan-out/fan-in):**
+
+```go
+func dispatchPipeline(ctx context.Context, orders <-chan Order) <-chan Result {
+    out := make(chan Result, 100)  // buffered
+
+    go func() {
+        defer close(out)
+        g, ctx := errgroup.WithContext(ctx)
+        g.SetLimit(20)
+
+        for order := range orders {
+            order := order
+            g.Go(func() error {
+                r, err := processOrder(ctx, order)
+                if err != nil {
+                    return err
+                }
+                select {
+                case out <- r:
+                    return nil
+                case <-ctx.Done():
+                    return ctx.Err()
+                }
+            })
+        }
+        if err := g.Wait(); err != nil {
+            // log; out já closed via defer
+        }
+    }()
+    return out
+}
+```
+
+- `defer close(out)` — único produtor pode fechar. Múltiplos produtores fechando = panic.
+- Send em `out` em select com `ctx.Done()` — sem isso, goroutine bloqueia em send se consumidor sumiu.
+
+**Pattern 5: graceful shutdown coordinated:**
+
+```go
+func main() {
+    ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+    defer cancel()
+
+    srv := &http.Server{Addr: ":8080", Handler: mux}
+
+    g, gCtx := errgroup.WithContext(ctx)
+    g.Go(func() error {
+        return srv.ListenAndServe()
+    })
+    g.Go(func() error {
+        <-gCtx.Done()
+        shutCtx, shutCancel := context.WithTimeout(context.Background(), 25*time.Second)
+        defer shutCancel()
+        return srv.Shutdown(shutCtx)
+    })
+
+    if err := g.Wait(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+        log.Fatal(err)
+    }
+}
+```
+
+- `signal.NotifyContext` (Go 1.16+) substitui `signal.Notify` + manual handler.
+- Shutdown ctx com timeout SEPARADO do request ctx — drain in-flight requests + abort se passar 25s.
+- Important: orchestrator (K8s) manda SIGTERM e aguarda `terminationGracePeriodSeconds` (default 30s). Mantenha shutdown < grace period - 5s buffer.
+
+**Pattern 6: detectar goroutine leak:**
+
+```go
+import "go.uber.org/goleak"
+
+func TestMain(m *testing.M) {
+    goleak.VerifyTestMain(m)
+}
+```
+
+- Roda todas tests + verifica que goroutines transitórias terminaram. Pega leaks em CI.
+- Em prod: `runtime.NumGoroutine()` exposto via `/debug/pprof/goroutine` (net/http/pprof) + Prometheus gauge. Trend crescente monotônico = leak.
+
+**Pattern 7: sync.Pool pra alloc-heavy hot paths:**
+
+```go
+var bufPool = sync.Pool{
+    New: func() any {
+        return new(bytes.Buffer)
+    },
+}
+
+func formatTrackingPing(p *Ping) []byte {
+    buf := bufPool.Get().(*bytes.Buffer)
+    defer func() {
+        buf.Reset()
+        bufPool.Put(buf)
+    }()
+    fmt.Fprintf(buf, `{"lat":%f,"lng":%f,"ts":%d}`, p.Lat, p.Lng, p.TS.Unix())
+    out := make([]byte, buf.Len())
+    copy(out, buf.Bytes())
+    return out
+}
+```
+
+- **Pegadinha**: pool tem GC pressure. Use APENAS quando alloc é hot path real (validar com pprof). Caso contrário, complexidade sem ganho.
+- Reset SEMPRE antes de Put — senão lixo do uso anterior persiste.
+
+**Anti-patterns observados em produção Logística:**
+
+- **Goroutine sem ctx.Done()**: `go func() { for { processBatch() } }()` — nunca para. Use ticker + ctx select.
+- **`time.After` em loop**: cria timer por iteração, GC depois de 30s. Use `time.NewTimer` + reset.
+- **Holding lock across channel send**: `mu.Lock(); ch <- v; mu.Unlock()` — channel pode bloquear → deadlock se outro path quer mu. Send fora da lock.
+- **Channel não-buffered em fan-out sem consumidor garantido**: producer trava. Use buffered + select com Default ou ctx.Done().
+- **`recover()` em goroutine sem propagação**: panic engolido, processo continua zumbi. Sempre log + propaga via channel de erro.
+- **`context.Background()` em handler HTTP**: perde cancellation do client. Use `r.Context()`.
+- **errgroup sem SetLimit em loop unbounded**: 1M items = 1M goroutines = OOM. Limit sempre.
+
+**Race detector + linters obrigatórios:**
+
+- `go test -race ./...` em CI. Custa ~10x runtime mas pega races que aparecem em prod com 1% de probabilidade (= alguém vai pagar).
+- `staticcheck`, `golangci-lint` com `contextcheck`, `errcheck`, `wastedassign`, `bodyclose`, `noctx`.
+
+Cruza com **03-11 §2.17** (async Go vs Rust), **04-04 §2.2** (deadline propagation com ctx é fundação), **04-04 §2.3** (jittered backoff em retry de tool calls), **04-09 §2.7.1** (rate limit usa context pra cancellation).
+
 ---
 
 ## 3. Threshold de Maestria
