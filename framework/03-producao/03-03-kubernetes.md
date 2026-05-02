@@ -379,6 +379,241 @@ Resumo bruto:
 
 Pra aprender: K3s local ou GKE Autopilot/EKS Auto Mode.
 
+### 2.21 K8s production resilience — PodDisruptionBudget, topology spread, descheduler, priority classes, eviction
+
+Default K8s scheduling parece "just works" mas é frágil em production. Node drain durante upgrade pode tirar 100% das replicas de um service. Pods se acumulam em 1 node (single point of failure). OOMKill cascade derruba services não-related. PriorityClass mal-config = critical pod evicted antes do batch job. Esta seção cobre 5 patterns de resiliência operacional: PDB, topology spread, descheduler, priority classes, eviction tuning — com YAML production-ready.
+
+#### PodDisruptionBudget (PDB) — proteção em voluntary disruption
+
+```yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api-pdb
+  namespace: prod
+spec:
+  minAvailable: 2          # at least 2 pods up always
+  # OR maxUnavailable: 1   # at most 1 pod down at a time
+  selector:
+    matchLabels:
+      app: api
+  unhealthyPodEvictionPolicy: AlwaysAllow   # Kubernetes 1.27+
+```
+
+- **Voluntary disruption**: `kubectl drain`, node upgrade, cluster autoscaler scale-down. PDB blocks if would violate.
+- **Involuntary** (node hardware failure, OOM): PDB does NOT protect. Use multiple replicas + spread.
+- **`unhealthyPodEvictionPolicy: AlwaysAllow`** (1.27+): permite evict de pods unhealthy mesmo se violaria PDB. Sem isso, unhealthy pod travado em terminating bloqueia drain forever.
+
+#### Topology Spread Constraints — distribute pods across failure domains
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  replicas: 6
+  selector: { matchLabels: { app: api } }
+  template:
+    metadata: { labels: { app: api } }
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector: { matchLabels: { app: api } }
+          matchLabelKeys: [pod-template-hash]    # Kubernetes 1.27+
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector: { matchLabels: { app: api } }
+      containers: [...]
+```
+
+- **`maxSkew: 1`** + **`zone` topologyKey**: max diferença de 1 pod entre zones. 6 pods em 3 zones = 2/2/2.
+- **`whenUnsatisfiable: DoNotSchedule`** (zone): hard constraint — não schedule se violaria. **`ScheduleAnyway`** (hostname): soft, prefer mas não bloqueia.
+- **`matchLabelKeys: [pod-template-hash]`** (1.27+): considera só pods da mesma ReplicaSet (rolling update não confunde counting).
+- Sem isso: 6 pods podem cair todos em 1 zone; AZ failure = 100% downtime.
+
+#### Anti-affinity (alternative/complement)
+
+```yaml
+spec:
+  template:
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector: { matchLabels: { app: api } }
+                topologyKey: kubernetes.io/hostname
+```
+
+- **`required`**: hard rule, scheduler refuses. **`preferred`**: soft, weighted preference.
+- 2026 standard: prefer Topology Spread Constraints over Anti-Affinity (more flexible).
+
+#### PriorityClass — eviction order under pressure
+
+```yaml
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: critical-prod
+value: 100000
+globalDefault: false
+description: "API + DB clients; never evict before batch"
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: best-effort-batch
+value: 1000
+description: "Batch jobs; first to evict on node pressure"
+---
+# Apply em deployment
+spec:
+  template:
+    spec:
+      priorityClassName: critical-prod
+```
+
+- Kubelet eviction: lowest priority first.
+- Scheduler preemption: high-priority pod can preempt lower if cluster full.
+- **System critical**: pré-definidos `system-cluster-critical` (2000000000) e `system-node-critical` (2000001000) — não use pra workload normal.
+- **Pegadinha**: missing PriorityClass = priority 0 = mistura com batch. Sempre set explicit pra prod workloads.
+
+#### Resource requests/limits + QoS classes (recap operacional)
+
+```yaml
+spec:
+  containers:
+    - name: api
+      resources:
+        requests: { cpu: 250m, memory: 512Mi }
+        limits:   { cpu: 1, memory: 1Gi }
+```
+
+- **Guaranteed** (requests = limits): never evicted on memory pressure.
+- **Burstable** (limits > requests): evicted in middle order.
+- **BestEffort** (no requests/limits): evicted first.
+- **Production rule**: Guaranteed pra critical services; Burstable pra workers; BestEffort proibido em namespace prod.
+- **Memory limit pegadinha**: hit limit = OOMKill imediato; sem grace. Set 20-30% above observed peak.
+
+#### Descheduler — re-balance pods over time
+
+```yaml
+# descheduler-policy.yaml
+apiVersion: descheduler/v1alpha2
+kind: DeschedulerPolicy
+profiles:
+  - name: ProfileName
+    pluginConfig:
+      - name: DefaultEvictor
+        args:
+          evictLocalStoragePods: false
+          nodeFit: true
+      - name: RemoveDuplicates
+      - name: LowNodeUtilization
+        args:
+          thresholds: { cpu: 20, memory: 20, pods: 20 }
+          targetThresholds: { cpu: 50, memory: 50, pods: 50 }
+      - name: RemovePodsViolatingTopologySpreadConstraint
+    plugins:
+      balance:
+        enabled: [RemoveDuplicates, LowNodeUtilization, RemovePodsViolatingTopologySpreadConstraint]
+```
+
+- Descheduler corre como CronJob ou Deployment + leader election.
+- Removes pods que violam spread, são duplicate em mesmo node, ou underutilized nodes.
+- PDB + PriorityClass STILL respected — eviction safe.
+- **Scenario**: cluster autoscaler adds nodes em spike, mas pods existentes não se movem; descheduler re-balance.
+
+#### Eviction thresholds — tuning kubelet
+
+```yaml
+# kubelet config (per node)
+evictionHard:
+  memory.available: "200Mi"
+  nodefs.available: "10%"
+  imagefs.available: "10%"
+evictionSoft:
+  memory.available: "500Mi"
+  nodefs.available: "15%"
+evictionSoftGracePeriod:
+  memory.available: "1m30s"
+evictionMaxPodGracePeriod: 60
+```
+
+- **Hard threshold**: immediate OOMKill on hit; sem grace.
+- **Soft threshold**: graceful eviction respeitando `terminationGracePeriodSeconds` até `evictionMaxPodGracePeriod`.
+- Default: ~100Mi reserved. Em high-density nodes, pode bater frequente. Tune per workload.
+
+#### Logística production stack — todas as defenses ligadas
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders-api
+  namespace: prod
+spec:
+  replicas: 6
+  strategy:
+    rollingUpdate: { maxSurge: 2, maxUnavailable: 0 }
+  template:
+    metadata: { labels: { app: orders-api, tier: critical } }
+    spec:
+      priorityClassName: critical-prod
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector: { matchLabels: { app: orders-api } }
+          matchLabelKeys: [pod-template-hash]
+      containers:
+        - name: api
+          image: registry/orders-api:v2.3.1
+          resources:
+            requests: { cpu: 500m, memory: 1Gi }
+            limits:   { cpu: 1, memory: 1Gi }      # Guaranteed QoS
+          livenessProbe:  { httpGet: { path: /healthz, port: 8080 }, periodSeconds: 10 }
+          readinessProbe: { httpGet: { path: /ready, port: 8080 }, periodSeconds: 5 }
+          startupProbe:   { httpGet: { path: /healthz, port: 8080 }, failureThreshold: 30, periodSeconds: 2 }
+      terminationGracePeriodSeconds: 60
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: orders-api
+  namespace: prod
+spec:
+  minAvailable: 4
+  selector: { matchLabels: { app: orders-api } }
+  unhealthyPodEvictionPolicy: AlwaysAllow
+```
+
+#### Anti-patterns observados
+
+- **No PDB**: cluster upgrade evicts todas replicas; downtime guaranteed.
+- **PDB com `minAvailable` igual a `replicas`**: drain bloqueia infinito; nenhum pod pode ser evicted. Set `replicas - 1` ou `maxUnavailable: 1`.
+- **No topology spread**: 100% replicas em 1 zone; AZ failure = 100% down.
+- **Sem `matchLabelKeys`**: rolling update tem rolling pods + new pods counted; spread aparece violado constantemente.
+- **PriorityClass faltando em prod**: critical pods misturados com batch em eviction order.
+- **Memory limit muito justo**: hit limit em traffic spike = OOMKill cascading restart loop.
+- **`maxUnavailable: 25%` em deployment de 4 replicas**: 1 pod evictable, mas se PDB diz `minAvailable: 3`, drain trava.
+- **Sem `terminationGracePeriodSeconds`**: SIGTERM + 30s default; long-running requests truncated. Set baseado em request p99 latency.
+- **Sem startupProbe**: liveness mata pod durante boot lento.
+
+#### Validation toolkit
+
+- **`kubectl drain --dry-run`**: simula drain pra ver se PDB bloqueia.
+- **`kube-no-trouble (kubent)`**: detecta deprecated APIs.
+- **`kubescape`** ou **`polaris`**: scans de best practices em deployment manifests.
+- **`chaos-mesh`** ou **`litmus`**: chaos engineering — kill node, inject latency, partition network. Valida defenses funcionam.
+
+Cruza com **03-03 §2.14** (autoscaling), **03-03 §2.16** (persistent volumes — PDB protege StatefulSet também), **03-03 §2.18** (operators que gerenciam PDB programaticamente), **03-15 §2.11** (chaos engineering valida resilience), **04-04 §2.x** (resilience patterns aplicam stack inteiro).
+
 ---
 
 ## 3. Threshold de Maestria
