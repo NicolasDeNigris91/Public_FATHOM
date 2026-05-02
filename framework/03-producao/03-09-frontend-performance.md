@@ -244,6 +244,200 @@ Lighthouse CI: roda em PR, falha em regression de score.
 
 Em projeto crítico de perf (landing pages, content sites), avaliar.
 
+### 2.19 Real User Monitoring (RUM) deep — web-vitals, INP measurement, attribution
+
+Lighthouse/PageSpeed mede em lab (single device, single network). Real User Monitoring (RUM) mede no campo — devices reais, network reais, edge cases reais. Sem RUM, time otimiza pra Lighthouse mas users em Android low-end com 3G veem 12s de LCP enquanto dashboard mostra "all green". §2.19 cobre stack RUM moderna 2026: web-vitals lib v4 com INP correto, attribution data, sampling, custos reais, integração com OTel/Sentry/Datadog/SpeedCurve.
+
+#### Core Web Vitals 2026 — métricas e thresholds
+
+| Metric | What | Good | Needs improvement | Poor |
+|---|---|---|---|---|
+| **LCP** | Largest Contentful Paint | ≤ 2.5s | 2.5-4s | > 4s |
+| **INP** | Interaction to Next Paint (replaced FID em 2024) | ≤ 200ms | 200-500ms | > 500ms |
+| **CLS** | Cumulative Layout Shift | ≤ 0.1 | 0.1-0.25 | > 0.25 |
+| **FCP** | First Contentful Paint (diagnostic) | ≤ 1.8s | 1.8-3s | > 3s |
+| **TTFB** | Time to First Byte (diagnostic) | ≤ 800ms | 800ms-1.8s | > 1.8s |
+
+- **INP** substituiu FID em 2024-03 como Core Web Vital. INP captura WORST interaction (98º percentile), não first apenas. Mais brutal mas correlaciona melhor com sensação de "site travado".
+- Thresholds aplicam ao p75 das page views por origin no CrUX.
+
+#### web-vitals v4 — código copy-paste-pronto
+
+```typescript
+// src/lib/rum.ts
+import { onLCP, onINP, onCLS, onFCP, onTTFB, type Metric } from 'web-vitals';
+
+type AttributedMetric = Metric & {
+  attribution: Record<string, unknown>;
+};
+
+function sendToAnalytics(metric: AttributedMetric) {
+  const body = JSON.stringify({
+    name: metric.name,
+    value: metric.value,
+    rating: metric.rating,
+    id: metric.id,
+    navigationType: metric.navigationType,
+    page: location.pathname,
+    attribution: metric.attribution,
+    device: {
+      deviceMemory: (navigator as any).deviceMemory,
+      hardwareConcurrency: navigator.hardwareConcurrency,
+      connection: (navigator as any).connection?.effectiveType,
+    },
+    userId: window.__userId,
+    sessionId: window.__sessionId,
+  });
+
+  // sendBeacon não bloqueia unload; fallback fetch keepalive
+  if (navigator.sendBeacon) {
+    navigator.sendBeacon('/api/rum', body);
+  } else {
+    fetch('/api/rum', { body, method: 'POST', keepalive: true });
+  }
+}
+
+export function initRum() {
+  onLCP(sendToAnalytics, { reportAllChanges: false });
+  onINP(sendToAnalytics, { reportAllChanges: false });
+  onCLS(sendToAnalytics, { reportAllChanges: false });
+  onFCP(sendToAnalytics);
+  onTTFB(sendToAnalytics);
+}
+```
+
+- **`reportAllChanges: false`** (default): só reporta valor final no page hide / unload. `true` reporta cada update — útil em dashboards real-time mas inflate volume 10x.
+- **`sendBeacon`**: API designed pra envio em unload sem bloquear navigation. Limite 64KB por call.
+
+#### Attribution — onde está o gargalo
+
+web-vitals v4 inclui `attribution` por métrica:
+
+```typescript
+onLCP((metric) => {
+  // metric.attribution.element: HTMLElement do LCP
+  // metric.attribution.url: src/href
+  // metric.attribution.timeToFirstByte: TTFB sub-component
+  // metric.attribution.resourceLoadDelay: tempo entre FCP e início load
+  // metric.attribution.resourceLoadDuration: download time
+  // metric.attribution.elementRenderDelay: tempo de download a render
+});
+
+onINP((metric) => {
+  // metric.attribution.eventTarget: HTMLElement clicado
+  // metric.attribution.eventType: 'click' | 'pointerdown' | 'keydown' | ...
+  // metric.attribution.inputDelay: entre input e processing start
+  // metric.attribution.processingDuration: handler runtime
+  // metric.attribution.presentationDelay: entre handler end e paint
+  // metric.attribution.longestScript: script src + duration > 50ms
+});
+
+onCLS((metric) => {
+  // metric.attribution.largestShiftTarget: HTMLElement do shift maior
+  // metric.attribution.largestShiftTime, largestShiftValue
+  // metric.attribution.loadState: pre/post load
+});
+```
+
+Sem attribution: dashboard mostra "INP 600ms p75". Action item? Nenhum. Com attribution: "INP 600ms causado por click em `.checkout-button`, processing 450ms via `vendor.js:7234`". Action item: investigate `vendor.js:7234`.
+
+#### Backend — recebimento + ingestão
+
+```typescript
+// app/api/rum/route.ts (Next.js Edge runtime)
+import { Pool } from 'pg';
+const pool = new Pool();
+
+export const runtime = 'edge';
+
+export async function POST(req: Request) {
+  const text = await req.text();
+  const m = JSON.parse(text);
+
+  await pool.query(
+    `INSERT INTO rum_events
+       (event_at, name, value, rating, page, attribution, device, user_id, session_id)
+     VALUES (now(), $1, $2, $3, $4, $5, $6, $7, $8)`,
+    [m.name, m.value, m.rating, m.page, m.attribution, m.device, m.userId, m.sessionId]
+  );
+
+  return new Response(null, { status: 204 });
+}
+```
+
+Em scale: NÃO escreva direto Postgres. Use Cloudflare Workers Analytics Engine, Snowplow, or queue (Kafka) → ClickHouse pra análise.
+
+#### Sampling — controlando custo em scale
+
+- 1M page views/dia × 5 metrics = 5M events/dia. ClickHouse $0.05/1M ingestion + $0.10/GB storage. Manageable.
+- 100M page views/dia × 5 metrics = 500M events/dia. SaaS RUM (Datadog $0.5/1k events) → $250/dia = $7500/mês.
+- Sampling client-side:
+  ```typescript
+  export function initRum() {
+    const sampleRate = 0.1;  // 10%
+    if (Math.random() > sampleRate) return;
+    onLCP(sendToAnalytics);
+    // ...
+  }
+  ```
+- **Pegadinha sampling**: low traffic pages perdem visibility. Tier sampling (high traffic 10%, low traffic 100%) ou per-user persistent sampling (sample once per session, persist).
+
+#### Dashboards — 3 visualizações essenciais
+
+- **p75 trend over time** por metric (LCP/INP/CLS) — Core Web Vitals threshold rule.
+- **Distribution histogram** — vê cauda longa que p75 esconde.
+- **Attribution heatmap** — top 10 elements/URLs causando worst metric. Esse é o action driver.
+
+#### Logística — RUM por user journey
+
+- Sem journey: "INP 350ms" — não acionável.
+- Com journey: "INP 350ms na flow de pickup-confirm; courier mobile 4G; INP 120ms em homepage desktop" — segmenta correção por user impact.
+- Adicione `journey` field:
+  ```typescript
+  window.__journey = 'pickup-confirm';  // set on route change
+  ```
+- Dashboard com filter por journey + device + connection → priorização real.
+
+#### Stack 2026 — comparação SaaS vs self-host
+
+| Tool | Modelo | Strengths | Custo (1M PV/mês) |
+|---|---|---|---|
+| **SpeedCurve LUX** | SaaS RUM-only | Best UX dashboards; budget alerts; CrUX comparison | ~$1k/mês |
+| **Datadog RUM** | SaaS APM + RUM | Correlação RUM ↔ backend traces | ~$3k/mês |
+| **Sentry Performance** | SaaS error + perf | Boa pra times já em Sentry | ~$500/mês |
+| **Cloudflare Web Analytics** | SaaS, free | Web Vitals out-of-box; sem attribution profunda | $0 |
+| **OpenTelemetry + ClickHouse** | Self-host | Full ownership; integra com OTel backend | infra cost ~$200/mês |
+
+#### Anti-patterns observados
+
+- **Lighthouse-driven optimization sem RUM**: passa Lighthouse, cai em produção pra users low-end.
+- **Sem attribution**: métricas sem ação possível.
+- **CrUX como única fonte**: agregado origin-level mensal; sem visibility per-page ou pre-deploy regression detection.
+- **Sampling sem persistência por session**: same user reportado parcialmente; aggregations desviam.
+- **Send sem `sendBeacon` ou `keepalive`**: requests cancelados em unload, perde 30-50% das métricas.
+- **`reportAllChanges: true` em produção**: 10x volume + custo desnecessário.
+- **RUM sem device/connection metadata**: dashboard mistura iPhone 15 Pro com Android Go; mediana enganosa.
+- **CLS sem attribution.loadState**: confunde initial render shift (esperado, accept) com mid-session shift (real bug).
+
+#### Performance budget enforcement no CI
+
+```yaml
+# .github/workflows/perf-budget.yml
+- name: Lighthouse CI
+  run: npx lhci autorun --upload.target=temporary-public-storage
+- name: Compare RUM trend
+  run: |
+    node scripts/check-rum-regression.js \
+      --baseline=last-7d-p75 \
+      --current=last-1d-p75 \
+      --threshold-lcp=200 \
+      --threshold-inp=50
+```
+
+PR que aumenta p75 LCP > 200ms ou p75 INP > 50ms → block ou label `perf-regression`.
+
+Cruza com **03-09 §2.14** (INP foundation), **03-09 §2.16** (performance budget), **03-09 §2.17** (Lighthouse vs reality), **03-07 §2.x** (OTel browser SDK feeds RUM into observability stack), **03-15 §2.18** (RUM data alimenta SLO de UX).
+
 ---
 
 ## 3. Threshold de Maestria

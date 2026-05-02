@@ -391,6 +391,193 @@ Calibração emocional: empresa promove pra **resolver problema de capacity org*
 
 Cruza com **04-12 §2.10** (roadmap técnico) e **05-03** (Conway's Law / org architecture). Será expandido no estágio Amplitude com **05-06 §mentorship** (Staff = mentor escalado) e **CAPSTONE-amplitude**.
 
+### 2.22 Architectural Decision Records (ADR) deep — template, lifecycle, anti-patterns
+
+ADR (Architectural Decision Record) é o artefato Staff+ que separa decisão deliberada de "decisão por inércia". Sem ADR, time perde memória de WHY em 6 meses; novo dev pergunta "por que usamos X?", senior responde "não lembro", reverte sem entender. Com ADR: decisão documentada com contexto, alternativas avaliadas, consequências aceitas. Pattern Michael Nygard 2011, refinado MADR 2024.
+
+#### Quando ADR é obrigatório (heurística)
+
+- **Decisão hard-to-reverse**: choice de DB principal, framework de UI, broker de mensagens, cloud provider.
+- **Decisão cross-team**: API contract, auth flow, observability stack.
+- **Decisão controversial**: time discutiu 2+ vezes, alguém perdeu — capture porque a decisão foi tomada pra evitar relitigation.
+- **Decisão que viola pattern existente**: documenta exception com justificativa.
+- **NÃO** pra decisões reversíveis low-blast-radius (linter rule, naming convention de variável local, escolha de logger pra script utilitário).
+
+#### MADR template (Markdown ADR, 2024 spec)
+
+```markdown
+# ADR-0042: Adoção de Iceberg como table format pro lakehouse
+
+- **Status**: Accepted
+- **Date**: 2026-04-15
+- **Deciders**: @nicolas, @ana, @bruno
+- **Consulted**: @dataeng-team, @platform-eng
+- **Informed**: @engineering-all
+
+## Context and Problem Statement
+
+Logística v3 precisa de lakehouse table format pra suportar:
+1. Multi-engine read (ClickHouse, DuckDB, Spark) sobre mesma data S3.
+2. Schema evolution sem rewrite.
+3. Time travel pra debugging e audit.
+
+Hoje pipeline grava Parquet plain em S3 com Hive-style partitioning. Limita: schema change = full rewrite, sem time travel, multi-engine write quebra consistency.
+
+## Decision Drivers
+
+- Multi-engine read mandatory.
+- Schema evolution sem downtime.
+- Custo storage controlled (compaction necessária).
+- Equipe data eng tem 3 ICs; curva de aprendizado matters.
+- Vendor lock-in evitar.
+
+## Considered Options
+
+1. Apache Iceberg (Tabular/Snowflake-backed)
+2. Delta Lake (Databricks-backed; OSS Linux Foundation desde 2022)
+3. Apache Hudi (Uber-origin; OSS Apache)
+4. Status quo (Parquet + Hive partitioning)
+
+## Decision Outcome
+
+**Chosen option**: Apache Iceberg, because:
+- REST catalog spec emergente (Polaris, Nessie, Lakekeeper) reduz lock-in.
+- Multi-engine maturity em 2026: ClickHouse, DuckDB, Trino, Spark, Flink read native.
+- Schema evolution e partition evolution sem rewrite.
+- Snowflake adoption (open lakehouse 2024) sinaliza tração de longo prazo.
+
+### Positive Consequences
+
+- Pipeline pode ler/escrever em qualquer engine sem migration.
+- Time travel via snapshots (queryable até retention).
+- Schema/partition evolution online.
+
+### Negative Consequences
+
+- Curva de aprendizado pro time data (semantics + catalog ops).
+- Compaction job mandatory (sem ele, small files multiplicam).
+- Vacuum dos snapshots antigos requires cron disciplinado.
+
+## Pros and Cons of the Options
+
+### Apache Iceberg
+
+- Open spec (Apache 2.0); REST catalog standard.
+- Multi-engine maturidade 2026 alta.
+- Snowflake (Polaris) lança open catalog 2024 — ecosystem boost.
+- Catalog ops (Polaris/Nessie self-hosted) requer aprendizado.
+
+### Delta Lake
+
+- Databricks ecosystem mature; Spark first-class.
+- Time travel + schema evolution.
+- Multi-engine ainda Databricks-leaning; Trino/ClickHouse 2026 ok mas 2nd-class.
+
+### Apache Hudi
+
+- Forte em CDC + upsert (uber origin).
+- Adoção 2026 menor; community menor; multi-engine 3rd-class.
+
+### Status quo (Parquet + Hive)
+
+- Zero novo aprendizado.
+- Schema change requer rewrite full; sem time travel; multi-engine consistency frágil.
+
+## Links
+
+- Apache Iceberg spec: https://iceberg.apache.org/spec/
+- Polaris Catalog: https://github.com/apache/polaris
+- Snowflake Open Catalog announcement (2024)
+- Cruza com [04-13 §2.11](../04-sistemas/04-13-streaming-batch-processing.md), [03-13 §2.15](../03-producao/03-13-time-series-analytical-dbs.md)
+
+## Notes
+
+- Re-evaluate em 2027-Q2 baseado em adoption metrics + ops cost.
+- Initial migration scope: 1 mart (fct_daily_revenue) — validate pattern, depois rollout.
+```
+
+#### Lifecycle dos status — workflow operacional
+
+```
+Proposed → Accepted → [Deprecated | Superseded by ADR-NNNN | Rejected]
+                    ↓
+                 Active until superseded
+```
+
+- **Proposed**: PR open, em discussão. Não-binding.
+- **Accepted**: merged em main; decisão em vigor.
+- **Rejected**: discutido + rejeitado; mantém o documento pra evitar relitigation.
+- **Deprecated**: decisão antiga, contexto mudou; sem substituto definido.
+- **Superseded by ADR-NNNN**: substituído por ADR mais recente; link bidirecional.
+
+**Anti-pattern**: deletar ADR rejeitado/superseded. Mantém histórico — alguém em 6 meses vai propor mesma coisa, leitura do ADR rejeitado economiza re-discussão.
+
+#### Repo structure recomendada
+
+```
+docs/
+├── adr/
+│   ├── 0001-record-architecture-decisions.md
+│   ├── 0002-use-postgres-as-primary-db.md
+│   ├── 0003-adopt-graphql-federation.md
+│   ├── ...
+│   ├── 0042-adopt-iceberg-table-format.md
+│   └── README.md
+└── ...
+```
+
+- Numbering 4-digit zero-padded (suporta 9999 ADRs).
+- Title slug em kebab-case + verb forte (`adopt`, `replace`, `remove`, `defer`).
+- README.md lista todos com status (gerado por script).
+
+#### Tooling — automation reduce friction
+
+- **adr-tools** (npm/brew): `adr new "Adopt Iceberg as table format"` cria scaffold + numbering automatic.
+- **log4brains** (web UI): renderiza ADRs em site navegável + grafo de relações (superseded chains).
+- **CI check**: PR que toca arquivo em path crítico (`db/migrations/`, `infra/terraform/`, `services/auth/`) sem ADR adicional → label `needs-adr`.
+
+#### Padrão de discussão — RFC vs ADR
+
+- **RFC**: documento exploratório com proposta + discussão aberta. Pode resultar em 0, 1 ou N ADRs.
+- **ADR**: registro de decisão TOMADA. Emerge do RFC ou de discussão informal.
+- Times pequenos (< 5 ICs): pula RFC, vai direto a ADR proposed em PR.
+- Times médios+ ou cross-org: RFC primeiro (Notion/HackMD/Google Doc), depois ADR no repo após convergência.
+
+#### Logística — exemplo de track de ADRs em 12 meses
+
+```
+ADR-0001: Record architecture decisions             (meta)
+ADR-0002: Use Postgres as primary OLTP DB
+ADR-0003: Adopt Next.js for web frontend
+ADR-0004: Use Expo for mobile (React Native)
+ADR-0005: Auth via Hydra OAuth2 server (not Auth0)
+ADR-0006: Multi-tenancy via Postgres RLS (not separate DBs)
+ADR-0007: Migrate from REST to GraphQL Federation v2  (superseded ADR-0003 partial)
+ADR-0008: Adopt Cloudflare Workers for edge auth
+...
+ADR-0023: Replace bull with BullMQ (deprecated ADR-0010)
+ADR-0042: Adopt Iceberg as table format
+```
+
+#### Anti-patterns observados
+
+- **ADR pra tudo**: 200 ADRs em 6 meses, ninguém lê. Bar alto: hard-to-reverse, cross-team, controversial.
+- **ADR sem alternativas avaliadas**: vira justificativa post-hoc. Decision Drivers + Considered Options seções OBRIGATÓRIAS.
+- **ADR escrito DEPOIS da implementação**: perde força crítica; ninguém challenge-a porque já está em prod. Escreva durante decisão, não após.
+- **Status nunca atualiza**: ADR-0010 ainda Accepted apesar do código já ter substituído. Lifecycle policy + CI check ajuda.
+- **ADR como design doc gigante**: ADR é DECISÃO + contexto necessário pra entender. Design doc completo vai em outro lugar (Notion, RFC); ADR linka pra ele.
+- **Sem template enforced**: cada ADR vira formato livre; tooling/parsing impossível.
+- **ADR sem reviewer**: aprovação só do autor — perde signal de "outros entendem e aceitam consequências".
+
+#### Métricas de programa de ADR (seniority signal)
+
+- **Throughput**: 10-30 ADRs/ano em time de 20 ICs é saudável; 0 = sem decisões deliberadas; > 100 = bar baixo.
+- **Diversity de autores**: > 30% ICs autoraram ADR no último ano = cultura de ownership.
+- **Superseded ratio**: 10-20% dos ADRs antigos superseded em 2 anos = tech evoluindo. 0% = stagnation; > 50% = decisões frívolas iniciais.
+- **Time-to-decision**: ADR proposed → accepted em < 2 semanas (sem ele, virou doc-only).
+
+Cruza com **04-12 §2.16** (write-first communication; ADR é instância), **04-12 §2.21** (promo Staff requires ADRs lideradas), **04-12 §2.17** (influência sem autoridade — ADR canaliza), **00-meta** (DECISION-LOG.md é variante framework-level).
+
 ---
 
 ## 3. Threshold de Maestria

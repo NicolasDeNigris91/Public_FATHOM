@@ -348,6 +348,269 @@ Para projetos pequenos-médios em Railway/Render/Fly: Compose-like config é o q
 - **Nix**: gerenciamento de deps reproduzível, sem Docker. Crescendo.
 - **Podman**: drop-in Docker daemon-less, rootless por default.
 
+### 2.20 Secrets em containers — build-time, runtime, K8s, anti-patterns
+
+Secrets em container é onde 80% dos breaches começam. `ENV API_KEY=...` em Dockerfile = secret commitado em image layer pra sempre, indexado em registries públicos. Esta seção cobre 4 vetores: (1) build-time secrets (BuildKit `--mount=type=secret`), (2) runtime injection (env, file, IMDS, vault), (3) K8s patterns (Secret resource, External Secrets Operator, CSI driver), (4) detecção de secret leak (gitleaks, trufflehog).
+
+**Anti-pattern primeiro — o que NÃO fazer**:
+
+```dockerfile
+# ALL TERRIBLE
+ENV STRIPE_SECRET_KEY=sk_live_abc123
+ARG NPM_TOKEN
+RUN echo $NPM_TOKEN > /root/.npmrc
+COPY .env /app/.env
+RUN curl -H "Authorization: $TOKEN" https://internal/api
+```
+
+- `ENV`: secret persiste em image layer; `docker history` revela.
+- `ARG`: visível em `docker inspect`; também acaba em layer se referenciado em RUN.
+- `COPY .env`: secret commitado em image filesystem.
+- `RUN curl ... $TOKEN`: token em command line aparece em `--no-cache` rebuild logs e layer.
+
+**Build-time secrets — BuildKit `--mount=type=secret`** (correto):
+
+```dockerfile
+# syntax=docker/dockerfile:1.7
+FROM node:20 AS deps
+WORKDIR /app
+COPY package.json pnpm-lock.yaml ./
+
+# Secret monta em /run/secrets/<id> apenas durante RUN; não persiste em layer
+RUN --mount=type=secret,id=npm_token,target=/root/.npmrc \
+    corepack enable && pnpm install --frozen-lockfile
+
+FROM node:20-slim
+COPY --from=deps /app/node_modules /app/node_modules
+COPY . /app
+WORKDIR /app
+CMD ["node", "server.js"]
+```
+
+Build:
+
+```bash
+# Secret de file
+echo "//registry.npmjs.org/:_authToken=npm_xxx" > /tmp/npmrc
+docker build --secret id=npm_token,src=/tmp/npmrc -t app .
+
+# Secret de env var (CI)
+docker build --secret id=npm_token,env=NPM_TOKEN -t app .
+```
+
+- **Garantias**: secret nunca aparece em image, history, inspect, layers.
+- **Pegadinha**: hash do secret content NÃO é parte do cache key; cache hit reusa layer mesmo com secret diferente. OK pra pre-compiled deps; RUIM se secret afeta output (ex: build com chave de licença diferente).
+
+**Build-time SSH agent forwarding** (pra clone de repo privado):
+
+```dockerfile
+# syntax=docker/dockerfile:1.7
+RUN --mount=type=ssh \
+    git clone git@github.com:myorg/private-lib.git
+```
+
+Build:
+
+```bash
+eval $(ssh-agent)
+ssh-add ~/.ssh/id_ed25519
+docker build --ssh default -t app .
+```
+
+**Runtime secrets — 4 padrões**:
+
+**1. Env vars via `docker run -e`** (acceptable, NÃO ideal):
+
+```bash
+docker run -e DATABASE_URL=postgres://... app
+```
+
+- Pros: simples, universal.
+- Cons: visível em `docker inspect`, em `/proc/<pid>/environ`, em logs de exception com env dump (`process.env` impresso).
+
+**2. Env vars via `--env-file`**:
+
+```bash
+docker run --env-file=secrets.env app
+```
+
+- Same caveats que `-e` em runtime; só evita shell history.
+
+**3. Tmpfs mount com secret file**:
+
+```bash
+docker run \
+  --mount type=tmpfs,destination=/run/secrets,tmpfs-size=64k \
+  --mount type=bind,source=/host/secrets/db_password,target=/run/secrets/db_password,readonly \
+  app
+```
+
+- Secret em RAM, não em disk image.
+- App lê de file path, não env var: `const dbPwd = await fs.readFile('/run/secrets/db_password', 'utf8');`.
+- Padrão Docker Swarm secrets também.
+
+**4. IMDS / Vault / cloud secret manager — recomendado em prod**:
+
+```typescript
+// App busca secret on-demand de SecretsManager (AWS) / Secret Manager (GCP)
+import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
+
+const sm = new SecretsManagerClient({ region: 'us-east-1' });
+let cachedDbPwd: { value: string; fetchedAt: number } | null = null;
+
+async function getDbPassword(): Promise<string> {
+  if (cachedDbPwd && Date.now() - cachedDbPwd.fetchedAt < 5 * 60 * 1000) {
+    return cachedDbPwd.value;
+  }
+  const resp = await sm.send(new GetSecretValueCommand({ SecretId: 'prod/db/password' }));
+  cachedDbPwd = { value: resp.SecretString!, fetchedAt: Date.now() };
+  return cachedDbPwd.value;
+}
+```
+
+- Container roda com IAM role (IRSA em EKS, Workload Identity em GKE) — sem static credential.
+- Cache local 5min reduz chamada API; rotation transparente em rotation event.
+
+**Docker Swarm secrets** (legacy mas em produção):
+
+```bash
+echo "supersecret" | docker secret create db_password -
+
+docker service create \
+  --name api \
+  --secret db_password \
+  --secret source=stripe_key,target=stripe_key,mode=0400 \
+  myorg/api:latest
+```
+
+- Secret em `/run/secrets/<name>` no container.
+- Encrypted em raft store; só nodes que precisam recebem.
+- Não suporta rotation sem redeploy do service.
+
+**Kubernetes — Secret resource + 3 padrões avançados**:
+
+**1. Secret básico** (caveat: base64 NÃO é encryption):
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: db-creds
+type: Opaque
+data:
+  password: c3VwZXJzZWNyZXQ=    # base64 de 'supersecret'
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  template:
+    spec:
+      containers:
+        - name: api
+          image: myorg/api:latest
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-creds
+                  key: password
+```
+
+- **Default etcd**: secrets armazenados em plain text. Habilite `EncryptionConfiguration` (AES-CBC ou KMS-backed).
+- RBAC restritivo: `get secrets` só pra service accounts que precisam.
+
+**2. External Secrets Operator (ESO) — sync de Vault/AWS/GCP**:
+
+```yaml
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: db-creds
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-sm
+    kind: ClusterSecretStore
+  target:
+    name: db-creds
+  data:
+    - secretKey: password
+      remoteRef:
+        key: prod/db/password
+```
+
+- Single source of truth (Vault/SM); K8s Secret é cache reconciliado.
+- Rotation no SM propaga em < refresh interval.
+
+**3. CSI Secret Store Driver — mount sem K8s Secret**:
+
+```yaml
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: vault-db-creds
+spec:
+  provider: vault
+  parameters:
+    vaultAddress: https://vault.internal:8200
+    roleName: api
+    objects: |
+      - objectName: "db_password"
+        secretPath: "secret/data/prod/db"
+        secretKey: "password"
+```
+
+- Secrets montados como files; sem cópia em K8s Secret.
+- Rotation via re-mount; pod recebe sem restart.
+
+**Detecção de leaks — pre-commit + CI**:
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.0
+    hooks:
+      - id: gitleaks
+
+# .github/workflows/secret-scan.yml
+- uses: trufflesecurity/trufflehog@main
+  with:
+    path: ./
+    extra_args: --only-verified
+```
+
+- Verified-only mode: confirma que credential ainda está ativa (chamada API leve).
+- Em historic scan: `trufflehog git file://. --since-commit HEAD~100`.
+
+**Anti-patterns observados em produção**:
+
+- **`ENV` em Dockerfile pra "convenience"**: image em registro privado vaza pra terceirizado tem acesso.
+- **Secret em `--build-arg`**: `docker history` revela; ARG é visível em metadata.
+- **`COPY .env`**: literalmente coloca .env no image filesystem.
+- **Logs com `process.env` dump em exception handler**: secrets aparecem em Sentry/Datadog.
+- **Print de connection string em startup**: "connecting to postgres://user:pass@host" em log line.
+- **K8s Secret sem encryption-at-rest config**: snapshot etcd contém plain text.
+- **Service account com `cluster-admin`**: comprometeu pod = comprometeu cluster.
+- **Sem rotation policy**: secret ativo há 3 anos; ex-funcionário ainda tem. Set max age + alert.
+
+**Validation — secret leak audit local**:
+
+```bash
+# Gitleaks scan completo
+gitleaks detect --source . --verbose --report-path leaks.json
+
+# Auditar Dockerfile
+docker history myorg/api:latest --no-trunc | grep -iE "secret|key|token|password"
+
+# Inspect runtime container
+docker inspect <container> | jq '.[0].Config.Env'
+```
+
+Cruza com **03-08 §2.13** (secrets management foundation), **03-08 §2.14** (supply chain — secret leak é vetor), **03-08 §2.20** (SBOM/VEX correlato), **03-02 §2.6** (BuildKit advanced — secret mount é feature dela), **03-03 §2.x** (K8s production patterns).
+
 ---
 
 ## 3. Threshold de Maestria
