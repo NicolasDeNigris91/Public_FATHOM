@@ -285,6 +285,122 @@ Track:
 
 Reduzir friction cognitive frequentemente bate como melhor conversion + lower CAC payback.
 
+### 2.21 Readability automation + dyslexia/ADHD/autism design + cognitive performance metrics
+
+**WCAG 2.2 cognitive coverage gap.**
+WCAG 2.2 (W3C Recommendation, Sept 2023, latest stable) adicionou 9 success criteria cobrindo cognitive needs: 3.2.6 Consistent Help, 3.3.7 Redundant Entry, 3.3.8 Accessible Authentication (Minimum), 3.3.9 Accessible Authentication (Enhanced), 2.4.11 Focus Not Obscured, 2.5.7 Dragging Movements, 2.5.8 Target Size (Minimum). WCAG 3.0 (Working Draft 2024+, não atinge Recommendation antes de 2027) substitui pass/fail por scoring outcome-based, com cognitive central. Gap empírico: WebAIM Million 2024 reporta 95.9% das homepages com WCAG failures detectáveis automaticamente; cognitive criteria são subset menos auditado (maioria é AAA, raramente requerido legalmente).
+
+**Readability metrics — Flesch-Kincaid + alternativas.**
+- **Flesch Reading Ease (FRE)**: `206.835 - 1.015 × (words/sentences) - 84.6 × (syllables/words)`. Score 0-100. 90-100 elementary, 60-70 plain English (8th grade), 30-50 academic.
+- **Flesch-Kincaid Grade Level**: anos de escolaridade necessários.
+- **Hemingway-style**: passive voice ratio, adverb density, complex sentence count.
+- **Português**: Flesch adaptado por Martins et al. (1996) ajusta constantes pra silaba média maior. Lib: `textstat` (Python, suporta `lang='pt_BR'`); `text-readability` (JS).
+- Threshold Logística: FRE >= 70 pra UI copy; FRE >= 60 pra docs técnicas.
+
+**Readability automation em CI.**
+
+`.vale.ini` (prose linter open-source):
+```ini
+StylesPath = styles
+MinAlertLevel = warning
+[*.{md,mdx}]
+BasedOnStyles = Vale, Logistica
+Logistica.ReadingLevel = error
+Logistica.SentenceLength = warning
+```
+
+`textstat` em pytest:
+```python
+import textstat
+
+def test_landing_copy_readability():
+    text = open('content/landing.md').read()
+    fre = textstat.flesch_reading_ease(text)
+    fkg = textstat.flesch_kincaid_grade(text)
+    assert fre >= 70, f'FRE {fre} below 70 (UI copy threshold)'
+    assert fkg <= 8, f'Grade {fkg} above 8th-grade target'
+```
+
+Outras: `alex.js` (insensitive language), Hemingway CLI ports (sentence complexity highlighting).
+
+**Dyslexia design patterns.**
+- **Fonts**: Atkinson Hyperlegible (Braille Institute, 2020), OpenDyslexic, Lexend (variable axis pra readability tuning) > Arial/Helvetica.
+- **Evitar**: justified text (rivers de white space), italic em paragraphs longos, ALL CAPS > 5 palavras.
+- **Spacing** (WCAG 1.4.12 Text Spacing): `line-height: 1.5+`, `letter-spacing: 0.12em+`, `word-spacing: 0.16em+`.
+- **Contrast**: 7:1 (AAA) > 4.5:1 (AA) reduces visual fatigue.
+- **Background tint**: cream/beige (`#FFF8E7`) sobre puro `#FFFFFF` reduz glare.
+- Logística: "modo leitura" toggle ativa OpenDyslexic + tint global.
+
+**ADHD design patterns.**
+- 1 primary action per screen; secondary actions collapsed.
+- Progress indicator visível em multi-step ("Step 2 of 5").
+- Auto-save state em `localStorage`/IndexedDB on `change`/`blur`.
+- Respeitar `prefers-reduced-motion`.
+- Time-pressure removal (WCAG 2.2.6): warn antes de session timeout, allow extend.
+- Notifications dismissible, NÃO modal forced.
+
+**Autism design patterns.**
+- Predictability: navigation no mesmo lugar entre páginas.
+- Literal language: "Click Save" > "Hit it!".
+- Concrete metaphors ("shopping cart") > abstract ("pulse of the page").
+- Sensory: no auto-play audio/video, no flashing > 3Hz (WCAG 2.3.1).
+- Error messages descritivas: "Email já cadastrado" > "Erro 422".
+
+**Cognitive load metrics — product instrumentation.**
+- **TTC (time-to-task-complete)**: log p50/p95 em onboarding e form submit; high variance = high cognitive load.
+- **Error rate per form**: validation failures por user/sessão.
+- **Abandonment funnel**: drop-off por step em wizards.
+- **Help/docs usage**: high usage = self-service falhou.
+- **Search refinement rate**: re-typing = friction cognitiva.
+- Logística dashboard "cognitive metrics": TTC "criar pedido" p50/p95, abandono por step, correlação com churn em PostHog.
+
+**Media queries — `prefers-reduced-motion` + `prefers-reduced-data` + `prefers-contrast`.**
+```css
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (prefers-reduced-data: reduce) {
+  video[autoplay] { display: none; }
+  img.hero { content: url('/img/hero-low.webp'); }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --text: #000;
+    --bg: #fff;
+    --link: #0033cc;
+  }
+}
+```
+
+**Logística applied stack.**
+- Vale CI em `content/` e `marketing/` → FRE >= 70 mandatory.
+- Atkinson Hyperlegible default; "modo leitura" ativa OpenDyslexic + line-height 1.7 + tint `#FFF8E7`.
+- Multi-step forms: progress indicator + IndexedDB auto-save em `onBlur`.
+- Reduced motion: respeita OS setting; animações cap em 200ms.
+- Cognitive metrics dashboard em PostHog: TTC, abandonment, error-per-form.
+- Onboarding redesign empírico: 6 steps → 3 steps após data mostrar 60% drop-off em step 4.
+
+**Anti-patterns.**
+- Reading level "advanced" em UI copy quando audience é diversa.
+- Modal pop-up forced ao invés de inline notification (interruption-cost alto pra ADHD).
+- Form sem auto-save (ADHD perde state em distractions).
+- Animation 800ms+ em transitions (motion sickness).
+- "Hit the save button!" em vez de "Click Save" (autism literal language).
+- Multi-step form sem progress indicator.
+- WCAG 2.1 audit only sem cobrir 2.2 cognitive criteria.
+- Animations sem `prefers-reduced-motion` opt-out.
+- Session timeout 5min sem warning (hostil pra cognitive disabilities).
+- Metaphors visuais desconhecidos sem affordance text label.
+
+**Cruza com**: `02-02` (a11y, ARIA + WCAG 2.2 functional); `03-17` (a11y testing manual SR + readability); `02-04` (React, motion-reduce libraries); `03-09` (frontend perf, perceived perf overlap); `04-16` (product, retention/churn correlated com cognitive a11y).
+
 ---
 
 ## 3. Threshold de Maestria

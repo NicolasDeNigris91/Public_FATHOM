@@ -187,6 +187,150 @@ Realidade: orgs maiores ainda exigem planning. Mas filosofia (small batches, flo
 
 Tooling não substitui disciplina. Time disfuncional com Jira sofisticado é disfuncional.
 
+### 2.19 Monte Carlo forecasting + flow metrics + #NoEstimates math
+
+Story points são subjetivos, drift entre sprints, e não traduzem pra datas. Monte Carlo simulation usa throughput histórico (items completed per week) pra forecast probabilístico. Output acionável: "85% confidence shipping 30 items em 8 semanas" — não "uns 6 sprints, talvez". Adoção 2026: Spotify, Allianz, ING substituíram SP estimation tradicional por flow metrics + Monte Carlo.
+
+**Flow metrics (Daniel Vacanti, "Actionable Agile Metrics for Predictability")**:
+
+- **Throughput**: items completed per time unit (semana/sprint). Conta items, NÃO effort.
+- **Cycle time**: tempo de "started" até "done" por item.
+- **Lead time**: tempo de "request received" até "done" (inclui queue time).
+- **WIP** (Work In Progress): items currently in flight.
+- **Little's Law**: `WIP = Throughput × Cycle Time`. WIP menor → cycle time menor (throughput fixo).
+- **Aging WIP**: items in flight muito tempo são predictors de late delivery; alerta operacional.
+
+**Monte Carlo "when?" — Python**:
+
+```python
+import random
+
+# Histórico: items completed per week (last 12 weeks)
+throughput_samples = [4, 6, 5, 3, 7, 5, 4, 6, 8, 5, 4, 6]
+
+def simulate_when(num_items: int, num_weeks_max: int, trials: int = 10_000):
+    """Quantas semanas pra completar num_items?"""
+    results = []
+    for _ in range(trials):
+        weeks = 0
+        done = 0
+        while done < num_items and weeks < num_weeks_max:
+            done += random.choice(throughput_samples)
+            weeks += 1
+        results.append(weeks)
+    results.sort()
+    return {
+        '50%': results[len(results) // 2],
+        '85%': results[int(len(results) * 0.85)],
+        '95%': results[int(len(results) * 0.95)],
+    }
+
+# 30 items: when?
+forecast = simulate_when(30, 100)
+# {'50%': 6, '85%': 8, '95%': 10}  → 85% confidence em 8 semanas
+```
+
+**Monte Carlo "when?" — TypeScript**:
+
+```ts
+function simulateWhen(
+  numItems: number,
+  samples: number[],
+  trials = 10_000,
+): { p50: number; p85: number; p95: number } {
+  const results: number[] = [];
+  for (let i = 0; i < trials; i++) {
+    let weeks = 0;
+    let done = 0;
+    while (done < numItems && weeks < 200) {
+      done += samples[Math.floor(Math.random() * samples.length)];
+      weeks++;
+    }
+    results.push(weeks);
+  }
+  results.sort((a, b) => a - b);
+  return {
+    p50: results[Math.floor(trials * 0.5)],
+    p85: results[Math.floor(trials * 0.85)],
+    p95: results[Math.floor(trials * 0.95)],
+  };
+}
+```
+
+**Monte Carlo "how many by date?" — direção reversa**:
+
+```python
+def simulate_how_many(num_weeks: int, trials: int = 10_000):
+    results = []
+    for _ in range(trials):
+        done = sum(random.choice(throughput_samples) for _ in range(num_weeks))
+        results.append(done)
+    results.sort()
+    return {
+        '50%': results[len(results) // 2],
+        '85%': results[int(len(results) * 0.15)],  # lower bound, 85% conf
+        '95%': results[int(len(results) * 0.05)],  # lower bound, 95% conf
+    }
+# 8 weeks: how many items?
+# {'50%': 44, '85%': 36, '95%': 30}  → 85% confidence shipping 36 items
+```
+
+Pegadinha: pra "how many items" usa percentiles INFERIORES (lower bound, pessimistic). Pra "when?" usa percentiles superiores. Direções opostas.
+
+**Cumulative Flow Diagram (CFD)** — visualizar bottlenecks:
+
+- Eixos: x = tempo (dias/semanas); y = count items per status (Backlog/InProgress/Review/Done) stacked.
+- **Bottleneck signal**: status com banda crescendo (acumula items, downstream starvado).
+- **WIP signal**: largura vertical de "InProgress" representa WIP atual.
+- **Cycle time signal**: distância horizontal entre "started" e "done" lines.
+- Tools: Linear (built-in 2025+), Jira (built-in), Actionable Agile (specialized).
+
+**#NoEstimates math (Allen Holub, Vasco Duarte, Vacanti research)**:
+
+Hipótese: "all stories são approximately same size em backlog bem-decomposto → just count". Evidência empírica: variance em throughput é comparável a variance em SP-weighted throughput na maioria dos teams. SP adiciona overhead sem signal proporcional. Decision tree:
+
+- Stories well-broken-down (<3 dias each) → #NoEstimates funciona, just count.
+- Stories vary 1-day vs 1-month → SP ainda relevante OR melhor breakdown upstream.
+- **Compromise**: t-shirt sizing (S/M/L/XL) com cap em XL (split obrigatório acima de XL).
+
+**Logística applied — quarterly planning Q4 2026**:
+
+- Backlog: 47 items priorizados.
+- Throughput last 12 semanas: `[8, 6, 5, 7, 9, 6, 8, 7, 6, 8, 5, 7]` (média 6.8/sem, min 5, max 9).
+- Forecast 47 items: `{p50: 7 weeks, p85: 8 weeks, p95: 10 weeks}`.
+- Forecast 12 weeks (quarter): `{p50: 81 items, p85: 70 items, p95: 60 items}`.
+- Commit a stakeholders: 60-70 items (p85-p95 lower bound), NÃO 47 com "extender em 4 semanas se precisar".
+
+**Pegadinhas em produção**:
+
+- **Throughput change point**: time mudou (membro saiu/entrou) → use last 8 semanas, NOT 12. Histórico pré-mudança polui sample.
+- **Outliers**: 0 items em semana (holiday/incident) — Vacanti recomenda KEEP (real noise of system, não censura).
+- **Items different sizes**: premissa "all items same" quebra → break down stories acima de 1 semana mandatorily.
+- **Non-deliverable items**: research spike não conta como item; só "deliverable to user" entries em throughput sample.
+- **Deadline planning**: forecast diz p95=10 semanas, deadline=8 semanas → cut scope (pull lowest priority) ou add capacity (caro, lateness garantida).
+
+**Tools 2026**:
+
+- **Actionable Agile** (Vacanti's tool): Monte Carlo + CFD built-in. Linear/Jira integration. $25/user/mo.
+- **Linear flow metrics**: built-in CFD + cycle time charts desde 2025. Pro $14/user/mo.
+- **Jira**: CFD built-in, Monte Carlo via plugin (Actionable Agile, ~$15/user/mo).
+- **Custom**: Python/SQL + Grafana panel. 1-2 weeks build + maintenance contínua. Self-host alternative.
+
+**Anti-patterns observados**:
+
+- Story points re-estimated mid-sprint (SP supposed to be relative ordinal, NÃO absolute hours).
+- Forecast com 50% confidence reportado a stakeholders (50% = coin flip; sempre 85%+ pra commitment).
+- Throughput inclui research spikes / non-deliverable items (inflated, unrealistic forecast).
+- Monte Carlo sem dropping warmup period após team change (last 4 semanas ignored).
+- SP velocity stable, mas team mudou 3 membros (velocity é per-team metric, NÃO portable).
+- "Estimation accuracy" tracked, mas estimation overhead ignored (cost > benefit típico).
+- Planning poker scaled all-hands: 8 pessoas × 4h × bisemanal = 64h/mês de overhead puro.
+- Cycle time medido sem definition de "started"/"done" claros (garbage in, garbage out).
+- WIP unlimited (Little's Law: cycle time explode em proporção direta).
+- "Velocity goal" comunicado a time (Goodhart's Law: vira gameable, perde signal informativo).
+
+**Cruza com**: `04-12` (tech leadership: planning rituals + estimation culture); `03-15` (incident response: MTTR é lead time pra incidents); `04-09` (scaling: capacity planning); `03-04` (CI/CD: deployment frequency feeds throughput sample); `04-16` (product/business: forecasting pra revenue commitments e customer SLAs).
+
 ---
 
 ## 3. Threshold de Maestria
