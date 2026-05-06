@@ -260,6 +260,178 @@ Não exhaustive como TLA+, mas catches muitos bugs com pouco esforço.
 - ML formal verification: incipient (robustness proofs sob input perturbations).
 - Crypto protocols: ProVerif, Tamarin pra protocol verification (Signal, TLS).
 
+### 2.18 TLA+ vs Alloy vs P language — choosing the right tool
+
+Três ferramentas, três filosofias. Senior escolhe baseado em natureza do problema, não em moda.
+
+**TLA+** (Lamport, Microsoft Research): high-level state-transition specs, math-heavy, temporal logic forte. Industry-proven em AWS S3, DynamoDB, EBS, Cosmos DB consistency levels, MongoDB Raft, Confluent Kafka exactly-once. Toolbox + TLC model checker + Apalache (SMT-based symbolic alternative, type-check estrito).
+
+**Alloy** (MIT, Daniel Jackson): relational logic declarativa, focus em structural invariants. Lower learning curve (< 5min pra spec básico rodando), instant counter-example via SAT. Best pra schemas, permissões, ACL, data structure invariants. Alloy Analyzer 6 adicionou temporal mas não chega ao nível TLA+.
+
+**P language** (Microsoft, formerly P#): event-driven state machines, message-passing actors com model checking integrado. Industry use: Azure Storage frontend, USB driver verification, Service Fabric. Tem **code generation** pra C#/Go/Java actors mantendo verified semantics — único do trio que entrega executável.
+
+**Decision tree:**
+
+- **Distributed protocol** (consensus, replication, choreography Saga, leader election) → **TLA+**. AWS valida Paxos/MultiPaxos; Cosmos DB 5 níveis de consistency.
+- **Schema/permission/structural model** ("pode user X chegar a resource Y via N hops?") → **Alloy**. Responde em segundos.
+- **Event-driven actor system** (microservices, Erlang-style, event-sourced) → **P**.
+- **Fast PoC ou validação de invariant estrutural** → **Alloy**.
+- **Production-grade rigor, protocolo crítico** → **TLA+**.
+- **Code generation + verified actors** → **P**.
+
+**TLA+/PlusCal exemplo (Logística — Saga AssignOrderToCourier com compensation):**
+
+```tla
+---- MODULE AssignOrder ----
+EXTENDS Naturals, Sequences, FiniteSets
+
+CONSTANTS Couriers, Orders
+VARIABLES order_state, courier_state, log
+
+Init ==
+  /\ order_state = [o \in Orders |-> "pending"]
+  /\ courier_state = [c \in Couriers |-> "idle"]
+  /\ log = <<>>
+
+ReserveCourier(o, c) ==
+  /\ order_state[o] = "pending"
+  /\ courier_state[c] = "idle"
+  /\ order_state' = [order_state EXCEPT ![o] = "reserved"]
+  /\ courier_state' = [courier_state EXCEPT ![c] = "reserved"]
+  /\ log' = Append(log, [order |-> o, courier |-> c, action |-> "reserve"])
+
+ChargeFee(o, c) ==
+  /\ order_state[o] = "reserved"
+  /\ \/ /\ order_state' = [order_state EXCEPT ![o] = "assigned"]
+        /\ UNCHANGED courier_state
+        /\ log' = Append(log, [order |-> o, courier |-> c, action |-> "assign"])
+     \/ \* charge fail compensation:
+        /\ order_state' = [order_state EXCEPT ![o] = "pending"]
+        /\ courier_state' = [courier_state EXCEPT ![c] = "idle"]
+        /\ log' = Append(log, [order |-> o, courier |-> c, action |-> "compensate"])
+
+Next == \E o \in Orders, c \in Couriers: ReserveCourier(o, c) \/ ChargeFee(o, c)
+Spec == Init /\ [][Next]_<<order_state, courier_state, log>>
+
+\* Safety: courier reserved nunca atribuído a 2 orders simultaneamente
+NoDoubleAssignment ==
+  \A c \in Couriers:
+    Cardinality({o \in Orders: order_state[o] = "reserved" \/ order_state[o] = "assigned"
+                 /\ \E i \in 1..Len(log): log[i].courier = c /\ log[i].action = "reserve"}) <= 1
+====
+```
+
+Run via TLC: `tlc AssignOrder.tla -workers auto -deadlock`. TLC explora state space e reporta counter-example se invariant violado. Apalache alternativa quando state space explode.
+
+**Alloy exemplo (Logística — multi-tenant access control, cruza com 02-09 RLS):**
+
+```alloy
+sig Tenant {}
+abstract sig Role {}
+one sig Admin, Manager, Driver extends Role {}
+sig User { tenant: one Tenant, role: one Role }
+sig Order { tenant: one Tenant, owner: one User }
+
+pred canRead[u: User, o: Order] {
+  u.tenant = o.tenant and (u.role in Admin + Manager or u = o.owner)
+}
+
+// Property: cross-tenant access impossible
+assert NoCrossTenantRead {
+  all u: User, o: Order | canRead[u, o] implies u.tenant = o.tenant
+}
+check NoCrossTenantRead for 5
+```
+
+Alloy Analyzer 6 retorna counterexample em segundos quando regra inconsistente. Use case: validate sob refactor que rules de access control NÃO permitem leak cross-tenant.
+
+**P language exemplo (Logística — distributed lock acquire/release):**
+
+```p
+event eAcquire: machine;
+event eAcquireResp: bool;
+event eRelease: machine;
+
+machine LockServer {
+  var holder: machine;
+  start state Free {
+    on eAcquire do (req: machine) {
+      holder = req;
+      send req, eAcquireResp, true;
+      goto Held;
+    }
+  }
+  state Held {
+    on eAcquire do (req: machine) {
+      send req, eAcquireResp, false;
+    }
+    on eRelease do (req: machine) {
+      assert(req == holder);
+      goto Free;
+    }
+  }
+}
+
+spec MutualExclusion observes eAcquireResp {
+  var holders: int;
+  start state NoHolder {
+    on eAcquireResp do (granted: bool) {
+      if (granted) { holders = holders + 1; assert(holders <= 1); }
+    }
+  }
+}
+```
+
+P checker explora interleavings; spec machine `MutualExclusion` valida invariant. Code-gen: P → C# actors mantendo verified semantics.
+
+**Workflow integrado (formal methods em CI):**
+
+- Specs vivem em `formal/` directory do repo.
+- CI step: `tlc Spec.tla -workers auto -deadlock` em PR que muda concurrency-critical code.
+- Counterexample = blocking review.
+- Pegadinha: TLA+ specs ficam stale rápido sem disciplina; pair specification + code review como ADRs.
+
+**State explosion mitigation:**
+
+- **Symmetry reduction**: declare `SYMMETRY` set (Couriers indistinguíveis) → 100x state space reduction.
+- **Bound model**: `CONSTANT Orders <- {o1, o2}, Couriers <- {c1, c2, c3}` em config.cfg pequeno; expand pra full set após smoke-check.
+- **Apalache symbolic**: SMT solver explora state spaces maiores que TLC enumerativo.
+- **State constraint**: `Len(log) <= 10` pra cap log growth durante check.
+
+**Quando NÃO usar formal methods:**
+
+- CRUD/business logic simples — property-based testing basta.
+- Time-pressure feature — formal spec demora 1-2 semanas pra protocol não-trivial.
+- Time sem competência — barreira de entrada > 2 sprints aprendizado.
+- Sem disciplina de manter spec sync com código — vira documentation lie.
+
+**Industry success cases:**
+
+- **AWS DynamoDB**: TLA+ encontrou bug em multi-region replication antes de prod (Marc Brooker, "Why TLA+ Just Won").
+- **Cosmos DB**: TLA+ valida 5 levels of consistency (strong, bounded staleness, session, consistent prefix, eventual).
+- **MongoDB**: TLA+ pra Raft replication.
+- **Azure Storage**: P pra distributed protocols + frontend code generation.
+- **Confluent Kafka**: TLA+ pra exactly-once semantics design.
+
+**Logística applied — 3 protocolos validáveis:**
+
+- **Outbox + idempotent consumer** (cruza com 04-02): TLA+ valida `at-least-once delivery + idempotent consumer` resulta em exactly-once business effect.
+- **Saga AssignOrderToCourier** (cruza com [04-08](04-08-services-monolith-serverless.md)): TLA+ valida compensations rodam em ordem reversa, courier nunca duplo-reservado.
+- **Multi-tenant access** (cruza com [02-09](../02-plataforma/02-09-postgres-deep.md)): Alloy valida zero cross-tenant leak sob qualquer permissão policy.
+
+**Anti-patterns observados:**
+
+1. TLA+ spec gigante sem invariant clara (model check passa mas não prova nada útil).
+2. Spec fora de sync com code (formal proof do código que não existe mais).
+3. State space sem symmetry/constraints (TLC OOM em horas).
+4. Alloy assert sem `for N` scope (default 3 muito small; falha em scope 4+).
+5. P language usado pra structural model (Alloy é melhor; P pra event-driven).
+6. Formal method sem CI integration (rot inevitável; specs viram folklore).
+7. Counterexample ignorado ("must be impossible em prod") em vez de investigated.
+8. TLA+ adotado por 1 dev sem buy-in time (bus factor; especificação morre quando dev sai).
+
+**Cruza com:** [04-01](04-01-distributed-systems-theory.md) (FLP/CAP), [04-02](04-02-messaging.md) (outbox idempotency proof), [04-08](04-08-services-monolith-serverless.md) (Saga compensation correctness), [02-09](../02-plataforma/02-09-postgres-deep.md) (multi-tenant RLS), [04-12](04-12-tech-leadership.md) (formal methods em ADR de decisões significativas).
+
 ---
 
 ## 3. Threshold de Maestria

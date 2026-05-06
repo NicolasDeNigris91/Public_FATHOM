@@ -190,6 +190,153 @@ Se browser não dá conta, native shells (Tauri, Electron, Capacitor) abrem APIs
 
 Trade-off: complexidade de build / store, vs capability.
 
+### 2.18 WebGPU compute shaders + WebCodecs API (media processing pipelines)
+
+WebGL é legacy. WebGPU é o stack moderno: compute shaders first-class, storage buffers, async error handling, bindless textures, command encoders explícitos. Baseline 2024: Chrome/Edge desde 2023, Safari iOS 17.4+ / macOS 14.4+, Firefox 130+ (em flag até 2024). Coverage real 2026: ~80-85% browsers; WebGL fica como fallback obrigatório.
+
+Diferença conceitual: WebGL é state-machine imperativa herdada de OpenGL ES 2.0/3.0; WebGPU é command-buffer + pipeline-state-objects estilo Vulkan/Metal/D3D12. WGSL substitui GLSL — sintaxe Rust-like, type-safe, sem preprocessor macros. Validation acontece em `createPipeline` (não em runtime), erros via `device.lost` Promise + `pushErrorScope`/`popErrorScope`.
+
+Pipeline canônico: `adapter` → `device` → `commandEncoder` → `computePass` / `renderPass` → `queue.submit()`.
+
+**Compute shader Logística** (image diff entre delivery proof e pickup photo, fraud detection client-side):
+
+```wgsl
+@group(0) @binding(0) var<storage, read> img_a: array<u32>;
+@group(0) @binding(1) var<storage, read> img_b: array<u32>;
+@group(0) @binding(2) var<storage, read_write> diff: array<atomic<u32>>;
+
+@compute @workgroup_size(8, 8)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+  let idx = gid.y * 1024u + gid.x;
+  if (idx >= arrayLength(&img_a)) { return; }
+  let a = img_a[idx];
+  let b = img_b[idx];
+  let d = abs(i32(a & 0xFFu) - i32(b & 0xFFu));
+  atomicAdd(&diff[0], u32(d));
+}
+```
+
+```ts
+const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+if (!adapter) throw new Error('WebGPU adapter unavailable');
+const device = await adapter.requestDevice();
+device.lost.then((info) => console.error('GPU device lost:', info.reason, info.message));
+
+const module = device.createShaderModule({ code: SHADER_WGSL });
+const pipeline = device.createComputePipeline({
+  layout: 'auto',
+  compute: { module, entryPoint: 'main' }
+});
+
+const bufA = device.createBuffer({ size: imgA.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+const bufB = device.createBuffer({ size: imgB.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+const bufDiff = device.createBuffer({ size: 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
+device.queue.writeBuffer(bufA, 0, imgA);
+device.queue.writeBuffer(bufB, 0, imgB);
+
+const bindGroup = device.createBindGroup({
+  layout: pipeline.getBindGroupLayout(0),
+  entries: [
+    { binding: 0, resource: { buffer: bufA } },
+    { binding: 1, resource: { buffer: bufB } },
+    { binding: 2, resource: { buffer: bufDiff } }
+  ]
+});
+
+const encoder = device.createCommandEncoder();
+const pass = encoder.beginComputePass();
+pass.setPipeline(pipeline);
+pass.setBindGroup(0, bindGroup);
+pass.dispatchWorkgroups(128, 128); // 1024x1024 / 8x8
+pass.end();
+
+const readback = device.createBuffer({ size: 4, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+encoder.copyBufferToBuffer(bufDiff, 0, readback, 0, 4);
+device.queue.submit([encoder.finish()]);
+
+await readback.mapAsync(GPUMapMode.READ);
+const totalDiff = new Uint32Array(readback.getMappedRange())[0];
+readback.unmap();
+```
+
+Performance real: 4MP image diff em ~5ms desktop GPU (RTX 3060 / M2), ~20ms mobile A17/Adreno 740. CPU equivalente (loop JS single-thread): 200-500ms. Speedup 40-100x justifica complexidade. Workgroup size 8x8=64 threads é sweet spot pra texture-like workload; aumentar pra 16x16=256 pode dar +20% em GPUs desktop, mas estoura register budget em mobile.
+
+**WebGPU vs WebGL trade-off**: WebGL cobre 95% browsers mas não tem compute shaders, sem storage buffers, e usa estado global imperativo (bind point / texture unit). WebGPU é modern (compute first-class, async errors, explicit command buffers) mas 80-85% coverage. Pattern produção: WebGPU primary + WebGL fallback via `if (!navigator.gpu) { useWebGL(); }`. Lib `wgpu-matrix` (matemática) ou `three.js r160+` (motor) já suportam WebGPU backend.
+
+**WebCodecs API** (Baseline 2024 Chromium/Safari, Firefox 130+): hardware-accelerated encode/decode direto em browser via VideoToolbox (Apple), MediaCodec (Android), NVENC/QuickSync (desktop). Substitui hacks `MediaRecorder + canvas + getUserMedia` que tinham latência variável e zero controle de bitrate/keyframe. APIs principais:
+
+- `VideoEncoder` / `VideoDecoder`: encode raw frames → H.264/VP9/AV1 chunks; decode chunks → raw frames.
+- `AudioEncoder` / `AudioDecoder`: AAC, Opus, FLAC.
+- `VideoFrame` / `AudioData`: transferable objects, zero-copy cross-Worker.
+- `ImageDecoder`: decode JPEG/PNG/WebP/AVIF/GIF off-main-thread.
+
+**Pipeline Logística** (compress delivery proof video em-browser antes de upload, sem aguardar full processing):
+
+```ts
+const stream = canvas.captureStream(30);
+const reader = new MediaStreamTrackProcessor({ track: stream.getVideoTracks()[0] }).readable.getReader();
+
+let frameCount = 0;
+const encoder = new VideoEncoder({
+  output: (chunk, meta) => { /* push pra IndexedDB ou upload streaming via fetch ReadableStream */ },
+  error: (e) => console.error(e)
+});
+encoder.configure({ codec: 'avc1.42E01E', width: 1280, height: 720, bitrate: 2_000_000, framerate: 30 });
+
+while (true) {
+  const { value: frame, done } = await reader.read();
+  if (done) break;
+  encoder.encode(frame, { keyFrame: frameCount % 60 === 0 });
+  frame.close();
+  frameCount++;
+}
+await encoder.flush();
+encoder.close();
+```
+
+Output H.264 chunks empacotados via `mp4-muxer` ou `webm-muxer` (CMAF), upload streaming via `fetch` com `ReadableStream` body sem aguardar full processing. Numbers: 1080p 30s → ~5MB H.264 (vs ~50MB raw); encode ~0.5x realtime mobile A14+, ~0.2x desktop GPU. Bitrate 2 Mbps adequado pra delivery proof; subir pra 4 Mbps se cena tem texture (boxes empilhadas).
+
+Feature detection robusta antes de configurar:
+
+```ts
+const support = await VideoEncoder.isConfigSupported({
+  codec: 'avc1.42E01E',
+  width: 1280, height: 720, bitrate: 2_000_000, framerate: 30
+});
+if (!support.supported) {
+  // fallback: MediaRecorder com canvas.captureStream()
+}
+```
+
+**OffscreenCanvas + WebGPU + Worker**: main thread `canvas.transferControlToOffscreen()` → `worker.postMessage({ canvas: offscreen }, [offscreen])`. Worker pede próprio `adapter`/`device` (device é per-document/per-realm, não cross-thread transferable) e faz `createCommandEncoder()` + render isolado. Libera main thread pra UI/scroll. Combina com WebCodecs: encoder roda em Worker, encoded chunks voltam via `postMessage` pra main thread fazer upload.
+
+**Mobile gotchas**: iOS 17.4+ tem WebGPU mas só GPU tier A14+ (iPhone 12+); fallback graceful obrigatório em devices mais antigos. Android Chrome WebGPU OK em GPU Vulkan-capable (Adreno 6xx+, Mali-G7x+); Mali antigos e PowerVR caem pra WebGL. Battery: compute shaders consomem GPU em sustained load >30s ativam thermal throttling, performance cai 30-50%. Detecte via `Performance API` + `requestVideoFrameCallback` deltas e degrade qualidade (drop framerate ou resolution) automaticamente.
+
+**HDR + wide-color em delivery photos**: HDR10/HLG metadata via WebCodecs `colorSpace` field. Display-P3 wide-color displays renderizam gamut maior; CSS `@media (color-gamut: p3)`. Logística: courier iPhone HDR captura → preserve HDR no upload → dashboard exibe em P3.
+
+**Stack Logística aplicado**: courier app captura via `MediaRecorder` + WebCodecs encode → upload streaming. Dashboard lojista: WebGPU compute shader compara photo diff pickup/delivery em <50ms client-side. Edge: image transformations via Imgproxy (cobertos em `03-10` §2.20), não WebGPU.
+
+**Observability**: instrumente `device.lost` Promise (telemetry de GPU crashes), `pushErrorScope('validation')` em dev pra catch shader bugs cedo, e meça `encoder.encodeQueueSize` pra detectar back-pressure (queue >5 indica encode mais lento que captura, drop frame ou downscale). Real User Monitoring: log `encoder.state`, codec efetivo (hardware vs software via `support.config`), e tempo wall-clock por chunk pra correlacionar com device GPU tier.
+
+**Decision matrix** (quando usar):
+- Foto/video processing >100ms em CPU → WebGPU compute shader.
+- Upload de video >5MB raw → WebCodecs encode em-browser.
+- Render 3D/2D pesado (delivery route map, heatmap) → WebGPU render pass.
+- Image filters simples (blur, brightness) → CSS `filter` ou Canvas2D (não justifica GPU setup).
+- Codec não suportado em browser (HEVC em Firefox) → WebAssembly (libavif, libheif) — cobertos em `03-12`.
+
+Anti-patterns observados:
+- WebGL em greenfield (legacy; WebGPU já 80%+ coverage 2026).
+- Compute shader sem `workgroup_size` apropriado (sub-utilização GPU; 64-256 thread/group sweet spot).
+- `device.queue.submit()` por command (overhead; batch em encoder).
+- WebCodecs encoder sem `keyFrame` regular (chunks dependentes; seek impossível).
+- `getUserMedia` full resolution sem downscale antes de encode (4K mobile = OOM).
+- Sync readback `mapAsync()` em hot path (stalls pipeline; double-buffer e read frame anterior).
+- WebGPU sem `requestAdapter({ powerPreference: 'high-performance' })` (mobile pega integrated GPU).
+- Sem fallback WebGL/MediaRecorder em browser sem WebGPU/WebCodecs (UX quebra silenciosa).
+
+Cruza com: `02-03` (DOM Web APIs, OffscreenCanvas + Workers), `03-09` (frontend perf, GPU pipeline, image LCP em delivery photos), `02-06` (RN, Skia paralelo nativo), `03-12` (WebAssembly, codec libs Wasm-compiled).
+
 ---
 
 ## 3. Threshold de Maestria
