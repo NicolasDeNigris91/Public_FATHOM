@@ -266,6 +266,105 @@ Padrões úteis:
 - **CSS-in-JS** (styled-components, Emotion, Stitches, vanilla-extract): JS gera CSS. Vantagens: dinâmico, theme via props. Desvantagens: runtime overhead (alguns têm), bundle, complica RSC. **Caindo de uso**.
 - **Vanilla CSS moderno** (`@layer`, `:has()`, `@container`, custom properties, `oklch`): hoje resolve quase tudo que você precisava de pré-processador antes. Sass continua útil, mas não é mais obrigatório.
 
+### 2.14 CSS layer architecture + container queries 2026
+
+CSS moderno (CSS Cascade Level 5, Selectors Level 4, CSS Containment Level 3) tornou obsoletas três décadas de hacks. Quem ainda escreve `!important` espalhado e media queries de viewport em componente isolado está em 2018.
+
+**Cascade Layers (`@layer`).** Ordem das layers na declaração define prioridade no cascade, regras dentro de layer posterior vencem regras de layer anterior **independente de especificidade**. Arquitetura canônica:
+
+```css
+@layer reset, base, tokens, components, utilities, overrides;
+
+@layer reset { *, *::before, *::after { box-sizing: border-box; margin: 0; } }
+@layer base { body { font-family: system-ui; line-height: 1.5; } }
+@layer tokens { :root { --space-md: 1rem; --color-primary: oklch(60% 0.18 260); } }
+@layer components { .order-card { padding: var(--space-md); } }
+@layer utilities { .hidden { display: none; } } /* sempre vence components */
+```
+
+Tailwind v4 já usa esse modelo internamente (`@layer theme, base, components, utilities`). Por isso `class="hidden"` vence qualquer `.order-card { display: grid }` author-defined sem `!important`. Migração de codebase com `!important` proliferando: extraia overrides forçados pra `@layer overrides` declarado por último, remova os `!important`, comportamento idêntico, código limpo.
+
+**Container queries deep.** `container-type: inline-size` mede só largura inline (cheap, não trigger size containment full). `container-type: size` mede ambos eixos mas requer altura intrínseca conhecida, quebra com filhos de tamanho intrínseco (imagens sem dimensão, etc.). Use `inline-size` por default.
+
+```css
+/* OrderCard de Logística que adapta ao container, não ao viewport */
+.order-list-slot { container-type: inline-size; container-name: order-slot; }
+
+.order-card { display: grid; grid-template-columns: 1fr; gap: 0.5rem; padding: 1cqi; }
+
+@container order-slot (min-width: 480px) {
+  .order-card { grid-template-columns: auto 1fr auto; gap: 1rem; }
+}
+```
+
+```tsx
+<aside className="sidebar order-list-slot">{orders.map(o => <OrderCard key={o.id} {...o} />)}</aside>
+<section className="dense-list order-list-slot">{orders.map(o => <OrderCard key={o.id} {...o} />)}</section>
+```
+
+Mesmo `OrderCard`, layouts diferentes em sidebar wide vs lista densa, sem prop, sem JS. Unidades container-relative: `cqi` (inline), `cqb` (block), `cqw`, `cqh`, `cqmin`, `cqmax`. Pegadinha: query falha silenciosamente se nenhum ancestral declarou `container-type`, browser não warn.
+
+**`:has()` (Selectors Level 4, Baseline 2024).** Parent selector finalmente estável em todos engines. Três patterns produção:
+
+```css
+/* 1. Field group destaca quando contém input inválido */
+.field:has(:invalid:not(:placeholder-shown)) { border-color: oklch(60% 0.2 25); }
+
+/* 2. Card só ganha hover effect quando tem badge featured */
+article:has(> .featured-badge):hover { transform: translateY(-2px); }
+
+/* 3. Layout colapsa quando aside vazio (Logística: detalhe de pedido sem mapa carregado) */
+main:has(+ aside:empty) { grid-template-columns: 1fr; }
+```
+
+Engine precisa walk subtree pra resolver `:has()`, custo proporcional ao escopo. Evite em `*:has(...)` ou em hot path de animação, fica caro. Em selector específico ancorado em class, custo desprezível.
+
+**Color spaces modernas.** `oklch(L C H)` é perceptualmente uniforme: `oklch(60% 0.18 260)` e `oklch(60% 0.18 25)` têm mesma luminosidade percebida, `hsl` não tem essa propriedade (amarelo `hsl(60 100% 50%)` parece muito mais claro que azul `hsl(240 100% 50%)`). Cobre gamut display-p3, exibe cores impossíveis em sRGB. `color-mix()` gera variants sem manter paleta manual:
+
+```css
+:root {
+  color-scheme: light dark;
+  --primary: oklch(60% 0.18 260);
+  --primary-hover: color-mix(in oklch, var(--primary) 90%, white);
+  --primary-active: color-mix(in oklch, var(--primary) 85%, black);
+  --bg: light-dark(oklch(98% 0 0), oklch(18% 0 0));
+}
+.btn { background: var(--primary); color: var(--bg); }
+.btn:hover { background: var(--primary-hover); }
+```
+
+`light-dark()` (Baseline 2024) lê `color-scheme` do elemento, dispensa `@media (prefers-color-scheme: dark)` em token simples. Requer `color-scheme: light dark` declarado, sem isso retorna sempre o primeiro argumento.
+
+**Tailwind v4 native CSS.** v4 (released 2025) descontinuou `tailwind.config.js`, configuração agora vive em CSS via `@theme`:
+
+```css
+@import "tailwindcss";
+
+@theme {
+  --color-primary: oklch(60% 0.18 260);
+  --spacing-md: 1rem;
+  --font-display: "Inter", system-ui;
+  --breakpoint-3xl: 120rem;
+}
+
+@variant pointer-fine (@media (pointer: fine));
+```
+
+Plugins JS antigos não funcionam, novo modelo é CSS-first. Migração v3→v4: rode `npx @tailwindcss/upgrade`, revise tokens custom, remova `tailwind.config.js`.
+
+**Anti-patterns observados.**
+
+- `!important` espalhado em vez de `@layer utilities` declarado por último (sempre vence sem `!important`).
+- `@container (min-width: ...)` em element cujo ancestral não tem `container-type` declarado, query nunca matcha, falha silenciosa.
+- `:has()` em seletor universal (`*:has(.flag)`) destruindo perf de páginas com DOM grande.
+- Misturar `oklch` numa paleta com `hsl` em outra, em wide-color display fica visualmente desalinhado (gamuts diferentes).
+- Container queries usando `width` físico em vez de `inline-size` lógico, quebra em locales RTL e em writing-mode vertical.
+- Declarar `@layer name1 { ... }` antes de `@layer name1, name2;`, ordem de prioridade vem da declaração de listagem, não da ordem de aparição dos blocks.
+- Tailwind v4 com `tailwind.config.js` legado, build aceita mas tokens não aplicam, deve ser `@theme`.
+- `light-dark()` sem `color-scheme: light dark` no `:root`, retorna sempre o primeiro valor, dark mode não funciona.
+
+**Cruza com**: [02-02](02-02-accessibility.md) (`prefers-color-scheme` + `light-dark` + ARIA), [02-04](02-04-react-deep.md) (container queries em componentes React isolados), [02-05](02-05-nextjs.md) (Tailwind v4 setup com App Router), [03-09](../03-producao/03-09-frontend-performance.md) (layer ordering substitui especificidade war, reduz bundle).
+
 ---
 
 ## 3. Threshold de Maestria

@@ -319,6 +319,131 @@ Privacy: usuários odeiam push spam. Peça permission só após value clearly de
 
 Cruza com **02-05** (Next.js next-pwa plugin), **02-14** (push real-time), **03-09** (PWA acelera perceived perf).
 
+### 2.13 Modern Web APIs 2026 (View Transitions, Popover, @starting-style, Web Locks)
+
+Quatro APIs cruzaram pra Baseline 2024 e mudam código que antes exigia lib. Saiba usar nativo antes de instalar dependência.
+
+#### View Transitions API (CSS View Transitions Module Level 1)
+
+Same-document (Chromium 111+, Safari 18, Firefox 129+ flagged): `document.startViewTransition` tira snapshot do DOM antes, executa callback, tira snapshot depois, faz cross-fade automático no compositor.
+
+```tsx
+function navigateToOrder(id: string) {
+  if (!document.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    router.push(`/orders/${id}`);
+    return;
+  }
+  const vt = document.startViewTransition(() => router.push(`/orders/${id}`));
+  vt.ready.then(() => analytics.mark('vt-ready'));
+  vt.finished.catch(() => {}); // skipped/aborted, não warne
+}
+```
+
+Cross-document (MPA, Chromium 126+) habilita transição entre full reloads same-origin:
+
+```css
+@view-transition { navigation: auto; }
+
+/* Hero do pedido na lista vira hero do detalhe */
+.order-card[data-id="42"] img { view-transition-name: order-42-hero; }
+.order-detail img { view-transition-name: order-42-hero; }
+
+::view-transition-old(order-42-hero),
+::view-transition-new(order-42-hero) { animation-duration: 240ms; }
+::view-transition-group(order-42-hero) { animation-timing-function: cubic-bezier(.2,.8,.2,1); }
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*) { animation: none; }
+}
+```
+
+Pegadinhas: `view-transition-name` duplicado em página = browser pula transition silently; layout shifts dentro do callback animam suavemente (FLIP grátis); `vt.updateCallbackDone` resolve quando DOM update termina, `vt.ready` quando pseudo-elements montaram, `vt.finished` quando animation acabou. Cross-document só funciona same-origin.
+
+#### Popover API (HTML popover spec, Baseline 2024)
+
+Atributo nativo. Browser gerencia top-layer, light-dismiss, focus, ESC. Substitui ~90% de Floating UI / Radix Popover.
+
+```html
+<!-- Tooltip: auto = ESC + click-outside fecham -->
+<button popovertarget="tip-eta">ETA</button>
+<div id="tip-eta" popover="auto">Estimativa baseada em Haversine + tráfego.</div>
+
+<!-- Menu dropdown: manual = só fecha programaticamente -->
+<button popovertarget="menu-courier">Courier</button>
+<menu id="menu-courier" popover="manual">
+  <li><button onclick="this.closest('[popover]').hidePopover()">Atribuir</button></li>
+</menu>
+
+<!-- Modal substitute -->
+<div id="confirm" popover="manual">Confirmar entrega?</div>
+```
+
+```css
+[popover]:popover-open { opacity: 1; transform: translateY(0); }
+[popover] { opacity: 0; transform: translateY(-4px); transition: opacity .15s, transform .15s, display .15s allow-discrete; }
+[popover]::backdrop { background: rgb(0 0 0 / .4); backdrop-filter: blur(2px); }
+
+@starting-style {
+  [popover]:popover-open { opacity: 0; transform: translateY(-4px); }
+}
+```
+
+Comparação: `popover="auto"` = tooltip/menu (light-dismiss); `popover="manual"` = control total (use pra modal crítico, nunca `auto` aí senão click-outside descarta confirm); `<dialog>` = modal com `showModal()` + form integration; Floating UI = só pra positioning complexo (collision, virtual elements) onde anchor positioning CSS ainda não cobre.
+
+#### `@starting-style` (CSS Transitions Level 2, Baseline 2024)
+
+Define estado inicial de element entrando na DOM. Sem isso, transition de `display: none → block` pulava porque não havia "from state". Combine com `transition-behavior: allow-discrete` pra animar `display` e `overlay` (top-layer) discretely. Vide bloco acima.
+
+#### Web Locks API (W3C Web Locks)
+
+Mutex cross-tab same-origin. Resolve "duas tabs abertas, qual sincroniza WebSocket de courier tracking".
+
+```ts
+async function leaderTab(): Promise<void> {
+  await navigator.locks.request('logistica:courier-ws', { mode: 'exclusive' }, async (lock) => {
+    if (!lock) return; // ifAvailable retornou null
+    const ws = openCourierSocket();
+    await new Promise<void>((resolve) => { ws.addEventListener('close', () => resolve()); });
+  });
+}
+leaderTab(); // tabs subsequentes esperam; quando líder fecha, próxima assume
+
+// Inspect held/pending
+const snapshot = await navigator.locks.query();
+console.log(snapshot.held, snapshot.pending);
+```
+
+Modes: `exclusive` (default) bloqueia outras requests; `shared` permite múltiplas leituras concorrentes. `steal: true` força tomada (use só pra recovery de tab travada). Sempre passe `signal: AbortSignal.timeout(30_000)` em request crítico — sem timeout, tab freezada deadlock outras.
+
+#### Origin Private File System (File System Access Level 2, Baseline 2024)
+
+Filesystem sandboxed por origin, invisível em OS file picker, performant. Backend ideal pra SQLite WASM (sql.js-httpvfs / wa-sqlite) e blobs grandes.
+
+```ts
+// Worker context (sync API só roda em worker)
+const root = await navigator.storage.getDirectory();
+const fh = await root.getFileHandle('orders.sqlite', { create: true });
+const sync = await fh.createSyncAccessHandle(); // SYNC, throws fora de worker
+sync.write(buffer, { at: 0 });
+sync.flush();
+sync.close();
+```
+
+Vs IndexedDB: OPFS é byte-stream/file-handle (mmap-friendly, melhor pra SQLite e blobs >10 MB); IndexedDB é structured data com índices. OPFS sync API só dentro de Worker — chamar de main thread throws `InvalidStateError`.
+
+#### Anti-patterns observados
+
+- View Transitions sem `prefers-reduced-motion` check, viola WCAG 2.3.3.
+- `view-transition-name` duplicado, browser cancela transition sem warning.
+- Popover API + Floating UI no mesmo component, focus trap conflita.
+- `@starting-style` sem `transition-behavior: allow-discrete`, `display` pula sem animar.
+- `navigator.locks.request` sem `signal`/timeout, tab travada deadlock cross-tab.
+- OPFS `createSyncAccessHandle` fora de Worker, throws.
+- `popover="auto"` em modal de confirm de pagamento, click-outside descarta sem feedback.
+- View Transitions cross-document em domínios diferentes, spec só cobre same-origin.
+
+Cruza com **02-01** (CSS, `view-transition-name` + container queries), **02-02** (a11y, `prefers-reduced-motion` + popover focus management nativo), **02-04** (React 19 `useTransition` + View Transitions integration via `flushSync`), **02-05** (Next.js cross-document VT em App Router com `unstable_ViewTransition`), **03-09** (View Transitions roda no compositor, evitam relayout custom em JS).
+
 ---
 
 ## 3. Threshold de Maestria
