@@ -751,6 +751,159 @@ Cruza com **02-09 §2.7** (índices), **02-09 §2.9** (EXPLAIN forensic), **02-0
 
 ---
 
+### 2.21 Logical replication + table partitioning + read replicas production deep
+
+Postgres 17 (stable Sept 2024) consolidou logical replication como mecanismo first-class pra cross-region read replicas, zero-downtime major upgrades e CDC pra lakehouse. Native partitioning entrega 10-100x ganho em queries time-series quando combinada com partition pruning + per-partition indexes. Esta seção cobre arquitetura, DDL copy-paste e routing patterns que sustentam Logística com 50M tracking_pings/mês cross-region.
+
+**Physical vs logical replication — quando usar cada**:
+
+- **Physical (streaming)**: byte-level WAL stream; entire cluster replicado; standby NÃO writeable; use pra HA + read scaling same-region.
+- **Logical**: row-level changes via decoded WAL (publication/subscription); selective tables; replica writeable em outros tables; cross-version + cross-architecture; use pra multi-region, major upgrade, CDC.
+- **Pegadinha 17**: DDL not replicated. `CREATE TABLE` no master = NÃO aparece na replica. Aplica DDL nos dois lados via migration tool (Drizzle, Flyway). Postgres 17 trouxe melhorias em `publish_via_partition_root` pra partitioned tables.
+
+**Logical replication — pattern básico**:
+
+```sql
+-- primary:
+ALTER SYSTEM SET wal_level = logical;
+SELECT pg_reload_conf();
+CREATE PUBLICATION orders_pub FOR TABLE orders, order_items;
+
+-- subscriber (replica):
+CREATE SUBSCRIPTION orders_sub
+  CONNECTION 'host=primary.example.com dbname=logistica user=replicator password=...'
+  PUBLICATION orders_pub;
+```
+
+- **Conflicts handling**: subscriber recebe INSERT que viola PK em local data → subscription para. Resolve via custom logic ou skip: `ALTER SUBSCRIPTION orders_sub SKIP (lsn = '0/12345')`.
+- **Initial sync**: subscriber faz `COPY` de cada table (slow em tables grandes — horas pra 100GB). Use `copy_data = false` se já fez snapshot manual + advance LSN via `pg_replication_origin_advance`.
+- **Monitoring obrigatório**: `pg_stat_subscription` no subscriber + `pg_replication_slots` no primary. Alert se `confirmed_flush_lsn` lag > 1min.
+
+**Use cases logical replication 2026**:
+
+- **Multi-region read replicas**: writes central, reads regionais (latency-sensitive).
+- **Major version upgrade** (16 → 17): replication-then-cutover sem downtime.
+- **Data warehouse sync**: Postgres OLTP → analytics replica + ClickHouse via separate CDC.
+- **Multi-tenant per-tenant DB**: replicate selective tables to tenant-specific DB.
+
+**Native partitioning — 4 estratégias**:
+
+- **PARTITION BY RANGE**: time-series (date, id sequencial).
+- **PARTITION BY LIST**: categorical (tenant_id values, region codes).
+- **PARTITION BY HASH**: uniform distribution sem natural key; reduz lock contention em high-write.
+- **Sub-partitioning**: RANGE by date + LIST by tenant_id (warehouse multi-tenant).
+
+**Range partitioning by date — Logística `tracking_pings`**:
+
+```sql
+CREATE TABLE tracking_pings (
+  id BIGSERIAL,
+  courier_id UUID NOT NULL,
+  tenant_id UUID NOT NULL,
+  ts TIMESTAMPTZ NOT NULL,
+  lat DOUBLE PRECISION,
+  lng DOUBLE PRECISION,
+  PRIMARY KEY (ts, id)
+) PARTITION BY RANGE (ts);
+
+CREATE TABLE tracking_pings_2026_05 PARTITION OF tracking_pings
+  FOR VALUES FROM ('2026-05-01') TO ('2026-06-01');
+CREATE TABLE tracking_pings_2026_06 PARTITION OF tracking_pings
+  FOR VALUES FROM ('2026-06-01') TO ('2026-07-01');
+
+-- Indexes per partition (NÃO globais em Postgres):
+CREATE INDEX ON tracking_pings_2026_05 (courier_id, ts DESC);
+CREATE INDEX ON tracking_pings_2026_05 (tenant_id, ts DESC);
+```
+
+- **`pg_partman` 5+**: auto-create future partitions + auto-drop retention. Cron job: `SELECT partman.run_maintenance()`.
+- **Partition pruning**: `EXPLAIN ANALYZE SELECT * FROM tracking_pings WHERE ts > '2026-05-15'` mostra só `tracking_pings_2026_05` scanned.
+
+**Detach + drop pattern (retention)**:
+
+```sql
+-- Move 2024 partition out of active table (lock leve):
+ALTER TABLE tracking_pings DETACH PARTITION tracking_pings_2024_01 CONCURRENTLY;
+-- Standalone agora. Archive ou drop:
+DROP TABLE tracking_pings_2024_01;
+-- OR: pg_dump tracking_pings_2024_01 | aws s3 cp - s3://cold-storage/...
+```
+
+- `CONCURRENTLY` (Postgres 14+) reduz lock de `AccessExclusiveLock` pra `ShareLock`. Sem `CONCURRENTLY` em prod = stalls de minutos.
+
+**Hash partitioning — high-write workloads**:
+
+```sql
+CREATE TABLE events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID,
+  payload JSONB
+) PARTITION BY HASH (tenant_id);
+
+CREATE TABLE events_h0 PARTITION OF events FOR VALUES WITH (modulus 16, remainder 0);
+CREATE TABLE events_h1 PARTITION OF events FOR VALUES WITH (modulus 16, remainder 1);
+-- ... 16 partitions total
+```
+
+- Reduz lock contention em high-concurrency INSERTs (cada partition tem própria heap + indexes + WAL lock).
+- **Numbers reais**: 16-64 hash partitions é sweet spot pra 1k-100k inserts/sec. Acima de 128 partitions, planner overhead começa a doer.
+
+**Read replicas + connection routing**:
+
+- **Hot standby** (physical): replica read-only; reads regulares funcionam.
+- **Streaming lag**: < 1ms LAN; cross-region 50-200ms; alert `pg_last_wal_replay_lsn` lag > 5s.
+- **Routing patterns**:
+  - **Server-side**: app lê de replica via separate connection string.
+  - **Middleware**: PgBouncer transaction-mode + custom routing (read = replica, write = primary).
+  - **Library-level**: Drizzle/Prisma `replicaUrl` config (route automático).
+- **Read-after-write consistency**: write no primary → read na replica pode ver stale. Pattern: writes + recent-reads (TTL 5s) ao primary; cold reads à replica.
+
+**PgBouncer production**:
+
+```ini
+# pgbouncer.ini
+pool_mode = transaction      # default 2026; reuse conn after commit
+pool_size = 50               # per database
+max_client_conn = 1000
+server_idle_timeout = 600
+```
+
+- **Transaction mode**: NÃO suporta prepared statements LRU sem patches; quebra silently com Drizzle/Prisma se `prepare = true`. Set `prepare = false` ou usa **PgCat** (Rust, multi-tenant aware) ou **Supavisor** (Supabase, Elixir, 2026 stable).
+- **Session mode**: conn dedicada per client; suporta prepared statements; menos eficiente.
+- **Statement mode**: conn per statement; drops transactions; rare use case.
+
+**Vacuum strategy com partitions**:
+
+- Autovacuum roda per-partition. Override `autovacuum_vacuum_scale_factor = 0.02` na partition ativa (current month).
+- Old partitions read-only: `VACUUM (FREEZE) tracking_pings_2024_05` uma vez + leave alone (não acumula bloat).
+- Pegadinha: `VACUUM` em partitioned root rola pelos children — heavy; evita peak hours.
+
+**Logística applied stack**:
+
+- **Primary**: Railway Postgres 17 master (write workload).
+- **Read replicas**: 1 per region (US-East, EU-West, BR-São Paulo) via Railway replica feature OU manual logical subscription.
+- **Partitioning**: `tracking_pings` RANGE by month (~10M rows/mo); `events` HASH by tenant_id (16 partitions); `audit_log` RANGE by year.
+- **Retention**: pg_partman auto-drop tracking_pings > 6 meses; events > 1 ano.
+- **PgBouncer**: pool_size 50 per DB, transaction mode + `prepare = false`; ~500 active connections per replica.
+- **App routing**: Drizzle `replicaUrl` config; reads automatic; writes always primary.
+
+**Anti-patterns observados (10 itens)**:
+
+- Single un-partitioned table > 100GB com queries `WHERE date > X` (sequential scan; partition by date).
+- Logical replication SUBSCRIPTION sem error monitoring (subscriber para silently; lag growth invisible).
+- Replica reads sem replica-lag check (returns stale data; user "just made order" não vê em refresh).
+- `enable_partition_pruning = off` deixado em prod após debug.
+- Indexes NÃO replicados em partitions filhas (forgotten indexes em new partitions criadas por pg_partman).
+- `wal_level = replica` em primary mas `logical` necessário pra logical replication (silent fail subscription).
+- `ADD COLUMN NOT NULL` em partitioned table (rewrite massive; use NULLABLE + backfill + add NOT NULL).
+- PgBouncer transaction mode + prepared statements ativos = silent break (use session mode, PgCat, ou `prepare = false`).
+- Replica failover sem connection string switch logic (writes erram até manual intervention).
+- `pg_dump` em primary durante peak (heavy I/O; usa replica pra backups).
+
+Cruza com **02-10** (ORMs, replicaUrl config); **03-05** (AWS RDS Postgres + Aurora replicas); **04-09** (scaling, replica strategy, regional routing); **04-13** (CDC pra lakehouse via logical replication source); **02-11** (Redis, cache aside on top of replicas).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

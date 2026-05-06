@@ -440,6 +440,139 @@ Cruza com **03-09 §2.14** (INP foundation), **03-09 §2.16** (performance budge
 
 ---
 
+### 2.20 Speculation Rules API + INP optimization 2026 + Long Animation Frames
+
+§2.19 mede; §2.20 otimiza. Stack moderna 2026 pra esmagar INP e acelerar navigation: Speculation Rules API (Baseline Chrome 2024+, Safari/Firefox WIP) declara prefetch/prerender via JSON; `scheduler.yield()` (Baseline 2024+) quebra long tasks; Long Animation Frames API (LoAF, Baseline 2024+) substitui Long Tasks com attribution por script. INP substituiu FID em 2024-03 como Core Web Vital — threshold p75 ≤ 200ms no CrUX.
+
+#### Speculation Rules API — prefetch + prerender declarativo
+
+Substitui `<link rel="prerender">` (deprecated) e `<link rel="prefetch">` (limited). Prefetch baixa HTML pra navigation futura (~300ms TTFB savings); prerender renderiza FULL page off-screen (HTML + CSS + JS execute) — click vira instant nav.
+
+```html
+<script type="speculationrules">
+{
+  "prerender": [{
+    "where": {
+      "and": [
+        { "href_matches": "/orders/*" },
+        { "not": { "selector_matches": ".no-prerender" } }
+      ]
+    },
+    "eagerness": "moderate"
+  }],
+  "prefetch": [{
+    "where": { "href_matches": "/api/*" },
+    "eagerness": "conservative"
+  }]
+}
+</script>
+```
+
+- **`eagerness` levels**: `immediate` (start now), `eager` (high prob), `moderate` (hover/touchstart trigger ~200ms hold), `conservative` (mousedown trigger). Trade-off: `immediate`/`eager` = mais bandwidth + battery drain; `conservative` = less savings mas safer em mobile data.
+- **Pegadinha**: prerender executa scripts + APIs (`fetch`, `localStorage`, analytics) off-screen; pode disparar pageview duplicado. Use `document.prerendering` flag:
+
+```js
+if (document.prerendering) {
+  document.addEventListener('prerenderingchange', () => sendAnalytics(), { once: true });
+} else {
+  sendAnalytics();
+}
+```
+
+#### INP — causes + production playbook
+
+INP mede WORST interaction latency em entire session (input delay + processing duration + presentation delay). Threshold p75 CrUX: ≤ 200ms good, ≤ 500ms needs improvement, > 500ms poor.
+
+Causes comuns de high INP:
+
+- Long synchronous JS handler (> 50ms blocking main thread).
+- Layout thrashing (`element.offsetHeight` após style write força sync layout).
+- Hydration mid-interaction (React 18 partial; React 19 melhor mas ainda custa).
+- Forced layout em `ResizeObserver` / `IntersectionObserver` callbacks.
+
+Optimizing — copy-paste primitives:
+
+```js
+// scheduler.yield() — Baseline 2024+. Pausa e deixa input handlers rodarem.
+async function processItems(items) {
+  for (const item of items) {
+    await scheduler.yield();
+    doExpensive(item);
+  }
+}
+
+// scheduler.postTask() — priority hints (Chrome 94+).
+scheduler.postTask(criticalWork, { priority: 'user-blocking' });   // 16ms slot
+scheduler.postTask(uiUpdate, { priority: 'user-visible' });        // default
+scheduler.postTask(prefetchData, { priority: 'background' });      // idle
+
+// React 18+ — useTransition marca update non-urgent; React interrompe pra input.
+const [isPending, startTransition] = useTransition();
+startTransition(() => setFilteredOrders(expensiveFilter(orders, query)));
+```
+
+Padrões adicionais: pre-compute results durante idle (`requestIdleCallback`), debounce/throttle handlers de typing (lodash.debounce 100ms), evitar synchronous IPC (workers pra heavy compute).
+
+#### Long Animation Frames API (LoAF) — attribution por script
+
+LoAF substitui Long Tasks API: mede frame total > 50ms + breakdown (script, style, layout, paint, render-blocking) + attribution por script com sourceLocation.
+
+```js
+const observer = new PerformanceObserver((list) => {
+  for (const entry of list.getEntries()) {
+    if (entry.duration > 100) {
+      navigator.sendBeacon('/api/loaf', JSON.stringify({
+        duration: entry.duration,
+        blockingDuration: entry.blockingDuration,
+        renderStart: entry.renderStart,
+        styleAndLayoutStart: entry.styleAndLayoutStart,
+        scripts: entry.scripts.map((s) => ({
+          name: s.name,
+          src: s.sourceURL,
+          dur: s.duration,
+          forcedStyleAndLayoutDuration: s.forcedStyleAndLayoutDuration,
+        })),
+        url: location.href,
+      }));
+    }
+  }
+});
+observer.observe({ type: 'long-animation-frame', buffered: true });
+```
+
+Sem LoAF, INP alto fica invisível — dashboard mostra 600ms p75 sem culpado. Com LoAF, attribution aponta `OrderDetail.tsx:124` no handler de `markDelivered` bloqueando 200ms.
+
+#### View Transitions, bundles, fonts — quick wins 2026
+
+- **View Transitions API** (cruza com `02-03` §2.13): cross-fade declarativo via CSS pseudo-elements; compositor GPU = 60fps em low-end mobile. Pegadinha: interaction-blocking até `viewTransition.finished` — cap duration < 250ms.
+- **Tree-shaking**: route-based splitting automatic em Next.js App Router; component-level `lazy(() => import('./Modal'))` pra heavy modals; bundle analyzer (`@next/bundle-analyzer`) em CI bloqueia regressão. ESLint regra `no-restricted-imports` proíbe `import _ from 'lodash'` (200KB+) — força `import debounce from 'lodash/debounce'`. Selective re-export: `from 'date-fns/format'` não `from 'date-fns'`.
+- **Critical CSS + fonts**: above-the-fold CSS inline em `<style>` no `<head>` pra zero-FOUC; `font-display: swap` (FOUT acceptable) ou `optional` (no FOUT, fallback if not loaded < 100ms — nunca `block` em hero text); `<link rel="preload" as="font" crossorigin>` pra fontes críticas; variable fonts (1 file substitui 8 weights, 30-40KB savings); self-host fonts via Cloudflare/CDN > Google Fonts (privacy + perf).
+
+#### Logística — stack aplicada
+
+- **Speculation Rules**: hover row em `/orders` → moderate eagerness prerender `/orders/:id` → click instant. Numbers reais 2026: 95% navegação interna prerendered hits → INP p75 ~50ms (vs ~200ms cold nav).
+- **INP**: handler `markDelivered` refatorado pra `scheduler.yield()` chunks; `useTransition` em search filter de orders.
+- **LoAF**: PerformanceObserver coleta → batch sendBeacon → backend Postgres → dashboard Grafana top scripts blocking.
+- **Bundle**: route-based + dynamic import modais; bundle analyzer em CI bloqueia PR > +10KB; ESLint banning lodash full.
+- **Fonts**: Atkinson Hyperlegible variable self-hosted Cloudflare CDN; `font-display: swap`.
+
+#### Anti-patterns observados
+
+- Speculation Rules com `immediate` em todos links — battery + bandwidth drain; use `moderate` default.
+- Prerender executa analytics sem listener `prerenderingchange` — pageviews duplicados.
+- INP medido só em DevTools throttling (idealização); production exige RUM CrUX p75.
+- `scheduler.yield()` ausente em loops > 100ms — handler bloqueia input, INP > 500ms.
+- LoAF API not observed — high INP causes invisíveis em dashboard.
+- Bundle analyzer não roda em CI — large dep imports passam silenciosamente.
+- `import _ from 'lodash'` em vez de selective imports (200KB+ deadweight).
+- Google Fonts via `<link>` 3rd party — privacy + render-blocking + extra DNS lookup.
+- `font-display: block` em hero — FOIT 3s reduz perceived perf.
+- Hydration mid-scroll (React 17 / partial sem PPR) — INP terrível em /dashboard.
+
+Cruza com **02-04** (React 19, useTransition + concurrent rendering), **02-05** (Next.js, Speculation Rules em App Router), **03-07** (observability, RUM + LoAF integration), **02-03** (Web APIs, View Transitions), **02-19** (i18n, font subsetting per locale).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:
