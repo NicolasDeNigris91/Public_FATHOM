@@ -513,6 +513,90 @@ Stream sempre rodando custa. Otimizações:
 
 BigQuery cobra por bytes scanned; particionamento e clustering são economicamente mandatory.
 
+### 2.18 Lakehouse 2026 deep (Iceberg vs Delta vs Hudi, CDC pipelines, time travel + branching)
+
+**Status 2026.** Apache Iceberg dominou enterprise adoption 2024-2026: Snowflake, Databricks, AWS, Google, Microsoft, Cloudflare R2 todos suportam nativamente. Delta Lake mantém dominância em Databricks ecosystems; OSS Delta UniForm (2024+) entrega compatibility com Iceberg readers. Apache Hudi mantém niche em CDC-heavy workloads + indexing nativo. AWS S3 Tables (re:Invent 2024) entrega Iceberg-native storage AWS-managed, ~3x faster query vs raw S3. Cloudflare R2 Iceberg (2025+): zero egress fees + Iceberg native = compelling pra multi-cloud.
+
+**Decision matrix:**
+
+| Feature | Iceberg | Delta Lake | Hudi |
+|---|---|---|---|
+| **Engine support** | Spark/Flink/Trino/DuckDB/Snowflake/Databricks/Athena/BigQuery/ClickHouse | Spark/Databricks/Trino/DuckDB | Spark/Flink/Presto |
+| **Schema evolution** | Robust (column add/drop/rename/reorder) | Robust (Delta 3+) | Limited (rewrite) |
+| **Time travel** | Snapshot-based + tag/branch | Version-based | Commit-based |
+| **Branching** | Tag + branch (Iceberg 1.4+) | Limited (Delta 4+) | No |
+| **Streaming** | Flink-friendly | Spark Structured Streaming native | Best CDC |
+| **Compaction** | Manual (write_audit_publish) ou auto-managed | Auto-optimize (Databricks) | Built-in |
+| **OSS health** | Apache Foundation, vendor-neutral | Linux Foundation, Databricks-driven | Apache, Uber-driven |
+
+**Iceberg architecture deep.** Catalog (metadata): REST catalog (recommended 2026), Glue, Hive Metastore, Nessie (git-like). Metadata file (JSON): tracks schema, partitioning, snapshots. Manifest list: list of manifest files per snapshot. Manifest file: list of data files (Parquet) com partition stats. Data files (Parquet/ORC/Avro): actual data. Pattern: writer atomic commit by writing new metadata pointing ao new manifest list; readers see consistent snapshot.
+
+**CDC pipeline (Postgres → Iceberg).** Stack 2026: Postgres logical replication → Debezium → Kafka → Flink/Spark Structured Streaming → Iceberg table. Alternativa: PeerDB (Postgres → Iceberg/ClickHouse direct, sem Kafka), Estuary Flow (managed CDC). MERGE INTO em Iceberg pra upserts:
+
+```sql
+MERGE INTO orders_iceberg t
+USING orders_cdc_stream s
+ON t.order_id = s.order_id
+WHEN MATCHED AND s.op = 'd' THEN DELETE
+WHEN MATCHED AND s.op = 'u' THEN UPDATE SET * = s.*
+WHEN NOT MATCHED AND s.op IN ('c', 'r') THEN INSERT *;
+```
+
+Latency real: Debezium → Iceberg via Flink minibatch 1-5min; via Spark microbatch 30s-2min; PeerDB direct 10-30s.
+
+**Time travel + branching (Iceberg 1.4+).** Snapshot-based time travel:
+
+```sql
+SELECT * FROM orders FOR TIMESTAMP AS OF '2026-05-01 10:00:00';
+SELECT * FROM orders FOR VERSION AS OF 12345;
+```
+
+Tags: stable references pra snapshots (audit/compliance):
+
+```sql
+ALTER TABLE orders CREATE TAG `release-v1.5` AS OF VERSION 12345;
+```
+
+Branches: experimental writes sem affecting main:
+
+```sql
+ALTER TABLE orders CREATE BRANCH `experiment` AS OF VERSION 12345;
+-- writes em main_branch são isolated;
+ALTER TABLE orders FAST FORWARD `main` `experiment`;  -- merge
+```
+
+Use case Logística: backfill historical tracking data em branch; validate row counts + schema; FAST FORWARD para main atomically.
+
+**WAP (Write-Audit-Publish) pattern.** Write to staging branch. Audit queries verify quality (count, schema, business rules: ex. `assert sum(amount) > 0`). Publish via FAST FORWARD branch to main. Stack: Apache Airflow + Iceberg branches + dbt-iceberg adapter.
+
+**Schema evolution patterns.** Add column: instant em Iceberg/Delta; readers see NULL pra old data. Rename column: Iceberg supports nativamente (column ID-based); Delta 3+ via columnMapping. Drop column: soft drop em Iceberg (column hidden but data preserved); hard drop requires file rewrite. Reorder columns: trivial em Iceberg/Delta (logical names independent of file order). Type promotion: int → bigint OK; bigint → int requires rewrite.
+
+**Compaction + maintenance.** Streaming writes geram 1000s of small files; query performance degrada. Iceberg procedures:
+
+```sql
+CALL system.rewrite_data_files('db.orders');
+CALL system.expire_snapshots('db.orders', TIMESTAMP '2026-04-01');
+CALL system.remove_orphan_files('db.orders');
+```
+
+Schedule (cron via Airflow/Dagster): compaction nightly; expiration weekly; orphan cleanup monthly.
+
+**Logística applied stack.** Source: Postgres OLTP (Orders, Couriers, Tracking). CDC: PeerDB → Iceberg em S3 (latency ~30s). Tables: `orders_iceberg`, `couriers_iceberg`, `tracking_pings_iceberg` (high volume, partitioned by date). Catalog: REST catalog self-hosted (Tabular before Databricks acquisition; ou Apache Polaris OSS 2024+). Query: Trino pra ad-hoc; ClickHouse pra dashboards (Iceberg engine 24.x+). Maintenance: Airflow nightly compaction + weekly expiration + monthly orphan cleanup. Cost real: 100GB Iceberg em S3 = $2.30/mo storage; query cost depende engine. Em Trino self-host ~$300/mo total stack.
+
+**Anti-patterns observados:**
+- Hive ACID em greenfield (deprecated; use Iceberg).
+- Iceberg sem REST catalog (Hive Metastore = single point failure + slow).
+- Streaming write Iceberg sem compaction schedule (small files explode; query 100x slower).
+- Snapshot expiration policy ausente (storage cresce infinitamente).
+- Column rename via DROP + ADD em Delta < 3 (data loss; use columnMapping).
+- CDC via Debezium → S3 raw → batch ETL (latency 24h; use Iceberg + MERGE INTO).
+- Time travel queries em hot path (slow vs current data; use snapshots strategically).
+- Branch sem TTL (branches acumulam; cleanup process necessário).
+- WAP publish sem audit step (corrupt data merged to main).
+- Iceberg + Delta na mesma platform (UniForm trick existe mas overhead operacional; pick one).
+
+**Cruza com:** [`02-09`](../02-plataforma/02-09-postgres-deep.md) (Postgres, source para CDC); [`02-12`](../02-plataforma/02-12-mongodb.md) (Mongo, alternative source); [`03-13`](../03-producao/03-13-time-series-analytical-dbs.md) (analytical DBs, query layer); [`04-02`](./04-02-messaging.md) (messaging, Kafka pra CDC); [`04-09`](./04-09-scaling.md) (scaling, lakehouse storage cost economics); [`03-05`](../03-producao/03-05-aws-core.md) (AWS, S3 Tables managed).
+
 ---
 
 ## 3. Threshold de Maestria

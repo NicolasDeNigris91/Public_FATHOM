@@ -616,6 +616,169 @@ module.exports = class CacheHandler {
 
 Cruza com **02-05 §2.16** (Server Actions com revalidation), **02-05 §2.18** (ISR fundamentos), **02-04 §2.9** (RSC mental model), **02-04 §2.9.2** (use() + cache() em RSC), **02-11** (Redis como cache handler distribuído).
 
+### 2.22 Parallel routes + intercepting routes + advanced middleware patterns
+
+Next.js 15+ App Router (stable; Server Actions stable; Turbopack default) expõe três primitivos que o resto dos frameworks não tem: parallel routes pra renderizar múltiplas páginas em paralelo no mesmo layout, intercepting routes pra modais com deep linking real, e middleware Edge pra request lifecycle antes da rota. Domine os três ou fica no nível "fiz Next.js mas não conheço o App Router".
+
+**Parallel routes — `@slot` convention**. Renderiza múltiplas pages simultâneas no mesmo layout (dashboard com `@analytics` + `@team` + `@notifications`). Cada slot é file-system folder prefixada com `@`:
+```
+app/
+  dashboard/
+    layout.tsx
+    @analytics/
+      page.tsx
+      default.tsx     // fallback obrigatório
+    @team/
+      page.tsx
+      default.tsx
+    @notifications/
+      page.tsx
+      default.tsx
+```
+Layout recebe slots como props nomeados (além de `children`):
+```tsx
+export default function DashboardLayout({
+  children,
+  analytics,
+  team,
+  notifications,
+}: {
+  children: React.ReactNode;
+  analytics: React.ReactNode;
+  team: React.ReactNode;
+  notifications: React.ReactNode;
+}) {
+  return (
+    <div className="grid">
+      <main>{children}</main>
+      <aside>{analytics}</aside>
+      <aside>{team}</aside>
+      <aside>{notifications}</aside>
+    </div>
+  );
+}
+```
+`default.tsx` em sub-routes é mandatory. Sem ele, navegação pra outra subroute quebra o slot silently (Next renderiza 404 só naquele slot).
+
+**Independent loading + error boundaries per slot**. Cada slot tem própria `loading.tsx` + `error.tsx`. Streaming independente: `@courierMap` lento não bloqueia `@recentOrders`. Pattern Logística:
+```
+dashboard/
+  @recentOrders/
+    loading.tsx   // Skeleton order list
+    error.tsx     // RetryButton
+    page.tsx
+  @courierMap/
+    loading.tsx   // Skeleton map
+    error.tsx
+    page.tsx
+```
+
+**Conditional slot rendering**. Layout pode renderizar `null` baseado em condição (role, feature flag):
+```tsx
+export default async function Layout({ children, admin }: any) {
+  const session = await auth();
+  return (
+    <>
+      {children}
+      {session.role === 'admin' && admin}
+    </>
+  );
+}
+```
+
+**Intercepting routes — `(.)`, `(..)`, `(...)`**. Override de navigation pra renderizar route X no context atual (típico: modal). Convention: `(.)folder` intercepta mesmo nível; `(..)folder` intercepta um up; `(...)folder` from root. Estrutura clássica photos modal:
+```
+app/
+  photos/
+    [id]/
+      page.tsx           // full page acesso direto
+  feed/
+    @modal/
+      (..)photos/[id]/
+        page.tsx         // modal quando navegado from feed
+      default.tsx
+    page.tsx
+```
+From `/feed` → click photo → URL muda pra `/photos/123` mas renderiza MODAL em cima do feed. Direct nav `/photos/123` (refresh, share link) → full page. Deep linking funciona porque a URL é real.
+
+**Pattern Logística — order detail modal**. Lista orders em `/orders`. Click row → URL `/orders/123` mas modal sobrepõe a lista. Refresh `/orders/123` → full page:
+```
+app/
+  orders/
+    [id]/
+      page.tsx
+    @modal/
+      (.)/[id]/
+        page.tsx
+      default.tsx
+    page.tsx
+```
+
+**Advanced middleware patterns** (`middleware.ts` em root). Edge Runtime by default (Cloudflare Workers-like; subset Node API). Lifecycle: middleware → route → response. Manipulações: rewrite, redirect, headers, cookies.
+
+**Multi-tenant middleware Logística** (subdomain tenant + locale negotiation + auth gate + tenant header injection):
+```ts
+// middleware.ts
+import { NextResponse, NextRequest } from 'next/server';
+import { match as matchLocale } from '@formatjs/intl-localematcher';
+import Negotiator from 'negotiator';
+
+const LOCALES = ['pt-BR', 'es-419', 'en'];
+const DEFAULT_LOCALE = 'pt-BR';
+
+export async function middleware(req: NextRequest) {
+  const { pathname, host } = req.nextUrl;
+
+  // 1. Tenant resolution from subdomain
+  const subdomain = host.split('.')[0];
+  const tenantId = subdomain === 'app' ? null : subdomain;
+
+  // 2. Locale negotiation
+  const pathnameLocale = LOCALES.find(l => pathname.startsWith(`/${l}/`));
+  if (!pathnameLocale) {
+    const headers = { 'accept-language': req.headers.get('accept-language') ?? '' };
+    const negotiator = new Negotiator({ headers });
+    const locale = matchLocale(negotiator.languages(), LOCALES, DEFAULT_LOCALE);
+    return NextResponse.redirect(new URL(`/${locale}${pathname}`, req.url));
+  }
+
+  // 3. Auth gate em /app/* routes
+  if (pathname.includes('/app/')) {
+    const token = req.cookies.get('session')?.value;
+    if (!token) return NextResponse.redirect(new URL('/login', req.url));
+  }
+
+  // 4. Headers passados pro app
+  const res = NextResponse.next();
+  if (tenantId) res.headers.set('x-tenant-id', tenantId);
+  return res;
+}
+
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/health).*)'],
+};
+```
+
+**Middleware limitations 2026**. Edge Runtime constraints: zero Node APIs (`fs`, `crypto.scrypt`), zero native modules. Bundle size cap: 1MB compressed (Vercel; 4MB Cloudflare). Latency: middleware roda em CADA request matched — heavy logic é latency tax direto. Cap < 50ms. Use `waitUntil` API pra fire-and-forget (analytics, log) sem bloquear response.
+
+**Server Actions advanced patterns**. Form action progressive enhancement: `<form action={action}>` funciona SEM JS (form post fallback). `useFormState` (React 18) → `useActionState` (React 19; coberto em wave 21). Revalidation: `revalidatePath('/orders')` invalida route + Data Cache; `revalidateTag('orders')` granular. Security: actions são POSTs, CSRF protected via Next.js, argument validation via Zod sempre. Encrypted action IDs (Next.js 14+): client invocation IDs encriptados; backend valida origin.
+
+**Logística applied stack**. Parallel routes: dashboard com `@metrics` + `@orders` + `@couriers` streaming independente. Intercepting routes: order detail modal sobre lista (`/orders/123` modal; refresh = full page). Middleware: tenant subdomain resolution + locale negotiation + auth gate + `x-tenant-id` header injection. Cache strategy: Server Components fetch com `next: { tags: ['orders', `tenant-${id}`] }`; Server Action `revalidateTag('orders')` invalida granular.
+
+**Anti-patterns observados**:
+- Parallel route sem `default.tsx` em sub-routes (navegação quebra silently; slot vira 404).
+- Modal via state global em vez de intercepting route (perde deep linking + browser back/forward).
+- Middleware com `console.log` em hot path (Edge Runtime CPU budget consumed; cobra por invocation).
+- Middleware fazendo DB query (Edge não conecta direct via TCP; use route handler em Node runtime).
+- Heavy bundle em middleware (1MB limit estoura silently em prod; build local não detecta).
+- `revalidatePath('/')` em todo write (full cache flush; use granular tags `revalidateTag('orders')`).
+- Server Action sem Zod validation (any client posta arbitrary; type erased em runtime — TS é compile-time).
+- Subdomain tenant resolution em route handler em vez de middleware (latency adicional + duplicate logic em N rotas).
+- `waitUntil` ausente em fire-and-forget (response blocked esperando analytics endpoint responder).
+- Intercepting route sem fallback `default.tsx` em slot (deep link refresh quebra).
+
+Cruza com **02-04** (React 19, `useActionState` em forms), **02-08** (backend frameworks, Server Actions ≈ POST endpoints com type safety), **02-13** (auth, middleware-based gating), **02-19** (i18n, locale negotiation em middleware), **03-10** (CDN/edge, middleware === edge runtime).
+
 ---
 
 ## 3. Threshold de Maestria
