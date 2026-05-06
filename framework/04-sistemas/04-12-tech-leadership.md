@@ -578,6 +578,97 @@ ADR-0042: Adopt Iceberg as table format
 
 Cruza com **04-12 §2.16** (write-first communication; ADR é instância), **04-12 §2.21** (promo Staff requires ADRs lideradas), **04-12 §2.17** (influência sem autoridade — ADR canaliza), **00-meta** (DECISION-LOG.md é variante framework-level).
 
+### 2.23 Engineering Manager vs IC track — Staff+ ladder, archetypes, decision criteria
+
+Senior engineer chega ao crossroads: subir como Engineering Manager (people management) ou como Individual Contributor pós-Senior (technical leadership sem reports). Companies sérias (Big Tech, scaleups bem geridas) tratam ambos como ladders paralelos com **pay parity** — Senior IC = Senior EM em comp; Staff IC = Director EM; Principal IC = Sr Director / VP. "Going to IC is a step down" é misconception de orgs com ladder único. Referências canônicas: Tanya Reilly, *The Staff Engineer's Path* (O'Reilly 2022); Will Larson, *Staff Engineer: Leadership Beyond the Management Track* (2021).
+
+#### Two tracks, distinct skills
+- **Engineering Manager (EM) track**: people management primary. 1:1s, performance reviews, hiring loops, career development, project management, stakeholder management. Hands-on coding decai com seniority (M1 part-time, M3+ ~zero).
+- **Individual Contributor (IC) track post-Senior**: technical leadership SEM direct reports. Architecture, mentorship via influence (artifacts, não 1:1), cross-team coordination, big-rock technical decisions.
+- **Decisão explícita obrigatória**: ambas tracks exigem opt-in; "promoted to manager because Senior 3 years" é anti-pattern clássico.
+
+#### Senior → Staff IC archetypes (Tanya Reilly's 4)
+| Archetype | Scope | Hands-on coding | Best fit |
+|---|---|---|---|
+| **Tech Lead** | Single team / project | Primary (60-80%) | Smaller co; closest to Senior+ |
+| **Architect** | Cross-team direction | Reduzido (20-40%) | Larger org; deep system knowledge |
+| **Solver** | Ambiguous high-impact problems; rotates | Variable (30-60%) | "Fix the worst fire"; org com many crises |
+| **Right Hand** | Alongside CTO/VP; ad-hoc multiplier | Variable | Mature exec needing technical force-multiplier |
+
+Decisão depende de: company size + your strengths + opportunity disponível. Smaller co favorece Tech Lead; FAANG-scale favorece Architect/Solver visibilidade.
+
+#### Staff Engineer responsibilities (cross-archetype)
+- **Technical Strategy**: 6-18 month roadmap technical direction; alinha com business roadmap.
+- **Big rocks decisions**: pick stack, pattern, methodology pra scope (ex: monorepo vs polyrepo, REST vs gRPC vs GraphQL Federation).
+- **Cross-team coordination**: multi-team initiatives (Wiggle/Stripe API consistency-style).
+- **Mentorship at scale**: artifacts (ADRs, design docs, talks, code patterns) que multiplicam — não 1:1 only.
+- **Glue work** (Tanya Reilly term): unblocking teams, integrating, doc-writing, hiring loops, onboarding. Critical mas under-rewarded em orgs imaturas; companies sérias measure.
+- **Staff Engineer trap**: glue 80% + technical leadership 20% → promo path stalls; precisa balance.
+
+#### Principal / Distinguished (next levels após Staff)
+- **Principal**: company-wide impact; multi-year technical vision. Tipicamente 1-3 per ~500-eng company. Comp maps a VP Engineering em FAANG.
+- **Distinguished / Fellow**: industry-level impact (papers, OSS maintained, conference keynotes). 1 per ~1000-eng company. Comp maps a SVP.
+- Diferencial Principal vs Staff: scope cross-org + multi-year, não single-quarter cross-team.
+
+#### Engineering Manager ladder (M1 → M4+)
+| Level | Reports | Hands-on | Foco |
+|---|---|---|---|
+| **M1 / Eng Manager** | 5-10 ICs | Part-time possible (< 30%) | Performance, 1:1s, project mgmt |
+| **M2 / Senior EM** | 10-20 across 2-3 teams; gerencia M1s ocasional | Raro | Team strategy, cross-team coordination |
+| **M3 / Director** | 20-50 | Zero | Org strategy, hiring senior leadership |
+| **M4+ / VP/SVP** | Org-wide | Zero | Cross-functional partnership, business alignment |
+
+EM skills core: feedback (radical candor — Kim Scott 2017), conflict resolution, hiring (interview design + calibration), career conversations, delegation.
+
+#### Decision framework — Senior at crossroads
+- **Energy gain test**: que trabalho deixa você energizado ao fim do dia? Coding hard problem → IC. Helping someone unblock → EM.
+- **Calendar test**: encheria seu calendar de 1:1s + meetings sem drenar? EM. Drenaria? IC.
+- **Skill leverage**: 90th percentile coder? Stay IC — coaching alguém pra 50th é valor mas você está undervalued. Bom listener + writer + decision-maker? EM.
+- **Optionality**: Manager → IC é mais difícil que IC → Manager. EM rust technical skills em 12-24 months sem deliberate practice. Test as Tech Lead first OU transition com plano concreto pra manter coding (20% time, OSS, side-project técnico).
+- **Anti-pattern**: deferir decisão indefinidamente — org perde talent pra companies que ladder explicit.
+
+#### Common transitions e pitfalls
+- **Senior → EM** (most common path): pitfall = micromanaging, fixing reports' code, não delegando.
+- **Senior → Staff IC**: pitfall = staying at Senior pattern (too hands-on, no influence beyond team).
+- **EM → IC** ("manager hiatus"): pitfall = letting tech skills atrophy; deliberate practice required (coding diário, sistema próprio, OSS).
+- **Staff → Principal**: pitfall = staying at single-team scope; precisa demonstrar cross-org impact.
+- **EM → Director**: pitfall = staying tactical; deve shift pra org strategy + multi-team.
+
+#### Levels.fyi reality check 2026 (US top markets)
+| Level | Google | Meta | Amazon | Total comp |
+|---|---|---|---|---|
+| Senior | L5 | IC4 | SDE3 | $300-400k |
+| Staff | L6 | IC5 | SDE4 | $450-650k |
+| Senior Staff / Principal | L7 | IC6 | Principal SDE | $650k-$1M |
+| Distinguished | L8+ | IC7+ | Sr Principal / Distinguished | $1M+ |
+
+EM equivalents (M1-M4) ficam na mesma band; às vezes higher em scaling startups (founder leverage). Numbers variam 30-50% por região (US/UK/Europe/LatAm) e setor (FAANG vs non-tech finance vs traditional enterprise).
+
+#### Logística applied — career planning conversation
+1. Engineer ao manager: "Senior há 3 anos, quero Staff."
+2. Manager + senior leader (Staff/Principal/Director) role-modela 4 archetypes; engineer escolhe **Architect** (loves system design + coordination).
+3. Plano 6-9 meses concreto:
+   - Lead V3 services migration (multi-team, cross-DB).
+   - Document architecture decisions via ADR (5-8 ADRs lideradas).
+   - Mentor 2 Senior em RFC writing (artifacts, não 1:1).
+   - Speak em 2 internal tech talks; 1 external se opportunity.
+4. 6-month review: progresso medido contra **artifacts** (ADRs commitadas, design docs, talks gravadas, mentorship records), NÃO contra hours.
+5. Promotion committee: 360-feedback + portfolio of impact + recommendation by senior leader (Staff+ ou Director).
+
+#### Anti-patterns observados (10 itens)
+- "Promoted to manager because Senior 3 years" sem opt-in — sets up failure both directions.
+- Staff Engineer fazendo só Senior+ work (no glue, no cross-team) — stuck in scope.
+- EM mantendo hands-on coding > 50% time — reports under-coached; both jobs poor.
+- Track decision deferred indefinitely — org perde talent pra ladders mais claras.
+- Compensation parity not real (IC ladder paga 20% menos que EM no mesmo level) — IC drain crônico.
+- Glue work invisible em promo packets (Tanya Reilly's classic lament).
+- "Going to IC" framed as demotion — causa EM a over-stay no role mesmo quando drenado.
+- Staff Engineer sem portfolio (artifacts: ADRs, docs, talks, mentorship records) — promo committee não consegue evaluate.
+- EM sem skip-level 1:1s — perde connection com ICs reports' reports.
+- Principal sem industry presence (talks, papers, OSS) — peer signal weak; Distinguished blocked.
+
+Cruza com **04-12 §2.21** (Senior → Staff promotion process), **04-15** (OSS, Principal-level industry presence frequentemente via OSS maintenance), **03-15** (incident response, Staff Eng frequentemente IC durante major incidents), **04-16** (product/business alignment, Staff alinha tech com business outcomes), **04-06** (DDD, Architect archetype owns context maps cross-team).
+
 ---
 
 ## 3. Threshold de Maestria

@@ -709,6 +709,150 @@ Budget consumed | Action
 
 Cruza com **03-07** (observability foundation pra SLI), **03-15 §2.7** (postmortem), **03-15 §2.10** (runbook é mandatory pra cada SLO alert), **04-12 §2.x** (eng leadership define SLO + budget policy com produto).
 
+### 2.19 Incident command structure + blameless postmortem template + RCA techniques
+
+Incident sem estrutura vira chat caótico: 12 engenheiros no Slack, ninguém decide, status page silenciosa, customer support cego. Incident Command System (ICS), originário da resposta a incêndios florestais (NIMS, FEMA), foi adaptado por Google SRE e PagerDuty pra software: papéis fixos, decisão centralizada, scribe registra timeline. Sem isso, postmortem vira "lembra o que aconteceu?" 5 dias depois. Combine ICS com blameless culture (Sidney Dekker, _Just Culture_, 2007) e RCA estruturada — caso contrário action items viram "tomar mais cuidado".
+
+**Roles ICS adaptados pra software**
+
+- **Incident Commander (IC)**: dono da coordenação, decisões e comms. NÃO debugs hands-on. Pergunta "qual a próxima ação?", autoriza rollback, decide quando escalar SEV. IC sem hands-on é regra dura — IC debugando = ninguém coordenando.
+- **Operations Lead (Ops)**: hands-on remediation. Restart, rollback, feature flag off, traffic shift. Reporta ao IC; não improvisa decisões de comms.
+- **Comms Lead**: status page, customer support brief, exec update interno. Cadence de 30min durante active incident.
+- **Scribe**: timeline em real-time (Slack thread, Notion, Google Doc). Timestamps UTC, decisão por linha. Sem scribe, postmortem é ficção.
+- **Subject Matter Expert (SME)**: puxado quando system-specific knowledge é necessário (DBA pra Postgres, network eng pra VPC peering). Sai do incident quando a área dele estabiliza.
+
+Mínimos por SEV: SEV1 = 1 IC + 1 Ops + 1 Comms; SEV2 = 1 IC + 1 Ops (Comms opcional, status page automatizado serve).
+
+**Severity (SEV) levels — matriz operacional**
+
+| Level | Customer impact | Response time | Eg. Logística |
+|---|---|---|---|
+| **SEV0** | Total outage; data loss risk | Instant page-out | Postgres primary down; orders perdidos |
+| **SEV1** | Major feature broken; large customer % | < 5min ack | New orders fail; tracking broken |
+| **SEV2** | Important feature degraded; subset customers | < 15min ack | Search slow; courier app crash em subset |
+| **SEV3** | Minor degradation; few customers | < 1h ack (business hours) | Wrong icon; rare browser bug |
+| **SEV4** | Internal/cosmetic | Best-effort | Outdated docs; staging flake |
+
+SEV é decisão do IC nos primeiros 5min. SEV inflation (tudo vira SEV1) gera fatigue; SEV deflation atrasa comms. Reavalie a cada 30min.
+
+**Incident lifecycle**
+
+Detect (alert/customer report) → Acknowledge (oncall paged) → Triage (IC define SEV, abre canal) → Mitigate (stop bleeding: rollback, feature flag, traffic shift) → Resolve (root cause fixed em prod) → Postmortem (within 5 business days) → Action items (tracked, owner, due date, completed).
+
+Mitigate ≠ Resolve. Rollback pra last green = mitigated, customer servido. Resolved = root cause investigado e fixed permanente. Confundir os dois esconde fragilidade — incident "fechado" volta semana seguinte.
+
+**IC playbook — first 10 minutes**
+
+- Abrir incident channel com nomenclatura fixa: `#inc-2026-05-06-orders-down`.
+- Confirmar IC assignment (PagerDuty/Opsgenie auto-rotation).
+- Update status page < 5min, mesmo que "Investigating; impact unclear".
+- Pin top message: detected timestamp, current state, IC name, link dashboard + runbook.
+- Stream stack/log/metric links no canal; não force lookup.
+- Page SMEs por área (DB, network, payments) conforme hipótese.
+- Comms cadence: status page update a cada 30min até resolved.
+- Encerramento: IC declara resolved, Comms posta final update, Scribe agenda postmortem em ≤ 5 business days.
+
+**Blameless postmortem — template copy-paste**
+
+```markdown
+# Postmortem: <Title> (<SEV-X>)
+
+**Date of incident**: 2026-05-06
+**Authors**: <Comma-separated>
+**Status**: Draft / Final
+**Customers affected**: <count + %; e.g., 12% lojistas em region BR>
+**Time to detect**: 4min (alert fired)
+**Time to mitigate**: 18min (rollback)
+**Time to resolve**: 4h 23min (root cause + permanent fix)
+
+## Summary
+<2-3 sentences: what happened, impact, fix.>
+
+## Timeline (UTC)
+- 14:28 — Deploy v3.1.4 to prod (orders-api).
+- 14:32 — Alerts fire: order_create_5xx_rate > 5%.
+- 14:33 — Oncall pages IC; channel opened.
+- 14:36 — Mitigation attempt: rollback to v3.1.3.
+- 14:48 — Rollback complete; alerts clearing.
+- 14:55 — Resolved on dashboard.
+- 18:51 — Root cause identified: missing migration in v3.1.4.
+- Day+1 — Permanent fix: migration runner check added to deploy gate.
+
+## Impact
+- <X> orders failed (refunded automatically).
+- <Y> couriers received error toast; manual workaround used.
+- $<Z> revenue lost (estimated).
+- <Affect on SLO; error budget consumption>.
+
+## Root Cause Analysis
+<NÃO "human error". Always trace to system/process gap.>
+
+v3.1.4 introduced new column `orders.payout_currency` consumed by API code. Migration was created but PR did NOT include migration in `db/migrations/` (developer ran locally, forgot to commit). CI did not catch because migration runner only checks dev DB; staging deploy lazily applies new migrations and was last deployed 3 weeks ago. Prod deploy ran code expecting column → 5xx on every order create.
+
+## What went well
+- Alert fired in 4min (within SLO).
+- Rollback succeeded cleanly.
+- Comms cadence held.
+
+## What went poorly
+- Migration not in PR review checklist.
+- Staging not auto-deployed nightly (lag of 3 weeks invisible).
+- Status page update took 8min (target < 5min).
+
+## Action Items
+| Priority | Owner | Item | Due | Tracked |
+|---|---|---|---|---|
+| P0 | @alice | Add CI check: migrations directory diff vs schema diff | 2026-05-13 | LOG-1234 |
+| P1 | @bob | Auto-deploy staging nightly via cron | 2026-05-20 | LOG-1235 |
+| P1 | @charlie | Status page update bot triggered by alert | 2026-05-27 | LOG-1236 |
+| P2 | @dora | Postmortem template em PR review | 2026-06-03 | LOG-1237 |
+```
+
+**RCA techniques — escolha por complexidade**
+
+- **5 Whys** (Toyota Production System): pergunta "por quê?" 5 vezes, descend até system root cause. Limite: assume cadeia linear; falha em incidents com múltiplos branches contribuintes.
+- **Fishbone (Ishikawa)**: brainstorm em 6 categorias — people, process, technology, environment, materials, methods. Visual broad map antes de colapsar pra root cause.
+- **Fault tree analysis**: top-down com AND/OR gates. Melhor pra distributed system failures onde múltiplas condições simultâneas dispararam.
+- **Causal loop diagrams**: feedback loops, e.g. "more retries → more load → more failures → more retries". Captura amplification dynamics que 5 Whys perde.
+
+**Blameless culture — práticas concretas**
+
+- "Human error" NUNCA é root cause. Pergunta "por que o processo permitiu o humano falhar?" — falta de guardrail, CI gap, ambiguous runbook.
+- _Just Culture_ (Sidney Dekker): distinguish honest mistake (sem consequência), gross negligence (rara, exige evidência), sabotage (criminal). Default é honest mistake.
+- Reward incident reporting. Near-miss reports incentivados; "eu causei isso" sem penalty. Engineer que esconde incident é o problema cultural.
+- No name-and-shame em postmortems públicos. Use roles (`Oncall`, `Deployer`, `Reviewer`), NÃO nomes próprios em docs distribuídos company-wide.
+
+**Postmortem rituals**
+
+- Schedule within 5 business days. Past 7 = forgotten, signal degraded.
+- 30-60min meeting: walk timeline (Scribe leads), debate RCA, finalize action items com owner + due date.
+- Distribution company-wide (not team-only) pra cross-team learning.
+- Monthly review de action items completion; aging items ≥ 90 dias = re-evaluate ou close-as-wontfix com justificativa.
+
+**Logística — incident program 2026 aplicado**
+
+- PagerDuty rotation: 1 oncall + 1 backup por service area (orders, tracking, payments, courier-app); weekly rotation, 24×7.
+- SEV definition documentado em `runbooks/sev-matrix.md`; on-call recebe link no wake-up message.
+- Bot Slack auto-cria `#inc-YYYY-MM-DD-name` no PagerDuty trigger; convida IC + Ops + Comms automatic por SEV.
+- Status page: status.logistica.example.com (Atlassian Statuspage). Update bot triggered por alert critical labels.
+- Postmortem repo: `postmortems/YYYY/MM-DD-title.md` em monorepo, indexado por SEV e service.
+- Action items em Linear, label `incident-followup`; P0/P1 weekly review com eng leadership.
+
+**Anti-patterns observados**
+
+- "Human error" como root cause (process gap escondido).
+- Postmortem em meeting longa sem template (rambling, low signal).
+- Action items sem owner ou due date (never completed).
+- "Don't do that again" como action item (não acionável; exige system change).
+- SEV inflation (tudo SEV1 → IC fatigue, signal lost).
+- SEV deflation (SEV2 que era SEV1 → comms tardia, customer descobre antes).
+- IC + Ops mesmo humano em SEV1 (coordenação some quando Ops mergulha em logs).
+- Postmortem private/team-only (outras teams perdem learning cross-cutting).
+- Action items abertos > 6 meses (debt cycle; review e fechar ou repriorizar).
+- "Why didn't they test it?" em postmortem (blame); converte pra "what testing would have caught it?".
+
+Cruza com **03-04** (CI/CD, deploy gate prevê regression antes de prod), **03-07** (observability, alert é input do detect), **04-04** (resilience, mitigation é mechanical action), **04-09** (scaling, SLO + error budget atam incident frequency a velocity policy), **04-12** (engineering leadership, blameless culture é mindset top-down).
+
 ---
 
 ## 3. Threshold de Maestria

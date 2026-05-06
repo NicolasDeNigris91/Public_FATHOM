@@ -358,6 +358,157 @@ v4 (Year 5+, global): Multi-region (US, EU, BR). Edge auth. Serverless ML infere
 
 Cruza com **04-07 §2.15** (modular monolith concretizado), **04-08 §2.20** (services-monolith-serverless decisão geral), **04-06 §2.3** (bounded contexts são pré-requisito pra service extraction), **04-12 §2.14** (Conway's Law alinha org com arquitetura), **04-09 §2.x** (scale axes informam decisão).
 
+### 2.19 Hexagonal vs Clean vs Onion architecture — comparison + when each wins
+
+Três arquiteturas, três filosofias, mesmo princípio raiz: **Dependency Inversion** (high-level modules não dependem de low-level; ambos dependem de abstractions).
+
+**Origens**:
+
+- **Hexagonal Architecture** (Alistair Cockburn, 2005): aka "Ports and Adapters". Domain core + interfaces (ports) + implementations (adapters). Simétrico — driving e driven são equally adapters.
+- **Onion Architecture** (Jeffrey Palermo, 2008): círculos concêntricos; dependências apontam INWARD only. Domain no centro; infrastructure outermost.
+- **Clean Architecture** (Robert C. Martin, 2012): refinamento que combina DDD + Hexagonal + Onion. Use cases como camada central explícita.
+
+**Hexagonal — anatomia**:
+
+- **Domain core**: business logic pura, zero I/O.
+- **Primary ports** (driving): interfaces que UI/API chamam (use cases).
+- **Secondary ports** (driven): interfaces pra DB, queue, external APIs.
+- **Adapters**: implementações concretas; troca livre.
+
+```ts
+// Domain (pure, no I/O)
+class Order {
+  constructor(public id: string, public status: OrderStatus) {}
+  markDelivered() {
+    if (this.status !== 'in_transit') throw new InvalidTransition();
+    this.status = 'delivered';
+  }
+}
+
+// Primary port (driving)
+interface OrderUseCase {
+  markDelivered(orderId: string, courierId: string): Promise<void>;
+}
+
+// Secondary ports (driven)
+interface OrderRepository {
+  findById(id: string): Promise<Order | null>;
+  save(order: Order): Promise<void>;
+}
+interface NotificationPort {
+  notifyDelivered(order: Order): Promise<void>;
+}
+
+// Application layer (orchestrates domain via ports)
+class OrderApplicationService implements OrderUseCase {
+  constructor(private repo: OrderRepository, private notifier: NotificationPort) {}
+  async markDelivered(orderId: string, courierId: string) {
+    const order = await this.repo.findById(orderId);
+    if (!order) throw new OrderNotFound(orderId);
+    order.markDelivered();
+    await this.repo.save(order);
+    await this.notifier.notifyDelivered(order);
+  }
+}
+
+// Primary adapter (REST controller)
+app.post('/orders/:id/delivered', async (req, res) => {
+  await orderUseCase.markDelivered(req.params.id, req.user.courierId);
+  res.json({ ok: true });
+});
+
+// Secondary adapter (Postgres repo)
+class PostgresOrderRepository implements OrderRepository {
+  async findById(id: string): Promise<Order | null> {
+    const row = await db.select().from(orders).where(eq(orders.id, id)).get();
+    return row ? new Order(row.id, row.status) : null;
+  }
+  async save(order: Order): Promise<void> {
+    await db.update(orders).set({ status: order.status }).where(eq(orders.id, order.id));
+  }
+}
+```
+
+**Onion — anatomia** (4 anéis, dependência só pra dentro):
+
+- **Centro**: Domain Model (entities, value objects, invariants).
+- **Anel 2**: Domain Services (lógica que não cabe em entity única).
+- **Anel 3**: Application Services (use cases, orchestration).
+- **Outermost**: Infrastructure (DB, external APIs, UI, frameworks).
+- **Regra**: Domain tem zero `import` de infrastructure. Test sem nada externo rodando.
+
+**Clean Architecture — anatomia** (4 camadas explícitas):
+
+- **Centro**: Entities (enterprise business rules — invariantes core do negócio).
+- **Camada 2**: Use Cases (application business rules — orquestração).
+- **Camada 3**: Interface Adapters (controllers, presenters, gateways — translation layer).
+- **Camada 4**: Frameworks & Drivers (DB, web, devices, UI — outermost).
+- **Boundary classes** (interfaces) cruzam camadas via Dependency Inversion.
+
+**Comparison matrix**:
+
+| Aspect | Hexagonal | Onion | Clean |
+|---|---|---|---|
+| **Year** | 2005 | 2008 | 2012 |
+| **Layers** | Domain + Application + Adapters | Domain + Domain Svc + App Svc + Infra | Entities + Use Cases + Adapters + Frameworks |
+| **Symmetry** | Yes (driving/driven equal) | No (inward only) | No (inward only) |
+| **Use case explicit** | Implicit | Implicit | Explicit layer |
+| **Best for** | Apps com many integrations | Domain-heavy apps | Mix domain + use case modeling |
+| **Verbosity** | Low-Medium | Medium | High (more layers) |
+| **Test ease** | Excellent (mock adapters) | Excellent | Excellent |
+
+**When each wins**:
+
+- **Hexagonal**: app integra com many systems (APIs, queues, files, multiple DBs); want easy swap. Logística com Postgres → CockroachDB future migration: Hexagonal vence.
+- **Onion**: domain rico com many entities + business rules + few integrations. Banking core, ERP modules. Logística catalog (products + variants + categories) é onion-friendly.
+- **Clean**: large team precisa explicit use case boundaries; novos devs onboard via layered structure. Verbose mas teaches enterprise patterns.
+
+**Common pitfalls (across all three)**:
+
+- **Anemic domain model**: entities sem comportamento (apenas getters/setters); business logic em services. Defeats DDD/Hexagonal/Clean purpose.
+- **Over-abstraction em CRUD**: 7 layers pra simple `GET /products` é absurdo. Pragmatic: simple CRUD pode pular layers.
+- **Domain importing infrastructure**: `import { db } from 'infra'` em Domain → cycle dependency, defeats inversion.
+- **Use Case classes que viram thin wrappers**: `OrderUseCase.create()` que apenas chama `repo.save()` sem business logic = wasted abstraction.
+- **Ports per CRUD operation**: `CreateOrderPort`, `FindOrderPort`, `UpdateOrderPort` separados = explosão. Combine em `OrderRepository`.
+
+**Pragmatic application Logística**:
+
+- **MVP (v1)**: Modular Monolith + Hexagonal lite (Application Service + Repository interface; skip Use Case layer até ter dor real).
+- **Growth (v2)**: adicione Use Case classes em modules complex (Orders, Routing, Billing); Domain Services pra invariants cross-entity.
+- **Scale (v3)**: extract bounded contexts em services; cada service Hexagonal/Clean conforme sua complexity.
+
+```
+src/
+  orders/
+    domain/         # Order entity, OrderStatus VO, invariants
+    application/    # OrderApplicationService, use cases
+    infrastructure/ # PostgresOrderRepo, KafkaPublisher
+    interface/      # REST controllers, GraphQL resolvers
+```
+
+**Testing implications** (layer-based test pyramid):
+
+- **Domain**: pure unit tests, no I/O, fast (~ms).
+- **Application**: unit tests com mocked ports (fast).
+- **Infrastructure**: integration tests com real Postgres/Redis (Testcontainers).
+- **Interface**: E2E tests com full stack (Playwright).
+- Numbers reais Logística target: 2000+ unit tests <30s; 200+ integration tests <2min; 50 E2E <5min.
+
+**Anti-patterns observados**:
+
+- 7 layers em todo CRUD operation (over-engineered; pragmatic: short-circuit pra simple ops).
+- Domain importing ORM types (Drizzle/Prisma model leaks); use VO + mapper.
+- Use Case class chamando outro Use Case directly (cycle; orchestrate em controller ou domain service).
+- Anemic Domain Model (entities = data bags); business logic em services derrota purpose.
+- "Application Service" que só chama repo (no business logic) = unnecessary indirection.
+- Repository com 20 métodos custom (`findByEmailAndStatusAndCreatedAt`) viola SRP; use Specification pattern (cobre 04-06 §2.17).
+- Hexagonal "ports per CRUD" (`CreateOrderPort`, `UpdateOrderPort`) explosão; combine em Repository.
+- Same Domain class em frontend e backend (frontend pollui domain pra rendering needs); use VO mapping.
+- Clean Architecture book-strict em CRUD-heavy app (1000% overhead; pragmatic mix).
+- Hexagonal sem DI container (manual wiring 50 lines em `main.ts`; use NestJS/tsyringe/awilix).
+
+Cruza com **04-06** (DDD, building blocks, Specification pattern), **04-08** (services/monolith, modular structure), **04-03** (event-driven, ports as event consumers), **02-04** (React, frontend hexagonal pra testability), **03-01** (testing, layer-based test strategy).
+
 ---
 
 ## 3. Threshold de Maestria
