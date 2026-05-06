@@ -534,6 +534,161 @@ Cruza com **03-08 §2.14** (supply chain layers — VEX é a camada operacional 
 
 ---
 
+### 2.21 OWASP Top 10 2025 applied + CSP modern + CSRF + JWT pitfalls
+
+OWASP Top 10 2025 substituiu a edição 2021 (revisão a cada 4 anos) e mantém **Broken Access Control no #1 desde 2017** — não muda porque IDOR e missing function-level continuam endemicos. CSP migrou de domain whitelist (sempre incompleto) pra `strict-dynamic` + nonces; Trusted Types (Baseline 2024 em Chrome/Edge) elimina DOM XSS no source. CSRF virou problema 90% resolvido por `SameSite=Lax` default Chrome 2020+, mas Origin check em mutating endpoints fecha o gap. JWT continua sendo footgun: `alg: none`, algorithm confusion HS256/RS256, e localStorage XSS — três anti-patterns que aparecem em pen test de toda startup brasileira.
+
+**OWASP Top 10 2025 — categorias e foco operacional Logística**:
+
+| # | Categoria | Manifestação típica Logística |
+|---|---|---|
+| **A01** | Broken Access Control | IDOR `GET /orders/:id` sem `WHERE tenant_id`; missing function-level em admin routes |
+| **A02** | Cryptographic Failures | TLS 1.3 mandatory; AES-256-GCM/ChaCha20; Argon2id default (OWASP rec 2025), bcrypt cost 12+, pbkdf2 600k iterations mínimo |
+| **A03** | Injection | SQLi (Drizzle/Prisma defaults safe), command injection, NoSQL Mongo `$where`, prompt injection LLM (cruza com 04-10) |
+| **A04** | Insecure Design | Missing rate limit, missing tenant isolation, no security review em design phase |
+| **A05** | Security Misconfiguration | Default creds, verbose errors em prod, S3 bucket public, debug endpoints expostos |
+| **A06** | Vulnerable Components | Dependabot/Renovate + Snyk/Socket; SBOM contínua (cruza com §2.20) |
+| **A07** | Auth Failures | Brute force sem backoff, session fixation, MFA bypass via SMS |
+| **A08** | Software/Data Integrity | Pipeline integrity (SLSA §2.14), CDN SRI, package signing Sigstore |
+| **A09** | Logging/Monitoring Failures | Missing audit log, sem SIEM ingest, sem alert em failed-auth spike |
+| **A10** | SSRF | Webhook URL aceitando `http://169.254.169.254/...` (AWS IMDS metadata leak credentials se IMDS v1) |
+
+**CSP 2026 — `strict-dynamic` + nonces + Trusted Types**:
+
+```http
+Content-Security-Policy:
+  default-src 'self';
+  script-src 'nonce-{RANDOM_PER_REQUEST}' 'strict-dynamic' https:;
+  style-src 'self' 'unsafe-inline';
+  img-src 'self' data: https://cdn.logistica.example.com;
+  connect-src 'self' https://api.logistica.example.com;
+  frame-ancestors 'none';
+  base-uri 'self';
+  form-action 'self';
+  upgrade-insecure-requests;
+  report-to csp-endpoint;
+Reporting-Endpoints: csp-endpoint="https://api.logistica.example.com/csp-report"
+```
+
+`strict-dynamic` elimina necessidade de listar domains externos — script com nonce válido pode carregar transitivamente. `unsafe-inline` em `script-src` defeats CSP (XSS aberto); só use em `style-src` se inevitável.
+
+**Trusted Types — DOM XSS killer (Baseline 2024 Chrome/Edge; Safari WIP)**:
+
+```http
+Content-Security-Policy: require-trusted-types-for 'script'; trusted-types myPolicy;
+```
+
+```js
+const policy = trustedTypes.createPolicy('myPolicy', {
+  createHTML: (input) => DOMPurify.sanitize(input)
+});
+element.innerHTML = policy.createHTML(userInput); // safe; raw string throws
+```
+
+Browser bloqueia `innerHTML = rawString` em runtime — força sanitização explícita via policy. Dev experience: console mostra violation no source line exato.
+
+**CSRF — `SameSite=Lax` default + Origin check em mutations**:
+
+```ts
+// Fastify hook — Origin/Referer check em mutating requests
+const ALLOWED_ORIGINS = new Set([
+  'https://logistica.example.com',
+  'https://app.logistica.example.com',
+]);
+
+fastify.addHook('onRequest', (req, reply, done) => {
+  const isMutation = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method);
+  if (isMutation) {
+    const origin = req.headers.origin || req.headers.referer;
+    if (!origin || !ALLOWED_ORIGINS.has(new URL(origin).origin)) {
+      return reply.code(403).send({ error: 'CSRF check failed' });
+    }
+  }
+  done();
+});
+```
+
+`SameSite=Lax` (default Chrome 2020+) já mata 95% CSRF — POST cross-origin não envia cookie. `SameSite=Strict` pra cookies high-value (banking/payment). `SameSite=None; Secure` apenas pra cross-origin legitimate (third-party iframe consentido). Double-submit cookie pattern útil quando session em cookie + token em header (SPA + cookie auth combo). Synchronizer Token Pattern legacy mas ainda relevante pra forms server-rendered.
+
+**JWT pitfalls — três footguns que aparecem em pen test**:
+
+```ts
+// CORRETO — algorithms hardcoded, nunca trust header
+import jwt from 'jsonwebtoken';
+
+const payload = jwt.verify(token, RSA_PUBLIC_KEY, {
+  algorithms: ['RS256'], // BLOQUEIA alg:none + HS256 confusion
+  issuer: 'logistica-auth',
+  audience: 'logistica-api',
+  maxAge: '15m',
+});
+```
+
+- **`alg: none` attack** (clássico ainda vivo em libs novos): library aceita JWT sem signature. Hardcode `algorithms: ['RS256']` em verify SEMPRE.
+- **Algorithm confusion HS256 vs RS256**: attacker assina HS256 usando public key como secret; library buggy aceita. Mitigation: enforce algoritmo específico via whitelist.
+- **NEVER store JWT em `localStorage`**: qualquer 3rd party script (analytics, tag manager) lê via XSS. Use HttpOnly cookie pra SPA. Authorization Bearer OK pra mobile (sem XSS vector via 3rd party scripts).
+- **Long-lived JWT problem**: refresh tokens > 30 dias = revocation impossível sem session DB. Pattern: access token 15min + refresh token rotation (cruza com 02-13).
+- **`kid` header rotation**: enable múltiplas signing keys; rotate monthly sem invalidar tokens existentes.
+- **Payload é apenas base64**: NUNCA store secret em JWT (não é encrypted by default).
+
+**Rate limit — patterns Logística** (cruza com 02-11 §2.13):
+
+| Layer | Implementação | Quando |
+|---|---|---|
+| Per-IP | nginx/Cloudflare | Anti-DoS basic, pre-auth |
+| Per-user | Redis sliding window | Post-auth, fairness entre tenants |
+| Per-endpoint | Redis namespace por route | Write endpoints (`POST /orders`) stricter que reads |
+| Adaptive tier | Redis + tenant config | Premium 1000 req/min vs free 100 req/min |
+| Failed-auth backoff | Redis counter + TTL exp | 5 fail logins → exponential backoff per (IP, username) |
+
+**Headers de segurança production-ready**:
+
+```http
+Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Permissions-Policy: geolocation=(self), camera=(), microphone=()
+Referrer-Policy: strict-origin-when-cross-origin
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp
+```
+
+HSTS 2 anos com `preload` registra domain em browser preload list (lock-in). COOP+COEP isola origin pra habilitar `SharedArrayBuffer` e WebAssembly threads. `X-Frame-Options: DENY` legacy mas Safari ainda honra; CSP `frame-ancestors 'none'` é replacement moderno.
+
+**Logística applied stack**:
+
+- Fastify + `@fastify/helmet` (CSP + HSTS + COOP + COEP defaults).
+- Auth: JWT RS256 access 15min + refresh httpOnly cookie 30 days rotated.
+- CSRF: `SameSite=Lax` default + Origin check em mutating endpoints.
+- Headers: `Content-Security-Policy-Report-Only` em staging → `Content-Security-Policy` enforce em prod após 1 semana sem violations relevantes no endpoint de report.
+- Rate limit: Redis sliding window per `(IP, tenant_id)` + tier premium.
+- SAST: Snyk + Semgrep em PR; Socket pra supply chain (cruza com §2.14).
+
+**Pen test — focus areas Logística**:
+
+- **IDOR cross-tenant**: tester logado como tenant A tenta `GET /orders/<id>` de tenant B. Defesa: Postgres RLS + integration test que prova bloqueio.
+- **JWT manipulation**: alter payload sem invalidate signature; library deve rejeitar.
+- **CSRF**: form em domínio adversário POST `/orders` com cookie da vítima; Origin check bloqueia.
+- **SSRF**: webhook URL aceitando `http://169.254.169.254/latest/meta-data/` (AWS IMDS v1 leak credentials); use IMDS v2 + URL allowlist + DNS resolve check.
+- **Prompt injection** (cruza com 04-10): adversarial input em LLM pra bypass system prompt.
+
+**Anti-patterns observados**:
+
+- JWT em `localStorage` em SPA (qualquer 3rd party script lê via XSS).
+- `alg: none` accepted em JWT verify (library defaults; ALWAYS specify `algorithms`).
+- `SameSite=None` cookie sem `Secure` flag (Chrome reject silently).
+- CSP `unsafe-inline` em `script-src` (defeats CSP completely).
+- CSP whitelist domains sem `strict-dynamic` (sempre incompleto, bypass via JSONP/redirect em domain whitelisted).
+- IDOR sem RLS ou explicit `WHERE tenant_id` filter (backend trust em frontend-supplied tenant id).
+- bcrypt cost 10 em 2026 (cracking 100x faster que 2015; use cost 12+ ou Argon2id).
+- SHA-1/MD5 password hash em código novo (broken; OWASP rec 2025 é Argon2id).
+- HSTS sem `preload` (browser doesn't lock-in domain; primeiro request HTTP vulnerável a SSL strip).
+- Verbose error messages em prod expondo stack trace + DB schema (info leak; generic 500 + log internal com correlation id).
+
+Cruza com **02-13** (auth — JWT + OAuth2 + refresh rotation), **02-09** (Postgres RLS multi-tenant), **02-11** (Redis rate limit sliding window), **03-15** (incident response — security incident playbook), **04-10** (LLM prompt injection cobre OWASP A03).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:
