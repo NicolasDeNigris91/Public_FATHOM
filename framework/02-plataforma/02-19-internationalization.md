@@ -367,6 +367,163 @@ Engenharia: dependendo do mercado, multi-region storage, audit logs, data reside
 - Float em currency.
 - Não testar com pseudolocale.
 
+### 2.19 ICU MessageFormat + RTL + locale negotiation production deep
+
+i18n maduro 2026 não é "JSON com chaves traduzidas". É CLDR 44 (ICU 73+) pra pluralization/gender, Intl APIs Baseline pra format, locale negotiation RFC 4647 no edge, RTL via CSS logical properties, e Temporal API (Stage 3 → stable mid-2026) pra timezone. Cada peça tem pegadinha que só aparece no segundo locale.
+
+#### Por que ICU MessageFormat (vs interpolação naive)
+
+Naive `t('orders.count', { n }) → "1 pedidos"` falha em pluralização (1 vs 2+), gênero, ordem de palavras. ICU MessageFormat (Unicode CLDR) tem regras gramaticais embutidas: `one/two/few/many/other`, `select` por gender, nesting. Stack 2026: `formatjs` (React Intl), `next-intl` (Next.js native), `lingui-js`, `@formatjs/intl` (vanilla TS), `@vocab/core` (build-time).
+
+```icu
+{count, plural,
+  =0 {Nenhum pedido}
+  one {# pedido}
+  other {# pedidos}
+}
+```
+
+`=0` literal match precede categories. Português tem 2 categorias (one/other); russo 4 (one/few/many/other); árabe 6 (zero/one/two/few/many/other); polonês 4; japonês/chinês/coreano só `other` (sem agreement). NUNCA hardcode `if count === 1` — locale-specific failure.
+
+Gender + nested:
+```icu
+{gender, select,
+  male {Ele entregou {count, plural, one {# pedido} other {# pedidos}}}
+  female {Ela entregou {count, plural, one {# pedido} other {# pedidos}}}
+  other {Pessoa entregou {count, plural, one {# pedido} other {# pedidos}}}
+}
+```
+
+#### Implementation TypeScript com next-intl
+
+```ts
+// messages/pt-BR.json
+{
+  "orders.count": "{count, plural, =0 {Nenhum pedido} one {# pedido} other {# pedidos}}",
+  "orders.total": "Total: {amount, number, ::currency/BRL .00}",
+  "orders.created": "Criado em {createdAt, date, ::yyyy-MM-dd HH:mm}"
+}
+
+// component
+import { useTranslations } from 'next-intl';
+const t = useTranslations();
+t('orders.count', { count: 5 });                                // "5 pedidos"
+t('orders.total', { amount: 1234.5 });                          // "Total: R$ 1.234,50"
+t('orders.created', { createdAt: new Date('2026-05-06T14:30') }); // "Criado em 2026-05-06 14:30"
+```
+
+Skeleton `::currency/BRL .00` e `::yyyy-MM-dd HH:mm` vêm do ICU 73+ DateTimeSkeleton; mais flexível que pattern legacy `{amount, number, currency}`.
+
+#### CLDR plural rules — categorias por locale
+
+| Locale | Categorias | Exemplo prático |
+|---|---|---|
+| en, de, nl | one (1), other | 1 item / 2+ items |
+| pt, es, fr | one (1), other | 1 item / 2+ items |
+| ru, uk | one (1, 21, 31...), few (2-4, 22-24...), many (resto), other (fracionários) | 4 |
+| ar | zero, one, two, few, many, other | 6 |
+| ja, zh, ko | other | sem agreement |
+| pl | one, few, many, other | regras complexas |
+
+Verificação em test:
+```ts
+new Intl.PluralRules('ru').select(5);   // 'many'
+new Intl.PluralRules('ru').select(22);  // 'few'
+new Intl.PluralRules('ar').select(0);   // 'zero'
+new Intl.PluralRules('pl').select(2);   // 'few'
+```
+
+Regression test obrigatório: snapshot por locale × `[0, 1, 2, 5, 11, 21, 22, 100]`. Releases que adicionam russo/árabe quebram silenciosamente sem essa cobertura.
+
+#### RTL — Arabic, Hebrew, Persian
+
+CSS Logical Properties (Baseline 2024 widely): `padding-inline-start` (LTR=left, RTL=right), `margin-inline-end`, `border-start-start-radius`, `inset-inline-start`. NUNCA `padding-left` em UI cross-locale.
+
+```css
+/* errado */
+.card { padding-left: 12px; border-left: 1px solid; text-align: left; }
+/* certo */
+.card { padding-inline-start: 12px; border-inline-start: 1px solid; text-align: start; }
+```
+
+`<html dir="rtl" lang="ar">` ativa RTL globalmente; browser flips layout. Tailwind v4 expõe `dir-*` variants nativos; v3 usa plugin `tailwindcss-rtl` com prefixo `rtl:`.
+
+Mirror em RTL: setas, chevrons, ícone de "voltar" (`transform: scaleX(-1)` quando inline-direction-dependent). NÃO mirror: logos, fotos, audio waveforms, code snippets, números (digits LTR mesmo em texto RTL).
+
+Bidirectional text (nome árabe + número en): trust browser bidi (Unicode UAX#9), mas isolate user content em `<bdi>` ou `unicode-bidi: isolate`. Usuário hostil pode injetar RLO/LRO override e reordenar UI vizinha.
+
+```html
+<!-- user content em UI mixed-direction -->
+<p>Pedido de <bdi>{{ user.displayName }}</bdi> entregue às 14:30.</p>
+```
+
+#### Locale negotiation — RFC 4647 lookup
+
+```ts
+import { match } from '@formatjs/intl-localematcher';
+
+const supported = ['pt-BR', 'es-419', 'en'];
+const requested = req.headers['accept-language']; // "pt-PT,pt;q=0.9,en;q=0.8"
+const negotiated = match(parseAcceptLanguage(requested), supported, 'en');
+// pt-PT → pt-BR (best match em Portuguese family); fallback 'en'
+```
+
+Strategy preference: URL-based (`/pt-BR/orders`) > query (`/orders?lang=pt-BR`) > cookie > Accept-Language. URL é SEO-friendly e cacheable. Per-user override sempre vence Accept-Language.
+
+Pegadinha CDN: `Vary: Accept-Language` raw causa cardinality explosion (1000+ valores únicos em prod). Normalize em Worker antes do cache key (cruza com `../03-infraestrutura/03-10-cdn-edge.md` §2.20):
+
+```ts
+// Cloudflare Worker, antes do cache lookup
+const accept = request.headers.get('accept-language') ?? '';
+const normalized = match(parseAcceptLanguage(accept), ['pt-BR', 'es-419', 'en'], 'en');
+const cacheKey = new Request(url + '?_lang=' + normalized, request);
+```
+
+#### Date/time/currency — Intl APIs (Baseline)
+
+```ts
+// Intl.DateTimeFormat — locale + timezone explícitos
+new Intl.DateTimeFormat('pt-BR', {
+  dateStyle: 'long', timeStyle: 'short', timeZone: 'America/Sao_Paulo'
+}).format(new Date()); // "6 de maio de 2026 às 14:30"
+
+// Intl.NumberFormat — currency, percent, decimals
+new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(1234.5); // "R$ 1.234,50"
+new Intl.NumberFormat('en-US', { style: 'currency', currency: 'BRL' }).format(1234.5); // "R$1,234.50"
+
+// Intl.RelativeTimeFormat
+new Intl.RelativeTimeFormat('pt-BR', { numeric: 'auto' }).format(-2, 'hour'); // "há 2 horas"
+
+// Intl.ListFormat (Baseline 2024)
+new Intl.ListFormat('pt-BR', { type: 'conjunction' }).format(['A', 'B', 'C']); // "A, B e C"
+new Intl.ListFormat('en', { type: 'conjunction' }).format(['A', 'B', 'C']);    // "A, B, and C"
+```
+
+Temporal proposal (TC39 Stage 3 → stable mid-2026): substitui `Date` com timezone-aware API. `Temporal.ZonedDateTime`, `Temporal.PlainDate`, `Temporal.Duration`. Polyfill estável via `@js-temporal/polyfill`; rollout nativo browser-by-browser em 2026.
+
+#### Timezone — pegadinhas além de §2.7
+
+`Date.toISOString()` é UTC sempre; rendering deve format pra user TZ via `Intl.DateTimeFormat({ timeZone })`. Storage SEMPRE UTC em DB (`TIMESTAMPTZ` Postgres); render com user TZ no client/edge. Use IANA names (`America/Sao_Paulo`), NUNCA offset fixo (`-03:00`) — DST e mudanças políticas (Brasil aboliu DST em 2019; Mexico em 2022) viram bug silencioso em código que tinha `if (month >= 10 && month <= 2)`.
+
+#### Logística applied stack
+
+Locales: pt-BR (primary), es-419 (Latin America Spanish), en (US/global). next-intl + messages JSON per locale + ICU MessageFormat + Intl APIs. URL strategy `/pt-BR/orders/:id`, `/es/orders/:id`, `/en/orders/:id`. Currency BRL primário; tenant config opcional pra USD/EUR em cliente cross-border. Address: pt-BR usa CEP 8 dígitos + estado siglas (SP, RJ); en usa ZIP + state code; phone via `libphonenumber-js`. Pluralização: `{count, plural, one {1 entrega hoje} other {# entregas hoje}}`.
+
+#### Anti-patterns (10 itens, vistos em produção)
+
+1. `if (count === 1) return "1 item"` em vez de ICU plural — quebra em ru/ar/pl.
+2. `padding-left: 12px` em vez de `padding-inline-start` — quebra RTL.
+3. `Date.toLocaleString()` sem `timeZone` — renders em server TZ; horror em SSR multi-region.
+4. Concatenação `t('today_is') + ' ' + day` — ordem errada em ja/de/ar.
+5. User content sem `<bdi>` em mixed-direction — algoritmo bidi trip + RLO injection.
+6. `Vary: Accept-Language` raw em CDN — cardinality explosion.
+7. Storage `Date` com offset `-03:00` — quebra após mudança DST/política.
+8. Locale fallback hardcoded `'en'` sem RFC 4647 lookup — `pt-BR` user vê `en` quando `pt` disponível.
+9. Plurais `one/other` hardcoded sem testar `Intl.PluralRules` — release ru/ar quebra.
+10. Currency sem tenant config — assume BRL global; tenant europeu B2B vê BRL.
+
+Cruza com **02-02 §a11y RTL** (`dir` attribute + screen reader announce), **02-09** (Postgres TIMESTAMPTZ + collation), **02-05** (Next.js app router locale strategy), **../03-infraestrutura/03-09-frontend-perf.md** (locale-specific bundle splitting via dynamic import), **../03-infraestrutura/03-10-cdn-edge.md §2.20** (Vary normalization no edge), **../04-produto/04-16-product-engineering.md §2.7** (locale market expansion business case + unit economics FX).
+
 ---
 
 ## 3. Threshold de Maestria

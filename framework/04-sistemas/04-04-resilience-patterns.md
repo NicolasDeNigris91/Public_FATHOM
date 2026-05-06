@@ -729,6 +729,150 @@ Engineering impact:
 
 Patterns aplicados: 25% budget = canário sem cuidado; 75% queimado = só hotfixes; 100% queimado = só revert + recovery.
 
+### 2.28 Resilience patterns deep tuning (timeouts, retries, hedging, fallbacks com production numbers)
+
+§2.23 cobre primitives. Aqui: tuning numérico, code copy-paste, anti-patterns observados em produção 2026.
+
+**1. Timeout discipline — production rules**
+
+- **Deadline propagation** (cruza 06): cliente envia `X-Request-Deadline: <unix-ms>`. Cada hop subtrai network buffer + own work; se `remaining < min_useful`, fail-fast antes de chamar dependência.
+- **Tiered timeouts**: outer > inner. Cliente = 1.5x server-side = 2x DB. Inverter cria órfão (server ainda processando após cliente desistir).
+- **Per-call total budget, NOT per-retry**: budget 3s para call inteira; tentativas dividem (e.g., 1s + 1s + 1s). Retry com timeout fixo 3s × 3 = 9s total = SLA estourado.
+- **Numbers reais 2026 production**:
+  - HTTP API interno: 1-3s p99.
+  - Postgres query típica: 100-500ms; reports pesados até 5s com `SET statement_timeout = '5s'` per-session.
+  - Redis: 50-100ms p99.
+  - External API (Stripe, Mapbox): 5-10s incluindo retry budget.
+  - LLM call: 15-60s (long-tail real, cauda fat).
+- **Anti-pattern**: `setTimeout(fn, 30000)` default em todo HTTP client → oncall page-out cascading quando upstream lento. Sempre service-specific.
+
+**2. Retry strategy — production patterns**
+
+- **Idempotency PREREQUISITE** (cruza 04-02 §2.18): retry sem idempotency key em write = double-charge clássico.
+- **Retry SOMENTE em retryable**: `5xx`, `ECONNRESET`, `ETIMEDOUT`, `EAI_AGAIN`. NUNCA `4xx` — cliente bug, retry produz mesmo erro infinitamente.
+- **Exponential backoff + jitter** (full jitter):
+
+```ts
+function backoffDelay(attempt: number, baseMs = 100, maxMs = 5000): number {
+  const exp = Math.min(maxMs, baseMs * 2 ** attempt);
+  return exp * (0.5 + Math.random() * 0.5); // 50-100% of exp
+}
+// attempt=3 → 400-800ms
+```
+
+- **Decorrelated jitter** (AWS Architecture Blog, melhor que exponential puro): `delay = min(maxMs, random(baseMs, prev_delay * 3))`. Evita thundering herd em recovery síncrono.
+- **Retry budget**: cap retries em 10% over baseline RPS via token bucket per-client. Excedeu budget → no retry, fail-fast. Previne retry storm amplificando outage upstream.
+
+**3. Hedging requests** (cruza wave 11 adaptive hedging)
+
+- Pattern: dispara request original; se p99 expirar sem response, envia copy a SECOND replica; primeiro response wins; cancela o outro via `AbortController`.
+- Saving: p99 effective → ~p95.
+- Cost: ~5% extra requests (só quando p99 trigger).
+- **NÃO hedge**: writes (idempotency required), expensive ops (LLM call $$, billable external).
+
+```ts
+async function hedgedFetch(url: string, p99Ms: number, signal: AbortSignal): Promise<Response> {
+  const ctrl1 = new AbortController();
+  const ctrl2 = new AbortController();
+  const onAbort = () => { ctrl1.abort(); ctrl2.abort(); };
+  signal.addEventListener('abort', onAbort, { once: true });
+
+  const p1 = fetch(url, { signal: ctrl1.signal });
+  const hedge = new Promise<Response>((resolve, reject) => {
+    const t = setTimeout(async () => {
+      try { resolve(await fetch(url, { signal: ctrl2.signal })); }
+      catch (e) { reject(e); }
+    }, p99Ms);
+    signal.addEventListener('abort', () => clearTimeout(t), { once: true });
+  });
+
+  try {
+    const winner = await Promise.race([p1, hedge]);
+    if (winner === await p1) ctrl2.abort(); else ctrl1.abort();
+    return winner;
+  } finally {
+    signal.removeEventListener('abort', onAbort);
+  }
+}
+```
+
+**4. Circuit breaker — production state machine deep** (cruza §2.23)
+
+- **3 states**: Closed (healthy, requests pass) → Open (failures > threshold, fail-fast com fallback) → Half-Open (após cooldown, probe 1-3 requests; success consecutivos → Closed; fail → Open).
+- **Tuning real**:
+  - Threshold: 50% error rate em window de **20+ requests** (volume statistical). 50% em 2 requests = false positive constante.
+  - Cooldown: 30-60s.
+  - Half-open probe: 1-3 concurrent max.
+- **Per-endpoint** breaker, NUNCA per-service. Endpoint `/geocode` hostile não pode derrubar `/route`.
+- **Library**: `opossum` 8+ (Node), `resilience4j` 2+ (JVM), `Polly` v8 (.NET), `gobreaker` (Go).
+
+```ts
+import CircuitBreaker from 'opossum'; // 8+
+
+const breaker = new CircuitBreaker(callMapboxGeocode, {
+  timeout: 3000,
+  errorThresholdPercentage: 50,
+  volumeThreshold: 20,
+  resetTimeout: 30000,
+  rollingCountTimeout: 10000,
+  rollingCountBuckets: 10,
+});
+
+breaker.fallback(async (address: string) => {
+  const cached = await redis.get(`geocode:${address}`);
+  if (cached) return JSON.parse(cached);
+  throw new Error('GEOCODE_DEGRADED');
+});
+
+breaker.on('open', () => metrics.increment('breaker.geocode.open'));
+breaker.on('halfOpen', () => metrics.increment('breaker.geocode.halfopen'));
+```
+
+**5. Fallback hierarchy**
+
+Primary → cached value (Redis, TTL curto) → default value (UX degraded) → error explícito (last resort).
+
+Logística: courier ETA primary via routing engine → cached ETA (TTL 5 min) → "ETA indisponível" UX → nunca user-facing 500.
+
+Cached fallback aceitável em 90% leituras business; **NUNCA em writes** (read model + write model conflict, corrupção).
+
+**6. Bulkhead concrete** (cruza §2.24)
+
+- Connection pools per dependency: Postgres 50-100, Redis 200, external API 20.
+- Saturação em 1 pool não pode esgotar capacity de outras (separate pools, not shared).
+- Thread pool isolation (JVM/CLR via resilience4j): semaphore-isolated execution per dependency.
+- K8s separate Deployment per consumer pattern: `courier-tracking-svc` separado de `order-api`; tracking outage não derruba order placement.
+
+**7. Load shedding patterns**
+
+- **Adaptive concurrency limits** (Netflix concurrency-limits, TCP Vegas-style): auto-tune in-flight requests max baseado em RTT measured.
+- **Priority-based shedding**: free tier rejected first; premium protected. Header `X-Priority` lido em middleware shed.
+- **CPU-based shedding NÃO recomendado**: CPU% multi-core misleading; coscheduled containers ruído. Use `queue_depth` ou `in_flight_requests` como signal.
+
+**8. Logística applied resilience stack**
+
+- **Mapbox geocoding**: opossum breaker (50% threshold em 30 req window, 30s cooldown) + cached geocode fallback (Redis 24h TTL) + retry exponential w/ jitter (max 3).
+- **Stripe payment**: `Idempotency-Key` obrigatório (UUID per intent) + retry 3x decorrelated jitter, **sem hedging** (write).
+- **Postgres**: pool 50 per app instance; `SET statement_timeout = '5s'` default; deadlock detection automática; `SET lock_timeout = '2s'` em writes críticos.
+- **Redis**: timeout 100ms p99; pipeline em batch ops; breaker em failure cascade evita amplificar.
+- **Service-to-service interno**: deadline propagation header + tiered timeouts + retry budget 10% baseline + hedging em reads (NÃO writes).
+- **End-to-end deadline budget**: cliente 5s → BFF 4.5s → orders-api 4s → Postgres 3s → external 1s. Cada hop subtrai own work + network buffer.
+
+**9. Anti-patterns observados (10 itens)**
+
+1. Retry sem idempotency em writes — double-charge clássico.
+2. Retry em `4xx` — loop infinito; cliente bug não resolve sozinho.
+3. Exponential backoff sem jitter — thundering herd em reconnect síncrono.
+4. Per-retry timeout em vez de total budget — slow series ainda excede SLA.
+5. Circuit breaker per-service em vez de per-endpoint — 1 endpoint hostile derruba serviço inteiro.
+6. Threshold 50% em 2 requests — false positives constantes; precisa volume statistical (20+).
+7. Hedging em writes — idempotency violado, double-effect.
+8. Load shedding por CPU% em multi-core — signal inadequado.
+9. Bulkhead único pool compartilhado — 1 dependency hostile esgota tudo.
+10. Cached fallback em writes — corrupção via read/write model conflict.
+
+**10. Cruza com**: `04-09` (scaling, backpressure end-to-end), `02-08` (frameworks, fastify retry plugin), `02-11` (Redis fallback cache), `03-15` (incident response, post-incident tuning), `03-07` (observability, métricas breaker state + retry rate).
+
 ---
 
 ## 3. Threshold de Maestria

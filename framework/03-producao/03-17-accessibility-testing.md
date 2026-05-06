@@ -286,6 +286,133 @@ Acessibilidade não é só compliance:
 
 04-16 (product/business): a11y é gate sutil pra B2B enterprise (procurement perguntam).
 
+### 2.21 a11y testing automation pipeline (axe + Playwright + Storybook + manual screen reader workflow)
+
+Senior+ é dono de pipeline a11y multi-layer. Tooling pega o detectável; manual SR + keyboard cobrem o resto. Quem só roda Lighthouse passa 100 com produto inacessível.
+
+**Cobertura real automated vs manual** (Deque + WebAIM Million 2024-2025):
+- axe-core 4.10+ + Lighthouse 12+ pegam ~30-57% de WCAG 2.2 issues — varia por estudo, página estática vs SPA stateful.
+- Manual SR + keyboard pegam o resto: focus management cross-state, semantic correctness (heading hierarchy lógica, não só presente), cognitive coherence, announce timing.
+- **Estratégia**: automate o catchable em CI; manual gate em critical journeys; user testing PWD pra real validation (cruza com §2.15).
+
+**axe-core + Playwright (browser-real, stateful)**: `@axe-core/playwright` em E2E suite.
+
+```ts
+import AxeBuilder from '@axe-core/playwright';
+
+test('orders page has no detectable a11y issues', async ({ page }) => {
+  await page.goto('/orders');
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+    .analyze();
+  expect(results.violations).toEqual([]);
+});
+
+test('create order modal is accessible em open state', async ({ page }) => {
+  await page.goto('/orders');
+  await page.getByRole('button', { name: 'Criar pedido' }).click();
+  const results = await new AxeBuilder({ page })
+    .include('[role="dialog"]')
+    .withTags(['wcag2aa', 'wcag22aa'])
+    .analyze();
+  expect(results.violations).toEqual([]);
+});
+```
+
+axe é snapshot-only — rodar em cada important state (modal aberto, error, loading, empty). Custom override: `disableRules(['color-contrast'])` quando design intencional, sempre justificado em comment + ticket de revisita. Cost: ~5-10ms por scan; signal/noise alta.
+
+**Storybook 8+ a11y addon** (`@storybook/addon-a11y`): roda axe em cada story em background; panel inline mostra violations. Component-level catch antes de E2E. `test-storybook --runner playwright` roda axe em todas stories em CI.
+
+```ts
+// OrderCard.stories.ts
+export default {
+  title: 'OrderCard',
+  component: OrderCard,
+  parameters: {
+    a11y: {
+      config: {
+        rules: [{ id: 'color-contrast', enabled: true }],
+      },
+    },
+  },
+};
+
+export const Default = { args: { status: 'pending' } };
+export const Delivered = { args: { status: 'delivered' } };
+export const Errored = { args: { status: 'failed', errorMessage: 'Endereço inválido' } };
+```
+
+1 story por state crítico. Disabled rules sempre justified em comment com link WCAG.
+
+**Lighthouse CI 12+ gating** (`@lhci/cli`):
+
+```js
+// lighthouserc.cjs
+module.exports = {
+  ci: {
+    collect: {
+      url: ['http://localhost:3000/', 'http://localhost:3000/orders', 'http://localhost:3000/login'],
+      numberOfRuns: 3,
+    },
+    assert: {
+      assertions: {
+        'categories:accessibility': ['error', { minScore: 0.95 }],
+      },
+    },
+  },
+};
+```
+
+Bloqueia merge se score cai. Pegadinha: Lighthouse 100 NÃO garante WCAG (heurística limitada, não testa keyboard fully). Útil pra detectar regression, não pra certificar.
+
+**Manual SR workflow** (mandatory pra critical journeys):
+- **NVDA 2024+ + Firefox** (Windows, free) — most-used globally por blind users; primary target.
+- **JAWS + Chrome** (Windows, paid) — enterprise standard.
+- **VoiceOver + Safari** (macOS/iOS, built-in) — Apple users.
+- **TalkBack + Chrome** (Android, built-in) — mobile coverage.
+
+Workflow Logística "criar pedido":
+1. Tab por form completo. Cada field anuncia label + hint + error state.
+2. Submit button announce role + state ("Criar pedido, button" not "Criar pedido").
+3. Pós-submit, success message anunciada via `aria-live="polite"` (sem mover focus).
+4. Focus management após modal close: retorna ao trigger.
+
+Cadência: SR em PR que altera UI semantics; full audit por release; user testing PWD trimestral.
+
+**Keyboard-only navigation**: Tab + Shift+Tab + Enter + Space + Arrow + Esc. Sem mouse, sem touchpad.
+- `:focus-visible` outline SEMPRE; NEVER `outline:none` sem replacement.
+- Skip link "Pular pra conteúdo principal" em primeiro tab stop, visível ao receber focus.
+- Modal: Tab cycla dentro; Esc fecha; focus retorna ao trigger.
+- Toast: keyboard-reachable via `role="status"`.
+
+Logística keyboard journeys: header → search → filters → results table → row actions; modal flows; toast dismiss.
+
+**Color contrast automation**: axe color-contrast rule cobre WCAG ratios (4.5:1 normal AA, 3:1 large 18pt+ AA, 7:1 AAA). NÃO automated: text on photo backgrounds, dynamic data colors — manual review. Tools design phase: `tota11y`, axe DevTools, Stark Figma plugin.
+
+**CI pipeline Logística completa**:
+- **PR**: axe via Playwright em 5 critical journeys (orders list, order detail, create order, login, settings); Storybook test-runner axe em todas stories; Lighthouse CI a11y >= 95.
+- **Pre-release**: manual SR test em new flows (QA gate); user testing PWD trimestral (Fable, Whitespace).
+- **Production**: feedback channel `a11y@logistica.example.com`; 3rd party audit anual (~$5-15k médio em 2026).
+
+**Logística thresholds por journey**:
+- **Critical** (block merge): create order, view tracking, login. Manual SR 100%.
+- **Important** (warn merge): settings, billing, dashboard. Manual SR 50% sample.
+- **Standard** (CI report only): marketing, docs. Manual SR skipped.
+
+**Anti-patterns observados**:
+- axe na home apenas, ignorando logged-in critical journeys.
+- Storybook a11y addon installed mas violations ignored (panel unread).
+- Lighthouse 100 com keyboard nav quebrada (Lighthouse não testa keyboard fully).
+- SR test apenas pelo dev (developer ≠ user; falsifica sutilezas).
+- `outline:none` sem `:focus-visible` replacement (keyboard users perdem signaling).
+- Skip link presente mas focus não vai (CSS `position:absolute; top:-9999px` permanente; broken).
+- Modal sem focus trap (keyboard sai acidentalmente; UX confuso).
+- `aria-live` em região mutável sem polite/assertive value (SR não anuncia changes).
+- `color-contrast` disabled globally em axe (silently passes; user perde).
+- Manual SR só em release final (regression late-discovered; expensive fix).
+
+**Cruza com**: 02-02 (a11y, ARIA + screen reader patterns); 03-01 (testing, integração Playwright suite); 03-04 (CI/CD, gating axe + Lighthouse); 03-18 (cognitive a11y, complementary); 02-04 (React, Storybook integration).
+
 ---
 
 ## 3. Threshold de Maestria
