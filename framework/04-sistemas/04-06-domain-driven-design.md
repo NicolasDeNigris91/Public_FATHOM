@@ -391,6 +391,116 @@ class Order {
 
 Cruza com **04-06 §2.7** (tactical patterns são fundação), **04-06 §2.8** (aggregates carregam invariants), **[04-03 §2.4](../04-sistemas/04-03-event-driven-patterns.md)** (event sourcing precisa invariants explícitas para replay determinístico), **[02-09 §2.7.1](../02-plataforma/02-09-postgres-deep.md)** (specifications viram queries SQL com índices apropriados).
 
+### 2.18 Bounded contexts identification + Event Storming workshop deep
+
+Identificar bounded contexts (BC) errado é a falha mais cara em DDD: borders no lugar errado produzem distributed monolith — services com cardinalidade alta de chamadas síncronas entre si, deploy acoplado, 5x complexidade operacional sem ganho de autonomy. Borders certos entregam deploy independente, autonomy de team e linguistic consistency interna (cada context com ubiquitous language coerente; mesmo termo significa coisa única dentro do context). Eric Evans, canônico: "A bounded context is the conditions under which a particular model is defined and applicable." Fora desse range, o modelo deixa de valer — e tentar esticá-lo é o caminho mais rápido pro Big Ball of Mud.
+
+#### Heuristics pra identificar BC borders
+
+- **Linguistic shifts**: o mesmo termo significando coisas diferentes em parts da organização. "Order" pra Sales = quote/contract draft pré-pagamento; "Order" pra Fulfillment = caixa sendo embalada/expedida. Mesma palavra, model diferente — fronteira de context detectada.
+- **Team/org boundaries** (Conway's Law inevitável): teams que cooperam sustentavelmente convergem num BC; teams dispersos em conflito perpétuo viram BCs separados. Fingir o oposto produz integração que ninguém mantém.
+- **Lifecycle differences**: Customer registration (long-lived, baixa frequência de mudança) vs Order processing (alto volume, mudança rápida) → cadências divergentes, BCs separados. Misturar força ritmo de deploy do mais lento sobre o mais rápido.
+- **Stakeholder alignment**: BCs com business owners distintos (Sales VP vs Ops VP) divergem em prioridade e roadmap; reconhecer cedo evita disputa de backlog crônica.
+- **Data ownership**: tabela com 47 colunas onde 12 servem Sales e 30 servem Fulfillment é o sintoma clássico de 2 contexts entrelaçados num único schema.
+
+#### Context Map types (Eric Evans)
+
+- **Partnership**: dois contexts cooperam mutuamente; APIs evoluem coordenadas. Exige relacionamento real entre teams.
+- **Shared Kernel**: subset de model compartilhado entre 2 contexts. Cuidado: sem governance compartilhado vira coupling tóxico de facto.
+- **Customer-Supplier**: upstream provê API; downstream tem influence pra priorizar features. Relação saudável quando upstream aceita backlog do downstream.
+- **Conformist**: downstream apenas adapta-se ao upstream sem influence. Aceitável só quando upstream é estável e o custo de ACL não compensa.
+- **Anti-corruption Layer (ACL)**: downstream protege seu model via translation layer (detalhado em §2.13). Padrão default ao integrar legacy.
+- **Open Host Service**: upstream publica protocolo público estável (REST/GraphQL/Events). Investimento alto inicial, payoff em N consumers.
+- **Published Language**: schema acordado entre múltiplos contexts (OpenAPI, AsyncAPI, Avro). Reduz N×M tradução pra N+M.
+- **Separate Ways**: 2 contexts não interagem; decisão deliberada pra evitar integração de baixo valor.
+- **Big Ball of Mud**: existência reconhecida explicitamente; isolar atrás de ACL e nunca expor downstream.
+
+#### Event Storming — origem e variantes
+
+Alberto Brandolini, ~2013. Workshop colaborativo pra discover business processes via timeline of events em past tense. Três variantes operacionais:
+
+- **Big Picture Event Storming** (1-2 dias): explora o domínio inteiro; output = mapa de eventos + candidate BCs.
+- **Process Modelling** (4-8h): zoom em sub-process específico; adiciona policies, read models, external systems.
+- **Software Design Event Storming** (multi-week): refina pra implementação; identifica aggregates, commands, sagas.
+
+#### Big Picture — passo-a-passo operacional
+
+Materiais: parede de 5-10m em papel kraft, post-its laranja (events), roxo (policies/processes), amarelo (actors), azul (commands), rosa (hot spots/problems), verde (read models), Sharpies pretos. Sem laptops abertos.
+
+- **Step 1 — Chaotic exploration** (30min): todos jogam events em ordem temporal aproximada, sem coordenação. Past tense obrigatório: `OrderPlaced`, `CourierAssigned`, `OrderShipped`, `PaymentFailed`. Linguagem do business, nunca técnica (`RowInserted` é ruído).
+- **Step 2 — Enforce timeline** (45min): reorder cronológico, dedup, identificar pivotal events (com major business consequence: legal, financial, customer-facing).
+- **Step 3 — Hot spots** (rosa): "Quando X falha?", "Quem decide?", "Onde acontece race condition?". Visíveis pra business stakeholders — geram conversa que nunca aconteceria em reunião normal.
+- **Step 4 — Pivotal events**: marcar com barreira vertical na parede; viram candidatos óbvios pra BC borders.
+- **Step 5 — Walking the timeline**: contar a story start-to-finish em voz alta. Gaps na narrativa = events faltando.
+- **Step 6 — Identify BCs**: clusters de events ao redor de pivotal events. Domínio médio resolve em 5-9 BCs (Sales, Fulfillment, Inventory, Billing, Identity, etc.).
+
+#### Process Modelling — refinement
+
+Foco em 1 sub-process (e.g., `AssignOrderToCourier`). Adiciona:
+
+- **Policies** (roxo): "Whenever order placed AND courier idle in radius, assign". Reativas a events.
+- **Read models** (verde): "Available couriers list", "Order tracking dashboard". Projeções pra decisão humana ou de policy.
+- **External systems** (rosa peg): "Mapbox routing API", "Stripe charge". Marca dependency externa explícita.
+
+Output: candidate aggregate borders, command handlers, projections — input direto pra Software Design.
+
+#### Software Design — outputs concretos
+
+Flow canônico: **Command** (azul) → **Aggregate** (yellow background, agrupa events emitidos) → **Events** (laranja). Policies (roxo) reagem a events e emitem commands, iniciando sagas. Read models (verde) consomem events e expõem projeções pra UI/queries.
+
+#### Logística — output do Event Storming
+
+BCs identificados:
+
+- **Catalog**: lojista cadastra produtos/SKUs; baixo volume, baixa frequência de mudança.
+- **Orders**: ciclo pickup → delivery; high volume, source of truth do estado da entrega.
+- **Routing**: alocação courier ↔ order, otimização VRP, real-time matching.
+- **Tracking**: real-time location, status updates, projection consumida por app do customer.
+- **Billing**: lojista paga subscription + per-delivery; courier recebe payout. Compliance financeiro isolado.
+- **Identity**: auth, tenants, users, roles. Stable, reused por todos os outros BCs via JWT claims.
+
+Pivotal events: `OrderPlaced` (cross-BC, dispara Routing), `CourierAssigned` (Routing → Orders), `Delivered` (cross-BC, fecha Order e dispara Billing).
+
+Context Map:
+
+- **Orders ←ACL→ Catalog**: traduz SKU details pra value object interno do Order; mudança de schema em Catalog não vaza.
+- **Orders ←Customer/Supplier→ Routing**: Routing publica `CourierAssigned`; Orders prioriza features no backlog do Routing (latência de match, retry policy).
+- **Orders →Open Host (events)→ Billing**: events `Delivered` no broker; Billing consome com schema versionado (Published Language em AsyncAPI).
+- **Tracking ←Conformist→ Orders**: apenas reage a events; aceita schema do Orders sem negociação.
+- **Identity →Open Host (REST)→ todos**: stable, baixa cadência de mudança; consumers conformistas são aceitáveis aqui.
+
+Aggregate borders: `Order` (per pickup-delivery cycle), `Courier` (per courier, com status e capacidade), `Subscription` (per tenant, ciclo de billing).
+
+#### Workshop facilitation — regras não-negociáveis
+
+- **Mix de participants**: 1-2 senior devs, product manager, business expert, ops, 1 designer. Sem hierarchy: tech lead NÃO domina; business expert tem voice igual.
+- **Standing only**: sentar mata workshop em 30min. Energia cai, post-its param de aparecer.
+- **Time-box rigoroso**: 30min chaotic, 45min reorder, etc. Sem cronômetro, expande pra 12h sem outcome.
+- **Photo-document constantemente**: parede será desmontada; photos viram artifact de decisão referenciado meses depois.
+- **NÃO codar durante workshop**: "abrir laptop pra checar uma coisa" mata momentum; agenda follow-up técnico separado.
+
+#### Refactoring legacy → DDD bounded contexts
+
+- **Strangler Fig**: novo context substitui slice de legacy gradualmente; ACL traduz entre old/new durante transição. Nunca big-bang rewrite.
+- **Modularize before split**: extrair module dentro do monolith antes de extrair service. Module boundary é cheaper to refactor — erros custam horas, não semanas.
+- **Database per context**: separar schemas Postgres antes de databases físicas. Foreign keys cross-schema viram red flag explícito.
+- **Numbers reais**: refactor monolith → 5 contexts geralmente leva 6-12 **meses**, não 6-12 semanas. Roadmap que promete o contrário está mentindo pra stakeholder.
+
+#### Anti-padrões observados
+
+- BC borders desenhados em whiteboard antes de Event Storming — premature decisions baseadas em assumption de quem fala mais alto.
+- Event Storming sem business participants — só dev na sala vira exercise técnico, perde a discovery real.
+- Shared Kernel mantido sem governance compartilhado — coupling tóxico de facto, ninguém dono.
+- "Common" library compartilhada entre contexts com domain types — ACL invertido, mudança em um context quebra todos.
+- BC com 1 aggregate — overkill; BC é design unit, não org chart.
+- BC com 30 aggregates — granularity errada; provável que sejam 3-5 contexts merged à força.
+- Event names em present tense ou imperative (`CreateOrder` em vez de `OrderCreated`) — revela confusão command vs event.
+- Policy implementada dentro do aggregate — acopla aggregate a regras out-of-context, quebra single responsibility.
+- Conformist aceito sem questionar — downstream livre de adaptar, mas frequentemente ACL é o pattern correto.
+- Workshop documentado só em fotos sem session notes estruturadas — artifacts perdem context após 6 meses, decisões viram folclore.
+
+Cruza com **[04-03 §2.1](../04-sistemas/04-03-event-driven-patterns.md)** (events em DDD são building blocks de Event Storming → implementation), **[04-08](../04-sistemas/04-08-services-monolith-serverless.md)** (modular monolith com BCs antes de split físico), **[04-12](../04-sistemas/04-12-tech-leadership.md)** (Conway's Law inevitável; team topology dita BC viability), **[02-09 §2.7.1](../02-plataforma/02-09-postgres-deep.md)** (schema-per-BC em Postgres antes de database físico separado), **[04-02](../04-sistemas/04-02-messaging.md)** (Published Language como AsyncAPI entre contexts).
+
 ---
 
 ## 3. Threshold de Maestria

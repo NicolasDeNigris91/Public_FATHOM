@@ -427,6 +427,141 @@ LIMIT 5 BY courier_id;
 
 Cruza com **03-13 §2.13** (query optimization geral), **03-13 §2.15** (decision tree onde ClickHouse cabe), **04-13 §2.9.1** (dbt incremental + ClickHouse), **04-13 §2.11** (Iceberg como fonte external table).
 
+### 2.19 Time-series storage decision matrix 2026 (Prometheus, VictoriaMetrics, Mimir, ClickHouse, TimescaleDB)
+
+Time-series é guarda-chuva pra workloads bem distintos. Tratar tudo com a mesma ferramenta = 10-100x cost overhead. Categorize antes de escolher.
+
+**Workload categorization.**
+
+- **Operational metrics** (Prometheus-style, RED + USE): low cardinality (1k-100k series active), sub-minute scrape, alerting + dashboards. Storage 30 dias quente + 1 ano frio.
+- **Application analytics** (events, user actions, business metrics): high cardinality (1M+ series), per-event granularity, ad-hoc queries.
+- **IoT / sensor data**: moderate cardinality, high write rate (1M+ rows/sec), retention years.
+- **APM traces** (cobre §2.18 do 03-07): per-span data, very high cardinality, retention 7-30 dias.
+- **Logs**: line-based, schemaless ou semi-structured (cobre 03-07 §2.20).
+
+**Decision matrix 2026.**
+
+| Tool | Best fit | Cost @ 1M series, 1mo retention | Pain points |
+|---|---|---|---|
+| **Prometheus** (vanilla) | Low cardinality (<500k series), single instance | Free OSS; ~16GB RAM/$50/mo node | Federation pain; long retention costly |
+| **Thanos** | Multi-cluster Prometheus + cheap S3 long-retention | OSS; +25% Prom cost | Query latency over old data |
+| **Cortex** | Multi-tenant Prom-as-a-service (older) | OSS; ops complex | Mostly replaced by Mimir |
+| **Mimir** (Grafana, 2.13+) | High-scale (1M-1B series), multi-tenant Prom | OSS or Grafana Cloud $0.16/MM samples | Operationally complex self-host |
+| **VictoriaMetrics** (1.95+) | Drop-in Prom replacement, 5-10x storage efficiency | OSS; ~30% Prom cost @ same scale | Smaller community |
+| **InfluxDB 3.0** (Edge) | Lakehouse pattern, Iceberg + Apache Arrow | Cloud $0.25/GB; OSS Edge MIT | Migration from 1.x/2.x painful |
+| **TimescaleDB** (2.16+) | Postgres extension, joins relational + time-series | OSS Postgres + extension | Series cardinality scales worse than columnar |
+| **ClickHouse** (24.x) | Application analytics, high cardinality, ad-hoc | OSS; ~$0.05/GB/mo S3-backed; ~$200/mo modest | Operational overhead self-host |
+| **DataDog Metrics** | Managed Prom-compat | $5/host/mo + ~$0.20/MM custom metrics | Vendor lock-in, $$$ at scale |
+
+**Cardinality é o #1 cost driver.** Series = unique combination de metric + label values. `http_requests_total{path="/orders/123"}` com path concreto por orderId = explosão. Numbers reais 2026: 1M series = ~16GB RAM Prometheus; 100M series = ~16TB; 1B series = self-host impractical, Mimir/VM cluster obrigatório. Mitigação: template path (`/orders/:id` não `/orders/123`); aggregate por tenant_id NÃO user_id; histograms pré-agregados NÃO raw observations.
+
+**VictoriaMetrics deep — drop-in Prometheus.**
+
+```yaml
+# docker-compose.yml — single binary, 1M+ active series
+services:
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:v1.95.1
+    ports: ["8428:8428"]
+    volumes: ["./vm-data:/storage"]
+    command:
+      - "-storageDataPath=/storage"
+      - "-retentionPeriod=12"        # months
+      - "-memory.allowedPercent=80"
+```
+
+```yaml
+# prometheus.yml — keep Prom como scraper, remote_write pra VM
+remote_write:
+  - url: http://victoriametrics:8428/api/v1/write
+    queue_config: { max_samples_per_send: 10000, capacity: 100000 }
+```
+
+5-10x storage efficiency vs Prometheus mesma retention (compressão melhor). PromQL + MetricsQL extensions (`rollup_increase`, `label_replace`). Cluster mode (`vmselect` + `vminsert` + `vmstorage`) só acima de 50M series — single binary resolve antes.
+
+**Mimir deep — high-scale multi-tenant.**
+
+Architecture: distributor → ingester → querier → store-gateway. S3 backend pra blocks. Multi-tenant nativo via header HTTP `X-Scope-OrgID: tenant-X`. **Compactor** merges blocks e downsampleia: 5min-aggregated após 1 dia; 1h-aggregated após 1 semana. 5-15 services pra rodar; vale a pena APENAS em > 10M series ou multi-tenant managed prod.
+
+```bash
+# Push amostras pra tenant específico
+curl -H "X-Scope-OrgID: logistica-prod" \
+  --data-binary @samples.pb \
+  http://mimir:9009/api/v1/push
+```
+
+**ClickHouse pra application analytics** (ver §2.18 query opt; aqui storage decision). Não é time-series puro mas dominant em high-cardinality. Partition by date + sorting key por series tag.
+
+```sql
+-- Application events em ClickHouse — courier pings em escala Logística
+CREATE TABLE courier_events (
+  ts DateTime64(3),
+  tenant_id UUID,
+  courier_id UUID,
+  event_type LowCardinality(String),
+  payload String CODEC(ZSTD(3))
+) ENGINE = MergeTree
+PARTITION BY toYYYYMM(ts)
+ORDER BY (tenant_id, courier_id, ts)
+TTL ts + INTERVAL 365 DAY;
+```
+
+Stack 2026: ClickHouse + Vector pra ingest + Grafana pra dashboards. Cost ~$0.05/GB/mo S3-backed. Logística use case: ~10M events/dia × 365 dias = 3.6B rows; ~50GB compressed.
+
+**TimescaleDB — quando faz sentido (2.16+).**
+
+Vence: workloads onde JOIN com data relational (metric + dimension table) + time-series. Perde: > 100M series active (Postgres index pressure). Logística use case: courier earnings dashboard que joins delivery events + courier profile + tenant subscription = TimescaleDB elegante (hypertable + continuous aggregate + JOIN normal).
+
+**InfluxDB 3.0 (Edge / Cloud) 2026.** Rewrite em Rust + Apache Arrow + Iceberg. Tagless cardinality (substitui o problema de "series cardinality" do 1.x/2.x). SQL primary; InfluxQL legacy supported. Cloud Serverless ~$0.25/GB query + storage S3 cheap. Migration 1.x/2.x → 3.0 NÃO é trivial; tagless model = re-think schema.
+
+**Long-retention strategy.**
+
+- **Tiered storage**: hot 7-30 dias (NVMe); warm 30-90 dias (SSD/object); cold 1-5 anos (S3 Glacier).
+- **Downsampling**: 5min averages após 1 dia; 1h após 7 dias; 1d após 30 dias. Saves 99% storage.
+- **Continuous aggregates** TimescaleDB / **materialized views** ClickHouse / **Mimir compactor** auto.
+
+```sql
+-- TimescaleDB: continuous aggregate + downsampling policy
+CREATE MATERIALIZED VIEW pings_5min
+WITH (timescaledb.continuous) AS
+SELECT time_bucket('5 minutes', ts) AS bucket,
+       courier_id,
+       avg(speed_kmh) AS avg_speed,
+       count(*) AS pings
+FROM location_pings
+GROUP BY bucket, courier_id;
+
+SELECT add_continuous_aggregate_policy('pings_5min',
+  start_offset => INTERVAL '1 day',
+  end_offset   => INTERVAL '1 hour',
+  schedule_interval => INTERVAL '5 minutes');
+
+SELECT add_retention_policy('location_pings', INTERVAL '30 days');
+```
+
+**Logística applied stack.**
+
+- **Operational metrics**: VictoriaMetrics single-node 32GB → cluster acima de 50M series.
+- **Application analytics**: ClickHouse pra delivery events, courier pings, ad-hoc queries.
+- **APM traces**: Tempo + S3 backend (Grafana stack).
+- **Logs**: Loki + S3 backend.
+- **Cost real 2026 prod modesta** (1k workloads): ~$300/mês total observability self-hosted vs ~$3k/mês Datadog equivalente.
+
+**Anti-patterns observados.**
+
+- High cardinality labels em Prometheus (`user_id`, `request_id`) — RAM blowup imediato.
+- Prometheus single instance > 1M series (espera-se Mimir/VM cluster).
+- VictoriaMetrics cluster pra 100k series (single binary resolve; cluster overhead injustificado).
+- ClickHouse pra operational metrics (Prom-compat ausente; arquiteturas desencaixam).
+- TimescaleDB pra > 100M series (index pressure; columnar escolha melhor).
+- Sem downsampling em retention > 30 dias (storage 100x sobreescala).
+- Mimir self-host pra 1M series (overhead operacional só vale em > 10M).
+- Datadog em SaaS B2C com 100M custom metrics ($20k+/mês surprises).
+- InfluxDB 1.x mantido em 2026 (sem manutenção; migrar pra 3.0 ou abandon).
+- Same DB pra metrics + traces + logs (workloads diferentes; tools especializados ganham).
+
+Cruza com **03-07** (observability, full stack), **03-05** (AWS, S3 backend cost), **04-09** (scaling, observability cost @ scale), **02-09** (Postgres, TimescaleDB extension), **02-08** (frameworks, scrape endpoints).
+
 ---
 
 ## 3. Repeating threshold dropped
