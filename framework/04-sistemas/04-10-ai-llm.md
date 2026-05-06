@@ -469,6 +469,158 @@ Cada bloco é testável isoladamente: planner com golden inputs, critic com adve
 
 Cruza com **04-10 §2.10** (agents fundamentos), **04-10 §2.11** (evals validam patterns end-to-end), **04-10 §2.13** (observability LLM mede agent quality), **03-07 §2.19** (AI ops trace agent steps), **03-08 §2.x** (PII em audit log de agent precisa redaction).
 
+### 2.21 RAG architectures + evaluation harnesses + production patterns
+
+§2.10 introduz RAG como pattern; §2.21 trata como **sistema engenheirado** com camadas mensuráveis. Naive RAG (embed query → top-K vector search → concat → LLM) resolve ~50% das queries em produção. Cada camada subsequente endereça um modo de falha específico, com cost/benefit decay agressivo no topo da stack.
+
+**Spectrum de arquitetura RAG (5 níveis).**
+
+- **L0 Naive**: query → embedding → top-K vector search → concat docs → LLM. ~50% das queries resolvidas. Falha em keyword exact match e queries ambíguas.
+- **L1 Hybrid retrieval**: dense (vector) + sparse (BM25) → Reciprocal Rank Fusion (RRF). ~70%. Captura "ERROR_CODE_42" que embedding perde.
+- **L2 Rerank**: L1 + cross-encoder reranker (Cohere Rerank v3.5, BGE-reranker). ~80%. Cross-encoder lê (query, doc) joint, embedding lê separado.
+- **L3 Query rewriting + multi-query**: LLM gera N variações da query original; retrieval em cada; merge + dedup. +5%.
+- **L4 Agentic retrieval**: LLM decide quando/como chamar retrieval, multi-hop, refina via critic. +5%.
+
+Cost vs benefit decay: L0→L1 é o ganho gigante (+20pp por ~1.2x cost); L3→L4 é marginal (+5pp por ~5x cost). Default produção 2026: L2 (hybrid + rerank). Suba pra L3/L4 só com eval suite que prove ganho > 2pp em golden set.
+
+**Hybrid retrieval — Postgres pgvector 0.7+ + tsvector.** Schema único, dois índices, RRF inline:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE docs (
+  id UUID PRIMARY KEY,
+  tenant_id UUID NOT NULL,
+  content TEXT NOT NULL,
+  embedding vector(1536),
+  tsv tsvector GENERATED ALWAYS AS (to_tsvector('portuguese', content)) STORED
+);
+CREATE INDEX docs_embedding ON docs USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX docs_tsv ON docs USING gin (tsv);
+CREATE INDEX docs_tenant ON docs (tenant_id);
+```
+
+```sql
+-- $1 = query embedding, $2 = query text, $3 = tenant_id
+WITH dense AS (
+  SELECT id, ROW_NUMBER() OVER (ORDER BY embedding <=> $1) AS rank
+  FROM docs WHERE tenant_id = $3
+  ORDER BY embedding <=> $1 LIMIT 50
+),
+sparse AS (
+  SELECT id, ROW_NUMBER() OVER (ORDER BY ts_rank(tsv, plainto_tsquery('portuguese', $2)) DESC) AS rank
+  FROM docs WHERE tenant_id = $3 AND tsv @@ plainto_tsquery('portuguese', $2)
+  LIMIT 50
+)
+SELECT id, SUM(1.0 / (60 + rank)) AS rrf_score
+FROM (SELECT * FROM dense UNION ALL SELECT * FROM sparse) u
+GROUP BY id ORDER BY rrf_score DESC LIMIT 10;
+```
+
+`60` é o `k` canônico de RRF (Cormack et al. 2009) — não toque sem eval. RRF é robusto a magnitudes incomparáveis entre dense/sparse scores; é por isso que vence weighted-sum em benchmarks.
+
+**Chunking strategy.** Sweet spot 256-512 tokens, overlap 10-20%. Opções:
+
+- **Fixed-size** (token count): simples, quebra meaning em boundaries arbitrárias. Baseline.
+- **Semantic chunking**: split em paragraph/section boundaries (`\n\n`, headings). Respeita estrutura.
+- **Recursive splitter** (LangChain pattern): tenta separators em ordem `["\n\n", "\n", ". ", " "]`; cai pra próximo se chunk > limit.
+- **Sentence-window**: chunk = 1 sentence; retrieval retorna ±N sentences pra context. Precision alta, context window utilization preservado.
+- **Late chunking** (Jina 2024+): embed full doc com long-context model; chunk após embedding. Preserva contextual semantics que chunking-then-embedding destrói.
+
+Chunk 4096 tokens é anti-pattern: retrieval precision colapsa, top-K vira 1 doc gigante irrelevante 80% do conteúdo. Chunk 64 tokens é o outro extremo: contexto insuficiente pro LLM responder.
+
+**Reranker (cross-encoder).** Pattern: top-50 do hybrid → cross-encoder rerank → top-5-10 pro LLM. Cohere Rerank v3.5 (2025): $1/1k searches, latency ~200ms, multilingual incluindo PT-BR. Self-host alternativo: BGE-reranker via Text Embeddings Inference (TEI).
+
+```typescript
+import { CohereClient } from 'cohere-ai';
+const cohere = new CohereClient({ token: process.env.COHERE_API_KEY! });
+
+async function retrieveWithRerank(query: string, tenantId: string) {
+  const candidates = await hybridSearch(query, tenantId, 50);
+  const ranked = await cohere.rerank({
+    model: 'rerank-v3.5',
+    query,
+    documents: candidates.map(c => c.content),
+    topN: 8,
+  });
+  return ranked.results.map(r => ({
+    ...candidates[r.index],
+    rerank_score: r.relevanceScore,
+  }));
+}
+```
+
+Latency budget: cap top-K candidates em 50 (não 200) — cross-encoder escala linear; 200 candidates = 800ms+ p99.
+
+**Query rewriting + HyDE.** Multi-query: LLM gera 3-5 variações; retrieval em cada; dedup por doc id; merge. HyDE (Hypothetical Document Embeddings): LLM gera *resposta sintética* à query, embed da resposta, search por docs similares à resposta. Contraintuitivo, mas robusto pra queries curtas/ambíguas — embedding de doc-shaped texto casa melhor com docs reais que embedding de question-shaped texto.
+
+**Evaluation harness — disciplina de produção.** Sem eval suite, mudança de prompt/retrieval é roleta. Componentes mandatory:
+
+- **Golden dataset**: 100-500 tuplas `(query, expected_answer, source_doc_ids)` curadas manualmente. Cobre happy path + edge cases + adversarial.
+- **Retrieval metrics**: Recall@K (% das vezes que docs corretos estão no top-K), MRR (Mean Reciprocal Rank), NDCG@K.
+- **Generation metrics**: faithfulness (resposta supported by retrieved docs), answer relevance, context precision/recall.
+
+Tools 2026: **RAGAS 0.2+** (Python, faithfulness/answer-relevance/context-precision/context-recall via LLM-as-judge), **Phoenix** (Arize, LLM eval + RAG-specific debugging), **DeepEval** (Pytest-style assertions), **Promptfoo** (CLI eval framework).
+
+```python
+from ragas import evaluate
+from ragas.metrics import faithfulness, answer_relevancy, context_precision, context_recall
+from datasets import Dataset
+
+ds = Dataset.from_dict({
+    "question": [...],
+    "answer": [...],          # output do RAG
+    "contexts": [...],        # docs retrieved (lista de listas)
+    "ground_truth": [...],    # expected answer do golden set
+})
+result = evaluate(ds, metrics=[faithfulness, answer_relevancy, context_precision, context_recall])
+print(result)
+```
+
+CI pattern: cada PR que toca prompt/retrieval/chunking roda eval suite; regressão > 2pp em qualquer metric blocks merge. Online eval: 1-5% do tráfego sampleado, LLM-as-judge async grava score (cruza com **03-07 §2.19**). Sempre human spot-check ~10% do output do judge — judge bias amplifica silencioso sem audit humano.
+
+**Cost optimization 2026.**
+
+- **Embeddings**: OpenAI text-embedding-3-small $0.02/1M tokens; self-host bge-m3 amortiza acima de ~50M tokens/mês.
+- **LLM call**: GPT-4o-mini $0.15/1M input + $0.60/1M output; Claude Haiku 4.5 $0.80/1M input + $4/1M output; Llama 70B em vLLM ~$0.20/1M (GPU amortizado).
+- **Prompt caching** (Anthropic 2024+, OpenAI 2024+): static prefix (system prompt + retrieved docs estáveis) cached → 90% redução em input cost no hit. Mandatory pra workload com prefix repetido.
+- **Tiered routing**: Haiku 4.5 classifica query simples/complexa; Sonnet/Opus só pra hard. Reduz custo médio 60-70%.
+
+Numbers Logística: 10k queries/dia × ($0.001 retrieval + $0.005 LLM) ≈ $1800/mês. Com prompt caching + tiered routing: ~$500/mês.
+
+**Production patterns Logística — KB docs + customer support.**
+
+Use case real: lojista pergunta "Como configurar webhook de status de entrega?". Pipeline:
+
+```
+NL query → embed (text-embedding-3-small)
+        → hybrid search (pgvector + tsvector, RRF, top-50)
+        → Cohere Rerank v3.5 (top-8)
+        → LLM (Sonnet 4.6) com docs + citation enforcement
+        → resposta com [doc_id] inline
+```
+
+Use case que NÃO é RAG: "Quantas entregas atrasadas no mês passado?" — structured data. Pipeline correto: query → query understanding LLM extrai filtros (`tenant_id`, `date_range`, `status='delayed'`) → SQL aggregation → result. RAG sobre structured data é anti-pattern (LLM faz contagem errada lendo docs).
+
+**Citation enforcement + refusal.** System prompt obriga LLM a citar `[doc_id]` por claim; UI verifica citations e renderiza link pro source. Sem context suficiente: "Não encontrei essa informação na documentação" em vez de hallucinate. Refusal pattern reduz hallucination ~80% e é trivial de adicionar.
+
+**Streaming + interactivity.** LLM stream via SSE (cruza com **02-14 §2.10**) pra perceived latency. UI render: retrieval (1-2s) → "Pesquisando docs..." → stream LLM response (chunks ao chegando). Tool calls inline: LLM streams partial response, hits tool boundary, resumes após tool call return.
+
+**Anti-patterns observados.**
+
+- L0 naive RAG em prod sem hybrid + rerank: 50% queries fail; users abandonam silenciosamente.
+- Chunk size 4096 tokens: retrieval precision colapsa. Use 256-512 + overlap 10-20%.
+- Sem golden dataset: prompt change vira russian roulette; regressão indetectável.
+- Sem citation enforcement: hallucination indistinguível de fact; trust corrói rápido.
+- Embedding model swap sem re-embed corpus inteiro: vetores incompatíveis silenciosamente, recall despenca sem alarm.
+- LLM-as-judge sem human spot-check: judge bias amplificado loop infinito.
+- Prompt caching ignored em workload com static prefix: 10x cost overhead trivialmente evitável.
+- Vector DB sem hybrid (sparse): keyword exact match ("ERROR_CODE_42", SKU codes, IDs) perdida — embedding não captura tokens raros.
+- RAG aplicado a structured data: use SQL/aggregation; RAG é pra unstructured docs.
+- Reranker sem latency budget: cross-encoder add 200-500ms; cap top-K candidates em 50.
+
+**Cruza com**: **02-15** (search engines, BM25 + relevance tuning), **02-09** (Postgres, pgvector + tsvector), **03-07 §2.19** (LLM observability + eval pipeline), **04-04** (resilience, fallback quando LLM down → degrade pra hybrid sem LLM), **04-09** (scaling, embedding pipeline + eval pipeline como batch jobs).
+
 ---
 
 ## 3. Threshold de Maestria

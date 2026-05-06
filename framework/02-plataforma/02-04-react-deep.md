@@ -681,6 +681,135 @@ Anti-patterns:
 - **Slot pattern**: Radix UI `asChild`, similar.
 - **Container / Presentational**: valor diminuiu com hooks; ainda útil em times grandes.
 
+### 2.13 React 19 Forms + Actions + concurrent rendering deep (useActionState, useOptimistic, useTransition)
+
+React 19 stable (Maio 2025+, RC fim 2024) reescreve o modelo de formulário e introduz primitives de concurrent rendering production-ready. `<form action={fn}>` aceita função (server action OU client function) — não só URL string. Auto-pending state, auto-reset, integração com ErrorBoundary. Substitui ~80% dos use cases de form libraries; `react-hook-form` ainda relevante em forms complexas (field arrays, validação cross-field reativa).
+
+**`useActionState` (antes `useFormState`)** — signature: `const [state, dispatch, isPending] = useActionState(action, initialState);`. Action recebe `(prevState, formData)` e retorna `Promise<NewState>`. Pattern Logística — criar pedido:
+
+```tsx
+'use client';
+import { useActionState } from 'react';
+import { createOrderAction } from './actions';
+
+export function CreateOrderForm() {
+  const [state, dispatch, isPending] = useActionState(createOrderAction, {
+    error: null, order: null,
+  });
+  return (
+    <form action={dispatch}>
+      <input name="pickup" required />
+      <input name="dropoff" required />
+      <button disabled={isPending}>{isPending ? 'Criando...' : 'Criar pedido'}</button>
+      {state.error && <p role="alert">{state.error}</p>}
+      {state.order && <p>Pedido #{state.order.id} criado</p>}
+    </form>
+  );
+}
+```
+
+```ts
+'use server';
+export async function createOrderAction(prev: State, fd: FormData): Promise<State> {
+  const parsed = OrderSchema.safeParse(Object.fromEntries(fd));
+  if (!parsed.success) return { error: parsed.error.message, order: null };
+  try {
+    const order = await db.orders.insert(parsed.data);
+    revalidatePath('/orders');
+    return { error: null, order };
+  } catch (e) {
+    return { error: e.message, order: null };
+  }
+}
+```
+
+**`useFormStatus`** — lê pending state do form ancestral. Substitui prop drilling de `isPending`. Pattern: `<SubmitButton />` componente independente que sabe sozinho quando submit está em flight. Restrição: deve ser CHILD do `<form>`, não o form em si — usar no parent throws.
+
+**`useOptimistic`** — optimistic UI antes do server response. Signature: `const [optimistic, addOptimistic] = useOptimistic(serverState, reducer);`. Pattern Logística — "marcar entregue":
+
+```tsx
+export function OrderActions({ order }: { order: Order }) {
+  const [optimisticOrder, applyOptimistic] = useOptimistic(
+    order,
+    (curr, action: 'delivered') => ({ ...curr, status: action })
+  );
+  async function handleDelivered() {
+    applyOptimistic('delivered');
+    await markDeliveredAction(order.id); // se falhar, React reverte automaticamente
+  }
+  return (
+    <div>
+      <span>Status: {optimisticOrder.status}</span>
+      <form action={handleDelivered}><button>Marcar entregue</button></form>
+    </div>
+  );
+}
+```
+
+Pegadinha crítica: `useOptimistic` reverte automaticamente quando action throws. Não precisa rollback manual; não usar try/catch pra reverter state.
+
+**`useTransition` (concurrent rendering)** — `const [isPending, startTransition] = useTransition();` marca update como non-urgent. URGENT updates (typing input, click feedback) NÃO são suspended; transition updates SIM. Pattern Logística — search filter list:
+
+```tsx
+const [filter, setFilter] = useState('');
+const [isPending, startTransition] = useTransition();
+return (
+  <>
+    <input value={filter} onChange={e => {
+      setFilter(e.target.value); // urgent: input feedback instant
+      startTransition(() => {
+        router.push(`/orders?q=${e.target.value}`); // non-urgent: list re-render
+      });
+    }} />
+    {isPending && <Spinner />}
+    <OrdersList query={filter} />
+  </>
+);
+```
+
+Concurrent rendering = React pode pause/resume/abandon work em transition. Tearing prevention em external stores (Zustand/Jotai/Redux) via `useSyncExternalStore`.
+
+**Suspense boundaries production** — granularity: 1 boundary por unit de loading independente. Skeleton bem placed > spinner page-level. Pattern Logística dashboard:
+
+```tsx
+<Dashboard>
+  <Suspense fallback={<MetricsSkeleton />}>
+    <Metrics tenantId={id} />
+  </Suspense>
+  <Suspense fallback={<OrdersListSkeleton />}>
+    <OrdersList tenantId={id} />
+  </Suspense>
+</Dashboard>
+```
+
+Metrics e OrdersList carregam em paralelo, cada uma streams independente — Next.js 15+ App Router faz streaming HTTP por boundary.
+
+**Error boundaries integration** — React 19 ErrorBoundary catches errors em renders, actions, sync code. Async errors de `<form action>` quando action throws: caught by parent ErrorBoundary OU retornados como state via `useActionState`. Pattern: ErrorBoundary fora do form (errors inesperados, network down); `useActionState` dentro (errors esperados, validation). Não confunde categorias.
+
+**`useDeferredValue` vs `useTransition`** — `useTransition` envolve setState (você controla); `useDeferredValue` marca um VALUE como non-urgent (React decide). Use `useDeferredValue` quando consome value do parent que não controla: `const deferredQuery = useDeferredValue(query);`. Não combinar com `useTransition` na mesma value (redundante).
+
+**Logística applied stack**:
+
+- Form criar pedido: `useActionState` + Server Action + Zod + `revalidatePath`.
+- "Marcar entregue" lista: `useOptimistic` + Server Action; revert auto se erro.
+- Search filter: `useTransition` mantém input responsive enquanto re-render lista.
+- Dashboard: nested Suspense boundaries pra paralelizar fetches por widget.
+
+**Anti-patterns observados**:
+
+- `react-hook-form` em form simples já resolvido por `useActionState` (overhead injustificado).
+- `useActionState` com função sync (perde benefit; use direct setState).
+- `useOptimistic` sem action async (hook é noop pra sync work).
+- `useTransition` em todo setState (perde urgência de reactions; use só pra non-urgent).
+- Suspense boundary page-level (perde granularity; skeleton 1 por unit independente).
+- Server action sem `revalidatePath` ou `revalidateTag` (UI fica stale após mutação).
+- Form action que throws sem ErrorBoundary OU `useActionState` catch (UI quebra).
+- `useFormStatus` no parent do form em vez de child (throws).
+- `useState` para state que vem de URL (use `searchParams` + transition em search/filter).
+- `useDeferredValue` + `useTransition` na mesma value (pick one).
+
+**Cruza com**: `02-05` (Next.js 15+, Server Actions integration), `02-08` (backend frameworks, server actions ≈ POST endpoints), `03-09` (frontend perf, transition prevents jank), `02-10` (ORMs Drizzle/Prisma em server actions), `02-19` (i18n, `useActionState` + locale validation).
+
 ---
 
 ## 3. Threshold de Maestria
