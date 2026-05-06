@@ -324,6 +324,153 @@ Diferente de real-time em-app. Push notifications via APN (iOS) e FCM (Android),
 
 Combinação real: WebSocket quando app aberto + Push quando fechado.
 
+### 2.17 Presence at scale + message ordering cross-region
+
+Senior+ tópico. Presence naive quebra em ~10k concurrent; ordering cross-region é problema distribuído mal compreendido por devs que tratam WS como "Redis + Pub/Sub e pronto".
+
+#### Presence problem at scale
+
+Naive: `SET user:<id>:online EX 30` + heartbeat a cada 15s. Aguenta ~10k concurrent. Acima disso, refresh load destrói Redis: 100k concurrent = 200k ops/s só de TTL refresh (Redis CPU 100%, sem espaço pra reads).
+
+Pattern hierárquico (Discord/Slack 2026): cada WS server reporta `present_users[]` periódico (~5s) pra coordinator. Coordinator agrega em **presence shards** (per-channel). Subscribers leem shards interessados. ~2k ops/s pra mesmos 100k users (50x menos).
+
+#### Presence diff strategy
+
+Em vez de full snapshot a cada join/leave, mantém set + emite só diff:
+
+```ts
+import { Redis } from 'ioredis';
+const redis = new Redis.Cluster([{ host: 'redis-shard-0', port: 6379 }]);
+
+// Atomic add + diff publish via Lua (evita race entre SADD e PUBLISH)
+const PRESENCE_JOIN = `
+  local added = redis.call('SADD', KEYS[1], ARGV[1])
+  if added == 1 then
+    redis.call('PUBLISH', KEYS[2], cjson.encode({op='join', userId=ARGV[1]}))
+  end
+  return added
+`;
+
+async function addPresence(channelId: string, userId: string) {
+  const setKey = `presence:${channelId}`;
+  const diffChan = `presence:diff:${channelId}`;
+  await redis.eval(PRESENCE_JOIN, 2, setKey, diffChan, userId);
+}
+
+// Recovery: cliente reconectando faz full SMEMBERS, depois consume diff
+async function reconcilePresence(channelId: string) {
+  const setKey = `presence:${channelId}`;
+  const full = await redis.smembers(setKey);
+  // Subscribe ao diff channel ANTES de retornar full pra não perder eventos
+  return full;
+}
+```
+
+Bandwidth: full snapshot de 1000 users em sala = ~30KB por join; diff = ~50 bytes. 600x menor.
+
+#### Message ordering cross-region
+
+Problem: 2 regions (US, EU) com WS users. Mensagem A→B atravessa regiões; ordem percebida depende de propagation.
+
+- **Total ordering global**: requer broker centralizado (Kafka mono-region). Latência cross-region 100-300ms inaceitável pra chat-like. Descartado.
+- **Per-conversation ordering** (99% dos casos): consistent hash by `conversation_id` → home region. Writes vão pra home; reads em qualquer região via async replication. Trade-off: write latency pra non-home users (~150ms RTT EU→US).
+- **Hybrid Logical Clocks (HLC)** cross-region (cruza com `04-01` §2.21): cada region taga message com HLC; client orders por HLC localmente. Aceita inconsistência transient.
+
+```ts
+// HLC tag em cada message cross-region
+type HLC = { wall: number; logical: number; region: string };
+
+let local: HLC = { wall: Date.now(), logical: 0, region: 'us-east-1' };
+
+function tagMessage(payload: unknown): { hlc: HLC; payload: unknown } {
+  const now = Date.now();
+  local = now > local.wall
+    ? { wall: now, logical: 0, region: local.region }
+    : { wall: local.wall, logical: local.logical + 1, region: local.region };
+  return { hlc: { ...local }, payload };
+}
+
+// Client ordena por (wall, logical, region) tuple — never raw Date.now()
+function compareHLC(a: HLC, b: HLC): number {
+  return a.wall - b.wall || a.logical - b.logical || a.region.localeCompare(b.region);
+}
+```
+
+Vector clocks raramente justificáveis em chat real-time (overhead de O(N regions) por message).
+
+#### Sharding fan-out
+
+Single Redis Pub/Sub satura em ~50k subscribers. Pattern: shard channels via `channel_id % N` em N Redis instances. Cada WS server subscribes só aos shards dos channels dos users conectados a ele.
+
+Pegadinha em Redis Cluster: Pub/Sub classic é cluster-wide (cross-node fan-out destrói perf). **Redis 7+ Sharded Pub/Sub** via `SSUBSCRIBE` evita isso (mensagem fica no hash slot do channel):
+
+```ts
+// Redis 7+ Sharded Pub/Sub — escala 10x classic Pub/Sub em Cluster
+const sub = new Redis.Cluster([{ host: 'redis-0', port: 6379 }]);
+await sub.ssubscribe(`presence:diff:channel:${channelId}`);
+sub.on('smessage', (channel, msg) => deliverToLocalSockets(channel, msg));
+
+// Publisher
+await redis.spublish(`presence:diff:channel:${channelId}`, JSON.stringify(diff));
+```
+
+Numbers reais 2026: Sharded Pub/Sub Redis 7 = ~500k channels × ~5k subs com p99 < 50ms. Classic Pub/Sub satura em ~50k subs.
+
+#### WebSocket connection sharding
+
+1 WS server tunado = ~50-200k concurrent (Linux defaults precisam tuning):
+
+```bash
+ulimit -n 1048576                                # max open files
+sysctl -w net.core.somaxconn=65535               # listen backlog
+sysctl -w net.ipv4.ip_local_port_range="1024 65535"  # ephemeral ports
+sysctl -w net.ipv4.tcp_tw_reuse=1
+```
+
+Pattern Logística com 1M concurrent: 20 WS servers × 50k each, behind L4 NLB com **ip-hash sticky** (ou cookie sticky em ALB). WebSocket precisa stick pra reuse de connection — sem isso, reconnect cai em outro server e perde state local.
+
+ALB com WebSocket: aumentar `idle_timeout` pra 3600s (default 60s mata long-lived).
+
+#### Soketi / Centrifugo / Pusher 2026
+
+| Tool | Fit | Threshold |
+|---|---|---|
+| **Soketi 1.x** (open-source Pusher protocol) | Drop-in Pusher; single-instance Redis adapter | < 50k concurrent single-node; cluster pra > 100k |
+| **Centrifugo 5.x** (Go broker) | Presence + history nativo; horizontal scaling built-in | Até milhões concurrent em cluster 3-5 nodes |
+| **Pusher Channels** (managed) | Zero-ops; caro ($1k+/mês a 10k concurrent) | Sempre, se budget permite |
+| **Ably** (managed multi-region) | Presence cross-region built-in; HLC interno | Apps globais com presence sério |
+
+Self-hosted threshold: < 50k → Soketi single-node. > 50k → Centrifugo cluster ou managed.
+
+#### Logística applied
+
+~5k lojistas × ~50 couriers tracked each = ~250k subscriptions concurrent. Stack:
+
+- **Centrifugo cluster** (3 nodes, Redis-backed engine).
+- Couriers publish location to `tenant:<id>:courier:<id>:location` (Centrifugo HTTP API server-side).
+- Lojistas subscribe a courier IDs específicos (não ao tenant inteiro — fan-out controlado).
+- Presence diff: lojistas vêem "courier X online/offline" via diff stream; full snapshot só no connect.
+- Multi-region (US/EU/BR): per-tenant home region via consistent hash by `tenant_id`. Cross-region só pra analytics replication async.
+
+#### Anti-patterns observados
+
+- Heartbeat naive com TTL refresh > 10k concurrent (Redis CPU 100%).
+- Full presence snapshot a cada join/leave (bandwidth explode em sala 1000+ users).
+- Redis Pub/Sub classic em Cluster cross-node — use Sharded Pub/Sub Redis 7 (`SSUBSCRIBE`).
+- Total ordering global em chat (latência cross-region inaceitável).
+- WebSocket sem sticky session em LB (reconnects perdem state local).
+- WS atrás de L7 ALB sem `idle_timeout` aumentado (default 60s mata connections).
+- HLC ignorado, `Date.now()` raw cross-region (clock skew + replay out-of-order).
+- Soketi self-hosted > 100k concurrent sem cluster (single-node bottleneck).
+
+#### Cruza com
+
+- `02-11` (Redis): Sharded Pub/Sub Redis 7+ + presence shards.
+- `04-01` (sistemas distribuídos): HLC pra ordering cross-region.
+- `04-02` (messaging): fan-out patterns, Kafka mono-region pra total ordering.
+- `04-09` (scaling): WS connection limits + connection sharding.
+- `03-05` (AWS): NLB ip-hash vs ALB cookie stickiness pra WS.
+
 ---
 
 ## 3. Threshold de Maestria

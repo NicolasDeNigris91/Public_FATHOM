@@ -211,6 +211,107 @@ Sintomas comuns e onde olhar:
 - **Expo for Web**: combina RN-Web + Metro pra web. Útil pra apps simples.
 - Em projetos sérios cross-platform, geralmente vale ter codebases separados pra UI mobile e web (compartilhando lógica, schema, hooks puros).
 
+### 2.18 Hermes engine + JSI + Reanimated 3 + Skia (RN performance deep)
+
+Cobre o caminho crítico de performance do RN moderno: bytecode engine, ponte sem serialização, animações em UI thread, GPU-accelerated graphics. RN 0.78+ assume New Architecture default; Hermes é mandatório.
+
+**Hermes engine internals**. Hermes compila JS pra bytecode `.hbc` ahead-of-time (no build), enviado dentro do bundle. JIT desligado por default — cold start ~25-40% mais rápido e RAM menor que JSC, mas peak throughput em hot loops puro JS ~2x pior. Trade-off explícito: app típico (UI + I/O) vence; app CPU-heavy perde. Pra workloads pesados, opt-in `enable_hermes_jit` no `ios/Podfile`. Profile com **Hermes Sampling Profiler** em React Native DevTools (gera flame trace). **Static Hermes** (experimental 2025+): subset typed de JS compila pra native code, fechando gap de throughput.
+
+**JSI deep**. JSI substitui bridge JSON. C++ host objects expostos direto como JS objects via `jsi::HostObject`. **TurboModule = JSI + codegen**: codegen lê spec TS/Flow e gera binding C++/Java/ObjC. Estrutura completa de TurboModule custom:
+
+```ts
+// specs/NativeMyModule.ts
+import type { TurboModule } from 'react-native';
+import { TurboModuleRegistry } from 'react-native';
+export interface Spec extends TurboModule { getDeviceId(): string; }
+export default TurboModuleRegistry.getEnforcing<Spec>('MyModule');
+```
+
+```json
+// package.json
+"codegenConfig": { "name": "MyModuleSpec", "type": "modules", "jsSrcsDir": "specs" }
+```
+
+```kotlin
+// android/.../MyModule.kt
+class MyModule(ctx: ReactApplicationContext) : NativeMyModuleSpec(ctx) {
+  override fun getDeviceId(): String = Settings.Secure.getString(ctx.contentResolver, Settings.Secure.ANDROID_ID)
+}
+```
+
+Native module antiga (sem JSI) ainda funciona via **interop layer** (slow path) na New Arch — deprecate gradualmente.
+
+**Fabric renderer**. Concurrent rendering, shadow tree C++ compartilhado entre threads via Yoga. `setNativeProps` legado **silent fail** em Fabric — substitua por `useAnimatedStyle` (Reanimated) ou commit hooks via ref imperativo novo.
+
+**Reanimated 3 worklets**. Worklet roda em UI thread runtime separado, 60fps mesmo com JS thread bloqueado. Closure captura só primitivos serializáveis ou shared values; objects ricos viram `undefined` em runtime. Pattern de gesture-driven (Logística — order card que expande com pan):
+
+```tsx
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+
+function OrderCard({ order, onAccept }: { order: Order; onAccept: (id: string) => void }) {
+  const translateY = useSharedValue(0);
+  const orderId = order.id; // capture primitivo, não o objeto
+
+  const pan = Gesture.Pan()
+    .onChange(e => { translateY.value = e.translationY; })
+    .onEnd(e => {
+      if (e.translationY < -120) runOnJS(onAccept)(orderId);
+      translateY.value = withSpring(0);
+    });
+
+  const animated = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
+
+  return <GestureDetector gesture={pan}><Animated.View style={animated}>{/* row */}</Animated.View></GestureDetector>;
+}
+```
+
+Cruze threads com `runOnJS` (atualizar React state pós-gesture); `useFrameCallback` pra 60fps callback; `useDerivedValue` pra computed shared. Pegadinhas: shared value mutado em loop sem `withTiming/withSpring` causa renderer thrash; closure capturada via `runOnUI` errado deadlocks.
+
+**Skia (`@shopify/react-native-skia` v1.x)**. GPU-accelerated 2D engine (Skia, mesmo do Chrome/Flutter). Use case Logística: mapa custom com courier markers, polyline animada da rota, pulse dots em destinos:
+
+```tsx
+import { Canvas, Path, Skia, Group, useClock } from '@shopify/react-native-skia';
+import { useDerivedValue } from 'react-native-reanimated';
+
+const routePath = Skia.Path.MakeFromSVGString('M10,10 L120,80 L240,180')!;
+
+function CourierMap({ progress }: { progress: SharedValue<number> }) {
+  const end = useDerivedValue(() => progress.value); // 0..1
+  return (
+    <Canvas style={{ flex: 1 }}>
+      <Path path={routePath} color="#0af" style="stroke" strokeWidth={4} start={0} end={end} />
+    </Canvas>
+  );
+}
+```
+
+Integra com Reanimated shared values direto. Pintura completa (ImageShader, Mask, Blur) roda 60fps em low-end Android. **Não use Skia em UI estática** — `View` + transform resolve, Skia é overhead injustificado.
+
+**MMKV vs AsyncStorage (2026)**. MMKV (Tencent C++ via JSI) ~30x mais rápido que AsyncStorage. API síncrona, sem promise overhead. AsyncStorage usa SQLite/RocksDB nativo, async via bridge — slow pra hot reads.
+
+```ts
+import { MMKV } from 'react-native-mmkv';
+const storage = new MMKV({ id: 'logistics-cache', encryptionKey: 'token' });
+storage.set('jobs.today', JSON.stringify(jobs)); // sync, sem await
+const cached = storage.getString('jobs.today');
+```
+
+**Anti-patterns**:
+
+1. JSC habilitado em build de produção (perf pior que Hermes em apps modernos).
+2. `setNativeProps` em Fabric (silent fail; use Reanimated ou ref imperativo novo).
+3. Worklet capturando objeto rico via closure (`{order}` em vez de `order.id`) — `undefined` em runtime.
+4. Shared value mutado em frame callback sem `withTiming/withSpring` (judder).
+5. `runOnJS` em hot path de gesture (latência cross-thread; compute em worklet).
+6. AsyncStorage pra hot reads (queue + bridge round-trip por call).
+7. Skia em UI estática (overhead injustificado, `View` resolve).
+8. Custom TurboModule sem `codegenConfig` em `package.json` (binding gen falha silently, runtime quebra).
+
+**Logística applied**. Courier app: lista com FlashList (200+ jobs), swipe-to-accept via Reanimated worklet + `runOnJS` pra confirmar API, mapa com Skia desenhando polyline animada da rota, MMKV pra cache offline-first dos jobs do dia, MMKV+SecureStore split (dados em MMKV, token em SecureStore).
+
+**Cruza com**: `02-04` (React concurrent rendering vs Fabric paralelo no shadow tree), `03-09` (frontend perf, princípios compartilhados — virtualização, memoização, off-main-thread), `02-17` (native mobile direto, quando JSI é insuficiente e precisa Swift/Kotlin puro), `02-14` (real-time, WebSocket em RN com offline-first via MMKV).
+
 ---
 
 ## 3. Threshold de Maestria

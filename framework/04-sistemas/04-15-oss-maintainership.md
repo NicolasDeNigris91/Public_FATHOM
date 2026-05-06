@@ -287,6 +287,93 @@ Contributing externally: alinhar com legal (CLA), padronizar processo. Internal 
 
 Open-sourcing internal tool: significant work (cleanup, documentation, governance). Não open-source só pra marketing.
 
+### 2.18 Becoming a maintainer (PR triage, RFC participation, trust ladder)
+
+Virar maintainer é earned, não pleitado. Projetos sérios (Node.js, React, Postgres, Linux kernel, Rust) operam **trust ladder** — escada observada, com permissions outorgadas após sinal sustentado de competência + julgamento.
+
+#### Trust ladder
+
+- **External contributor**: PR aleatório aceito após review. Zero permissions.
+- **Frequent contributor**: 5-20 PRs mergeados em meses; reviewers começam a chamar pra opinar em issues correlatos.
+- **Triager** (formal): permission pra labelar issues, fechar duplicates, marcar `good first issue`. Sem merge rights.
+- **Reviewer**: aprovar PRs (review counts em CI/branch protection), merge ainda exige core.
+- **Committer/Maintainer**: merge rights em sub-area. Responsável por release dessa area.
+- **Core/TSC** (Technical Steering Committee): voto em RFCs, decisões de roadmap, governança.
+
+Calibração real: caminho external → committer em projeto bem-mantido = **12-24 meses, 30+ PRs significantes, 100+ reviews**. Fast-track existe mas é exceção (corp sponsor, expertise rara, RFC adoptado).
+
+#### Choosing a project to invest
+
+Decision framework antes de despejar 6+ meses em projeto:
+
+- **Alignment**: tecnologia que você USA em produção (incentivo natural, dogfooding).
+- **Health signals**: PRs mergeados < 30 dias, issues responded < 7 dias, > 3 active maintainers, CI green em main, releases regulares.
+- **Avoid**: bus factor 1, PRs sentando 6+ meses, governança opaca, hostile review tone em threads recentes.
+- **Sweet spot**: large-enough pra impact (> 10k stars + corporate users) mas small-enough pra sua contribuição ser visível. Submeter PR #3 num projeto top-100 npm raramente move ladder; PR #3 num projeto 5k stars maduro sim.
+
+#### First contribution playbook
+
+1. Ler `CONTRIBUTING.md` linha por linha. Setup dev env localmente; build + test passing **antes** de tocar código.
+2. Pick `good first issue` ou `help wanted`. Comment "I'd like to take this — should be done by <date>" antes de codar (evita duplicate work, sinaliza accountability).
+3. Open PR pequeno (< 200 LOC diff): single concern, atomic commit, conventional commit message.
+4. PR description responde: O QUE muda, POR QUE, COMO testar, BREAKING change?
+5. Anti-padrão clássico: PR de 2000 linhas redoing arquitetura sem RFC primeiro = rejeitado sem review.
+
+#### PR review feedback — receiving
+
+Cruza com `superpowers:receiving-code-review`. Specifics OSS:
+
+- **Engage substantively**: NÃO concorde performaticamente. Se discorda, argumente com data/spec/precedent (link RFC anterior, benchmark, referência da spec).
+- **Address each comment explicitly**: "Done in commit X" ou "Pushing back: this is intentional because Y" — silence vira friction.
+- **Squash policy varia**: Linux kernel ama atomic commits (LKML series via `git send-email`); React/Node squash-merge default; Rust mistura. Leia o projeto.
+- Pegadinha: "this is fine, just nit" ainda merece fix. "Nit" significa não-blocker mas é debt; ignorar acumula reputation cost.
+
+#### RFC participation
+
+- Antes de propor: triple-check que NÃO foi proposto e rejeitado anos atrás (search closed issues, RFCs repo, mailing list archives).
+- RFC structure canônica: problem → motivation → 3+ alternatives considered → chosen design → migration path → drawbacks → unresolved questions.
+- Engage early no processo do projeto: TC39 stages (0-4), React RFCs (`reactjs/rfcs`), Rust RFCs (`rust-lang/rfcs`), Python PEPs, Postgres `pgsql-hackers` mailing list. Push for feedback **antes** de implementação.
+- Anti-padrão: implementação completa + PR + "here's the RFC after the fact" = rejeitado por procedure mesmo se design for bom.
+
+#### Building reputation in the project
+
+- Review outros PRs **antes** de pedir review (reciprocity; reviewers escassos em todo projeto).
+- Triage issues sem permission formal: comment "I reproduced this on v1.2.3, here's a minimal repro" — alta sinalidade, leva a triager invite.
+- Show up em discussions com data, code snippets, links to spec — NÃO opinião pura.
+- Conf talks / blog posts substantivos sobre o projeto (não fluff) increase visibility e dão context pra core team te conhecer.
+
+#### When to walk away
+
+- Maintainer NÃO responde em 30 dias mesmo com nudges respeitosos.
+- Project culture toxic: hostile review tone, gatekeeping, mansplaining.
+- Misalignment de visão (você quer feature X; core decided NÃO, repetidamente).
+- Burnout pessoal: trabalho remunerado / saúde > free OSS sempre.
+
+Walking away é decisão sã. Ficar resentido é o anti-padrão pior — gera threads tóxicas que custam reputation de todos.
+
+#### Logística applied — extracting an OSS lib
+
+`@logistica/idempotency-kit` (referenciado em §desafio) — playbook de saída de in-house pra OSS:
+
+- **Maturity gate**: extrair só após 6+ meses em-prod, contracts API estáveis, breaking changes raros.
+- **Initial maintainers**: você + 1 colega de time. CONTRIBUTING.md desde release 0.1.
+- **Triage strategy**: issues triadas em 7 dias, label `priority/{p0|p1|p2}`, `type/{bug|feature|docs}`, `good first issue` curado.
+- **Trust ladder pragmático**: aceitar 1 external committer após 5 PRs mergeados em 3 meses + 1 review substantivo de PR alheio. Documentar critério em `MAINTAINERS.md`.
+- **Sustainability path**: GitHub Sponsors + Tidelift listing + corporate adoption (cruza com §2.12).
+
+#### Anti-patterns (8)
+
+1. PR gigante (>1k LOC) sem RFC prévio — irrevisável; reject quase certo.
+2. "Drive-by" PR fixing typo + adicionando feature unrelated — split em 2 PRs.
+3. Falar em issue sem ler comments anteriores — repetir argumentos já refutados queima credit.
+4. "Hostile fork" público sem tentar reconciliação primeiro — queima ponte permanente.
+5. PR description vazia / "fix bug" — zero contexto pra reviewer; alta probabilidade de stale.
+6. Pinging maintainers `@user` em issue sem ação clara — rude, fica em log permanente do GitHub.
+7. Aceitar maintainer role sem capacity real — vira bus factor problem novo.
+8. Negociar trust ladder publicamente ("you should make me committer") — trust é earned, não pleitado.
+
+Cruza com **04-12** (tech leadership: ADR/RFC discipline transfere pra OSS), **03-04** (CI/CD: contribuições passam por mesma rigor), **04-16** (product/business: OSS contribution as career capital), `superpowers:receiving-code-review` (skill aplicável diretamente), **§2.10** (building contributors interno espelha), **§2.12** (sustainability/funding após maturity).
+
 ---
 
 ## 3. Threshold de Maestria
