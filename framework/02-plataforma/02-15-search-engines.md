@@ -435,6 +435,133 @@ Cruza com **02-15 §2.7** (hybrid search foundation), **02-15 §2.13** (relevanc
 
 ---
 
+### 2.19 LLM-augmented search 2026 (semantic + keyword fusion, query understanding, conversational refinement)
+
+Hybrid (BM25 + dense vectors) cobre 80-90% relevance. LLM-augmented fecha o gap residual: query understanding, expansion, rerank, conversational refinement. Padrão 2026 em e-commerce, knowledge bases, support search.
+
+#### Por que LLM-augmented (e quando NÃO usar)
+
+- **Pure vector search** falha em exact match (`ERROR_CODE_42`, SKU `XPTO-9931`) e em rare proper nouns (entity raros não vistos no corpus de embedding).
+- **Pure BM25** falha em synonyms semânticos (`car` vs `automobile`), conceptual queries (`tênis confortável pra correr longa distância`).
+- **Hybrid (§2.18)** resolve maior parte. LLM-augmented pega os 5-10% que sobram: intent ambíguo, multi-turn, filter extraction.
+- **Quando NÃO usar**: strict-match domains (lookup por SKU, error code, pedido por ID). LLM expansion degrada precision; cost extra desnecessário.
+
+#### Query understanding (LLM como parser estruturado)
+
+Logística capstone — lojista digita "pedidos atrasados acima de R$200 nos últimos 7 dias". Parse para schema validado via Zod + OpenAI structured outputs (Aug 2024+):
+
+```ts
+import { z } from 'zod';
+import { zodResponseFormat } from 'openai/helpers/zod';
+
+const OrdersQuerySchema = z.object({
+  intent: z.enum(['list_orders', 'aggregate', 'navigate']),
+  filters: z.object({
+    status: z.array(z.enum(['placed', 'late', 'delivered', 'cancelled'])).optional(),
+    min_value_cents: z.number().int().nonnegative().optional(),
+    max_value_cents: z.number().int().nonnegative().optional(),
+    date_from: z.string().datetime().optional(),
+    date_to: z.string().datetime().optional(),
+  }),
+  sort: z.enum(['created_at_desc', 'value_desc', 'eta_asc']).optional(),
+});
+
+const completion = await openai.chat.completions.create({
+  model: 'gpt-4o-mini',
+  messages: [
+    { role: 'system', content: SYSTEM_PROMPT_PT_BR },
+    { role: 'user', content: query },
+  ],
+  response_format: zodResponseFormat(OrdersQuerySchema, 'orders_query'),
+  temperature: 0,
+});
+
+const parsed = OrdersQuerySchema.safeParse(JSON.parse(completion.choices[0].message.content!));
+if (!parsed.success) throw new SearchParseError(parsed.error);
+// parsed.data.filters: { status: ['late'], min_value_cents: 20000, date_from: '2026-04-29T00:00:00Z' }
+```
+
+Traduz para SQL/ES. Latency budget: gpt-4o-mini 200-500ms p50; cache por `hash(query_text)` corta 70% das chamadas.
+
+#### Hybrid retrieval + LLM rerank (cruza com 04-10 §2.21 RAG)
+
+Pipeline canônico em 3 estágios:
+
+1. **Recall**: hybrid search (pgvector 0.7+ HNSW + tsvector BM25 + RRF fusion) retorna top-50.
+2. **Rerank**: Cohere Rerank v3.5 ou cross-encoder local (`bge-reranker-large`) reordena top-50 → top-10. Latência ~200ms para 50 docs.
+3. **Synthesize** (opcional, RAG): LLM gera resumo/answer dos top-3 com citations.
+
+Numbers 2026 (Logística interno, 200 golden queries): hybrid alone 71% Recall@10; + rerank 84%; + query understanding 92%. Cap top-50 no rerank — top-100 cross-encoder estoura 500ms.
+
+```sql
+-- Stage 1: hybrid recall com RRF (pgvector 0.7+ + tsvector)
+WITH dense AS (
+  SELECT id, ROW_NUMBER() OVER (ORDER BY embedding <=> $1::vector) AS rk
+  FROM products WHERE tenant_id = $2 LIMIT 100
+),
+sparse AS (
+  SELECT id, ROW_NUMBER() OVER (ORDER BY ts_rank_cd(tsv, plainto_tsquery('portuguese', $3)) DESC) AS rk
+  FROM products WHERE tenant_id = $2 AND tsv @@ plainto_tsquery('portuguese', $3) LIMIT 100
+)
+SELECT id, COALESCE(1.0/(60+d.rk), 0) + COALESCE(1.0/(60+s.rk), 0) AS score
+FROM dense d FULL OUTER JOIN sparse s USING (id)
+ORDER BY score DESC LIMIT 50;
+```
+
+#### Query expansion (use seletivo)
+
+Para "tênis de corrida confortável", LLM gera `["tênis running", "tênis amortecido", "running shoes corrida longa"]`; cada variante busca + dedup + RRF merge. Útil em e-commerce long-tail; **proibido** em strict-match (SKU, ERROR_CODE) — recall drop por matches espúrios.
+
+#### Conversational refinement (multi-turn)
+
+Estado mínimo: `{previous_filters, current_results_ids, turn_count}` em Redis stream por session-id, TTL 1h, cap últimos 10 turns. Turno N+1 reusa filters do turno N e merge incremental. UI mostra "interpreted as: late orders > R$200 nos últimos 7 dias" — usuário confirma/edita os filters extraídos. Reduz hallucination de filter wrong.
+
+#### Stack 2026
+
+- **Vector DB**: pgvector 0.7+ HNSW (default Logística, cobre 04-10 §2.21); Qdrant standalone para >50M vectors; Pinecone managed; Weaviate; Milvus.
+- **Embedding**: OpenAI `text-embedding-3-small` ($0.02/1M tokens, 1536-dim); Cohere embed-v3 multilingual; bge-m3 open-source (1024-dim, multilingual); Voyage 3 (state-of-art, custo maior).
+- **Rerank**: Cohere Rerank v3.5 ($2/1k searches, ~200ms); bge-reranker-large self-hosted; ms-marco MiniLM L-6 cross-encoder.
+- **LLM parser**: gpt-4o-mini ($0.15/1M input, $0.60/1M output); Claude Haiku 4.5 ($0.80/1M, melhor instruction following PT-BR); Gemini Flash; Llama 3.3 70B em vLLM self-hosted.
+
+#### Caching (decisivo pra cost)
+
+- **Query understanding cache**: `hash(query_text + locale)` → parsed_filters JSON; TTL 1h; Redis.
+- **Embedding cache**: `hash(query_text + model_id)` → vector; TTL 7d.
+- **Result cache**: `hash(filters + sort + tenant_id)` → page; TTL 5min.
+- **Conversation cache**: Redis stream por session-id, max 10 turns, TTL 1h.
+- Numbers Logística: 80% queries são repetições típicas ("pedidos atrasados hoje", "vendas semana"); cache hit rate 70%; cost reduction 5-10x.
+
+#### Eval discipline (cruza com 04-10 §2.21 RAGAS)
+
+- **Golden dataset**: 200-500 tuplas `(query, expected_filters, expected_top_k_ids)` curadas por domain experts. Refresh trimestral.
+- **Métricas**: filter extraction accuracy (precision + recall por field type), Recall@10, NDCG@10, end-to-end satisfaction (LLM-as-judge + human spot-check 10% amostra).
+- **CI gate**: drop > 2pp em qualquer métrica bloqueia merge. Prompt change passa pelo mesmo gate que code change.
+
+#### Logística applied stack
+
+- **Stage 1**: hybrid Postgres pgvector + tsvector + RRF.
+- **Stage 2**: query understanding gpt-4o-mini → structured filters → SQL parametrizada.
+- **Stage 3**: rerank top-50 via Cohere Rerank v3.5.
+- **Stage 4** (premium tier): conversational refinement com chat UI; show interpreted filters.
+- **Custo real**: 50k queries/dia × ($0.001 LLM + $0.001 rerank) × 0.30 cache miss rate ≈ $30/dia ≈ $900/mês; com 70% cache hit, efetivo ~$300/mês.
+
+#### Anti-patterns observados
+
+- LLM query understanding sem `safeParse` Zod — JSON malformado quebra pipeline silenciosamente em prod.
+- Sem cache em query understanding — cost 10x desnecessário, hot path lento.
+- LLM rerank sem latency budget — cross-encoder 500ms+ pra top-100; cap top-50 hard.
+- Embedding model swap sem re-index do corpus inteiro — vetores incompatíveis dimensionalmente, recall colapsa silencioso.
+- Query expansion em strict-match domains (SKU, ERROR_CODE) — precision drop, falsos positivos.
+- Sem golden dataset — regression em prompt change invisível até user reclamar.
+- LLM-as-judge sem human spot-check — judge bias amplificado, métrica sobe sem ganho real.
+- Conversational session sem TTL — Redis bloat, usuários deixam abas abertas dias.
+- Vector dimensions diferentes entre models sem migration plan — pgvector/Qdrant aceita silently broken.
+- LLM call sync no hot path — UI bloqueia 500ms; use streaming + skeleton UI; fallback pra hybrid puro se LLM timeout > 800ms.
+
+Cruza com **04-10 §2.21** (RAG architectures, embedding pipelines, RAGAS), **02-09** (Postgres pgvector + tsvector foundation), **03-07** (LLM observability, traces de prompt + response), **04-04** (resilience, fallback pra hybrid puro quando LLM degradado), **04-09** (scaling, embedding pipeline cost @ scale).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

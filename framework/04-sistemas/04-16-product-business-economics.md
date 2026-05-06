@@ -392,6 +392,175 @@ Decision: triple ad spend; LTV bears it.
 
 Cruza com **04-16 §2.13** (engineering levers em economics — onde código direta impacta), **04-16 §2.14** (burn/runway), **04-16 §2.16** (cost optimization patterns), **03-05 §2.19** (FinOps cloud cost engineering), **04-09 §2.14** (cost ao scale).
 
+### 2.20 Product-Market Fit measurement + retention metrics + activation funnels
+
+Unit economics (§2.19) só fecham se PMF existe — caso contrário, LTV é fantasia, churn devora cohorts e CAC paga aquisição que vaza. Engenheiro Staff que entende como PMF é medido (não sentido) participa de decisões de roadmap, gating de features e go-to-market com evidência. Esta seção entrega: definições operacionais, SQL pronto pra cohort retention, framework de aha-moment discovery, benchmarks 2026 (Lenny Rachitsky / OpenView / Bessemer).
+
+**PMF — definições operacionais (não vibes)**:
+
+- **Marc Andreessen 1.0 (2007)**: "the only thing that matters". Famoso, vago — não mede nada. Útil como prioridade, inútil como diagnóstico.
+- **Sean Ellis test**: pergunta única após user qualificado (3+ uses): "How would you feel if you could no longer use [product]? Very disappointed / Somewhat / Not disappointed". PMF threshold = **> 40% Very disappointed**.
+- **Rahul Vohra (Superhuman PMF Engine)**: segmenta respondentes; foca cohort "Very disappointed" pra extrair ICP, principal benefit ("speed"), e barriers do "Somewhat" ("missing calendar"). Roadmap deriva direto disso.
+- **PMF quantitativo**: cohort retention curve flatten (não decai a zero); organic growth (referral coefficient > 0.5); inbound dominance ("category leader" em conversa de buyer).
+- **Pre-PMF traps**: paid acquisition funcionando + organic churn alto; user growth alimentado por ads; repeat usage fraco (D30 < 15% B2B). Crescer NÃO é PMF.
+
+**Sean Ellis test — implementação**:
+
+```sql
+-- Trigger: in-app modal após 3+ qualified actions (created order, etc.)
+WITH qualified AS (
+  SELECT sr.user_id, sr.sean_ellis_response, sr.surveyed_at,
+         COUNT(ue.id) AS uses_before_survey
+  FROM survey_responses sr
+  JOIN usage_events ue ON ue.user_id = sr.user_id
+    AND ue.created_at < sr.surveyed_at
+    AND ue.event_type = 'order_created'
+  GROUP BY sr.user_id, sr.sean_ellis_response, sr.surveyed_at
+  HAVING COUNT(ue.id) >= 3
+)
+SELECT
+  COUNT(*) FILTER (WHERE sean_ellis_response = 'very_disappointed')::float
+    / NULLIF(COUNT(*), 0) * 100 AS pmf_pct,
+  COUNT(*) AS responses
+FROM qualified
+WHERE surveyed_at >= NOW() - INTERVAL '30 days';
+```
+
+- Sample mínima: 100 respostas pra signal estatístico (Vohra recomenda 40+ "very disappointed" absolutos).
+- Frequência: cada quarter pra detectar shift (feature shipping, segment change).
+
+**Retention metrics — Day-N curves**:
+
+- **D1 / D7 / D30 / D90 retention**: % users que fizeram qualified action 1/7/30/90 dias após first action.
+- **Cohort retention curve**: agrupa users por signup week; mede % ativo em cada week post-signup.
+- **Interpretação de padrão**:
+  - **Flatten curve** (assíntota > 0): PMF — sticky cohort.
+  - **Decay to zero**: NÃO PMF — leaky bucket; CAC desperdiçado.
+  - **Smile curve** (cai e sobe): raro; reactivation/email funciona.
+- **Benchmarks B2B SaaS 2026** (Lenny Rachitsky / OpenView):
+  - **Excellent**: D30 > 80%, D90 > 60%.
+  - **Good**: D30 60–80%, D90 40–60%.
+  - **Marginal**: D30 30–60%, D90 20–40%.
+  - **Bad**: D30 < 30%.
+- **Benchmarks B2C consumer**:
+  - **Excellent**: D30 > 30%, D90 > 15%.
+  - **Good**: D30 15–30%.
+- Comparar B2B com B2C é erro: 30% D30 = excellent em B2C, bad em B2B.
+
+**Cohort retention SQL (Postgres)**:
+
+```sql
+WITH cohorts AS (
+  SELECT user_id, DATE_TRUNC('week', created_at) AS cohort_week
+  FROM users WHERE created_at >= '2026-01-01'
+),
+activity AS (
+  SELECT user_id, DATE_TRUNC('week', occurred_at) AS active_week
+  FROM events
+  WHERE event_type = 'order_created'
+),
+joined AS (
+  SELECT
+    c.cohort_week,
+    a.active_week,
+    (a.active_week - c.cohort_week) / 7 AS weeks_since_signup,
+    COUNT(DISTINCT c.user_id) AS active_users
+  FROM cohorts c
+  JOIN activity a ON c.user_id = a.user_id AND a.active_week >= c.cohort_week
+  GROUP BY c.cohort_week, a.active_week
+),
+sizes AS (
+  SELECT cohort_week, COUNT(DISTINCT user_id) AS cohort_size
+  FROM cohorts
+  GROUP BY cohort_week
+)
+SELECT
+  j.cohort_week,
+  j.weeks_since_signup,
+  j.active_users,
+  s.cohort_size,
+  ROUND(j.active_users::numeric / s.cohort_size * 100, 1) AS retention_pct
+FROM joined j
+JOIN sizes s ON j.cohort_week = s.cohort_week
+ORDER BY j.cohort_week, j.weeks_since_signup;
+```
+
+- Output renderiza como triangle table (cohort_week × weeks_since_signup) — padrão Mixpanel/Amplitude.
+
+**Activation funnel — descobrir o "Aha moment"**:
+
+- **Aha moment** = ação correlacionada com retention longo. Não é opinião — descobre-se via dados.
+- **Método**: compara first-week behavior de D90+ retained users vs churned. Identifica ação que 80% retained fizeram vs 30% churned.
+- **Examples canônicos**:
+  - Facebook: "7 friends in 10 days".
+  - Slack: "2000 messages sent" (org-level).
+  - Dropbox: "1 file uploaded + 1 device installed" (cross-device anchor).
+  - Twitter: "30 follows".
+- **Logística aha**: lojista que cria 5+ pedidos no first week + integra Stripe → 85% D90 retention; lojista que só faz signup → 8% D90. Aha = "5 orders + Stripe in week 1".
+
+**Activation event no produto**:
+
+- **Onboarding flow** drive user até aha o mais rápido possível. Cada step adicional = drop-off.
+- **A/B reduzindo friction**: original 12 steps → novo 5 steps; activation rate 35% → 58% (números reais Superhuman/Notion-style).
+- **Activation gating** (premium SaaS): destrava features avançadas só após aha — força user a investir antes de avaliar custo.
+
+**MAU/DAU + DAU/MAU ratio**:
+
+- **DAU** (Daily Active) / **WAU** / **MAU**, com "active" = qualified action (created order), NÃO login.
+- **DAU/MAU ratio** (stickiness):
+  - **> 50%**: consumer addiction-tier (TikTok, IG, WhatsApp).
+  - **30–50%**: excellent SaaS (Slack, Notion, Linear).
+  - **15–30%**: good SaaS B2B.
+  - **< 15%**: low engagement; questionar PMF.
+- "Active" = login infla métrica com bot traffic + curiosity opens — descarta.
+
+**Net Revenue Retention (NRR) — métrica B2B crítica**:
+
+```
+NRR = (start_ARR + expansion - downgrade - churn) / start_ARR × 100%
+```
+
+- Cohort fechado, mensurado em janela de 12 meses.
+- **Benchmarks 2026** (Bessemer State of the Cloud):
+  - **World-class**: NRR > 130% (Snowflake, Datadog em peak).
+  - **Excellent**: 110–130%.
+  - **Good**: 100–110%.
+  - **Marginal**: 90–100%.
+  - **Bad**: < 90%.
+- NRR > 100% = "negative churn" — expansion offsets churn. Buy signal pra investidores; preserva growth com baixo CAC.
+
+**Logística — measurement program aplicado**:
+
+- **Sean Ellis quarterly**: in-app modal após 5+ orders; target 100 respostas/quarter; report pmf_pct ao founder.
+- **Cohort retention dashboard**: Postgres query (acima) + Grafana panel; refresh weekly; trigger alert se D30 cai > 5pp QoQ.
+- **Aha discovery**: top 100 retained tenants vs top 100 churned; cluster actions week 1; identifica drivers (5 orders + Stripe + 1 webhook integrado).
+- **Activation funnel**: signup → tenant created → 1st order → 5th order. Target: 5 orders week 1; current 32%; goal 50% via onboarding redesign.
+- **NRR tracking**: monthly cohort do MRR contracts table; report board mensal junto com burn/runway (§2.14).
+
+**Tools 2026**:
+
+- **Posthog** (open-source): self-host ou cloud; cohort retention + funnels + Sean Ellis surveys nativo. Default pra eng-owned analytics.
+- **Amplitude**: managed; PMF + retention dashboards prontos; pricing escala caro com MAU.
+- **Mixpanel**: similar Amplitude; melhor query builder.
+- **Heap**: auto-capture de eventos; menos instrumentação manual.
+- **June.so**: B2B SaaS focused; retention + NRR + ICP analysis built-in.
+- **Custom Postgres + Grafana**: $0; eng team owns; recomendado pra Logística no early stage.
+
+**Anti-patterns observados**:
+
+- **Vanity metrics** (registered users, total signups) sem cohort retention — mascara churn e finge crescimento.
+- **"Active" = login** (sem qualified action) — bot traffic e curiosity opens contam.
+- **PMF "feels good"** sem Sean Ellis quantitativo — founder bias domina.
+- **Retention curve sem cohort breakdown** — averaging mascara melhora ou piora real.
+- **Aha moment definido post-hoc por opinião** — correlação ≠ causação; gating change exige A/B test.
+- **Onboarding optimizado pra "completion"** (90% complete) e não retention (80% D30) — métrica errada.
+- **DAU/MAU sem qualified-action filter** — login bots inflam stickiness.
+- **NRR sem definição clara de cohort start/end** — números não comparáveis entre períodos.
+- **Comparar bench B2B vs B2C** — workloads diferentes; 30% D30 = excellent B2C, bad B2B.
+- **Activation funnel sem step-level drop-off** — improve weakest step primeiro, não o último.
+
+Cruza com **04-16 §2.19** (unit economics — retention drives LTV; PMF é precondição), **03-07** (observability + product analytics infrastructure), **04-12** (tech leadership — comunicar PMF status ao board), **02-19** (i18n — retention varia por locale), **04-10** (LLM — Sean Ellis sentiment analysis em escala).
+
 ---
 
 ## 3. Threshold de Maestria

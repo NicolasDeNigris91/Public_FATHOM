@@ -681,6 +681,158 @@ Cruza com **04-09 §2.12** (backpressure conceito), **04-09 §2.13** (observabil
 
 ---
 
+### 2.21 Database sharding strategies (range, hash, directory; Vitess, Citus, CockroachDB comparison)
+
+Sharding entra quando single-DB cap reached — não antes. Complexity 10x: routing layer, cross-shard JOINs, resharding ops, transactional limits. Decisão certa = entender quando shard, qual key, qual stack. Decisão errada = hot shard, scatter-gather lento, rebalance impossível.
+
+**Quando shard (vs vertical scaling vs read replicas)**:
+
+- **Vertical scaling**: bigger box. Cap pragmático 2026 ~$50k/mo em RDS `db.r7g.16xlarge` (~512GB RAM, 64 vCPU, 256k IOPS gp3). Aurora I/O Optimized estende mais um pouco. Beyond, must shard.
+- **Read replicas**: solve read scale; NÃO write scale. Replication lag (em RDS Postgres assíncrono ~50-200ms p99) é ceiling pra read-after-write consistency.
+- **Sharding**: split data across N independent DBs. Horizontal scale; complexity 10x.
+- **Threshold pragmático 2026**: shard quando primary > 5TB OR write QPS > 50k sustained OR connection count > 10k. Below isso = vertical + replicas.
+
+**Três estratégias de sharding**:
+
+- **Range sharding**: split por key range (`user_id 0-1M → shard A; 1M-2M → shard B`). Pros — range queries (`WHERE id BETWEEN ...`) eficientes, hit single shard. Cons — hot shards (recent users always active most; timestamp range = shard mais novo sempre pegando fogo).
+- **Hash sharding**: `hash(key) % N → shard`. Pros — uniform distribution, sem hot shard. Cons — range queries scatter-gather across all shards (lento).
+- **Directory-based**: lookup table mapeia key → shard. Pros — flexível, reshard sem mover data (só atualiza directory). Cons — directory lookup overhead em cada query; directory é SPOF/bottleneck (cache obrigatório).
+
+**Sharding key — decisão crítica**:
+
+- **Wrong key**: 99% queries hit single shard ("hot shard"); rebalance fixes nothing porque distribuição inerente está errada.
+- **Right key**: queries distribuem uniformly OR colocate data relacionado (mesmo tenant em mesmo shard).
+- **Logística example**:
+  - **Por `tenant_id`**: pros — multi-tenant isolation; query de um lojista hit single shard (eficiente). Cons — large tenants (top 1% lojistas com 10M orders) viram hot shards.
+  - **Por `order_id` hash**: pros — uniform; cons — dashboard do lojista (`SELECT * FROM orders WHERE tenant_id = X`) scatter-gather across all shards (slow).
+  - **Por `tenant_id` com sub-sharding pra large tenants**: pros — best of both; cons — routing complexo, directory layer pra split tenants grandes.
+- **Rule**: escolha key pelo predominant query pattern. Read-heavy multi-tenant → `tenant_id`. Write-heavy global stream → hash de event_id.
+
+**Vitess (MySQL) + PlanetScale architecture**:
+
+- **Vitess** (originated YouTube 2010+, CNCF graduated 2019, v19+ em 2026): MySQL sharding com vstream + vreplication.
+- **VTGate**: query router; parses SQL, conhece shard topology (VSchema), fans out queries.
+- **VTTablet**: per-shard MySQL proxy; gerencia connection pool, query rewriting.
+- **VSchema**: declarative shard config. **Vindex** = sharding function (hash, lookup, numeric).
+- **Resharding online** via `MoveTables` + `Reshard`: zero-downtime split shard A → A1 + A2. Vstream replica continuamente; cutover atômico.
+- **PlanetScale** (managed Vitess, 2026): branching schemas (Git-like, deploy requests), scale 1B+ rows. Pricing 2026: $0.50/M reads, $1.50/M writes, $4/GB storage scaler tier.
+- Use cases: MySQL-compatible existing apps, large eng team, customers Square / GitHub / Etsy / Slack.
+
+**Citus (Postgres) architecture**:
+
+- **Citus** (extension Postgres, acquired Microsoft 2019, v12+ em Postgres 16+): coordinator + worker nodes.
+- **Distributed tables**: shard key declarado em DDL.
+- **Reference tables**: replicated em todos workers (lookup tables pequenas, evita cross-shard JOIN).
+- **Coordinator**: query router, planner, metadata. **Workers**: shard storage + execution.
+- **Resharding** via `rebalance_table_shards` — online, usa logical replication.
+- **Azure Cosmos DB for Postgres** = managed Citus.
+
+```sql
+-- Citus 12+ on Postgres 16+ — Logística distributed schema
+CREATE TABLE tenants (id uuid PRIMARY KEY, name text);
+SELECT create_reference_table('tenants');  -- replicado pra todos workers
+
+CREATE TABLE orders (
+  id uuid, tenant_id uuid NOT NULL, status text, total_cents bigint,
+  created_at timestamptz, PRIMARY KEY (tenant_id, id)
+);
+SELECT create_distributed_table('orders', 'tenant_id');  -- shard by tenant
+
+CREATE TABLE tracking_pings (
+  order_id uuid, tenant_id uuid NOT NULL, ping_at timestamptz,
+  lat double precision, lng double precision,
+  PRIMARY KEY (tenant_id, order_id, ping_at)
+);
+SELECT create_distributed_table('tracking_pings', 'tenant_id', colocate_with => 'orders');
+
+-- Rebalance online quando worker novo entra
+SELECT rebalance_table_shards('orders', shard_transfer_mode := 'force_logical');
+```
+
+- Use cases: Postgres-compatible, multi-tenant SaaS (Heap, Adjust, Convertible).
+
+**CockroachDB / TiDB / YugabyteDB (NewSQL)**:
+
+- **CockroachDB v24+**: Postgres-compatible wire protocol; raft consensus per range; auto-sharding (range-based, automatic split em ~512MB e merge); strict serializable global.
+- **TiDB**: MySQL-compatible; columnar TiFlash + row TiKV; HTAP focus.
+- **YugabyteDB**: Postgres + Cassandra wire protocols; tablet-based sharding.
+- **Pros**: SQL + auto-sharding + multi-region transactional sem app-level complexity.
+- **Cons**: ~30-50% slower que single-node Postgres pra OLTP simples (raft round-trip em commit); ops complex; CockroachDB enterprise $$$$ ($1k+/mo serious deploys, $20k+/mo multi-region).
+- **Use cases**: multi-region com strong consistency requirement (financial ledger, gaming leaderboard global, regulatory compliance forçando data residency + cross-region transactions).
+
+**Custom application-level sharding (alternativa pragmática)**:
+
+```typescript
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
+import { eq } from 'drizzle-orm';
+import { orders } from './schema';
+
+const SHARDS = {
+  shard0: drizzle(postgres(process.env.DB_SHARD_0_URL!)),
+  shard1: drizzle(postgres(process.env.DB_SHARD_1_URL!)),
+  shard2: drizzle(postgres(process.env.DB_SHARD_2_URL!)),
+  shard3: drizzle(postgres(process.env.DB_SHARD_3_URL!)),
+} as const;
+
+function shardForTenant(tenantId: string): keyof typeof SHARDS {
+  // tenantId é uuid; primeiros 8 hex chars = uniform hash
+  const hash = parseInt(tenantId.slice(0, 8), 16);
+  return `shard${hash % 4}` as keyof typeof SHARDS;
+}
+
+export async function getOrdersForTenant(tenantId: string) {
+  const shard = SHARDS[shardForTenant(tenantId)];
+  return shard.select().from(orders).where(eq(orders.tenantId, tenantId));
+}
+
+// Cross-shard query (admin global dashboard) — scatter-gather
+export async function countOrdersGlobal() {
+  const results = await Promise.all(
+    Object.values(SHARDS).map((s) => s.select({ c: orders.id }).from(orders)),
+  );
+  return results.flat().length;
+}
+```
+
+- **Cross-shard queries**: scatter-gather → app-level merge. Pegadinha: JOINs cross-shard = slow; denormalize ou ETL pra warehouse (cruza 04-13 lakehouse).
+- **Resharding manual**: copy data + dual-write transition + cutover. Months of work, alto risco; razão pra preferir Vitess/Citus quando possível.
+
+**Sharding decision matrix 2026**:
+
+| Approach | Pros | Cons | Cost |
+|---|---|---|---|
+| **Vertical scaling** | Simplest, zero complexity | Cap ~512GB RAM | $50k/mo RDS r7g.16xl |
+| **Read replicas** | Solve reads | NÃO writes; lag | $5k/mo + RDS primary |
+| **Vitess / PlanetScale** | MySQL compat, managed branching | Vendor lock (PlanetScale) | $0.50/M reads + $4/GB |
+| **Citus / Azure CosmosDB-PG** | Postgres compat, reference tables | Self-host complex, coordinator SPOF | OSS ou Azure $$$ |
+| **CockroachDB** | Auto-shard + global ACID | OLTP slower, enterprise expensive | $1k+/mo serious |
+| **App-level sharding** | Full control, zero vendor | Reshard pain, eng team owns | Postgres × N + dev time |
+
+**Logística applied — when to shard (capstone roadmap)**:
+
+- **MVP (v1)**: single Postgres 17 em RDS db.r7g.2xl. Cap até ~5TB / 50k qps writes.
+- **Growth (v2)**: read replicas regionais (SP, EU); primary single. Cap dobra via vertical (db.r7g.8xl) + replicas pra dashboard reads.
+- **Scale (v3)**: shard `orders` + `tracking_pings` por `tenant_id` (Citus, hash, 4 shards initial). `countries`, `couriers_global`, `pricing_tiers` viram reference tables. Coordinator HA via standby coordinator + PgBouncer.
+- **Multi-region (v4)**: per-region Citus cluster + cross-region logical replication. Reports cross-region rodam em warehouse (lakehouse via Iceberg, eventual consistency aceito).
+
+**Anti-patterns observados**:
+
+- **Sharding antes de single-DB cap reached**: complexity 10x sem signal real de bottleneck. Vertical até doer.
+- **Sharding key escolhido sem analisar query patterns**: hot shard surprise em produção; refazer = pesadelo.
+- **Cross-shard JOIN em hot path**: scatter-gather O(N) shards; latency explode. Denormalize ou ETL pra warehouse.
+- **Range sharding por timestamp em append-only workload**: shard novo always hot, shards antigos cold. Use hash.
+- **Resharding manual sem dual-write transition**: data loss garantido; 12-24h de pain. Use Citus rebalance ou Vitess MoveTables.
+- **Reference tables NÃO replicated em todos shards**: cross-shard JOIN em cada lookup; throughput cai 10x.
+- **Citus coordinator single instance**: SPOF. HA via standby coordinator + PgBouncer + Patroni.
+- **CockroachDB pra OLTP simples sem multi-region requirement**: 30-50% slower que Postgres + cost premium injustificado. Use só quando global ACID é hard requirement.
+- **Vitess sem `vstream` configurado**: resharding offline, downtime hours em scale grande.
+- **Distributed transaction across shards em hot path**: latency 5-10x (2PC ou raft cross-shard). Redesign pra single-shard transaction; cross-shard só pra batch jobs.
+
+Cruza com **02-09 §2.x** (Postgres deep, partitioning como precursor de sharding), **04-01 §2.x** (distributed systems theory, CAP/PACELC justifica trade-offs sharded), **04-04 §2.x** (resilience, shard failover + replica promotion), **04-13 §2.x** (CDC sharded source pra lakehouse), **03-05 §2.x** (AWS RDS / Aurora limits forçam decisão).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

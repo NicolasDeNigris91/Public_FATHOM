@@ -613,6 +613,174 @@ Cruza com **03-08 §2.13** (secrets management foundation), **03-08 §2.14** (su
 
 ---
 
+### 2.21 BuildKit cache mounts + multi-arch builds + distroless images deep
+
+Build pipeline em 2026 não é `docker build`: é `docker buildx build` com cache mounts (npm/Go/apt cache fora de layers), multi-arch (amd64+arm64 num único push) e distroless runtime (~5 CVEs vs ~100+ Ubuntu). Esta seção cobre BuildKit features avançadas, multi-arch via Depot.dev/buildx, distroless/Chainguard, SBOM+provenance attestations.
+
+**BuildKit fundamentals** (default em Docker 23+, dockerd 23+, buildx 0.13+):
+
+- **BuildKit** substitui legacy builder; concurrent stage execution + cache/secret/SSH mounts + frontend pluggable.
+- **Buildx** = CLI plugin pra BuildKit features (multi-arch, cloud builders, attestations).
+- **`# syntax=docker/dockerfile:1.7`** unlock cache/bind/secret/ssh mounts; SEM directive, BuildKit silenciosamente ignora `--mount`.
+
+**Cache mounts — package manager + compilation cache fora de layer**:
+
+```dockerfile
+# syntax=docker/dockerfile:1.7
+FROM node:22-alpine AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --no-audit --no-fund
+```
+
+- Cache mount preserva `~/.npm` entre builds; NÃO entra na image final (zero bloat).
+- Cold build: ~3min; warm (cache hit): ~30s.
+- **Cache id sharing** entre Dockerfiles: `--mount=type=cache,id=npm,target=/root/.npm` — múltiplos services compartilham o mesmo cache.
+
+Pattern Go (mod cache + build cache):
+
+```dockerfile
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build -o /app/bin/server ./cmd/server
+```
+
+Pattern apt (Debian-based base):
+
+```dockerfile
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends curl
+```
+
+**Bind mounts — read-only file sem COPY layer**:
+
+```dockerfile
+RUN --mount=type=bind,source=package.json,target=package.json \
+    --mount=type=bind,source=package-lock.json,target=package-lock.json \
+    --mount=type=cache,target=/root/.npm \
+    npm ci
+```
+
+Lockfile validation sem custo de layer; útil pra reproducible builds.
+
+**Multi-stage optimized — stages paralelos no BuildKit**:
+
+```dockerfile
+# syntax=docker/dockerfile:1.7
+FROM node:22-alpine AS base
+WORKDIR /app
+
+FROM base AS deps
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci
+
+FROM base AS build
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN --mount=type=cache,target=/app/.next/cache npm run build
+
+FROM base AS prod-deps
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev
+
+FROM gcr.io/distroless/nodejs22-debian12:nonroot AS runtime
+WORKDIR /app
+COPY --from=prod-deps /app/node_modules ./node_modules
+COPY --from=build /app/.next/standalone ./
+EXPOSE 3000
+USER nonroot
+CMD ["server.js"]
+```
+
+`deps` e `prod-deps` rodam em paralelo (BuildKit DAG); `build` depende de `deps`; `runtime` recebe só `prod-deps` + standalone output.
+
+**Multi-arch builds (linux/amd64 + linux/arm64)**:
+
+Apple Silicon devs (arm64 local) + AWS Graviton/Ampere prod (arm64, 20-40% cheaper compute) + Cloudflare Workers + Raspberry Pi. Ship single tag, multiple architectures.
+
+```bash
+docker buildx create --name multibuilder --driver docker-container --use --bootstrap
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -t registry.example.com/logistica/api:v3.4 \
+  --push .
+```
+
+- **QEMU emulation** (default em buildx local): cross-arch via emulação; 5-10x slower; OK pra dev, painful em CI (build 30min+ silently).
+- **Native multi-arch** (faster): GitHub Actions `linux/arm64` runners (GA 2024+); Docker Build Cloud (native ARM); Depot.dev (managed cloud builders, native ARM, ~5min full build).
+- **Cross-compile via Go** (faster que QEMU pra Go):
+
+```dockerfile
+FROM --platform=$BUILDPLATFORM golang:1.23 AS build
+ARG TARGETOS TARGETARCH
+WORKDIR /src
+COPY . .
+RUN --mount=type=cache,target=/go/pkg/mod \
+    GOOS=$TARGETOS GOARCH=$TARGETARCH go build -o /out/server ./cmd/server
+
+FROM gcr.io/distroless/static-debian12 AS runtime
+COPY --from=build /out/server /
+USER nonroot
+CMD ["/server"]
+```
+
+**Distroless images** (`gcr.io/distroless/*`, Google):
+
+- Variants: `static` (Go static binaries, ~2MB), `base` (glibc apps, ~20MB), `cc` (C++), `java`, `python3`, `nodejs22-debian12` (~150MB), tags `:nonroot` e `:debug`.
+- Comparativo size: distroless `static` ~2MB; `nodejs22-debian12` ~150MB; Alpine `node:22-alpine` ~180MB; Ubuntu `node:22` ~1GB.
+- **Security wins**:
+  - Sem shell → `kubectl exec -it pod -- sh` falha; attacker post-RCE não tem shell pra pivotar.
+  - Sem package manager → impossível `apt-get install nmap` post-compromise.
+  - CVE surface reduzida (Trivy scan típico): distroless ~5 CVEs vs Alpine ~20 vs Ubuntu ~100+.
+- **Debug variants** (`:debug` adiciona busybox shell): só staging; NUNCA prod.
+
+**Chainguard Images** (alternativa 2024+):
+
+- **Wolfi-based** (glibc-compatible Alpine successor); minimal mas com package manager (apk).
+- **Daily zero-CVE rebuilds**: signed via cosign, provenance + SBOM included no manifest.
+- **Free tier**: latest tags (`cgr.dev/chainguard/node:latest`); **Enterprise**: pinned versions, SLA, FIPS variants.
+
+**SBOM + provenance attestations**:
+
+```bash
+docker buildx build \
+  --sbom=true --provenance=true \
+  --platform linux/amd64,linux/arm64 \
+  -t registry.example.com/logistica/api:v3.4 --push .
+
+# Verificação
+cosign verify-attestation registry.example.com/logistica/api:v3.4 \
+  --type slsaprovenance --certificate-identity-regexp '.*'
+```
+
+Gera SBOM (CycloneDX) + provenance (SLSA v1.0) attestations attached ao image manifest. Cruza com **03-08 §2.20** (SBOM lifecycle deep).
+
+**Logística applied stack**:
+
+- **Dockerfile**: 4-stage (base/deps/build/prod-deps/runtime) com BuildKit cache mounts (`/root/.npm` + `.next/cache`); distroless `nodejs22-debian12:nonroot` runtime; ~150MB final image.
+- **Multi-arch**: `linux/amd64` + `linux/arm64` build via Depot.dev cloud builder (native ARM, ~5min full); push pra GHCR.
+- **Production**: Railway deploy `linux/arm64` (Ampere CPUs ~30% cheaper que x86); CI auto via `docker buildx build --push`.
+- **Security gate**: cosign sign + Trivy scan em CI; SBOM + provenance attestations attached e verified em deploy step.
+- **Build budget**: ~3min cold (deps from registry) → ~30s warm (cache mounts hit em CI shared cache).
+
+**Anti-patterns observados (10 itens)**:
+
+- `docker build` em vez de `docker buildx build` (perde cache mounts, multi-arch, attestations).
+- `RUN apt-get update && apt-get install` sem `--mount=type=cache,target=/var/cache/apt` (re-download em todo build).
+- `node_modules` na image final via `COPY .` (bloat 500MB+ quando só ~50MB prod-deps necessário).
+- Single-stage Dockerfile em prod (build tools + dev deps shipped pra runtime).
+- `FROM node:22` (Debian-based ~1GB) em vez de Alpine ou distroless.
+- Multi-arch via QEMU em CI sem timeout configurado (build 30min+ silently, runner timeout = build perdido).
+- `COPY . .` no início do Dockerfile (qualquer file change invalida cache de deps).
+- Distroless `:debug` em prod (shell habilitado defeats segurança; usar `:nonroot`).
+- Dockerfile sem `# syntax=docker/dockerfile:1.7+` directive (cache mounts ignorados silenciosamente — build lento sem warning).
+- User `root` em runtime (privilege escalation vector pós-RCE; sempre `:nonroot` ou `USER 1000`).
+
+Cruza com **03-03** (K8s, image registry + imagePullPolicy), **03-04** (CI/CD, buildx em GHA matrix), **03-08 §2.20** (SBOM lifecycle + cosign), **03-05** (AWS, ECR + Graviton ARM nodes), **03-12** (Wasm, alternativa pra ultra-light deploys <10MB).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:
