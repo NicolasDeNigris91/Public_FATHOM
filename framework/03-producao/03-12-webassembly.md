@@ -337,6 +337,93 @@ Meta: módulos Wasm úteis em 50 KB - 500 KB. Big libs (FFmpeg.wasm) 20+ MB.
 - Backend regular: Node/Go já entrega.
 - Equipe sem competência Rust/C: complexidade não compensa.
 
+### 2.17 Component Model + WASI Preview 2 deep (composability + capability-based security)
+
+Component Model (W3C 2024+, stable em wasmtime 19+, wasmer 5+, JCO 1+) e WASI Preview 2 (estável 2024+) eliminam o ABI shimming manual e dão sandbox capability-based real. Trate-os como o default pra Wasm server-side novo.
+
+**Core Wasm vs Component Model.** Core Wasm expõe linear memory + escalares (`i32/i64/f32/f64`). String cruzando boundary = `(ptr, len)` na memory; cada linguagem reescreve o ABI shim (`wasm-bindgen` no JS, equivalente em Go/Python). Component Model adiciona uma camada de tipos: `string`, `list<T>`, `record`, `variant`, `option<T>`, `result<T,E>` cruzam sem shim manual. **WIT** (Wasm Interface Type) é a IDL declarativa; `wit-bindgen` gera bindings em Rust/Go/JS/Python. **Composition** via `wac compose` liga componentes — A imports `wasi:http/incoming-handler` que B exports — produzindo binário único type-checked.
+
+**WIT example completo (Logística — routing engine como componente):**
+
+```wit
+package logistica:routing@1.0.0;
+
+interface types {
+  record waypoint { lat: f64, lng: f64, demand: u32 }
+  record route { stops: list<u32>, distance-km: f64, duration-min: f64 }
+  variant route-error { no-feasible-solution, timeout, invalid-input(string) }
+}
+
+interface solver {
+  use types.{waypoint, route, route-error};
+  solve: func(stops: list<waypoint>, max-duration-min: u32) -> result<list<route>, route-error>;
+}
+
+world routing-engine {
+  export solver;
+  import wasi:logging/logging;
+}
+```
+
+`world` define o conjunto de imports/exports do componente. `solver` é exportada; `wasi:logging` é importada (host fornece). Generation: `wit-bindgen rust --world routing-engine routing.wit` produz Rust com types + traits que o crate implementa.
+
+**WASI Preview 2 surface.** Standard interfaces de capability: `wasi:filesystem/types`, `wasi:http/incoming-handler`, `wasi:http/outgoing-handler`, `wasi:cli/run`, `wasi:sockets/tcp`, `wasi:logging/logging`, `wasi:io/streams`. Componente NÃO tem ambient authority — host explicitly grants `(filesystem-fd, "/data")` ou `(http-handler, "api.example.com")`. Malicious code sem fs grant NÃO consegue ler `/etc/passwd` mesmo sob exploit. Implementações: wasmtime (reference, Apache 2.0), Fastly Compute@Edge (Preview 2 + Fastly imports), Wasmer Edge, Cosmonic.
+
+**`wasi:http/incoming-handler` — server endpoint via Wasm:**
+
+```rust
+wit_bindgen::generate!({ world: "wasi:http/proxy" });
+
+struct LogisticaApi;
+
+impl exports::wasi::http::incoming_handler::Guest for LogisticaApi {
+  fn handle(req: IncomingRequest, resp_out: ResponseOutparam) {
+    let path = req.path_with_query().unwrap_or("/".into());
+    let body = format!(r#"{{"path":"{}"}}"#, path);
+    let resp = OutgoingResponse::new(Headers::new());
+    resp.set_status_code(200).unwrap();
+    resp.body().unwrap().write_all(body.as_bytes()).unwrap();
+    ResponseOutparam::set(resp_out, Ok(resp));
+  }
+}
+
+export!(LogisticaApi with_types_in wit_bindgen);
+```
+
+O mesmo `.wasm` corre em wasmtime CLI, Fastly Compute@Edge, Cosmonic, Wasmer Edge sem mudança de código.
+
+**JCO (JavaScript Components).** `npm install -g @bytecodealliance/jco` (1+). `jco transpile routing-engine.wasm -o ./out` gera ES module + `.d.ts` types automaticamente. Browser/Node consomem o componente direto:
+
+```js
+import { solver } from './out/routing-engine.js';
+const routes = solver.solve(stops, 480);
+```
+
+JCO vence `wasm-bindgen` pra cross-language: componente Rust é consumível em Go/Python/JS sem reescrever bindings por linguagem.
+
+**Composition pattern.** Componente A `auth-service` exports `auth.verify-token: func(token: string) -> result<user, error>`. Componente B `orders-service` imports `auth.verify-token` + exports `orders.list`. `wac compose auth-service.wasm orders-service.wasm -o composed.wasm` produz binário único com auth wired in. Vantagem: testar B isoladamente com mock auth componente; trocar auth impl sem rebuild B.
+
+**Logística applied — routing engine WASI HTTP.** Routing engine Rust (do desafio do módulo) compilado pra `wasm32-wasip2` (target WASI Preview 2). Deploy options simultâneos: (1) Fastly Compute@Edge — $0.50/M requests, p99 < 50ms edge global; (2) wasmtime self-hosted em Railway — open-source, mesmo binary; (3) Cosmonic / Wasmer Edge. Single binary roda em 3 runtimes sem mudança. Numbers reais 2026: Rust → component → Fastly: cold start ~0ms (Wasm reusable), p99 ~5ms pra 30 stops VRP solver.
+
+**Limitations 2026.**
+- **Multi-threading**: Wasm threads spec experimental; `std::thread` em Rust não funciona portably (rayon-wasm exige hacks).
+- **GC integration**: WasmGC stable Chrome/Firefox 2023+ pra browser; servers ainda manual mem mgmt.
+- **Async no host**: Component Model async (`stream<T>`, `future<T>`) WIP; estabilização ~2026 mid.
+- **Binary size**: componente Rust simples ~500KB-2MB. `wasm-opt -Oz` + LTO + `panic=abort` reduz 30-50%.
+- **Debug**: source maps WIP; production debugging difícil hoje.
+
+**Anti-patterns observados.**
+- Core Wasm modules + ABI shim manual em vez de Component Model (perde toolchain cross-lang).
+- WASI Preview 1 em projeto novo (deprecated; Preview 2 stable).
+- Componente importing capability sem permission grant do host (NÃO funciona; host deve grant).
+- `wasm-bindgen` em projeto greenfield server-side (browser-only abstraction; use Component Model).
+- Compor componentes via host glue code em vez de `wac compose` (perde validation type-checked).
+- Binary > 5MB sem `wasm-opt -Oz` (cold start lento + bandwidth desperdiçado).
+- Multi-thread expectation em Wasm (spec não-pronta; refactor pra single-thread async).
+- Componente WASI HTTP testado só em wasmtime sem Fastly/Wasmer (assume features não-portáveis).
+
+**Cruza com:** [`03-11`](./03-11-systems-languages.md) (Rust → Wasm pipeline), [`02-05`](../02-plataforma/02-05-nextjs.md) (edge functions WASI), [`04-04`](../04-sistemas/04-04-resilience-patterns.md) (sandbox isolation reduz blast radius), [`04-10`](../04-sistemas/04-10-ai-llm.md) (on-device inference via Wasm), [`03-08`](./03-08-applied-security.md) (capability-based security model).
+
 ---
 
 ## 3. Threshold de Maestria

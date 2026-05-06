@@ -280,6 +280,191 @@ Node é coberto acima. Se você opera stack mixed ou migra de Node, vale entende
 
 ---
 
+### 2.20 CDN deep + edge transformations + image optimization 2026
+
+CDN não é "cache de estáticos". É plano de execução distribuído: cache key, edge compute, format negotiation, tag invalidation, origin shield. Domine os trade-offs ou pague egress + latência.
+
+**Decision matrix CDN 2026** (preços snapshot maio/2026, sempre confira)
+
+| Provider | Pontos fortes | Egress (US) | Edge runtime | Use case primário |
+|---|---|---|---|---|
+| **Cloudflare** | 300+ PoPs, free tier 1TB/mês, ecossistema (Workers/R2/KV/D1) | $0.015/GB Workers; egress $0 (R2) | Workers (V8 isolates, no cold start, 50ms CPU/req) | Startup pricing, edge compute pesado |
+| **Vercel Edge Network** | Next.js/ISR/PPR built-in, DX | $0.40/GB edge requests | Edge Runtime (V8 isolates, Middleware) | Next.js apps, time-to-market |
+| **Fastly** | Instant purge < 150ms global, granular control | $0.12/GB | Compute@Edge (Wasm, permissive) | Media-heavy, real-time invalidation |
+| **AWS CloudFront** | AWS-native (S3/Lambda@Edge/Origin Shield) | $0.085/GB (free tier 1TB/mês) | Lambda@Edge (Node/Python, slower cold) | Stack já em AWS |
+| **Bunny CDN** | Cheap challenger, simples | $0.005-0.01/GB | Edge Scripting (limited) | Budget-sensitive, static-heavy |
+| **Akamai** | Enterprise, deep customization | $$$ negociado | EdgeWorkers | Enterprise legacy |
+
+**Cache key composition** — default `URL path + query string`. Pegadinhas:
+
+- Query params irrelevantes (`utm_source`, `fbclid`, `gclid`) inflam cache (mesmo content em N keys → hit ratio cai).
+- `Vary: User-Agent` explode cardinality (cada UA é uma key). Use só `Vary: Accept-Encoding` e `Vary: Accept` (image format).
+- Cookie em response cacheável quebra cache. Bucketize cookies em "tiers" (`anon`, `auth_basic`, `auth_premium`) via Worker; use bucket no cache key.
+
+```js
+// Cloudflare Worker — normalize cache key, bucketize cookies
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    // Strip tracking params
+    ['utm_source','utm_medium','utm_campaign','fbclid','gclid'].forEach(p => url.searchParams.delete(p));
+    // Cookie bucketization
+    const cookie = request.headers.get('Cookie') || '';
+    const bucket = cookie.includes('session=') ? (cookie.includes('plan=premium') ? 'auth_premium' : 'auth_basic') : 'anon';
+    const cacheKey = new Request(`${url.toString()}#${bucket}`, request);
+    const cache = caches.default;
+    let response = await cache.match(cacheKey);
+    if (!response) {
+      response = await fetch(request);
+      response = new Response(response.body, response);
+      response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+      ctx.waitUntil(cache.put(cacheKey, response.clone()));
+    }
+    return response;
+  }
+}
+```
+
+**Cache TTL strategy** (RFC 7234 + RFC 5861)
+
+```http
+# Static assets versioned (hash no filename)
+Cache-Control: public, max-age=31536000, immutable
+
+# HTML SSR dinâmico
+Cache-Control: public, max-age=0, s-maxage=60, stale-while-revalidate=300, stale-if-error=86400
+
+# API GET por tenant
+Cache-Control: public, max-age=0, s-maxage=30, stale-while-revalidate=120
+Cache-Tag: tenant-123, orders, list
+
+# Response personalizada (NÃO cachear)
+Cache-Control: private, no-store
+```
+
+`stale-while-revalidate` (RFC 5861): serve stale instant + revalida background. Ganho de perceived perf gigante, especialmente em p99. Pegadinha: `private` impede CDN cache; `no-cache` força revalidação (origin recebe request) — só use quando estritamente necessário.
+
+**Tag-based invalidation** — purge surgical, não full-CDN:
+
+```bash
+# Cloudflare Cache Tags (Enterprise) — purge tudo com tag tenant-123
+curl -X POST "https://api.cloudflare.com/client/v4/zones/$ZONE/purge_cache" \
+  -H "Authorization: Bearer $CF_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"tags":["tenant-123","orders"]}'
+# Propagação global < 200ms
+```
+
+```ts
+// Next.js (Vercel) revalidateTag
+import { revalidateTag } from 'next/cache';
+// Server Action: lojista deleta order → invalida cache de listagens
+export async function deleteOrder(id: string) {
+  await db.order.delete({ where: { id } });
+  revalidateTag(`tenant-${tenantId}`);
+  revalidateTag('orders');
+}
+
+// fetch tagged
+const orders = await fetch(`/api/orders`, { next: { tags: [`tenant-${tenantId}`, 'orders'] } });
+```
+
+Pattern Logística: tag `tenant-<id>` em todo response GET; mutation purga tag → cache global invalidado em < 200ms.
+
+**Edge transformations** (compute em edge, não em origin)
+
+| Runtime | Limite CPU/req | Cold start | Use case |
+|---|---|---|---|
+| Cloudflare Workers (2024+) | 50ms (free) / 30s (paid) | None (V8 isolates) | Header rewrite, A/B, geo routing, SSR personalization |
+| Vercel Edge Runtime | 25s | None | Next.js Middleware, redirect/rewrite |
+| Fastly Compute@Edge | 50s | ~5ms | Heavy transforms (Wasm) |
+| Lambda@Edge | 5s viewer / 30s origin | 100-500ms | Full Lambda, Python/Node |
+
+```js
+// Cloudflare Worker — tenant routing por geo (Logística)
+export default {
+  async fetch(request, env) {
+    const country = request.headers.get('CF-IPCountry'); // 'BR', 'AR', ...
+    const subdomain = new URL(request.url).hostname.split('.')[0];
+    const backend = country === 'BR' ? `https://br.${env.ORIGIN}` : `https://intl.${env.ORIGIN}`;
+    const url = new URL(request.url);
+    url.hostname = new URL(backend).hostname;
+    return fetch(url.toString(), { ...request, headers: { ...request.headers, 'X-Tenant': subdomain } });
+  }
+}
+```
+
+**Image optimization 2026** — AVIF é Baseline 2024 (Chrome/Firefox/Safari 16+); 30-50% smaller que WebP em equal quality. Decode levemente mais lento em devices old, irrelevante em hardware 2024+.
+
+```http
+# Format negotiation: edge serve AVIF se browser supports
+GET /img/proof.jpg HTTP/2
+Accept: image/avif,image/webp,image/*
+
+# Response edge:
+Content-Type: image/avif
+Vary: Accept
+Cache-Control: public, max-age=31536000, immutable
+```
+
+```bash
+# Imgproxy self-hosted (open-source, $0 license, runtime só Docker)
+# URL signature: <signature>/<processing>/<encoded_source>
+https://img.logistica.example.com/insecure/rs:fit:400:0/q:70/f:avif/plain/s3://bucket/proof.jpg
+# 4MB JPEG → ~25KB AVIF, 400px wide, q=70
+```
+
+| Solução | Custo 2026 | Quando usar |
+|---|---|---|
+| Cloudflare Images | $5/100k stored + $1/100k delivered | Stack Cloudflare, low ops |
+| Vercel Image Optimization (`next/image`) | $5/1k optimizations (alguns tiers) | Next.js, tráfego baixo-médio |
+| Imgproxy self-host | $0 license + container | High volume, controle total |
+| AWS CloudFront + Lambda@Edge + Sharp | egress + Lambda cost | Stack AWS |
+
+Pattern Logística: courier upload "delivery proof photo" 4MB → S3 → Imgproxy serve `400px wide, AVIF, q=70` (~25KB) pra dashboard lojista; CDN cacheia output 1 ano (URL versionada por hash).
+
+**Origin shield + tiered caching** — regional cache antes de origin reduz origin RPS 80%+ e latência cross-region.
+
+- **Cloudflare Tiered Cache**: enable em dashboard, free em paid plans. Edge → Regional Tier → Origin.
+- **CloudFront Origin Shield**: $0.0075/10k requests adicional, escolha região mais próxima do origin.
+- Pattern: app servido global; origin single-region (Railway us-east); tiered cache absorve 80% dos cache misses regionais.
+
+**Brotli vs gzip vs zstd**
+
+- **Brotli** (level 11 pre-compressed para static; level 4-6 dynamic): 15-25% smaller que gzip equal level. CDN serve `.br` pre-compressed.
+- **zstd** (Cloudflare 2024+, Accept-Encoding `zstd`): comparable Brotli ratio com 2-3x faster compression. Use pra dynamic content high-volume.
+- **gzip**: fallback ubíquo, ainda padrão pra max compat (clients legacy).
+
+```http
+Accept-Encoding: zstd, br, gzip
+Content-Encoding: zstd
+Vary: Accept-Encoding
+```
+
+**Logística applied stack**
+
+- Cloudflare na frente (free tier + Workers): static assets `/_next/static/*` 1 year immutable, HTML SSR `s-maxage=60, swr=300`, API GET tagged por tenant, Workers pra geo routing + cookie bucketization.
+- Imgproxy self-hosted no Railway pra image transforms; CDN cacheia output 1 ano.
+- Origin: Vercel Edge para Next.js + Railway Postgres para data; Tiered Cache reduz cross-region.
+- Numbers reais: 99% cache hit em static, ~75% em HTML, ~30% em API; egress origin ~5GB/mês com 5M req/mês (CDN absorve resto). Custo CDN total < $30/mês até 10M req.
+
+**Anti-patterns observados**
+
+- `Cache-Control: no-cache` em todas responses (defeats CDN, origin recebe 100% load).
+- `Vary: User-Agent` (cardinality explode, hit ratio < 5%).
+- Query params `utm_*`/`fbclid`/`gclid` no cache key (mesmo content em N keys).
+- `Set-Cookie` em response cacheável (CDN não cacheia ou cacheia errado e vaza cookie).
+- `private` directive em response que NÃO é personalizado (perde cache CDN gratuito).
+- Tag-based invalidation sem hierarchy (purge tenant invalida só uma rota; sempre tag por entidade + por tenant).
+- Image transforms em-process (Sharp em hot path do app server) em vez de Imgproxy/CDN dedicado (CPU spike + latência).
+- JPEG sem AVIF/WebP fallback negotiation (50%+ bandwidth desperdiçado em 2026).
+- Origin sem Origin Shield em workload high-traffic (origin RPS 5x+ desnecessário).
+- `s-maxage=0` em API GET cacheável (CDN não cacheia, perde `stale-while-revalidate`).
+
+**Cruza com** `02-05` (Next.js, ISR + `revalidateTag`), `03-05` (AWS, CloudFront + Lambda@Edge + Origin Shield), `03-09` (frontend perf, image LCP + format negotiation), `04-09` (scaling, CDN absorve fan-out leitura), `02-08` (backend frameworks, headers `Cache-Control` corretos no app).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

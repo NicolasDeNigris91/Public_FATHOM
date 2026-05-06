@@ -163,6 +163,116 @@ Play Store: review automatizado e humano, política mudando rápido (target SDK 
 - Acesso a APIs platform-specific avançadas (Vision, ARKit, CoreML, Bluetooth complexo, MDM).
 - Time-to-market e team capacity favorecem RN; Senior mobile entrega ambos quando preciso.
 
+### 2.19 Swift Concurrency + Kotlin Coroutines deep + structured concurrency patterns
+
+**Swift Concurrency (Swift 5.5+, strict concurrency obrigatório em Swift 6 / 2024+)**:
+
+- `async/await` substitui callbacks: cleanup automático no escopo, erro propaga via `throws` em vez de `Result<T, E>` em closures.
+- `Task { ... }` cria task independente herdando contexto do caller (priority, actor). `Task.detached { ... }` desliga do contexto — usar raramente, só pra trabalho fire-and-forget verdadeiro.
+- Structured concurrency via `withThrowingTaskGroup(of: T.self) { group in ... }`: filhos cancelam quando pai falha; await no bloco garante todos terminam antes de retornar.
+- `actor` substitui locks: serializa acesso a mutable state via mailbox interno. `MainActor` é actor global pra UI; anotar com `@MainActor` força execução em main thread.
+- `Sendable` protocol marca tipos thread-safe que cruzam concurrency domains. Swift 6 strict mode rejeita compile se tipo non-Sendable cruzar actor boundary.
+- Cancellation cooperativa: `try Task.checkCancellation()` em loops longos; `Task.isCancelled` non-throwing pra cleanup voluntário. Cancellation propaga down a tree de tasks filhas automaticamente.
+
+**Pattern produção iOS — courier app (cancel previous + start new = "latest wins")**:
+
+```swift
+@MainActor
+final class JobsViewModel: ObservableObject {
+  @Published var jobs: [Job] = []
+  @Published var error: Error?
+  private var refreshTask: Task<Void, Never>?
+
+  func refresh() {
+    refreshTask?.cancel()
+    refreshTask = Task {
+      do {
+        let fetched = try await api.fetchJobs()
+        guard !Task.isCancelled else { return }
+        jobs = fetched
+      } catch is CancellationError { return }
+      catch { self.error = error }
+    }
+  }
+  deinit { refreshTask?.cancel() }
+}
+```
+
+Evita race em pull-to-refresh repetido. Em SwiftUI, prefira `.task { await viewModel.load() }` modifier — cancela automaticamente quando view desmonta.
+
+**AsyncSequence + AsyncStream** pra observable streams: WebSocket reactive consumido com `for try await update in stream`. Liga com `CLLocationUpdate.liveUpdates()` (iOS 17+) replacing delegate-based `CLLocationManager`. Pegadinha: `AsyncStream` sem `continuation.onTermination = { ... }` vaza a continuation quando consumer cancela.
+
+**Kotlin Coroutines (1.7+, Compose 1.6+)**:
+
+- `suspend fun` suspende corotina, não thread; estado salvo em continuation, retomado em qualquer thread do dispatcher.
+- Dispatchers: `Main` (UI, single thread), `IO` (blocking I/O, 64 threads default), `Default` (CPU-bound, # cores), `Unconfined` (raro, herda thread do caller).
+- `withContext(Dispatchers.IO) { ... }` swap pra block I/O, retorna ao dispatcher original.
+- Structured concurrency: `coroutineScope { }` falha de filho cancela siblings; `supervisorScope { }` siblings independem.
+- `Job`, `Deferred<T>`, `async { ... }.await()` pra parallel decomposition.
+
+**Scopes Android**:
+
+- `viewModelScope.launch { ... }` cancela ao `onCleared()`.
+- `lifecycleScope.launch { repeatOnLifecycle(STARTED) { flow.collect { ... } } }` collect Flow só em foreground; cancela em STOPPED, restart em START.
+- Anti-pattern: `GlobalScope.launch` — sem parent, sem cancellation, vaza com lifecycle.
+
+**Pattern produção Android — courier app**:
+
+```kotlin
+class JobsViewModel(private val api: LogisticaApi) : ViewModel() {
+  private val _state = MutableStateFlow<JobsState>(Loading)
+  val state: StateFlow<JobsState> = _state.asStateFlow()
+
+  private var refreshJob: Job? = null
+
+  fun refresh() {
+    refreshJob?.cancel()
+    refreshJob = viewModelScope.launch {
+      _state.value = Loading
+      _state.value = try {
+        Success(api.fetchJobs())
+      } catch (e: CancellationException) { throw e }
+      catch (e: Exception) { Error(e) }
+    }
+  }
+}
+```
+
+`CancellationException` sempre re-throw; engolir quebra structured concurrency.
+
+**Flow + StateFlow + SharedFlow**:
+
+- `Flow<T>` cold: re-executa builder por collector. Use `flowOn(Dispatchers.IO)` pra emit em IO mantendo collect em Main.
+- `StateFlow<T>` hot: tem current value, conflated, share entre collectors. UI state.
+- `SharedFlow<T>` hot: replay configurável, sem current value. Eventos one-shot (snackbar, navigation).
+- Operadores: `combine`, `flatMapLatest` (cancela inner anterior — perfeito pra search), `debounce`, `distinctUntilChanged`.
+
+**NDK + JNI quando necessário**: Logística usa TF Lite C++ via JNI pra ETA prediction on-device. `external fun nativeMethod()` em Kotlin → `JNIEXPORT` em C++. Build via `externalNativeBuild { cmake { ... } }`. Overhead ~100ns por chamada; batch operations evitam chatty calls. Pegadinha: `GlobalRef` sem `DeleteGlobalRef` vaza JNI table (limit ~51200 refs).
+
+**Deep linking unified — Universal Links / App Links**:
+
+- iOS: `apple-app-site-association` JSON em `https://logistica.example.com/.well-known/`, validated by APN service (CDN-fetched on app install).
+- Android: `assetlinks.json` no mesmo path; `<intent-filter android:autoVerify="true">` no manifest.
+- Pegadinha: Cloudflare/CDN cacheia `.well-known` — invalidação após change demora. Verificar com `swcutil dl -d <domain>` (iOS) e `adb shell pm verify-app-links --re-verify <pkg>` (Android).
+- Custom URI scheme (`logistica://order/123`) é inseguro — qualquer app reivindica scheme (hijacking). Use Universal/App Links sempre que possível.
+
+**Anti-patterns observados**:
+
+- `GlobalScope.launch` em Kotlin (vaza, sem cancellation com lifecycle).
+- `Task { ... }` em SwiftUI sem `.task` modifier ou cancel em deinit (vaza após view dismissed).
+- `withContext(Dispatchers.Main)` em loop (re-dispatch overhead; mover update fora do loop).
+- `runBlocking` em production code (bloqueia thread, defeats purpose; só em tests/`main`).
+- Swift 6 sem `Sendable` em modelo cross-actor (compile error em strict; runtime crash em loose).
+- `actor.method()` chamado de outro actor sem `await` (compile fail).
+- `MutableStateFlow` exposed direto na public API (consumers podem write; expor `asStateFlow()`).
+- JNI `GlobalRef` sem `DeleteGlobalRef` (table leak).
+- Custom URI scheme em vez de Universal/App Links (scheme hijacking attack).
+- `async/await` engolindo `CancellationError` em catch genérico (cancellation virando user-facing error).
+
+**Logística applied**: courier iOS = SwiftUI + Swift Concurrency + `actor LocationBuffer` pra coalescer GPS samples + `AsyncStream<DispatchEvent>` consumindo WS de atribuição. courier Android = Compose + `viewModelScope` + `StateFlow` pra UI + Room (coroutines-aware) pra cache offline. Deep link `https://logistica.example.com/orders/:id` abre detalhe via Universal/App Links validados.
+
+**Cruza com**: `02-06` (RN, quando JSI insuficiente vs nativo direto), `02-13` (auth, OAuth2 PKCE em Keychain/EncryptedSharedPreferences), `04-04` (resilience, structured concurrency = supervision tree do Erlang), `02-04` (React, Concurrent rendering vs actor model nativo), `04-09` (scaling, mobile clients são major source de tráfego em distributed systems).
+
 ---
 
 ## 3. Threshold de Maestria
