@@ -296,6 +296,152 @@ Heurística pra Logística v2:
 
 03-04 (CI/CD) cobre infraestrutura. Aqui foco é **o que rodar, não como agendar**.
 
+### 2.19 Contract testing (Pact) + fuzzing patterns
+
+§2.15 introduziu contract testing. Aqui detalhamento operacional Senior+. E2E entre serviços é lento e flaky; integration test isolado por serviço não detecta quebra de contrato quando dois teams alteram independentemente. **Consumer-Driven Contracts (CDC)**: consumer especifica o que espera, broker valida que provider satisfaz, gate de deploy.
+
+#### Pact JS deep (spec v4)
+
+Stack 2026: `@pact-foundation/pact` 12+ (suporta Pact Specification v4, async messages, plugin gRPC), Pact Broker self-host ou Pactflow SaaS. Consumer test gera arquivo JSON e publica no broker; provider verifier puxa contracts e roda contra build real.
+
+**Consumer side** (mobile courier app, Logística):
+
+```ts
+// jobs.consumer.pact.ts
+import { PactV4, MatchersV3 } from '@pact-foundation/pact';
+const { like, eachLike, regex, integer } = MatchersV3;
+
+const provider = new PactV4({
+  consumer: 'courier-mobile',
+  provider: 'logistica-backend',
+  dir: './pacts',
+  logLevel: 'warn',
+});
+
+provider
+  .addInteraction()
+  .given('courier 42 has 2 jobs in 5km radius')
+  .uponReceiving('list nearby jobs')
+  .withRequest('GET', '/jobs', (b) =>
+    b.query({ lat: '-23.55', lng: '-46.63', radius_km: '5' })
+     .headers({ Authorization: regex(/Bearer .+/, 'Bearer xyz') })
+  )
+  .willRespondWith(200, (b) =>
+    b.jsonBody(eachLike({
+      id: regex(/^job_[a-z0-9]+$/, 'job_abc123'),
+      pickup: like({ lat: -23.55, lng: -46.63 }),
+      dropoff: like({ lat: -23.56, lng: -46.64 }),
+      payout_cents: integer(2500),
+    }))
+  )
+  .executeTest(async (mock) => {
+    const res = await fetchJobs(mock.url, { lat: -23.55, lng: -46.63, radius_km: 5 });
+    expect(res[0].payout_cents).toBeTypeOf('number');
+  });
+```
+
+`Matchers.like()` / `regex()` / `integer()` evitam contracts não-determinísticos (timestamps reais quebram comparação). `given()` declara provider state — provider verifier vai acionar fixture com esse nome.
+
+**Provider side** (`logistica-backend`):
+
+```ts
+// jobs.provider.verify.ts
+import { Verifier } from '@pact-foundation/pact';
+
+await new Verifier({
+  provider: 'logistica-backend',
+  providerBaseUrl: 'http://localhost:3000',
+  pactBrokerUrl: process.env.PACT_BROKER_URL,
+  pactBrokerToken: process.env.PACT_BROKER_TOKEN,
+  publishVerificationResult: true,
+  providerVersion: process.env.GIT_SHA!,
+  providerVersionBranch: process.env.GIT_BRANCH,
+  consumerVersionSelectors: [
+    { mainBranch: true },
+    { deployedOrReleased: true },
+  ],
+  stateHandlers: {
+    'courier 42 has 2 jobs in 5km radius': async () => {
+      await db.insert(jobs).values([fakeJob({ courierId: 42 }), fakeJob({ courierId: 42 })]);
+    },
+  },
+}).verifyProvider();
+```
+
+#### Gate de deploy: `can-i-deploy`
+
+Broker decide compat. CI block antes do deploy:
+
+```bash
+pact-broker can-i-deploy \
+  --pacticipant logistica-backend \
+  --version $GIT_SHA \
+  --to-environment production \
+  --retry-while-unknown 30 --retry-interval 10
+```
+
+Se backend renomeia `payout_cents` → `payout_value` sem versão nova do consumer, verifier falha contra contract publicado, `can-i-deploy` retorna exit 1, pipeline bloqueia. Sem contract testing essa quebra só apareceria em produção após deploy do app courier (release cycle de dias).
+
+#### Schema-first vs Pact, decisão por 2 dimensões
+
+| Sinal | Pact (CDC) | Schema-first (OpenAPI/GraphQL) |
+|---|---|---|
+| Consumer count | 1-5, conhecidos | dezenas, públicos |
+| Deploy independence | times separados, mobile/partner | monorepo, deploy atômico |
+| Tooling | Pact Broker, Pactflow | Spectral, Schemathesis, Apollo Studio, Inigo |
+| Quem dirige | consumer (espera) | provider (publica) |
+
+**GraphQL**: persisted queries + schema diff em CI (Apollo Studio breaks no PR se field deletado é usado por persisted query em produção). **Bidirectional contract testing** (Pactflow): provider publica OpenAPI, consumer publica Pact, broker faz cross-validation sem rodar verifier — operacionalmente mais leve, mas requer OpenAPI revisada manualmente (gerado por servidor com `required: false` em tudo escapa detecção).
+
+#### Fuzzing patterns
+
+Property-based via fast-check (§2.10) é fuzz estruturado pra funções puras. Pra HTTP boundary:
+
+- **Schemathesis**: lê OpenAPI, gera 1000+ inputs, detecta 5xx, schema violations, auth bypass.
+- **Restler** (Microsoft): stateful, testa sequences (`POST /orders` → `GET /orders/:id`).
+- **Jazzer.js**: libFuzzer pra Node, coverage-guided, parser não-trivial.
+- **AFL/libFuzzer**: binary parsers (Rust/C++).
+
+```bash
+# Schemathesis contra Logística staging, OpenAPI gerado por Fastify
+schemathesis run http://staging.logistica.dev/openapi.json \
+  --checks all \
+  --hypothesis-max-examples=2000 \
+  --header "Authorization: Bearer $TEST_TOKEN" \
+  --workers 4 \
+  --hypothesis-seed=42
+```
+
+Caso real Logística: `POST /webhooks/:source` (multi-tenant payment webhooks). Schemathesis gera 5000 inputs, encontra crash em payload com Unicode combinado em campo CPF — regex `^\d{11}$` passa, normalização `.normalize('NFC')` posterior expande string e quebra invariant downstream. Fix: validar bytes pré-normalize.
+
+Pra `POST /orders` com Zod: combine fast-check + Zod, garanta schema rejeita TODO input inválido sem panic:
+
+```ts
+import fc from 'fast-check';
+import { OrderSchema } from './schemas';
+
+test('Zod never throws on arbitrary JSON', () => {
+  fc.assert(fc.property(fc.anything(), (input) => {
+    const r = OrderSchema.safeParse(input);
+    expect(r.success === true || r.success === false).toBe(true);
+  }), { numRuns: 5000, seed: 42 });
+});
+```
+
+#### Anti-padrões
+
+- Pact com timestamps reais (não-determinístico) — use `like()` / `term()`.
+- Provider verifier sem `stateHandlers` (consumer espera dado, provider sem fixture, flaky).
+- Broker existe mas pipeline não roda `can-i-deploy` (gate ausente).
+- Schema-first sem `npm run typecheck` no consumer pós provider schema change (silent break).
+- Fuzzer sem corpus seed (fuzz from scratch demora horas; semente com tráfego real acelera coverage).
+- Schemathesis em prod-like env contra DB compartilhado (poluição entre testes).
+- Fuzz endpoint sem rate limit (CI worker DoS-a próprio target).
+- Pact em monorepo com 1 consumer + 1 provider (overkill, type-share resolve).
+- Bidirectional aceitando OpenAPI gerado sem revisão (`required: false` mascara breaking change).
+
+Cruza com **02-08** (Fastify schema-first, Zod), **03-04** (CI/CD, `can-i-deploy` gate), **03-08** (security, fuzz detecta auth bypass), **04-05** (API design, OpenAPI vs GraphQL contracts), **04-12** (tech leadership, contract testing como org-scaling).
+
 ---
 
 ## 3. Threshold de Maestria

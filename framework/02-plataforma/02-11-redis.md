@@ -391,6 +391,124 @@ Em managed Redis (Railway, Upstash, ElastiCache, Memorystore, Redis Cloud), part
 
 Em 2026, Valkey ganhou tração após mudança da licença Redis. Compat 100% com clientes existentes.
 
+### 2.19 Redis Streams + consumer groups production deep
+
+§2.10 introduziu Streams. Aqui está o operacional pra rodar Streams como queue/event log durável em produção (Redis 7.x; `XAUTOCLAIM` requer 6.2+).
+
+**Fundamentals revisitados.** Stream é log append-only. Cada entry tem id `<ms>-<seq>` (timestamp ms + sequence dentro do ms). Retention controlada por `MAXLEN ~ N` (approximate, O(1) amortized) ou `MINID ~ <id>` (drop entries antes do id). Persistência via RDB/AOF como qualquer key. Diferenças críticas:
+
+- **Pub/Sub**: fire-and-forget, sem retention, subscriber offline perde tudo. Streams: durable, replay possível, consumer groups com PEL.
+- **Kafka**: partitioning automático por topic, retention infinito, > 1M msg/s. Streams: 1 stream = 1 hash slot no Cluster (sem partitioning interno), retention bounded por RAM.
+
+**Consumer groups.** `XGROUP CREATE courier:locations dispatchers $ MKSTREAM` cria grupo lendo do tail (`$`) ou desde o início (`0`). Cada consumer no grupo tem PEL (Pending Entries List): messages delivered mas not ACKed. `XACK` move entry pra fora do PEL. `XAUTOCLAIM` (Redis 6.2+) reassign entries cujo idle ultrapassa threshold.
+
+```bash
+XADD courier:locations MAXLEN '~' 1000000 '*' lat 12.34 lng 56.78 courier_id c-42 ts 1746489600
+XGROUP CREATE courier:locations dispatchers '$' MKSTREAM
+XREADGROUP GROUP dispatchers worker-1 COUNT 50 BLOCK 5000 STREAMS courier:locations '>'
+XACK courier:locations dispatchers 1746489600123-0
+XPENDING courier:locations dispatchers IDLE 60000 - + 100
+XAUTOCLAIM courier:locations dispatchers worker-1 300000 0 COUNT 100
+```
+
+**Worker pattern (TypeScript + ioredis).** Loop principal com BLOCK, reclaim periódico, ACK só em sucesso, DLQ em permanent failure, graceful shutdown:
+
+```typescript
+import Redis from 'ioredis';
+
+const redis = new Redis(process.env.REDIS_URL!);
+const STREAM = 'courier:locations';
+const GROUP = 'dispatchers';
+const CONSUMER = process.env.CONSUMER_NAME!;        // estável: "worker-pod-abc" — não randomUUID a cada deploy
+const DLQ = 'courier:locations:dlq';
+
+let running = true;
+process.on('SIGTERM', () => { running = false; });
+
+async function processOne(id: string, fields: Record<string, string>) {
+  // dispatch logic — match courier to nearest open job
+  await dispatchCourierLocation(fields);
+}
+
+async function workerLoop() {
+  await redis.xgroup('CREATE', STREAM, GROUP, '$', 'MKSTREAM').catch(() => {});
+
+  while (running) {
+    const res = await redis.xreadgroup(
+      'GROUP', GROUP, CONSUMER, 'COUNT', 50, 'BLOCK', 5000,
+      'STREAMS', STREAM, '>'
+    ) as [string, [string, string[]][]][] | null;
+
+    if (!res) continue;
+    for (const [, entries] of res) {
+      for (const [id, kv] of entries) {
+        const fields = Object.fromEntries(
+          kv.reduce<[string, string][]>((a, _, i, arr) => i % 2 === 0 ? [...a, [arr[i], arr[i+1]]] : a, [])
+        );
+        try {
+          await processOne(id, fields);
+          await redis.xack(STREAM, GROUP, id);
+        } catch (err) {
+          if (isPermanent(err)) {
+            await redis.xadd(DLQ, '*', 'orig_id', id, 'err', String(err), ...kv);
+            await redis.xack(STREAM, GROUP, id);          // remove do PEL; DLQ assume responsabilidade
+          }
+          // transient: deixa no PEL, XAUTOCLAIM pega depois
+        }
+      }
+    }
+  }
+}
+
+async function reclaimLoop() {
+  while (running) {
+    await redis.xautoclaim(STREAM, GROUP, CONSUMER, 300000, '0', 'COUNT', 100).catch(() => {});
+    await new Promise(r => setTimeout(r, 60000));
+  }
+}
+
+Promise.all([workerLoop(), reclaimLoop()]);
+```
+
+Heartbeat opcional: `SET worker:heartbeat:<consumer> 1 EX 30` no início de cada iteração; orchestrator faz `XPENDING` + check de heartbeat absent → consumer dead, force claim com nome diferente.
+
+**Caso Logística — courier location ingest.** Producer: courier app POST `/courier/location` → `XADD courier:locations MAXLEN ~ 1000000 * lat ... lng ... courier_id ... ts ...`. MAXLEN ~ 1M cobre ~24h em ~10k couriers ativos a 1 ping/min. Dois consumer groups independentes:
+
+- `dispatchers`: 3 workers consume em paralelo, Redis distribui round-robin entre consumers do mesmo group; cada location vai pra exatamente 1 worker que matcha contra jobs abertos.
+- `analytics`: consume mesmo stream com offset próprio; pode replay desde o início pra recomputar heatmap; lag não afeta dispatch.
+
+**Cluster + Streams (hash slots).** Stream key vai pra UM slot. Sem partitioning automático tipo Kafka. Pra escalar throughput, particione manualmente com hashtag:
+
+```typescript
+const shard = courierId.charCodeAt(0) % 4;
+await redis.xadd(`courier:locations:{shard${shard}}`, 'MAXLEN', '~', 250000, '*', ...fields);
+```
+
+Hashtag `{shard0}` força slot determinístico. Consumer group por shard, worker dedicado por shard ou consumer cobrindo múltiplos shards via loop. Trade-off: simples mas particionamento é responsabilidade da app.
+
+**Decision table — quando Streams vence.**
+
+| Tool | Quando |
+|---|---|
+| Redis Streams | Stack Redis já existente, retention horas/dias, < 100k msg/s |
+| Kafka / Redpanda | > 1M msg/s sustained, partitioning auto, retention infinito, exactly-once |
+| NATS JetStream | Lighter Kafka alt, multi-tenant simples, edge |
+| RabbitMQ Streams (3.11+) | Stack RabbitMQ existente, mix com classic queues |
+| SQS FIFO | AWS-native, < 3k msg/s por group, zero ops |
+
+**Anti-patterns.**
+
+- Pub/Sub pra event sourcing crítico (subscriber offline = msg perdida).
+- `XACK` antes de processar com sucesso (crash silencioso = perda).
+- Sem `XAUTOCLAIM` cron (PEL cresce, órfãos nunca reprocessados).
+- `MAXLEN 1000` exato em vez de `MAXLEN ~ 1000` (O(N) por XADD).
+- Consumer name não estável (cada deploy = novo consumer = PEL órfão acumula).
+- Mistura `XREAD` (sem grupo) com `XREADGROUP` no mesmo stream (offsets divergentes).
+- Stream em Cluster sem hashtag (slot único, sem escalabilidade horizontal).
+- Sem DLQ pra permanent failures (handler que sempre falha = retry loop infinito).
+
+**Cruza com:** `02-07` (worker_threads pra heavy processing após XREADGROUP), `04-01` (logical clocks; id `<ms>-<seq>` é wall-clock + seq, não Lamport), `04-02` (messaging; Streams é forma de inbox durável), `04-13` (streaming/batch; Streams ideal pra microbatch), `03-07` (observability; métricas obrigatórias: PEL size por group, consumer lag, ack latency p99, XAUTOCLAIM count).
+
 ---
 
 ## 3. Threshold de Maestria

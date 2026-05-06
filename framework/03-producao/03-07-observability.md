@@ -307,6 +307,123 @@ Cruza com **04-10** (LLM systems) e **04-09** (observability cost discipline ao 
 
 ---
 
+### 2.20 OTel SDK + Collector pipeline + structured logging
+
+OpenTelemetry virou o padrão de instrumentação vendor-neutral em 2026. Stack canônico: SDK no app exporta OTLP pro Collector, Collector faz processing (sampling, masking, batch) e fan-out pra backends (Tempo/Mimir/Loki, Datadog, New Relic). Versões de referência: OTel JS SDK 1.x, OTLP/HTTP 1.0, semantic-conventions 1.27+.
+
+**1. SDK setup Node (production-ready).** Auto-instrumentation patcha módulos em load time, então `tracing.ts` precisa ser carregado ANTES do app code via `node --require ./tracing.js dist/index.js` (ou `--import` em ESM).
+
+```typescript
+// tracing.ts
+import { NodeSDK } from '@opentelemetry/sdk-node';
+import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
+import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-grpc';
+import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-grpc';
+import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
+import { resourceFromAttributes } from '@opentelemetry/resources';
+import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from '@opentelemetry/semantic-conventions';
+
+const sdk = new NodeSDK({
+  resource: resourceFromAttributes({
+    [ATTR_SERVICE_NAME]: 'logistics-api',
+    [ATTR_SERVICE_VERSION]: process.env.GIT_SHA ?? 'dev',
+    'deployment.environment': process.env.NODE_ENV ?? 'dev',
+    'service.instance.id': process.env.HOSTNAME ?? require('os').hostname(),
+  }),
+  traceExporter: new OTLPTraceExporter({ url: 'http://otel-collector:4317' }),
+  metricReader: new PeriodicExportingMetricReader({
+    exporter: new OTLPMetricExporter({ url: 'http://otel-collector:4317' }),
+    exportIntervalMillis: 15000,
+  }),
+  logRecordProcessors: [],
+  instrumentations: [getNodeAutoInstrumentations({
+    '@opentelemetry/instrumentation-fs': { enabled: false }, // ruidoso
+  })],
+});
+sdk.start();
+process.on('SIGTERM', () => sdk.shutdown());
+```
+
+`auto-instrumentations-node` cobre HTTP, pg, redis, fetch, kafkajs, amqplib, ioredis, fastify. `service.name` ausente ou genérico (`api`, `backend`) inviabiliza queries em Tempo — sempre nome único.
+
+**2. Collector como pipeline central.** Por que não exportar direto pro backend: Collector centraliza config (1 lugar pra mudar sampling/masking), faz retry com buffer, masking de PII antes de sair do perímetro, fan-out pra múltiplos backends, e tail-sampling (decisão depois do trace completar). Modos: **Agent** (DaemonSet/sidecar, low overhead, recebe do app local) → **Gateway** (deployment central, faz tail-sampling e masking pesado).
+
+```yaml
+# collector-gateway.yaml
+receivers:
+  otlp:
+    protocols:
+      grpc: { endpoint: 0.0.0.0:4317 }
+      http: { endpoint: 0.0.0.0:4318 }
+processors:
+  memory_limiter: { check_interval: 1s, limit_percentage: 80, spike_limit_percentage: 25 }
+  batch: { timeout: 5s, send_batch_size: 1024 }
+  attributes/redact:
+    actions:
+      - { key: http.request.body, action: delete }
+      - { key: user.email, action: hash }
+      - { key: user.cpf, action: delete }
+  tail_sampling:
+    decision_wait: 30s
+    policies:
+      - { name: errors, type: status_code, status_code: { status_codes: [ERROR] } }
+      - { name: slow, type: latency, latency: { threshold_ms: 500 } }
+      - { name: probabilistic, type: probabilistic, probabilistic: { sampling_percentage: 5 } }
+exporters:
+  otlphttp/tempo: { endpoint: http://tempo:4318 }
+  prometheusremotewrite: { endpoint: http://mimir:9009/api/v1/push }
+  otlphttp/loki: { endpoint: http://loki:3100/otlp }
+service:
+  pipelines:
+    traces:  { receivers: [otlp], processors: [memory_limiter, attributes/redact, tail_sampling, batch], exporters: [otlphttp/tempo] }
+    metrics: { receivers: [otlp], processors: [memory_limiter, batch], exporters: [prometheusremotewrite] }
+    logs:    { receivers: [otlp], processors: [memory_limiter, attributes/redact, batch], exporters: [otlphttp/loki] }
+```
+
+`memory_limiter` SEMPRE primeiro — sem ele, traffic spike vira OOM e Collector cai. `batch` SEMPRE no fim — sem batch, RPC overhead destrói throughput.
+
+**3. Trace propagation cross-service.** Padrão W3C `traceparent: 00-<trace-id>-<span-id>-<flags>` automático em HTTP/gRPC. Pegadinha em messaging: kafkajs/amqplib não propagam por default — `@opentelemetry/instrumentation-kafkajs` injeta no header da message no producer e extrai no consumer. Sem isso, trace fragmenta em produce vs consume e debug fica impossível.
+
+**4. Structured logging com pino + trace correlation.** `pino` é o padrão prod 2026 (JSON nativo, latência sub-microssegundo, vence `winston` em throughput). Mixin injeta `trace_id`/`span_id` em todo log:
+
+```typescript
+import pino from 'pino';
+import { trace } from '@opentelemetry/api';
+
+export const log = pino({
+  level: process.env.LOG_LEVEL ?? 'info',
+  formatters: { level: (l) => ({ level: l }) },
+  mixin: () => {
+    const ctx = trace.getActiveSpan()?.spanContext();
+    return ctx ? { trace_id: ctx.traceId, span_id: ctx.spanId } : {};
+  },
+});
+```
+
+Em Grafana, clicar no log line abre o trace em Tempo via `trace_id`; clicar no span abre logs do span via Loki query `{service_name="logistics-api"} | json | trace_id="..."`. NUNCA `pino-pretty` em prod — quebra parser downstream.
+
+**5. Sampling strategies.** **Head-based** (`parentbased(traceidratio(0.1))` no SDK) decide no início, simples e cheap, mas não pode focar em traces interessantes (ainda não sabe se haverá erro). **Tail-based** (no Gateway Collector) decide ao fim, captura 100% errors + 100% slow + 5% normais — signal/noise ordens de magnitude melhor, custa buffer de 30s no Collector. Pattern recomendado: **head 100% + tail no Gateway**. Numbers reais 2026: 10k req/s sem sampling ≈ 30M spans/dia ≈ $3-5k/mês em SaaS observability; com tail 5% + 100% errors ≈ $300/mês mantendo signal.
+
+**6. Cardinality control em metrics.** HTTP auto-instrumentation cria `http.server.duration` com label `http.route` (path template `/orders/:id`, baixa cardinalidade) — NÃO `http.target` (path com IDs `/orders/abc-123`, cardinality explosion). Usar `http.target` em métrica vira $1k/mês em $20k. Budget: < 100k series ativos por serviço. Drop attributes problemáticos via OTel Views ou processor `attributes/drop` no Collector.
+
+**7. Stack completo na Logística.** Apps Node Fastify rodam com `--require ./tracing.js`, exportam OTLP pro DaemonSet Collector (Agent mode, um por node, low overhead). DaemonSet forward pro Gateway Collector central (Deployment, 3 réplicas) que faz tail-sampling, masking de CPF/email e fan-out: traces → Tempo (S3 backend), metrics → Mimir (S3 backend), logs → Loki (S3 backend). Grafana é single pane of glass com Explore linkando logs↔traces↔metrics via `service.name` + `trace_id`. Custo target: < 2% do compute spend.
+
+**Anti-patterns observados:**
+- SDK init importado depois do app code — auto-instrumentation não patcha. Sempre `--require`/`--import`.
+- `service.name` ausente ou genérico (`api`, `backend`) — impossível distinguir serviços em Tempo.
+- Trace propagation ausente em messaging (Kafka/RabbitMQ) — traces fragmentados.
+- Sampling head-based 1% em serviço low-traffic — perde quase tudo, debug fica impossível.
+- Tail-sampling sem `memory_limiter` — OOM em traffic spike, Collector cai e perde dados.
+- Métrica HTTP com `http.target` em vez de `http.route` — cardinality explosion ($1k → $20k).
+- Logs estruturados sem `trace_id` injetado — correlação manual via timestamps frágil.
+- `pino-pretty` em prod — JSON vira texto, parser downstream quebra.
+- Collector sem `batch processor` — RPC overhead destrói throughput.
+
+Cruza com **02-07** (Node, ordem de `--require` importa pra patches), **02-08** (Fastify auto-instrumentation), **03-05** (AWS X-Ray vs OTel + Tempo), **03-15** (incident response, traces correlacionados aceleram MTTR), **04-09** (scaling, OTel ingestion cost @ scale).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:
