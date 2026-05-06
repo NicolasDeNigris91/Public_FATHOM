@@ -220,6 +220,136 @@ Além de "consumer reagindo": agregações em janela.
 
 Use case: dashboard real-time de orders/min por tenant; alerta de courier offline > 10 min.
 
+### 2.18 Event sourcing operacional (versioning, snapshots, projection rebuild)
+
+Subseção §2.4 introduziu ES conceitualmente. Aqui está o operacional: schema do event store, 5 estratégias de versioning, snapshot pattern, rebuild de projection sem downtime, optimistic concurrency, e anti-patterns que corrompem audit log.
+
+**Event store schema (Postgres canonical)**:
+
+```sql
+CREATE TABLE events (
+  stream_id   UUID        NOT NULL,
+  version     INT         NOT NULL,
+  type        TEXT        NOT NULL,
+  payload     JSONB       NOT NULL,
+  metadata    JSONB       NOT NULL DEFAULT '{}'::jsonb,
+  ts          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  global_seq  BIGSERIAL,
+  PRIMARY KEY (stream_id, version)
+);
+CREATE INDEX events_global_seq_idx ON events (global_seq);
+CREATE INDEX events_type_ts_idx    ON events (type, ts);
+```
+
+`PRIMARY KEY (stream_id, version)` garante optimistic concurrency: append duplicado falha. `global_seq BIGSERIAL` dá ordem global monotônica para projection consumers. Index `(type, ts)` serve audit ad-hoc; nada além disso — event store é append-only log, não tabela query-driven.
+
+Append idempotente:
+
+```sql
+INSERT INTO events (stream_id, version, type, payload, metadata)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (stream_id, version) DO NOTHING
+RETURNING global_seq;
+```
+
+0 rows retornadas = optimistic conflict. Reload events, recompute aggregate, retry command. Sempre attach `command_id` em `metadata` para dedup; retry sem idempotency key vira double-issue se command processou parcialmente. Falha após X tentativas → 409 ao client.
+
+**Versioning — 5 estratégias**:
+
+1. **Weak schema (additive only)**: novo campo opcional, consumers antigos ignoram. Cobre ~70% dos casos. Quebra quando shape muda.
+2. **Upcast on read**: evento V1 lido, transformado para V2 em memória pelo aggregate. Stream NÃO mutado. Aggregate só conhece V2.
+3. **Lazy migration**: background job re-escreve old events em stream paralelo V2. Cutover via feature flag. Custoso mas elimina upcast permanente.
+4. **Multiple events per change**: deprecate `OrderConfirmedV1`, emite `OrderConfirmedV2` para writes novos. Consumers handlam ambos.
+5. **Snapshot schema bump**: incrementar `schema_version` invalida snapshots; hydration força reload from events com upcasting.
+
+Decision tree: event store < 1M events e migration cheap → lazy migration. Event store grande, breaking change → upcast on read. Hot path com muito throughput → multiple events.
+
+**Snapshot pattern**:
+
+```sql
+CREATE TABLE snapshots (
+  stream_id      UUID        PRIMARY KEY,
+  version        INT         NOT NULL,
+  schema_version INT         NOT NULL,
+  payload        JSONB       NOT NULL,
+  ts             TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+Hydration de aggregate com 10k events é proibitivo. Snapshot a cada N=50–100 events:
+
+```typescript
+async function loadOrder(streamId: string): Promise<Order> {
+  const snap = await db.oneOrNone(
+    `SELECT version, schema_version, payload FROM snapshots WHERE stream_id = $1`,
+    [streamId]
+  );
+  const fromVersion = snap && snap.schema_version === Order.SCHEMA_VERSION ? snap.version : 0;
+  const events = await db.manyOrNone(
+    `SELECT version, type, payload FROM events
+     WHERE stream_id = $1 AND version > $2 ORDER BY version ASC`,
+    [streamId, fromVersion]
+  );
+  const base = fromVersion > 0 ? Order.fromSnapshot(snap.payload) : Order.empty(streamId);
+  return events.reduce((agg, e) => agg.apply(upcast(e)), base);
+}
+```
+
+Snapshot é cache derivado, NUNCA source of truth. Consumer que lê snapshot está bug. Schema migration de aggregate sem bumping `schema_version` aplica V2 events em V1 state — silent corruption. Logística: `Order` com 200+ status events ao longo de delivery; snapshot a cada 50 reduz hydration de 200ms → 5ms.
+
+**Projection rebuild sem downtime**:
+
+```typescript
+async function runProjection(name: string, handler: (e: Event) => Promise<void>) {
+  let cursor = await getCursor(name); // 0 para greenfield
+  while (true) {
+    const batch = await db.manyOrNone(
+      `SELECT * FROM events WHERE global_seq > $1 ORDER BY global_seq ASC LIMIT 1000`,
+      [cursor]
+    );
+    if (batch.length === 0) { await sleep(100); continue; }
+    for (const e of batch) await handler(e); // idempotent UPSERT
+    cursor = batch[batch.length - 1].global_seq;
+    await setCursor(name, cursor);
+  }
+}
+```
+
+Catch-up: consumer parte de `global_seq=0`, processa histórico até alcançar tip, segue realtime. Numbers reais: 10M events × ~1ms cada = ~3h single-threaded. Paraleliza shardando por `hash(stream_id) % N`. Cutover safe: nova projection roda em paralelo, compara reads com antiga, switch read traffic, drop antiga.
+
+**Lag monitoring** (cruza com 04-02, outbox + idempotent consumer):
+
+```sql
+SELECT name, (SELECT MAX(global_seq) FROM events) - last_processed_seq AS lag
+FROM projection_cursors;
+```
+
+SLO: lag p99 < 500ms healthy. Aggregate persist + outbox = TX atômica; consumer idempotente via UPSERT no projection table.
+
+**Event design — 5 regras**:
+
+- **Past tense + entity**: `OrderShipped`, nunca `ShipOrder`.
+- **Immutable**: nunca mutar pós-write. Correção = compensating event (`OrderCancellationRequested`).
+- **Self-contained**: payload tem tudo que consumer precisa. Sem lookup externo.
+- **Bounded context naming**: `Sales.OrderPlaced` ≠ `Fulfillment.OrderPlaced` em microservices.
+- **No domain coupling**: NÃO inclua FK para outro aggregate (race com consumer); inline data necessária como snapshot inline.
+
+**Logística end-to-end**: `Order` aggregate emite `OrderPlaced`, `CourierAssigned`, `PickedUp`, `OutForDelivery`, `Delivered`, `CancellationRequested`, `Cancelled`. Snapshot a cada 50. Três projections: `orders_view` (lista por tenant), `dashboard_aggregate` (counts por status), `delivery_eta` (window de 24h para ML). Versioning real: `CourierAssignedV1` (`courier_id`) → `CourierAssignedV2` (adiciona `vehicle_type`); aggregate upcasta V1 inferindo `vehicle_type='unknown'`.
+
+**Anti-patterns observados**:
+
+1. Mutating events post-write (corrupting audit log).
+2. Aggregate hydration sem snapshot em streams grandes (latency 200ms+ em hot read).
+3. Snapshot sem `schema_version` (load aplica V2 events em V1 state).
+4. Projection consumer sem idempotency (replay duplica reads).
+5. Event payload com FK em vez de inline snapshot (race com outro aggregate).
+6. Event nomeado com command verb (`ShipOrder` em vez de `OrderShipped`).
+7. `ON CONFLICT DO NOTHING` sem retry loop (silent loss em concurrent write).
+8. Consumer reads from snapshot (snapshot deriva de events, NÃO source of truth).
+9. Schema evolution via mutate em events antigos (data loss; use upcast on read ou parallel stream).
+
+Cruza com: `04-02` (outbox + idempotent consumer), `04-01` (logical clocks, ordering em multi-shard), `04-06` (DDD, aggregate + invariants), `02-09` (Postgres, event store schema + indexing), `04-13` (streaming, projection compute via Kafka Streams/Flink).
+
 ---
 
 ## 3. Threshold de Maestria
