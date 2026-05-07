@@ -426,6 +426,171 @@ JCO vence `wasm-bindgen` pra cross-language: componente Rust é consumível em G
 
 ---
 
+### 2.18 Wasm runtimes 2026 — Wasmtime vs Wasmer vs WAMR vs WasmEdge + WASI 0.2/0.3, plugin systems, serverless platforms
+
+O ecosistema de runtimes Wasm maturou entre 2024 e 2026. Wasmtime venceu como reference implementation e hub do Bytecode Alliance; WAMR e WasmEdge dominam embedded e edge AI; Spin, Cosmonic/wasmCloud e Fastly Compute formam a camada serverless gerenciada. Greenfield 2026 = Wasmtime para embedding general-purpose, WasmEdge para K8s + AI inference, WAMR para MCU constrained, Wasmer só com WASIX justification, Spin/Cosmonic para serverless app platform.
+
+**Wasmtime (Bytecode Alliance flagship).** Versão 27 (Q3 2025) introduziu Pulley, interpreter portável para ambientes onde JIT é proibido (iOS, App Store, kernels). Versão 28 (Q1 2026) shipou suporte estável a WASI 0.3 async + integração `wasm-component-ld`. Cranelift como JIT padrão; single-pass compiler `winch` para cold start agressivo. Component Model first-class via `wasmtime-wit-bindgen`. Embedding em Rust, C, Python, Go, .NET. Cold start típico ~1ms; com instance pooling pré-aquecido cai para ~100µs.
+
+```bash
+# Wasmtime CLI 28: rodar componente WASI 0.2 com fuel + epoch interruption + memory cap
+wasmtime run \
+  --wasi preview2 \
+  --max-memory-size 134217728 \
+  --epoch-interruption \
+  --fuel 1000000000 \
+  --invoke handle \
+  app.component.wasm
+```
+
+```toml
+# wasmtime.toml — instance pool config para serverless hot path
+[pooling]
+enabled = true
+total_component_instances = 1000
+total_memories = 1000
+total_tables = 1000
+max_memory_size = "128 MiB"
+[compiler]
+strategy = "cranelift"  # ou "winch" pra cold start agressivo
+[wasi]
+preview2 = true
+```
+
+**Wasmer 5+ (runtime-agnostic).** Q4 2024 reposicionou Wasmer como runtime-agnostic — suporta Wasmtime e WasmEdge como compilers backend, além do próprio singlepass/cranelift/llvm. Diferencial: WASIX, extensão de WASI com POSIX-style (sockets full, threads, fork-like). Wasmer Edge é a plataforma serverless própria. Em 2026 sem WASIX requirement, Wasmtime é escolha default; Wasmer ganha em apps que precisam de compatibilidade Unix além de WASI 0.2.
+
+```bash
+# Wasmer 5 com WASIX: aplicação que precisa de sockets POSIX
+wasmer run app.wasm --enable-wasix --net --mapdir /data:./data
+```
+
+**WAMR (WebAssembly Micro Runtime, Bytecode Alliance).** Footprint <50KB, target principal RTOS, IoT, MCUs. Modos: interpreter (default, sem JIT), AOT (binário pré-compilado pra arquitetura específica), fast-interp. Não use WAMR para servidor general-purpose — sem JIT, throughput é fração de Wasmtime. Patches kernel Linux experimentais via `lkl-bytecode-alliance` permitem rodar Wasm em ring-0 isolado.
+
+```c
+// WAMR embedded: bootstrap mínimo C
+#include "wasm_export.h"
+static char heap_buf[16 * 1024];
+int main(int argc, char *argv[]) {
+    RuntimeInitArgs init_args = {0};
+    init_args.mem_alloc_type = Alloc_With_Pool;
+    init_args.mem_alloc_option.pool.heap_buf = heap_buf;
+    init_args.mem_alloc_option.pool.heap_size = sizeof(heap_buf);
+    wasm_runtime_full_init(&init_args);
+    // load → instantiate → call_wasm → deinit
+}
+```
+
+**WasmEdge (CNCF Sandbox 2021 → Incubating 2023).** Versão 0.14+ foca AI inference (TensorFlow, PyTorch, llama.cpp, GGML via plugins) e integração K8s via `containerd-shim-wasmedge`. Pods Kubernetes com `runtimeClassName: wasmedge` rodam binários `.wasm` em vez de containers. AI inference é CPU-bound — não assuma equivalência CUDA; para workload GPU-heavy continue em containers nativos. Cold start ~2ms.
+
+```yaml
+# K8s pod com containerd-shim-wasmedge
+apiVersion: v1
+kind: Pod
+metadata: { name: wasm-llm-infer }
+spec:
+  runtimeClassName: wasmedge
+  containers:
+    - name: app
+      image: registry/llm-infer:wasm
+      command: ["/app.wasm"]
+      resources: { limits: { memory: "512Mi", cpu: "2" } }
+```
+
+**Spin (Fermyon).** Versão 3.x (Q4 2024). Plugin system + serverless framework: HTTP triggers, Redis triggers, key-value stores, todos via WASI Component Model. Fermyon Cloud é o managed. Cold start otimizado por instance pool quente. Tuning obrigatório: pre-warm pool ou cold start spike sob carga.
+
+```toml
+# spin.toml — app HTTP serverless
+spin_manifest_version = 2
+[application]
+name = "logistica-track"
+version = "1.0.0"
+
+[[trigger.http]]
+route = "/track/:id"
+component = "tracker"
+
+[component.tracker]
+source = "target/wasm32-wasi/release/tracker.wasm"
+allowed_outbound_hosts = ["redis://cache.internal:6379"]
+[component.tracker.build]
+command = "cargo build --target wasm32-wasi --release"
+```
+
+**Lunatic 0.14+.** Runtime Rust inspirado no BEAM (Erlang). Supervisor trees, processes leves, message passing — modelo actor sobre Wasm. Nicho: aplicações Rust que querem semântica Erlang sem JVM/BEAM, com isolamento por instância Wasm. Pequena comunidade — adoção exige owning the dependency.
+
+**Fastly Compute.** Wasmtime-based, produção desde 2020, bilhões de req/dia. CLI `fastly compute publish`. Cold start ~50µs (instance pool warm). Limite binário ~50MB pré-otimização. WASI 0.2 component support em rollout 2026.
+
+```toml
+# fastly.toml
+manifest_version = 3
+name = "edge-router"
+language = "rust"
+[scripts]
+build = "cargo build --bin edge-router --release --target wasm32-wasi"
+```
+
+**Cloudflare Workers + Wasm.** Wasm via binding `main_module` no `wrangler.toml`, roda alongside JS no V8 isolate. Limite hard: binário Wasm <1MB no plano padrão (3MB no plano paid após otimização). Use `wasm-opt -Oz` + `twiggy top` antes de deploy.
+
+```toml
+# wrangler.toml — Worker com Rust → Wasm core
+name = "logistica-edge"
+main = "src/index.js"
+compatibility_date = "2026-04-01"
+[build]
+command = "cargo build --release --target wasm32-unknown-unknown && wasm-opt -Oz target/wasm32-unknown-unknown/release/core.wasm -o build/core.wasm"
+[[wasm_modules]]
+binding = "CORE"
+source = "build/core.wasm"
+```
+
+**Cosmonic / wasmCloud.** Cosmonic GA Q4 2024, baseado em wasmCloud (CNCF Sandbox). Plataforma distribuída de aplicações Wasm com lattice — actors Wasm + capability providers conectados via NATS. Newer platform; teste failure modes distribuídos antes de adotar em produção crítica.
+
+**WASI 0.2 / 0.3 status 2026.**
+- WASI 0.2 (Preview 2): estável desde Q1 2024. Worlds: `wasi:cli`, `wasi:http`, `wasi:keyvalue`, `wasi:blobstore`, `wasi:config`, `wasi:logging`. Suportado por Wasmtime, WasmEdge, Spin, Fastly (rollout), Wasmer (parcial).
+- WASI 0.3: shipou async nativo em 2024+; estável em Wasmtime 28. Migra `wasi:http` para futures/streams nativos do Component Model.
+
+```rust
+// wasi-http handler 0.2 com wit-bindgen
+use wasi::http::types::{IncomingRequest, ResponseOutparam, OutgoingResponse, Fields};
+struct Handler;
+impl wasi::exports::http::incoming_handler::Guest for Handler {
+    fn handle(req: IncomingRequest, out: ResponseOutparam) {
+        let resp = OutgoingResponse::new(Fields::new());
+        resp.set_status_code(200).unwrap();
+        ResponseOutparam::set(out, Ok(resp));
+    }
+}
+wasi::http::proxy::export!(Handler);
+```
+
+**Decision matrix 2026.**
+- **Wasmtime**: embedding general-purpose, dev local, reference para Component Model, iOS via Pulley.
+- **WAMR**: MCU/RTOS/IoT constrained, footprint crítico, AOT pré-compilado.
+- **WasmEdge**: K8s pods Wasm via containerd-shim, AI inference CPU-bound, integração Tensorflow/llama.cpp.
+- **Wasmer**: justificado só por WASIX (POSIX-style além de WASI 0.2).
+- **Spin / Fermyon Cloud**: serverless Wasm gerenciado HTTP-first, internal tools rápidos.
+- **Cosmonic / wasmCloud**: distributed Wasm app platform com lattice + NATS.
+- **Fastly Compute**: edge serverless production-grade, Wasmtime-based, billions req/day.
+- **Cloudflare Workers Wasm**: edge funcs hot path com Rust core <1MB, alongside JS.
+
+**Stack Logística aplicada.** Cloudflare Workers Wasm para edge: rota `/track/:id` em Rust compilado para Wasm <500KB, lookup no KV, fallback origem. WasmEdge K8s shim para serviços de migração de legacy Java — refatorar handler crítico em Rust → Wasm, deploy em pod com `runtimeClassName: wasmedge`, ganho memory 5-10x. Spin para internal admin tools (CRUDs operacionais), deploy em Fermyon Cloud sem operar K8s. AI inference de classificação de NF-e em WasmEdge com llama.cpp plugin, CPU-only, mantendo isolamento + portabilidade.
+
+**Anti-patterns:**
+- Wasmtime sem fuel metering ou epoch interruption em untrusted plugin (DoS via infinite loop).
+- WAMR para servidor general-purpose (default sem JIT, throughput péssimo).
+- WasmEdge para AI inference assumindo equivalência CUDA (CPU-bound; GPU-heavy fica em container nativo).
+- Component Model via host glue code em vez de `wac compose` (perde type-checking validation; ver §2.17).
+- Spin app sem cold-start tuning ou instance pool pré-aquecido (latency spikes sob carga).
+- Cloudflare Workers Wasm com binário > 1MB sem `wasm-opt -Oz` + `twiggy` (deploy quebra no limite).
+- Wasmer adotado em greenfield 2026 sem WASIX requirement (Wasmtime ganha papel reference, comunidade maior).
+- WAMR pinned em dev branch (breaking changes frequentes; pin tag de release).
+- Cosmonic/wasmCloud em produção crítica sem teste de failure modes distribuídos (lattice + NATS é newer).
+- WASI 0.1 em greenfield 2026 (use 0.2 components; 0.3 async se Wasmtime 28+).
+
+**Cruza com:** [`§2.5`](#25-toolchain) (toolchains foundation), [`§2.6`](#26-wasi) (WASI intro), [`§2.8`](#28-edge--serverless-uses) (edge/serverless uses), [`§2.9`](#29-plug-in-systems) (plug-in systems), [`§2.10`](#210-component-model) (Component Model intro), [`§2.11`](#211-perf) (perf expectations), [`§2.17`](#217-component-model--wasi-preview-2-deep) (Component Model + WASI Preview 2 deep), [`03-11 §2.20`](./03-11-systems-languages.md) (Rust 2024 + Zig — primary Wasm sources), [`04-08 §2.22`](../04-sistemas/04-08-edge-cdn.md) (edge runtimes — Wasm complement), [`03-08`](./03-08-applied-security.md) (capability-based security model), [`04-10 §2.21`](../04-sistemas/04-10-ai-llm.md) (RAG architectures — Wasm AI inference via WasmEdge), [`03-03`](./03-03-containers-orchestration.md) (K8s + containerd-shim-wasmedge para Wasm pods).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:
