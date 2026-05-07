@@ -555,6 +555,149 @@ Notification Service Consumer (Kafka):
 
 Cruza com **04-02 §2.14** (DLQ foundation), **04-03 §2.8** (outbox pattern producer-side), **04-04 §2.4** (idempotency em retry geral), **04-09 §2.20** (backpressure em consumer), **04-13 §2.16** (exactly-once semantics em pipelines analíticos).
 
+### 2.19 Kafka Streams + ksqlDB practical (windowing, joins, exactly-once, state stores)
+
+Versions: Kafka 3.7+, Kafka Streams 3.7+, ksqlDB 0.29+ (Confluent Platform). Apache Flink é alternativa para workloads que excedem JVM single-process (stateful aggregations >100GB, complex CEP).
+
+**Quando usar stream processing (vs simple consumer)**:
+
+- **Simple consumer**: reage a evento → side effect (DB write, API call). Stateless ou estado externo.
+- **Stream processing**: reage + transforma + agrega (windowed counts, joins, enrichment) com estado local materializado.
+- **Use cases Logística**: real-time dashboard (orders/min per tenant), fraud detection (suspicious courier patterns), enrichment (join order events com courier profile), alerting (courier offline > 10min).
+
+**Kafka Streams architecture**:
+
+- **Library** (NÃO cluster separado): roda dentro do JVM consumer; deploy como serviço regular (K8s deployment).
+- **Topology**: DAG de operações (`source → filter → groupBy → aggregate → sink`).
+- **State stores**: RocksDB-backed local key-value (joins, aggregations); replicados via changelog topics em Kafka.
+- **Tasks**: unidade de paralelismo (1 task por input partition); auto-scale adicionando consumers no mesmo `application.id`.
+- **EOS v2**: `processing.guarantee=exactly_once_v2` (Kafka 2.5+, recomendado em 3.7+).
+
+**Stream vs KTable mental model**:
+
+- **KStream**: append-only event stream; cada evento independente ("OrderPlaced").
+- **KTable**: changelog → estado corrente por key; latest value per key. Conceitualmente = `SELECT key, last(value) GROUP BY key`.
+- **GlobalKTable**: replicada em todas instâncias (joins sem co-partitioning); apenas para reference data pequeno (<1GB).
+
+**Windowing fundamentals**:
+
+- **Tumbling** (fixo, non-overlapping): `TimeWindows.of(Duration.ofMinutes(5))` → 0–5min, 5–10min.
+- **Hopping** (fixo, overlapping): `TimeWindows.of(Duration.ofMinutes(5)).advanceBy(Duration.ofMinutes(1))` → janelas de 5min deslizando 1min.
+- **Session** (gap-based): `SessionWindows.with(Duration.ofMinutes(30))` → agrupa eventos dentro de 30min entre si.
+- **Sliding**: evento dispara inclusão na janela (CEP-style).
+- Sempre configurar `grace(Duration.ofMinutes(5))` para tolerar late events sem drop silencioso.
+
+**Pattern Logística — orders/min per tenant (windowed count)**:
+
+```java
+StreamsBuilder builder = new StreamsBuilder();
+
+KStream<String, OrderEvent> orders = builder.stream("orders.events");
+
+KTable<Windowed<String>, Long> ordersPerMinute = orders
+  .filter((k, v) -> v.getType().equals("OrderPlaced"))
+  .map((k, v) -> KeyValue.pair(v.getTenantId(), v))
+  .groupByKey()
+  .windowedBy(TimeWindows.of(Duration.ofMinutes(1)).grace(Duration.ofMinutes(5)))
+  .count(Materialized.as("orders-per-minute-store"));
+
+ordersPerMinute.toStream()
+  .map((wk, count) -> KeyValue.pair(
+    wk.key() + "_" + wk.window().start(),
+    new MetricEvent(wk.key(), wk.window().start(), count)
+  ))
+  .to("dashboard.orders-per-minute");
+```
+
+**Stream-Stream join (windowed)** — order placed + courier assigned dentro de 5min:
+
+```java
+KStream<String, OrderEvent> orders = builder.stream("orders.events");
+KStream<String, AssignmentEvent> assigns = builder.stream("assignments.events");
+
+orders
+  .selectKey((k, v) -> v.getOrderId())
+  .join(
+    assigns.selectKey((k, v) -> v.getOrderId()),
+    (order, assign) -> new EnrichedOrder(order, assign),
+    JoinWindows.of(Duration.ofMinutes(5)).grace(Duration.ofMinutes(1))
+  )
+  .to("orders.enriched");
+```
+
+Co-partitioning obrigatório: ambos topics com mesmo número de partitions e mesma partitioning strategy (key hash). Mismatch → silent data loss.
+
+**Stream-KTable join (always-on enrichment)** — courier profile mutável:
+
+```java
+KTable<String, CourierProfile> couriers = builder.table("couriers.state");
+
+orders
+  .selectKey((k, v) -> v.getCourierId())
+  .join(couriers, (order, profile) -> new OrderWithCourier(order, profile))
+  .to("orders.with-courier");
+```
+
+KTable lookup é local (RocksDB); zero network hop. Updates em `couriers.state` propagam via changelog.
+
+**ksqlDB — SQL on streams**: high-level abstraction sobre Kafka Streams; SQL-like syntax para streaming queries. `CREATE STREAM` (event log) vs `CREATE TABLE` (compacted, latest-per-key).
+
+```sql
+CREATE STREAM orders_stream (
+  order_id VARCHAR KEY,
+  tenant_id VARCHAR,
+  status VARCHAR,
+  price_cents BIGINT,
+  created_at TIMESTAMP
+) WITH (KAFKA_TOPIC='orders.events', VALUE_FORMAT='JSON');
+
+CREATE TABLE tenant_revenue_per_hour AS
+  SELECT tenant_id,
+    WINDOWSTART AS hour,
+    SUM(price_cents) AS revenue_cents,
+    COUNT(*) AS order_count
+  FROM orders_stream
+  WINDOW TUMBLING (SIZE 1 HOUR, GRACE PERIOD 5 MINUTES)
+  WHERE status = 'delivered'
+  GROUP BY tenant_id
+  EMIT CHANGES;
+```
+
+**EMIT CHANGES** (push, contínuo) vs **EMIT FINAL** (apenas quando window fecha; menos data, mais latência). Pull queries (`SELECT * FROM tenant_revenue_per_hour WHERE tenant_id='X'`) vs push queries (`EMIT CHANGES`): pull queries têm latency 50–200ms, evitar em hot path.
+
+**Exactly-once em Kafka Streams (EOS v2)**:
+
+- Configuração: `processing.guarantee=exactly_once_v2` no `StreamsConfig`.
+- Mecanismo: transactional producer + consumer offset commit na mesma transaction (atomicity Kafka-internal).
+- Custo: 5–10% throughput overhead; latency +20–50ms por commit (commit interval default 100ms).
+- **Pegadinha**: side effects FORA do Kafka (HTTP calls, DB writes em sistema externo) NÃO são exactly-once. Combina com idempotent consumer (§2.18) para end-to-end correctness.
+
+**Logística applied stack**:
+
+- **Source topics**: `orders.events`, `assignments.events`, `tracking.pings`, `couriers.state` (compacted).
+- **Streams app** (Java, 3 replicas em K8s):
+  - `tenant_revenue_per_minute` (windowed agg).
+  - `enriched_orders` (stream-KTable join com courier profile).
+  - `late_delivery_alerts` (filter ETA exceeded → alert topic).
+- **ksqlDB**: ad-hoc analytical queries pelo ops team; queries materializadas reutilizadas pelo dashboard.
+- **Output topics** consumidos por dashboard service (real-time UI via WebSocket) + alert service (PagerDuty integration).
+- **Cost**: 1 topic × 12 partitions × 7d retention; 3-node Kafka cluster ~$300/mês; Streams app on K8s ~3 replicas $150/mês; ksqlDB server $100/mês.
+
+**Anti-patterns observados**:
+
+- **Stream processing em workload simples**: overengineered; consumer + DB write resolve. Adote Streams quando agregação/join estiverem no caminho.
+- **Stream-Stream join sem window**: unbounded state; OOM em horas.
+- **State store sem changelog**: rebuild from scratch em rebalance; downtime de minutos a horas.
+- **EOS v2 ativo mas side effects HTTP não idempotentes**: ainda double-effect external. Cruza com §2.18.
+- **ksqlDB pull queries em hot path**: latency 50–200ms; pre-materialize via `EMIT CHANGES` + serve from materialized view.
+- **Tumbling window aligned to wall clock**: Sunday midnight = batch effects; use event time + watermarks.
+- **Co-partitioning ignorado em Stream-Stream join**: silent data loss; partitions não alinham → eventos perdidos.
+- **GlobalKTable para large reference data**: replicada em todas instâncias; memory blowup. >1GB use KTable + co-partitioning.
+- **Late events sem grace period**: out-of-order events dropados; configure `windowedBy(...).grace(Duration.ofMinutes(5))`.
+- **Single-instance Streams app**: zero HA; failover via re-deploy (minutos). Deploy ≥ 2 replicas com `num.standby.replicas=1`.
+
+Cruza com **04-13** (streaming/batch, dbt + lakehouse alternative), **04-02 §2.18** (idempotent consumer para side effects externos), **03-13** (analytics DBs, ksqlDB pull queries vs ClickHouse), **04-09** (scaling, Kafka Streams horizontal via partitions), **04-04** (resilience, EOS v2 transactional guarantees).
+
 ---
 
 ## 3. Threshold de Maestria

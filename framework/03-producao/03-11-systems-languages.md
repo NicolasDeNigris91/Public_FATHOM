@@ -575,6 +575,192 @@ func formatTrackingPing(p *Ping) []byte {
 
 Cruza com **03-11 §2.17** (async Go vs Rust), **04-04 §2.2** (deadline propagation com ctx é fundação), **04-04 §2.3** (jittered backoff em retry de tool calls), **04-09 §2.7.1** (rate limit usa context pra cancellation).
 
+### 2.19 Rust async runtimes deep (Tokio, async-std, smol) + Zig as systems alternative 2026
+
+Rust async é diferente de Go: linguagem provê syntax (`async fn`, `.await`), runtime vem de crate externa. Tokio domina production 2026; async-std está em maintenance mode; smol cobre CLI/embedded. Zig 0.13+ aparece como C replacement, NÃO Rust replacement. Esta seção empacota patterns operacionais Rust + decision tree systems language pra Logística.
+
+**Rust async fundamentals:**
+
+- **`Future` trait**: lazy state machine. Doesn't run até ser polled — chamar `async fn` sem `.await` é no-op.
+- **`async fn` desugars** para `impl Future<Output = T>`. Compiler gera state machine.
+- **`.await`** suspende task atual; runtime polls de novo quando ready.
+- **No runtime built-in**: pick crate (`tokio`, `async-std`, `smol`). Mixing runtimes em mesmo processo = panic.
+- **`Send + Sync` constraints**: futures que cruzam threads precisam ser `Send`. Multi-thread runtime requer; single-thread (`current_thread`) relaxa.
+
+**Tokio — production standard 2026 (1.40+):**
+
+- **Multi-threaded work-stealing scheduler** (default `#[tokio::main]`): 1 worker thread por CPU; tasks migram entre threads.
+- **Single-threaded** (`#[tokio::main(flavor = "current_thread")]`): CLI tools, embedded, evita Send bound.
+- **Pillars**: `tokio::task::spawn` (lightweight task, ~sub-microsecond), `tokio::select!` (race futures), `tokio::sync` (Mutex async-aware, RwLock, mpsc, oneshot, broadcast, watch).
+
+Pattern Logística — concurrent fetch + bounded join:
+
+```rust
+use tokio::time::{timeout, Duration};
+use tokio::task::JoinSet;
+
+async fn fetch_orders_parallel(ids: Vec<String>) -> anyhow::Result<Vec<Order>> {
+    let mut set = JoinSet::new();
+    for id in ids {
+        set.spawn(async move {
+            timeout(Duration::from_millis(500), fetch_order(&id)).await
+        });
+    }
+    let mut orders = Vec::new();
+    while let Some(res) = set.join_next().await {
+        match res?? {
+            Ok(order) => orders.push(order),
+            Err(e) => tracing::warn!("fetch failed: {e}"),
+        }
+    }
+    Ok(orders)
+}
+```
+
+Numbers reais 2026: Tokio sustains 1M+ concurrent tasks por node; spawn sub-microsecond; memory ~5KB por task idle.
+
+**`tokio::select!` — race + cancellation:**
+
+```rust
+use tokio::sync::oneshot;
+
+async fn fetch_with_timeout(
+    id: String,
+    mut shutdown: oneshot::Receiver<()>,
+) -> anyhow::Result<Order> {
+    tokio::select! {
+        result = fetch_order(&id) => result,
+        _ = tokio::time::sleep(Duration::from_secs(5)) => Err(anyhow::anyhow!("timeout")),
+        _ = &mut shutdown => Err(anyhow::anyhow!("shutdown signal")),
+    }
+}
+```
+
+Pegadinha: branches NÃO selecionados são CANCELED — futures dropped no meio do trabalho. Garanta cancellation safety (work idempotent ou rollback explícito). Side effects parciais (escrita DB, send rede) ficam órfãos.
+
+**`Pin`, `Send`, `'static` — common gotchas:**
+
+Tasks cruzando threads precisam `Send + 'static`. Holding non-Send (Rc, RefCell, raw pointers) across `.await` = compile error em multi-thread runtime.
+
+```rust
+// BAD: Rc held across await — won't compile em #[tokio::main]
+let counter = Rc::new(Cell::new(0));
+foo(&counter).await;  // error: Rc<Cell<i32>> não é Send
+
+// GOOD: scope non-Send pra antes do await
+{
+    let counter = Rc::new(Cell::new(0));
+    counter.set(1);
+}
+foo().await;
+
+// OR: use Arc + Mutex pra cross-thread shared state
+let counter = Arc::new(tokio::sync::Mutex::new(0));
+let c2 = counter.clone();
+tokio::spawn(async move { *c2.lock().await += 1; });
+```
+
+**async-std vs smol vs Tokio:**
+
+- **Tokio**: largest ecosystem (Hyper, Axum, Reqwest, sqlx 0.8+, redis-rs); production proven; API surface complexa.
+- **async-std**: API std-like; ecosystem menor; effectively maintenance mode 2024+. Avoid greenfield.
+- **smol**: minimal (~1k LOC core); CLI/embedded; binary < 1MB.
+- **Recommendation 2026**: Tokio pra servers, smol pra CLI/lightweight, async-std evitar.
+
+**Axum (Tokio-based web framework, 0.7+):**
+
+```rust
+use axum::{routing::post, Router, Json, extract::State};
+use serde::{Deserialize, Serialize};
+
+#[derive(Deserialize)] struct CreateOrder { items: Vec<String> }
+#[derive(Serialize)] struct OrderResp { id: String }
+
+async fn create_order(
+    State(db): State<sqlx::PgPool>,
+    Json(req): Json<CreateOrder>,
+) -> Result<Json<OrderResp>, AppError> {
+    let id = sqlx::query_scalar::<_, String>(
+        "INSERT INTO orders (items) VALUES ($1) RETURNING id"
+    )
+    .bind(&req.items)
+    .fetch_one(&db).await?;
+    Ok(Json(OrderResp { id }))
+}
+
+#[tokio::main]
+async fn main() {
+    let pool = sqlx::PgPool::connect("postgres://...").await.unwrap();
+    let app = Router::new()
+        .route("/orders", post(create_order))
+        .with_state(pool);
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    axum::serve(listener, app).await.unwrap();
+}
+```
+
+Numbers reais: Axum sustains 100k+ rps em modest hardware (4 vCPU); latency p99 < 5ms em endpoints simples com Postgres local.
+
+**Performance characteristics 2026 (Tokio + Axum + sqlx):**
+
+- **Latency**: p99 sub-millisecond achievable em endpoints simples; p99 < 5ms com Postgres local.
+- **Throughput**: 1-5x mais rápido que Node.js Fastify; 2x mais rápido que Go Gin em single-server benchmarks idênticos.
+- **Memory**: ~5-10MB baseline; cresce linear com conexões concorrentes (~5KB/task).
+- **Cold start**: ~10ms binary load — comparable Go, ordens de magnitude melhor que JVM/Node.
+
+**Zig 0.13+ as systems alternative 2026:**
+
+Zig é C replacement, NÃO Rust replacement. Manual memory management, sem borrow checker, mais simples sintaticamente que Rust.
+
+Use cases: embedded, kernel-adjacent, allocator-conscious work, build tooling (`zig cc` substitui clang com cross-compile default; `zig build` substitui Make/CMake).
+
+Compelling features:
+
+- **Comptime**: compile-time code execution mais poderoso que C++ constexpr / Rust const fn. Generics são funções comptime.
+- **No hidden control flow**: zero exceptions, zero operator overloading, zero destructors → controle de fluxo legível.
+- **C interop trivial**: `@cImport` inclui headers C direto; sem bindgen.
+- **Cross-compilation excellent**: `zig build-exe -target x86_64-linux-musl` out-of-the-box.
+
+```zig
+const std = @import("std");
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    var list = std.ArrayList(u32).init(allocator);
+    defer list.deinit();
+    try list.append(42);
+    std.debug.print("len={d}\n", .{list.items.len});
+}
+```
+
+Use case Logística: Zig pra build systems, Wasm targets, FFI shims a libs C; Rust pra core services long-running.
+
+**Decision tree systems language 2026:**
+
+- **Rust**: long-running servers, safety-critical, fearless concurrency, large team.
+- **Go**: pragmatic backend, fast iteration, K8s/cloud-native ecosystem, large team productivity.
+- **Zig**: embedded, build tooling, C replacement, manual control desejado.
+- **C/C++**: legacy ecosystem only; new projects raramente justificados.
+- **TypeScript/JavaScript** (Bun/Deno/Node): quando systems perf NÃO crítico (most apps).
+
+**Anti-patterns observados:**
+
+- `tokio::spawn` em loop sem JoinSet — orphan tasks; impossível observar completion/erros.
+- Holding `Rc`/`RefCell` across `.await` em multi-thread runtime — compile error; use `Arc` + `tokio::sync::Mutex`.
+- `tokio::select!` branches sem cancellation safety — work parcial perdido on cancel.
+- `block_on` dentro de async context — deadlock garantido; use `tokio::task::spawn_blocking` pra trabalho sync.
+- async-std em greenfield 2026 — effectively unmaintained; pick Tokio ou smol.
+- Mixing Tokio + async-std runtimes no mesmo processo — panic; one runtime per process.
+- Manual `Pin<Box<dyn Future>>` em hot path — boxing overhead; use `async fn` + `impl Trait`.
+- Zig pra long-running server — manual memory + sem borrow checker = mais bugs que Rust at scale.
+- Zig 0.x pinning master branch — breaking changes weekly; pin release específica.
+- Rust em production sem `tracing` crate — debugging async sem structured logs = nightmare.
+
+Cruza com **02-08** (backend frameworks 2026, Axum vs Fastify), **03-12** (Wasm, Rust + Zig as primary sources), **02-07** (Node.js async runtime comparison), **03-11 §2.18** (Go concurrency parallel patterns), **03-09** (frontend perf, Wasm-bound code from Rust).
+
 ---
 
 ## 3. Threshold de Maestria

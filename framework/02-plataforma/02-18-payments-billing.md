@@ -430,6 +430,138 @@ Após max retries: PSP marca como failed; vai pra dashboard. Você precisa monit
 
 Cruza com **02-18 §2.15** (reconciliation foundation), **02-18 §2.17** (Pix specifics), **04-02 §2.18** (idempotent consumer = pattern do webhook handler), **04-04 §2.4** (idempotency em retries gerais), **03-08 §2.13** (secrets management pra webhook secret), **04-09 §2.20** (load shedding em webhook spike).
 
+### 2.20 PIX integration deep + Stripe Connect marketplace + multi-party payments 2026
+
+**PIX (Brazil) — fundamentals 2026.** PIX é instant payment system Bacen 2020+; settlement 24/7 < 10s; ~60% das transações B2C brasileiras 2025-2026 (Bacen + Febraban data). Modalidades:
+
+- **PIX Cobrança** (charge): merchant gera QR code dinâmico/copy-paste; customer paga via app bancário; settlement near-instant.
+- **PIX Saque/Troco**: merchant fornece dinheiro físico; settlement via PIX (varejo + caixa).
+- **PIX Automático** (2024+): recurring/installments nativo; substitui boleto + recurring billing patchwork.
+- **PIX Garantido** (2025+): "buy now pay 3 days later"; merchant guaranteed receivable; risk no PSP/banco.
+
+**PIX integration via PSP (vs direct Bacen).** Direct Bacen integration exige licensing Banco Central (~$1M+ initial cost; 12-18 meses regulatório); reservado a banks + Stone/PagSeguro. Via PSP API-based; fee 0.5-1.5%/tx; integration ~5min. PSPs 2026:
+
+- **Stripe** (PIX support 2024+): global API + PIX como payment method nativo; melhor para multi-region.
+- **Stark Bank**: neobank brasileiro; lower fees + dev-friendly; pioneiro PIX programático.
+- **Asaas / Pagar.me**: established players; broader Brazil products (boleto + cartão + PIX).
+- **Mercado Pago**: dominante mercado massivo; integration fluida em e-commerce.
+
+**PIX Charge API pattern (Stark Bank Node SDK 2026).**
+
+```ts
+import starkbank from 'starkbank';
+
+starkbank.user = new starkbank.Project({
+  environment: 'production',
+  id: process.env.STARK_PROJECT_ID,
+  privateKey: process.env.STARK_PRIVATE_KEY_PEM,
+});
+
+async function createPixCharge(orderId: string, amountCents: number, payerCpf: string) {
+  const dynamicBrcodes = await starkbank.dynamicBrcode.create([
+    new starkbank.DynamicBrcode({
+      amount: amountCents,
+      expiration: 86400, // 24h — evita QR expirado em checkout demorado
+      tags: [`order:${orderId}`], // TXID reconciliation
+    }),
+  ]);
+  return {
+    brcode: dynamicBrcodes[0].uuid,
+    qrCode: `https://api.starkbank.com/v2/dynamic-brcode/${dynamicBrcodes[0].uuid}.png`,
+    expiresAt: new Date(Date.now() + 86400 * 1000),
+  };
+}
+
+// Webhook handler — verify ECDSA signature (cobre §2.19)
+app.post('/webhooks/starkbank', async (req, res) => {
+  const sig = req.header('Digital-Signature');
+  // Verify ECDSA com public key Stark; reject se inválida
+  const event = req.body.event;
+  if (event.subscription === 'invoice' && event.log.type === 'paid') {
+    const orderId = event.log.invoice.tags[0].split(':')[1];
+    await markOrderPaid(orderId); // idempotent (cobre §2.3)
+  }
+  res.status(200).send();
+});
+```
+
+**PIX QR code rendering (BR Code spec EMV-compatible).** String format: `00020126580014BR.GOV.BCB.PIX...520400005303986540510.005802BR5908MerchName6009São Paulo62070503***6304ABCD`. Componentes obrigatórios: payload format indicator, merchant account info, transaction currency BRL (986), amount, country code (BR), merchant name + city, additional data (TXID), CRC16. **TXID embutido = `order_id`** (sem isso reconciliation impossível; orphan payments acumulam).
+
+**Stripe Connect — marketplace deep (Logística use case).** Lojistas pagam → Stripe → split → courier payout + Logística fee. Account types:
+
+- **Standard**: courier owns Stripe relationship + dashboard; Logística initiates payouts. Lower compliance burden (KYC delegado).
+- **Express**: simplified onboarding (Stripe-hosted); Logística handles support; revenue share. Sweet spot ~80% marketplaces 2026.
+- **Custom**: Logística owns full UX; KYC + dispute handling owned. Use só quando premium UX é crítico (overhead 10x).
+
+**Stripe Connect flow — Stripe Node SDK 18+.**
+
+```ts
+// 1. Create connected account for courier
+const account = await stripe.accounts.create({
+  type: 'express',
+  country: 'BR',
+  email: courier.email,
+  capabilities: {
+    transfers: { requested: true },
+    card_payments: { requested: true },
+  },
+});
+
+// 2. Generate onboarding link (KYC + bank account)
+const accountLink = await stripe.accountLinks.create({
+  account: account.id,
+  refresh_url: 'https://logistica.example.com/courier/refresh',
+  return_url: 'https://logistica.example.com/courier/onboarded',
+  type: 'account_onboarding',
+});
+// → redirect courier para accountLink.url; link expira em ~5min, refresh on click
+
+// 3. Charge customer (lojista) com destination split
+const charge = await stripe.paymentIntents.create({
+  amount: 10000, // R$100.00
+  currency: 'brl',
+  payment_method_types: ['pix', 'card'],
+  application_fee_amount: 1500, // R$15 platform fee (12% — calcular, não hardcode)
+  transfer_data: {
+    destination: courier.stripeAccountId, // R$85 net to courier (após Stripe fee)
+  },
+});
+```
+
+**Marketplace compliance + payout cadence.** KYC/KYB: Stripe handles para Express; Logística delega onboarding. AML: PSP responsibility primary; Logística monitora patterns + reports suspicious transactions. Tax reporting: Stripe emite forms (1099 US, DARF/IRRF Brasil) per courier earnings. Payout cadence: daily/weekly/monthly; T+1 settlement default; courier vê balance + pending no dashboard hosted.
+
+**Reconciliation marketplace pattern — triple-entry ledger (cruza §2.19).** Daily cron compara:
+
+- `SUM(orders.amount) WHERE date = today` (platform DB).
+- `stripe.charges.list({ created: today })` (PSP source of truth).
+- Accounting double-entry sum (debit + credit balance).
+
+Discrepancy > 0.1% triggers alert PagerDuty + bloqueia próxima payout window até reconciled.
+
+**Logística applied stack 2026.**
+
+- **PSP**: Stripe (PIX + cards) para B2C lojista checkout; Stark Bank (lower fees PIX) para high-volume B2B settlement.
+- **Marketplace**: Stripe Connect Express; courier onboarding via app deep link → Stripe-hosted KYC flow.
+- **Split**: 85% courier + 12% Logística fee + 3% Stripe fee (varies); transparent breakdown no courier dashboard.
+- **Payout**: weekly default to courier bank account via Stripe; option daily com $0.50 fee per payout.
+- **Reconciliation**: nightly cron triple-ledger + alerts (cobre §2.19).
+- **Numbers reais**: 10k orders/dia × R$50 ticket médio = R$500k/dia GMV; Stripe fee R$15k/dia (3%); platform fee R$60k/dia (12%); courier net R$425k/dia (85%).
+
+**Anti-patterns observados.**
+
+- Direct Bacen integration sem $1M+ budget: anos pra compliance; use PSP.
+- PIX TXID NÃO incluindo `order_id`: reconciliation impossível; orphan payments acumulam silenciosamente.
+- Stripe Connect Custom em vez de Express em launch: 10x KYC + dispute overhead; refactor depois.
+- `application_fee_amount` hardcoded: deveria ser `Math.round(amount * 0.12)`; hardcode quebra em FX/multi-currency.
+- Webhook handler sem signature verification: replay attack vector (cruza §2.19); reject sem sig válida.
+- Reconciliation NÃO compara triple-ledger: Stripe vs DB ledger drift silently; descobre só em audit.
+- Courier marketplace sem dashboard transparency: balance/pending visibility é mandatory pra trust.
+- PIX QR expiration too short (5min): user gera no checkout, paga 10min depois, expirado; default 24h.
+- Stripe Express onboarding link expiration ignorado: user clica link velho → falha; refresh link em cada attempt.
+- PIX subscription via webhook polling: use PIX Automático native subscription API (2024+); polling é anti-pattern.
+
+Cruza com **02-18 §2.19** (webhook security + reconciliation patterns), **04-16** (product, marketplace economics), **03-08** (security, PCI-DSS scope reduction via PSP), **02-09** (Postgres, ledger immutable storage), **04-02** (messaging, payment events to outbox).
+
 ---
 
 ## 3. Threshold de Maestria

@@ -614,6 +614,184 @@ spec:
 
 Cruza com **03-03 §2.14** (autoscaling), **03-03 §2.16** (persistent volumes — PDB protege StatefulSet também), **03-03 §2.18** (operators que gerenciam PDB programaticamente), **03-15 §2.11** (chaos engineering valida resilience), **04-04 §2.x** (resilience patterns aplicam stack inteiro).
 
+### 2.22 Custom Controllers + Operators deep (kubebuilder, controller-runtime, CRD design)
+
+**Stack 2026**: kubebuilder 4.2+, controller-runtime 0.18+, K8s 1.30+, Go 1.22+. Operator Pattern (CoreOS, 2016) codifica conhecimento operacional em software; substitui playbooks manuais por reconciliation contínua.
+
+#### Operators vs Helm/Kustomize
+
+- **Helm/Kustomize**: templating declarativo; deploy uma vez; sem ongoing logic. Bom para apps stateless simples.
+- **Operators**: reconciliation loop contínuo; day-2 ops (backup, failover, scaling, upgrade) automatizados.
+- **Use cases**: stateful workloads (Postgres, Kafka, Elasticsearch, ML pipelines), multi-step domain operations, lifecycle management de tenants.
+- **Decisão**: se app precisa de "operator knowledge" pós-deploy (failover, restore, schema migration), operator. Senão, Helm chart resolve.
+
+#### Reconciliation loop — fundamentos
+
+- Controller observa CRs (Custom Resources) + dependências (Deployments, Services, ConfigMaps).
+- Cada mudança chama `Reconcile(req)`. Compara desired (Spec) vs actual (cluster state); muta para convergir.
+- **Idempotente**: chamadas N vezes com mesma input produzem mesmo resultado. `Create` substituído por `CreateOrUpdate` ou `Get`-then-`Create`.
+- **Level-triggered, NÃO edge-triggered**: reage ao estado atual, não a eventos. Resilient a missed events, controller restarts, network partitions.
+- **Eventual consistency**: um passo por Reconcile; se mais trabalho pendente, retorna `RequeueAfter` ou `Requeue: true`. Não tente "tudo de uma vez".
+
+#### CRD design — Spec, Status, subresources, schema
+
+- **Spec**: desired state, escrito por user.
+- **Status**: actual state, escrito pelo controller. Subresource `/status` separa RBAC e preserva user `spec` em status updates.
+- **Subresource `/scale`**: integra HPA/`kubectl scale` com CRD.
+- **OpenAPI v3 schema**: validation server-side (types, enums, ranges, defaults, required). Rejeita garbage antes de chegar ao controller.
+
+```yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: logisticatenants.logistica.example.com
+spec:
+  group: logistica.example.com
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: [tier, region]
+              properties:
+                tier:     { type: string, enum: [free, pro, enterprise] }
+                region:   { type: string, enum: [us-east, eu-west, br-sao-paulo] }
+                replicas: { type: integer, minimum: 1, maximum: 100, default: 3 }
+            status:
+              type: object
+              properties:
+                phase: { type: string, enum: [Pending, Provisioning, Ready, Failed] }
+                readyReplicas: { type: integer }
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:               { type: string }
+                      status:             { type: string }
+                      reason:             { type: string }
+                      message:            { type: string }
+                      lastTransitionTime: { type: string, format: date-time }
+      subresources:
+        status: {}
+        scale:
+          specReplicasPath:   .spec.replicas
+          statusReplicasPath: .status.readyReplicas
+  scope: Namespaced
+  names:
+    plural:     logisticatenants
+    singular:   logisticatenant
+    kind:       LogisticaTenant
+    shortNames: [ltenant]
+```
+
+#### kubebuilder + controller-runtime — skeleton Go
+
+`kubebuilder init --domain logistica.example.com --repo github.com/logistica/operator` + `kubebuilder create api --group logistica --version v1alpha1 --kind LogisticaTenant` gera scaffolding completo (Makefile, Dockerfile, RBAC, manager).
+
+```go
+func (r *LogisticaTenantReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+    log := log.FromContext(ctx)
+
+    var tenant logisticav1alpha1.LogisticaTenant
+    if err := r.Get(ctx, req.NamespacedName, &tenant); err != nil {
+        if errors.IsNotFound(err) { return ctrl.Result{}, nil } // deleted; nothing to do
+        return ctrl.Result{}, err
+    }
+
+    // Step 1: ensure Namespace (idempotente: IsAlreadyExists tolerado)
+    ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "tenant-" + tenant.Name}}
+    if err := r.Create(ctx, ns); err != nil && !errors.IsAlreadyExists(err) {
+        return ctrl.Result{}, err
+    }
+
+    // Step 2: ensure Deployment (com OwnerReference para GC)
+    deploy := r.deploymentFor(&tenant)
+    if err := ctrl.SetControllerReference(&tenant, deploy, r.Scheme); err != nil {
+        return ctrl.Result{}, err
+    }
+    if err := r.Create(ctx, deploy); err != nil && !errors.IsAlreadyExists(err) {
+        return ctrl.Result{}, err
+    }
+
+    // Step 3: update Status via subresource (não toca Spec)
+    tenant.Status.Phase = "Ready"
+    tenant.Status.ReadyReplicas = deploy.Status.ReadyReplicas
+    if err := r.Status().Update(ctx, &tenant); err != nil {
+        return ctrl.Result{}, err
+    }
+
+    log.Info("reconciled", "tenant", tenant.Name, "phase", tenant.Status.Phase)
+    return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+}
+
+func (r *LogisticaTenantReconciler) SetupWithManager(mgr ctrl.Manager) error {
+    return ctrl.NewControllerManagedBy(mgr).
+        For(&logisticav1alpha1.LogisticaTenant{}).
+        Owns(&appsv1.Deployment{}).
+        Owns(&corev1.Service{}).
+        WithEventFilter(predicate.GenerationChangedPredicate{}). // ignora status-only updates
+        Complete(r)
+}
+```
+
+#### Owner references + garbage collection
+
+- `ctrl.SetControllerReference(parent, child, scheme)` adiciona `OwnerReference` com `controller: true`.
+- Quando parent deletado, K8s GC remove children automaticamente em cascade.
+- `kubectl delete logisticatenant my-tenant` derruba Namespace, Deployment, Service, ConfigMap em sequência sem código adicional.
+
+#### Watching dependencies — `Owns`, `Watches`, predicates
+
+- **`For(&LogisticaTenant{})`**: primary CRD; reconcile triggered em qualquer mudança.
+- **`Owns(&Deployment{})`**: watch resources criados pelo controller; mudanças em status do Deployment re-triggera reconcile do tenant.
+- **`Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(...))`**: resources não-owned (ex: shared config); função custom mapeia evento → list de Requests.
+- **`predicate.GenerationChangedPredicate{}`**: filtra eventos onde só `.metadata.resourceVersion` muda (status writes); reconcile só em Spec changes. Reduz CPU 10x+.
+
+#### Status conditions pattern
+
+Convenção K8s API (`metav1.Condition`):
+
+- **`Available`** — operator atingiu desired state.
+- **`Progressing`** — convergindo (provisioning, scaling).
+- **`Degraded`** — falha parcial; service ainda up mas deteriorado.
+
+Cada condition: `type`, `status` (`True`/`False`/`Unknown`), `reason` (CamelCase code), `message` (human-readable), `lastTransitionTime`. Tooling genérico (kubectl, ArgoCD, OpenShift console) renderiza health automaticamente.
+
+#### Distribution
+
+- **OperatorHub.io**: catálogo CNCF + Red Hat certified.
+- **Helm chart**: `helm install logistica-operator`; mais simples para users já em Helm.
+- **OLM (Operator Lifecycle Manager)**: install/upgrade/dependency resolution; nativo OpenShift.
+- **Manifests YAML diretos**: `kubectl apply -f operator.yaml`; zero overhead, sem packaging extras.
+
+#### Logística aplicado — `LogisticaTenant` operator
+
+- **CRD**: `LogisticaTenant {tier, region, replicas}`.
+- **Reconcile cria**: Namespace `tenant-<name>` + Deployment `orders-api` (replicas conforme Spec) + Service ClusterIP + ConfigMap (tenant-specific config: feature flags, billing tier) + RoleBinding (tenant admin acesso ao namespace).
+- **Day-2 ops**: nightly backup CronJob criado por tier `pro+`; tier upgrade `free → pro` muta HPA `minReplicas`; deletion archiva dados em S3 antes do GC cascade.
+- **Resultado**: 1000+ tenants gerenciados com mesmo esforço operacional que 10. "Tenant lifecycle" expresso declarativamente em YAML.
+
+#### Anti-patterns observados
+
+- **Reconcile não idempotente**: cria duplicates em retry; sempre `Get`-then-`Create` ou `CreateOrUpdate`.
+- **Edge-triggered**: lógica reage a "creation event"; missed event = resource nunca criado. Sempre level-triggered.
+- **Long Reconcile (> 30s)**: bloqueia worker pool; quebrar em smaller steps com `RequeueAfter`.
+- **Status updated via `r.Update(ctx, &obj)`**: conflita com subresource `/status`; sempre `r.Status().Update(ctx, &obj)`.
+- **No OwnerReference em children**: orphans em parent delete; cleanup manual obrigatório.
+- **Watch all events sem predicate**: Reconcile spam em status writes; CPU 100%; usar `GenerationChangedPredicate`.
+- **Operator multi-replica sem leader election**: race conditions em writes; flag `--leader-elect` obrigatória em prod.
+- **CRD sem OpenAPI schema**: aceita qualquer garbage; user errors aparecem em runtime no controller.
+- **CRD pre-K8s 1.16 sem subresources**: status reset em Spec update; subresources `/status` separa o write path.
+- **Hardcoded namespace**: multi-tenant operator deve ser cluster-scoped ou namespace-aware via `WATCH_NAMESPACE` env.
+
+Cruza com **03-03 §2.18** (operators pattern intro), **03-03 §2.21** (PDB/topology spread aplicáveis a workloads gerenciados pelo operator), **03-04 §2.x** (CI/CD, operator deploy + image promotion), **04-08 §2.x** (services, operators automatizam stateful services), **04-04 §2.x** (resilience, reconcile = self-healing built-in), **03-15 §2.x** (incident response, operator-managed recovery reduz MTTR).
+
 ---
 
 ## 3. Threshold de Maestria
