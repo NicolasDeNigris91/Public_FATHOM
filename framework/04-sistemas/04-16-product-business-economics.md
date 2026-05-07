@@ -563,6 +563,141 @@ Cruza com **04-16 §2.19** (unit economics — retention drives LTV; PMF é prec
 
 ---
 
+### 2.21 SaaS pricing strategy 2026 — usage-based vs flat-rate vs hybrid, expansion mechanics, tier design, packaging anti-patterns
+
+Pricing é o lever de maior leverage do business. Estudo Simon-Kucher (replicado anualmente desde 2003): **+1% em price realization gera +8 a +12% em operating profit**, vs +1% em volume (~+3-4%) ou +1% em variable cost (~+5-6%). Mesmo assim, a maioria dos founders de engineering background tratam pricing como afterthought — escolhem $X/mês "porque competidor cobra Y" e nunca revisitam. Resultado: deixam 30-50% de revenue na mesa, ou pior, escolhem value metric errado e travam expansion para sempre. Pricing 2026 é multi-axial — model (per-seat, flat, usage, hybrid), value metric (qual unidade cobrar), tiers (good-better-best), packaging (qual feature em qual tier), discount discipline (annual vs monthly, multi-year), e dynamics (grandfathering, price increases, NRR drivers). Cada eixo tem decisão certa que depende de COGS structure, customer behavior, e willingness-to-pay distribution. Errar qualquer um é caro — errar value metric é catastrófico (impossível de consertar sem migration painful).
+
+#### Models compared
+
+| Model | Como funciona | Pros | Cons | When |
+|-------|---------------|------|------|------|
+| **Per-seat** | $/usuário/mês (Notion $10/seat, Slack $7.25/seat business) | Predictable revenue, easy to forecast, expansion via headcount | Anti-aligned com value (1 power user > 10 lurkers); customer racionando seats; viral product penalty | Collaboration tools, CRM, dev tools onde cada user extrai valor independente |
+| **Flat-rate** | $X fixo/mês independente de uso (Basecamp $99/mês unlimited users) | Simplicidade extrema, sem fricção de medição, attractive para SMB | Big customers underpaying massively; revenue não escala com value; gross margin destruída se COGS variável (LLM, compute) | Tools simples com COGS quasi-fixo, audience SMB, value metric difícil de medir |
+| **Usage-based** | $/unidade consumida (Snowflake ~$2-4/credit, AWS Lambda $0.0000166667/GB-s, OpenAI gpt-5 input ~$2.50/1M tokens out 2026, Stripe 2.9% + $0.30) | Perfect alignment value↔price, low entry barrier, expansion automática com customer growth | Revenue unpredictable, customer fear de "bill shock", forecasting harder, sales cycle complexa | Infra (compute, storage, bandwidth), API products, payment processing, anything onde value scales linearmente com volume |
+| **Hybrid (platform fee + usage)** | Base subscription + usage overages (Datadog ~$15-23/host/mês infra + $0.10/1M custom metrics + $1.27/M log events ingested + $1.70/M indexed; Vercel team $20/seat + $20/100GB bandwidth + Function invocations; Twilio $1/phone number + $0.0079/SMS) | Revenue floor + upside, best of both, NRR engine natural | Complexidade de billing/comm, customer needs to understand 2 dimensões, harder to compare com competitors | Maioria dos SaaS B2B 2026 — default moderno |
+
+Trend 2024-2026: **shift massivo de per-seat puro pra hybrid com usage component**. Notion adicionou AI add-on $10/seat/mês em 2024. GitHub Copilot $19/seat business + Enterprise $39. Slack adicionou Slack AI $10/seat/mês add-on. Razão: per-seat sozinho não captura valor de AI features (1 user com Copilot consome $5-50/mês em LLM tokens — flat $19 quebra gross margin se usuário é power user, sobrelucra se é casual).
+
+#### Value metric selection (decisão mais crítica)
+
+Value metric = a unidade que o customer paga por. Ex.: seat (Notion), GB ingested (Datadog logs), credit consumed (Snowflake), API call (Stripe), MAU tracked (Mixpanel), record stored (Salesforce Data Cloud), GB/month transferred (Cloudflare).
+
+Critérios pra value metric **boa**:
+
+1. **Correlaciona com customer value** — quando customer extrai mais valor, paga mais. Snowflake credit consumido proxy direto pra queries rodadas → pra business outcomes. Per-seat em ferramenta async-first onde 80% dos seats nunca abrem app: value metric ruim.
+2. **Easy to understand** — customer prevê o bill antes de gastar. "$/credit" só funciona se customer sabe traduzir workload em credits. Snowflake mitigou com cost calculator + warehouse sizing docs.
+3. **Easy to meter** — engineering precisa rastrear unit reliably. Veja **03-07** — meter é producto de observability; bug em meter = revenue lost ou customer dispute. Stripe levou 8 anos pra ter usage metering pronto pra terceiros (Stripe Billing usage-based, GA 2024).
+4. **Predictable from customer side** — wild swings = "bill shock" = churn. AWS é cautionary tale; Snowflake mitigou com reserved capacity + warehouse auto-suspend.
+5. **Aligned com COGS** — se cada unit consome COGS variável (LLM token, compute hour), pricing precisa cobrir COGS + margin. **Cobrar flat-rate em product onde COGS é variable e unbounded é suicide gross margin**.
+
+Anti-padrão clássico: **escolher value metric por conveniência de measurement em vez de alinhamento com value**. Ex.: cobrar por "API calls" quando 1 call de leitura é 100x mais barata que 1 call de write — customer racha endpoints e foge do pricing.
+
+#### Expansion mechanics (NRR/NDR como north star)
+
+**Net Revenue Retention (NRR)** = (Starting ARR + Expansion - Contraction - Churn) / Starting ARR. Mede crescimento da base existente, sem new logos. Top SaaS 2026 benchmarks (públicos):
+
+- **Median public SaaS NRR**: 110-115% (caiu de 120% pré-2023)
+- **Top decile**: 130%+ (Snowflake ~127% Q4 2024, Datadog ~115%, Cloudflare ~111%, MongoDB ~120%)
+- **<100% = leaky bucket** — adquirindo customers só pra repor os que saem. Insustentável a menos que CAC payback < 6 meses.
+- **>120% sustained = compound growth machine** — base cresce sem new sales effort.
+
+Drivers de expansion (em ordem de magnitude típica):
+
+1. **Usage growth** (40-50% do expansion em hybrid models) — customer cresce, consome mais. Automático, no sales effort. Snowflake's defining moat.
+2. **Seat expansion** (20-30%) — team cresce, mais users adicionados. Per-seat e hybrid.
+3. **Tier upgrade** (15-25%) — Starter → Growth → Enterprise. Driven por feature gating + support tier + compliance (SOC2, HIPAA gates).
+4. **Cross-sell** (10-20%) — produtos adjacentes (HubSpot Marketing → Sales → Service Hub; Datadog Infra → APM → Logs → Security).
+
+Engineering directive: **cada feature decisão deve perguntar "isso aumenta usage do value metric ou só satisfaz feature request?"**. Onboarding melhor → mais workspaces criados → mais seats adicionados → expansion. Activity feed → mais engagement → mais sticky → less churn. Veja **04-15** — product strategy precisa estar amarrado a NRR levers.
+
+#### Tier design — good-better-best, anchoring, decoy
+
+Standard pattern: **3 tiers visíveis + 1 enterprise (custom)**. Por quê 3? Choice paralisis em 4+; "Goldilocks effect" em 3 (médio vence). Notion: Free / Plus $10 / Business $15 / Enterprise (custom). Linear: Free / Standard $8 / Plus $14 / Enterprise. Vercel: Hobby / Pro $20 / Enterprise.
+
+Anchoring: **mostrar Enterprise (mais caro) primeiro ou destacar Business como "Most Popular"** força customer a comparar contra preço alto, fazendo Plus parecer barato. Marketing sites 2026 quase universalmente fazem isso.
+
+Decoy effect: tier intencionalmente pior cost/benefit pra empurrar customer pro tier alvo. Clássico The Economist (Ariely 2008): web $59, print $125, web+print $125 → 84% escolhem web+print porque print-only é "decoy". Em SaaS: Plus tier feature-poor demais pra force upgrade pra Business.
+
+Willingness-to-pay segmentação: tiers existem porque WTP não é uniforme. Solo dev paga $10, startup team paga $50/seat, Fortune 500 paga $200/seat pelo MESMO core product + compliance + SSO + audit. Tiers capturam consumer surplus em cada segmento.
+
+#### Packaging discipline — qual feature em qual tier
+
+Princípio: **gate features que correlacionam com customer size/sophistication**, não features que custam mais pra rodar. Erros comuns:
+
+- **Gating features que custam pouco mas all customers querem** (e.g., 2FA em tier pago) — bad press, segurança não é upsell.
+- **Não gating features que enterprise needs** (SSO/SAML, audit logs, RBAC, SCIM provisioning, custom data residency) — deixa dinheiro na mesa. **"SSO tax" é industry standard 2026** — SAML SSO é Enterprise-tier-only em 95% dos SaaS B2B. Sites como ssotax.org pressionam, mas mercado paga.
+- **Gating limites em vez de features** quando product é collaborative — limitar workspace size em Free força viral upgrade (Notion, Figma, Linear playbook).
+
+Standard 2026 packaging:
+
+- **Free / Hobby**: 1 user ou small team, single project, 30-day history, community support. Loss-leader, viral motion.
+- **Pro / Plus** ($10-30/seat/mês): teams pequenos, advanced features, email support, 90-day history.
+- **Business / Growth** ($20-50/seat/mês): SSO, audit logs, advanced permissions, priority support, integrations.
+- **Enterprise** (custom, $50-300/seat/mês ou flat $50k-500k+ ARR): SAML, SCIM, dedicated CSM, SLA, custom data residency, BAA/HIPAA/FedRAMP, on-prem option, custom contract terms.
+
+#### Pricing changes — grandfathering e comm strategy
+
+Aumentar preço em customer existente é maior risk-reward decision em pricing. Erros que fizeram empresas perderem 20-40% da base em 3 meses:
+
+- **Notion 2024 AI bundling forced upgrade** — backlash significativo, parcialmente revertido.
+- **Adobe Creative Cloud single-app → all-app forced bundle** — public outcry, lawsuits, FTC scrutiny.
+- **Twitter/X API monetization 2023** — community devs mass-exodus, third-party ecosystem destruído.
+
+Playbook seguro:
+
+1. **Grandfather existing customers no preço atual** — pelo menos 12-24 meses, idealmente para sempre em legacy plans. Custo: revenue oportunidade. Benefício: zero churn de aumento + goodwill.
+2. **New pricing só pra new customers + new tiers**. Existing customers podem opt-in pra novo plan se features novas valem.
+3. **Comm 60-90 dias antes**, email + in-app + blog post + CSM outreach pra top accounts. Founder/CEO assina email — não "Marketing Team".
+4. **Grandfather window com upgrade incentive**: "Lock in current price for 24mo se assinar annual antes de [data]" — converte mensais em anuais, reduces churn risk em 50%+.
+5. **Grandfathering forever pra top customers** — Stripe famously grandfather early customers em 2.4% (vs 2.9% standard). Goodwill imenso, custo marginal trivial em base do tamanho deles.
+
+#### Discount discipline
+
+- **Annual prepay**: 15-20% discount standard. Trade-off: cash up front + churn protection vs revenue per customer. Pra business com CAC alto, annual é existential — paga CAC payback de uma vez.
+- **Multi-year (2y, 3y)**: 25-35% discount, mas rare em SMB; padrão em enterprise. Lock-in vs price flexibility trade-off.
+- **Volume discount em usage-based**: tiered ou committed-use (Snowflake CUP — Capacity Units Purchase, AWS RIs/Savings Plans). Customer compromete X/year, recebe 20-40% off em troca.
+- **NPV discipline**: every discount aprovado deve passar por "qual o NPV do contrato vs walk-away?". Sales não tem discretion ilimitado — pricing committee aprova >20% discount. Salesforce literalmente tem "Deal Hub" pra isso.
+- **Anti-padrão**: descontos discretionários sem floor → race to bottom interno, sales rep optimizing pra fechar e não pra LTV.
+
+#### Stack Logística aplicada
+
+Marketplace SaaS multi-tenant com seller dashboard + buyer checkout + analytics. COGS structure:
+
+- **Per-tenant fixed**: Postgres tenant DB ($5-50/mo), Redis namespace ($2/mo), object storage baseline ($1-10/mo).
+- **Variable usage**: order volume → DB IO + queue jobs + Stripe fees passthrough; analytics queries → ClickHouse compute; LLM features (smart product descriptions, customer support copilot) → token spend; bandwidth on product images.
+
+**Decisão**: hybrid platform fee + usage components.
+
+Tier sketch:
+
+| Tier | Preço | Inclui | Overages |
+|------|-------|--------|----------|
+| **Starter** | $49/mês | 1 store, 100 orders/mo, 1GB images, basic analytics, email support | $0.50/order acima de 100 |
+| **Growth** | $199/mês | 3 stores, 1000 orders/mo, 10GB images, advanced analytics + cohort retention, AI product descriptions (1k generations), priority email | $0.30/order, $5/100 AI gens |
+| **Scale** | $799/mês | 10 stores, 10k orders/mo, 100GB images, real-time analytics, AI copilot, multi-currency + i18n, Slack support | $0.20/order, $3/100 AI gens, $0.10/GB image overage |
+| **Enterprise** | Custom $30k-300k+ ARR | Unlimited stores, dedicated infra (single-tenant DB option), SSO/SAML, SOC2/PCI compliance docs, custom SLA 99.95%, dedicated CSM, custom AI fine-tuning | Negotiated commit |
+
+Value metric primário: **orders processados/mês** (perfect proxy pra GMV → seller value). Secondary: AI generations (cobre LLM COGS — passthrough + 30% margin). Storage e bandwidth inclusas em quotas generosas (COGS baixo, comm overhead alto se cobrar).
+
+NRR drivers desenhados: seller volume cresce → orders crescem → expansion automática (40-50% NRR contribution); features novas (AI copilot 2026, multi-currency 2026, fraud detection 2027) drive tier upgrade; cross-sell futuro (logistics integration, payment financing) target 15-25% adicional. Target NRR: 120-130% steady state.
+
+#### 10 anti-patterns
+
+1. **"We'll figure pricing later"** — pricing post-launch é 10x mais difícil; decisões iniciais (free tier limites, value metric) viram contratos sociais com customers.
+2. **Per-seat em product onde value scales com usage** — penalizes power users e viral growth; 1 power user >> 10 seats lurking.
+3. **Flat-rate em product com COGS variável unbounded** (LLM resale, compute, bandwidth) — gross margin colapsa quando whales aparecem.
+4. **Free tier sem cap em COGS-heavy resource** — free users consumindo $500/mo em LLM tokens; cap mensal obrigatório.
+5. **Mudar preço pra existing customers sem grandfathering** — mass churn + Hacker News firestorm + permanent reputation damage.
+6. **Value metric escolhida por measurement convenience, não value alignment** — customer arbitra contra a metric (rachando endpoints, batching writes).
+7. **Tiers sem anchor / sem most-popular highlight** — choice paralysis; conversão drop 30-50%.
+8. **"Contact sales" em todos os tiers** — friction massiva pra SMB; PLG (Product-Led Growth) requer self-serve até $10-50k ARR.
+9. **Discount discretionário sem floor** — sales fecha negócios LTV-negativos pra bater quota; pricing committee + NPV gate obrigatório.
+10. **Não meter o value metric com observability rigor** — billing bug = revenue lost (under-bill) ou customer dispute escalado pra CEO (over-bill); meter é producto de eng tier-1, não cron job side project.
+
+Cruza com **04-16 §2.1** (revenue models intro — pricing é onde model encontra reality), **04-16 §2.5** (CAC — pricing afeta payback period diretamente), **04-16 §2.8** (pricing strategy basics — fundação), **04-16 §2.13** (engineering levers — meter, billing infra, dunning), **04-16 §2.16** (cost optimization — gross margin = pricing - COGS), **04-16 §2.19** (unit economics — LTV/CAC depende fundamentalmente de pricing), **04-15** (product strategy — packaging amarrado a NRR roadmap), **03-07** (observability — value metric metering production-grade), **04-10** (LLM cost passthrough — token economics em hybrid pricing).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:
