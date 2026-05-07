@@ -415,6 +415,161 @@ Logística keyboard journeys: header → search → filters → results table �
 
 ---
 
+### 2.22 WCAG 2.2 + WCAG 3.0 draft + automated screen reader testing 2026
+
+**WCAG 2.2** (W3C Recommendation, 5 Out 2023) consolida-se em 2026 como baseline regulatório. Adiciona 9 success criteria sobre 2.1, removendo apenas 4.1.1 Parsing (obsoleto):
+
+- **2.4.11 Focus Not Obscured (Min, AA)** / **2.4.12 Focus Not Obscured (Enh, AAA)**: elemento focado não pode ficar totalmente coberto por sticky header/cookie banner/modal não-modal. Min permite cobertura parcial; Enh exige zero overlap.
+- **2.4.13 Focus Appearance (AAA)**: focus indicator com área mínima 2 CSS px perimeter, contrast ratio 3:1 contra estados não-focados.
+- **2.5.7 Dragging Movements (AA)**: toda funcionalidade drag tem alternativa single-pointer (click/tap). Quebra carrosséis swipe-only, sliders sem keyboard.
+- **2.5.8 Target Size (Min, AA)**: targets clicáveis mínimo **24x24 CSS px**, exceto inline text, browser-default UA controls, ou equivalente alternative. AAA Target Size (Enh) mantém 44x44.
+- **3.2.6 Consistent Help (A)**: contato/help link em mesma posição relativa entre páginas.
+- **3.3.7 Redundant Entry (A)**: dados já fornecidos no flow não devem ser pedidos novamente (auto-fill ou select previous).
+- **3.3.8 Accessible Authentication (Min, AA)** / **3.3.9 (Enh, AAA)**: cognitive function tests (CAPTCHA, lembrar password) banidos exceto se houver alternativa, ou auxiliar mecanism (password manager paste, biometric, OAuth).
+
+**European Accessibility Act (EAA)** entrou em vigor **28-Jun-2025**. Força WCAG 2.1 AA mínimo para B2C produtos digitais ofertados na UE (e-commerce, banking, transport, ebooks). Penalidades nacionais variam, Alemanha até €100k por violação. EAA não exige 2.2 ainda, mas auditorias usam como state-of-art reference.
+
+```css
+/* WCAG 2.2 SC 2.5.8 Target Size (Min) */
+button, a.btn, [role="button"], input[type="checkbox"] + label {
+  min-width: 24px;
+  min-height: 24px;
+}
+/* AAA target (recomendado para mobile-first) */
+@media (pointer: coarse) {
+  button, a.btn { min-width: 44px; min-height: 44px; }
+}
+
+/* SC 2.4.11 Focus Not Obscured: sticky header + scroll-margin */
+:root { --sticky-header-h: 64px; }
+:focus-visible {
+  scroll-margin-top: calc(var(--sticky-header-h) + 8px);
+  outline: 3px solid #0066cc;
+  outline-offset: 2px;
+}
+header.sticky { position: sticky; top: 0; }
+```
+
+**WCAG 3.0** continua **Working Draft em 2026** (W3C AG WG, último update Mar 2026), target candidate recommendation ~2027. Mudança paradigmática vs 2.x:
+
+- Outcome-based em vez de pass/fail success criteria. Cada outcome avaliado em scoring 0-4 (Bronze/Silver/Gold conformance levels).
+- Cognitive disabilities first-class (não retrofit como em 2.x). Inclui low-literacy, math anxiety, working memory.
+- Inclui native apps + XR + voice UI (não só web).
+- Equity-focused: bias mitigation em ML-driven UIs, dark patterns enumeration.
+
+Não-normativo ainda. **Não usar para compliance** em 2026, mas designs maduros já testam contra outcomes (ex: "Visual contrast of text" outcome substitui SC 1.4.3).
+
+**axe-core 4.10+** (Set 2025, Deque) é referência industry. Pacotes:
+
+- `@axe-core/playwright` 4.10 — fixture nativa Playwright.
+- `@axe-core/react` 4.10 — runtime no dev mode, log violations no console.
+- `axe-core/cli` — headless audit single URL.
+- `axe-core` — engine puro, configurable.
+
+Rules-config: best-practice rules (`region`, `landmark-one-main`) ficam OFF em CI por default; opt-in com `runOnly: ['wcag2a', 'wcag2aa', 'wcag22aa', 'best-practice']`. Custom rules via `axe.configure({checks: [...], rules: [...]})`. Color-contrast-enhanced rule cobre WCAG AAA 1.4.6.
+
+**WebAIM Million Report 2024** (análise top-1M homepages): axe-core detecta automaticamente ~57% das WCAG issues automatable; **manual SR + keyboard restantes 43%** (focus order semântico, alt text quality, ARIA misuse contextual, dynamic announcements). **Tooling-only é insuficiente.** WebAIM 2024: 95.9% das homepages têm pelo menos 1 WCAG failure detectable, média 56.8 errors per page.
+
+**Playwright a11y testing 1.45+** (Jul 2025) tem fixture native + cross-browser:
+
+```typescript
+// tests/a11y.fixture.ts
+import { test as base, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+
+export const test = base.extend<{ makeAxeBuilder: () => AxeBuilder }>({
+  makeAxeBuilder: async ({ page }, use) => {
+    const builder = () => new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])
+      .disableRules(['color-contrast']); // theme-switching false-positive
+    await use(builder);
+  },
+});
+
+// tests/orders.a11y.spec.ts
+import { test } from './a11y.fixture';
+import { expect } from '@playwright/test';
+
+test('admin/orders zero WCAG 2.2 AA violations', async ({ page, makeAxeBuilder }) => {
+  await page.goto('/admin/orders');
+  await page.getByLabel('Email').fill(process.env.E2E_USER!);
+  await page.getByLabel('Password').fill(process.env.E2E_PWD!);
+  await page.getByRole('button', { name: /sign in/i }).click();
+  await page.waitForURL('/admin/orders');
+
+  const results = await makeAxeBuilder().analyze();
+  expect(results.violations).toEqual([]);
+
+  // Snapshot accessibility tree, assert shape
+  const snap = await page.accessibility.snapshot();
+  expect(snap?.children?.find(n => n.role === 'main')).toBeDefined();
+});
+```
+
+Rodar em WebKit cobre VoiceOver-equivalent rendering (mesma engine). Authenticated route testing exige fixture com pre-auth state (`storageState`).
+
+**Storybook a11y addon 8.x** (`@storybook/addon-a11y`) roda axe per-story. A11y panel mostra violations no sidebar. CI gate via `test-storybook --browsers chromium --maxWorkers=2 --testTimeout=30000`. Adopters: **Shopify Polaris, Atlassian Design System, GitHub Primer** rodam mandatory em PR.
+
+**Screen reader automation 2026** via `@guidepup/guidepup` (orchestrate VoiceOver/NVDA via OS-level APIs, não webdriver). Tests rodam em macOS runner (VoiceOver) + Windows runner (NVDA), assert anúncios reais:
+
+```typescript
+import { voiceOver } from '@guidepup/guidepup';
+
+test('save button announces correctly', async () => {
+  await voiceOver.start();
+  await voiceOver.navigateToWebContent();
+  await voiceOver.next(); // até landing no botão
+  expect(await voiceOver.lastSpokenPhrase()).toContain('Save order, button');
+  await voiceOver.act();
+  expect(await voiceOver.lastSpokenPhrase()).toContain('Order saved');
+  await voiceOver.stop();
+});
+```
+
+Adopters reais: **Microsoft Edge team** (web platform tests), **Adobe** (Spectrum design system). Custo: macOS GitHub Actions runner é **10x mais caro** que Linux ($0.08/min vs $0.008/min); reservar para release-candidate runs, não toda PR.
+
+**Pa11y Dashboard / Lighthouse CI** são alternativas a axe-only para multi-page crawl. Pa11y útil para non-React legacy multi-page (PHP, Rails server-rendered), gera WCAG impact reports per-route, baseline + drift detection. Lighthouse CI integra a11y score (subset axe-core) com Web Vitals em mesmo pipeline; útil em production deploy gate.
+
+**Manual SR + keyboard testing protocol** continua não-substituível:
+
+- **VoiceOver macOS** (Cmd+F5) — Safari pareado.
+- **NVDA Windows** (Ctrl+Alt+N, free, NV Access) — Firefox/Chrome pareados.
+- **JAWS Windows** (paid, Freedom Scientific) — enterprise, ~3% market share.
+- **TalkBack Android** (Settings → Accessibility → TalkBack) — Chrome.
+- **VoiceOver iOS** (Settings → Accessibility → VoiceOver) — Safari.
+- **Voice Control iOS / Voice Access Android** — motor disability simulation.
+
+Test matrix: cada release Q tem 1-2h manual SR session por critical flow. Recording: AXE DevTools "share scenario" reproduz steps. WebAIM Screen Reader User Survey #10 (2024): NVDA 65.6%, JAWS 60.5%, VoiceOver desktop 33.5% (multi-select).
+
+**CI integration patterns 2026**:
+
+- `@axe-core/playwright` em PR check (block merge se WCAG A/AA falhar).
+- Lighthouse CI em production deploy gate (a11y score >= 95).
+- Storybook a11y `test-storybook` daily run em main.
+- Pa11y weekly crawl em prod URLs.
+- Reporting: Datadog/Sentry tags `a11y.violation.severity:critical`, `a11y.wcag.sc:2.4.11`, dashboard de drift por route.
+
+**Legal landscape 2026**: ADA Title III lawsuits US continuam pico, **>4000 federal filings em 2024** (Seyfarth ADA Title III tracker), ~75% e-commerce. Section 508 Refresh 2017 obriga federal contractors a WCAG 2.0 AA (em 2026 já desatualizado vs 2.1). EU EAA enforced 28-Jun-2025. UK Equality Act 2010 + Public Sector Bodies Accessibility Regs 2018. Casos referenciais: **Domino's vs Robles** (SCOTUS 2019, app/site precisa ser acessível), **Target $6M settlement** (NFB class action 2008), **Beyoncé/Parkwood** (2019 NY filing). Risk pricing: failure = lawsuit + remediation + brand. Insurance carriers (AIG, Chubb) já oferecem cyber/a11y rider.
+
+Logística aplicada: courier dashboard `/admin` testa axe-playwright em todas rotas autenticadas (orders, drivers, dispatch, settings) via fixture com `storageState` pré-auth, gate em PR. Storybook a11y panel obrigatório passar para merge em qualquer componente do design system interno. Manual NVDA + VoiceOver run por release no flow "criar order" (create → assign driver → mark delivered). WCAG 2.2 SC 2.5.8 target-size aplicado em map markers (Leaflet/Mapbox custom icons 44x44 CSS px), em swipe-actions de lista de orders aplicar SC 2.5.7 com alternative button "Assign".
+
+Cruza com **03-17 §2.4** (axe basics, agora específico 2.2 rules), **03-17 §2.7** (Playwright a11y intro estendido com fixture + accessibility tree snapshot), **03-04** (CI/CD a11y como deploy gate, não só PR check), **02-02** (a11y fundamentals, POUR + ARIA roots), **03-18** (cognitive a11y, ponte para WCAG 3.0 outcomes equity-focused).
+
+**Anti-patterns**:
+
+1. axe sem `disableRules: ['color-contrast']` em dark/light theme switching, false positives durante transition flicker; rodar contrast em snapshot estático separado.
+2. Storybook a11y addon ON mas `test-storybook` não roda em CI, addon mostra UI no dev, gates não existem, regressão silenciosa.
+3. WCAG 2.0 only em 2026, UE B2C requer 2.1 mínimo (EAA), gap = fine; 2.2 já é state-of-art em auditorias.
+4. Target-size 24x24 ignorado em mobile map markers / swipe carousels, SC 2.5.8 violation, finger tap miss rate sobe.
+5. Focus indicator removido com `outline: none` sem replacement, viola SC 2.4.7 + 2.4.13; sempre pair com `:focus-visible` custom style.
+6. axe-core rodando só em homepage, 95% das violations vivem em forms/dashboards autenticados; cobrir authenticated routes é mandatory.
+7. Confiar 100% em axe (~57% coverage), pular manual SR, focus order semântico e ARIA misuse contextual passam batido.
+8. Guidepup VoiceOver tests rodando em toda PR, custo macOS runner 10x estoura budget; reservar para release-candidate ou nightly.
+9. WCAG 3.0 draft tratado como compliance target, ainda não-normativo, auditor recusa; usar como design north star, não legal baseline.
+10. Accessibility statement / VPAT desatualizado vs build atual, lawsuit discovery usa como evidência de bad faith; regenerar a cada major release com axe + manual report anexos.
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

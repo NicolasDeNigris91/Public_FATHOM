@@ -275,6 +275,100 @@ class JobsViewModel(private val api: LogisticaApi) : ViewModel() {
 
 ---
 
+### 2.20 Swift 6 strict concurrency + Kotlin Multiplatform 2.0 + iOS 18 / Android 16 frontiers 2026
+
+Mobile native em 2026 mudou de patamar. Swift 6 strict concurrency virou **default em new code Apple-side** (WWDC24 "Migrate your app to Swift 6"), Kotlin Multiplatform 2.0 saiu GA Q4 2024 (JetBrains KotlinConf 2024) e está em produção em Netflix, McDonald's, Cash App, Philips. iOS 18 / Android 16 trouxeram features de alta-leverage (App Intents 2.0 + Apple Intelligence, Predictive Back stable, Health Connect 1.0, Foreground Service Types). Quem está em RN bridge mode legado em 2026 está cooked: New Architecture 0.76 é default desde Q4 2025.
+
+**1. Swift 6 strict concurrency em produção 2026.** O modo `complete` força o compiler a provar ausência de data races em compile time. Migration playbook: liga `SWIFT_STRICT_CONCURRENCY=complete` em build settings, vê warnings explodirem, corrige module-by-module antes de Swift 6.x mudar warnings → errors. Region-based isolation (SE-0414) permite passar non-`Sendable` values entre isolation domains se compiler prova region disjoint — reduz `@Sendable` boilerplate brutal. Apple migrou SwiftUI internals em iOS 18 (WWDC24 talk Migrate your app to Swift 6). Escape hatches em ordem de preferência: isolated conformance > `@preconcurrency` import (silencia warnings de módulo legado) > `nonisolated(unsafe)` last-resort em property que comprovadamente nunca cruza thread.
+
+```swift
+// Actor isolando location stream — zero data race compile-time
+actor LocationStream {
+    private var subscribers: [UUID: AsyncStream<CLLocation>.Continuation] = [:]
+    func subscribe() -> AsyncStream<CLLocation> {
+        AsyncStream { cont in
+            let id = UUID()
+            subscribers[id] = cont
+            cont.onTermination = { [weak self] _ in
+                Task { await self?.unsubscribe(id) }
+            }
+        }
+    }
+    private func unsubscribe(_ id: UUID) { subscribers.removeValue(forKey: id) }
+}
+```
+
+**2. Kotlin Multiplatform 2.0 GA — shared logic + native UI.** KMP estabilizou Q4 2024. Compose Multiplatform 1.7 trouxe iOS beta production-ready em 2026. Padrão vencedor: Domain layer + Repository + use cases em `commonMain`, UI nativa cada lado (SwiftUI iOS, Compose Android). Empresas em produção (JetBrains case studies 2024): Netflix shared toolkit, McDonald's app global, Cash App backend logic, Philips medical devices. `expect`/`actual` com `@Multiplatform` annotation para platform-specific bindings (Keychain iOS / EncryptedSharedPreferences Android).
+
+```kotlin
+// commonMain — domain layer compartilhado
+class DispatchUseCase(private val repo: OrderRepository) {
+    suspend fun nextDelivery(courierId: CourierId): Delivery? =
+        repo.activeOrders(courierId)
+            .filter { it.status == OrderStatus.READY }
+            .minByOrNull { it.deadline }
+            ?.toDelivery()
+}
+// iosMain — SwiftUI consome via Kotlin/Native bridge
+// androidMain — Compose consome direto
+```
+
+**3. iOS 18 features alta-leverage 2026.** `@Observable` macro (Swift 5.9+) substitui `ObservableObject` — class normal vira observable sem `@Published`, recompose mais granular. Swift Testing framework substitui XCTest: `@Test` annotation, parametrized via `arguments:`, traits pra tagging. App Store agora monitora **Predictable App Launch Time** como métrica de qualidade pública. Adaptive Icons (light/dark/tinted), Control Center widgets via `ControlWidget`, App Intents 2.0 com Apple Intelligence integration (Siri executa intent direto sem deep linking).
+
+```swift
+@Observable
+final class RouteViewModel {
+    var currentLeg: Leg?
+    var distanceRemaining: Measurement<UnitLength> = .init(value: 0, unit: .kilometers)
+    func update(from gps: CLLocation) async { /* ... */ }
+}
+```
+
+**4. Android 16 features alta-leverage 2026.** Predictive Back animations stable (Android 14+ opt-in, Android 16 default em apps modernos). Health Connect 1.0 GA centraliza dados de saúde (substitui Google Fit, deprecated 2025). Foreground Service Types **obrigatórios** (`location`, `mediaPlayback`, `dataSync`, etc) desde Android 14 — não declarar = `ForegroundServiceTypeException` crash. Privacy Sandbox on Android (Topics API, Protected Audience) em rollout. Splash Screen API mandatory (Play Store policy 2024+). Per-app language preferences via `AppLocaleManager`. Photo Picker dispensa `READ_MEDIA_IMAGES` permission.
+
+**5. Cross-platform decision matrix 2026.** Quatro caminhos sérios:
+- **KMP 2.0** vence em teams com platform expertise nos dois lados que querem reaproveitar lógica sem comprometer UX nativa. Curve: alta no início, paga em apps complexos.
+- **RN 0.76+ New Architecture** vence em teams web pivotando pra mobile, ou empresas com componentes shared web+mobile (Meta, Shopify, Discord). JSI bridgeless mode aproxima de native mas ainda paga JS overhead.
+- **Flutter 3.27** com Impeller renderer mandatory (Skia deprecated em iOS desde 3.10) vence em greenfield com design system shared owned pelo time, e em apps que priorizam pixel-perfect cross-platform sobre look-native.
+- **Native-only** vence em performance-critical (camera pipelines, ARKit/ARCore, Metal/Vulkan compute, on-device ML, audio realtime). Sem competição séria.
+
+**6. New Architecture RN 0.76+ (default Q4 2025).** Bridgeless mode elimina async JSON bridge legado. Fabric renderer (synchronous shadow tree) + TurboModules (lazy native modules via JSI) + JSI obrigatórios. Codegen workflow: define spec TypeScript, gera headers C++/Java/ObjC. Meta reporta 30% startup improvement em apps migrados (React Conf 2024). Apps em bridge mode em iOS 18 SDK começam a quebrar — ponteiros ABI mudaram.
+
+**7. Apple Intelligence integration (iOS 18.2+).** Set de APIs em camadas: Genmoji (custom emoji generation), Writing Tools (system-wide rewrite/proofread/summarize), Siri com App Intents (Siri executa app actions sem abrir app), Image Playground API (Image Playground sheet em-app), Visual Intelligence (camera-based query). Modelo on-device 3B parâmetros + Private Cloud Compute pra queries server-side com attestation criptográfica (Apple publica binários PCC pra audit, WWDC24 keynote).
+
+```swift
+struct ShowNextDeliveryIntent: AppIntent {
+    static let title: LocalizedStringResource = "Show next delivery"
+    static let openAppWhenRun: Bool = true
+    @Dependency var dispatchService: DispatchService
+    func perform() async throws -> some ProvidesDialog {
+        let next = try await dispatchService.nextDelivery()
+        return .result(dialog: "Next: \(next.address) by \(next.eta.formatted())")
+    }
+}
+```
+
+**8. Build & ship 2026.** Xcode Cloud (CI Apple-managed, integrado a TestFlight + App Store Connect) destrona Bitrise/CircleCI pra times Apple-only. Android Gradle Plugin 8.7 com R8 full-mode default (mais agressivo que ProGuard, requires keep rules corretas). App Bundle (AAB) mandatory desde 2021, com Play Asset Delivery pra grandes assets. **Baseline Profiles obrigatórios** em apps Play Store sérios — afeta Android Vitals score público. App Size Report Card em App Store Connect monitora download/install size — apps grandes perdem ranking.
+
+**Logística applied.** Courier app usa KMP 2.0: domain shared (`Order`, `Route`, `Dispatch`, `Courier` entities) em `commonMain`, repositories shared, use cases shared. iOS UI SwiftUI puro com Swift 6 strict concurrency; `actor LocationStream` isola GPS subscribers, `@Observable` view models. Android UI Jetpack Compose com Coroutines `StateFlow<RouteState>`. Apple Intelligence App Intent "Show next delivery" invocável via Siri sem abrir app. Android Foreground Service com type `location` declarado, baseline profile gerado pra hot path do dispatch screen. RN ficou de fora — performance GPS realtime + ARKit pra navegação indoor warehouse não negocia.
+
+**Cruza com.** `02-06` (React Native 0.76 New Architecture, JSI bridgeless vs nativo direto: KMP é alternative que escolhe shared logic ao invés de shared UI). `04-04` (resilience, structured concurrency = supervision tree Erlang: Task tree em Swift, `coroutineScope` em Kotlin propaga cancellation determinística). `02-13` (auth, Keychain iOS / EncryptedSharedPreferences + Tink Android pra OAuth tokens, biometric gate via LocalAuthentication / BiometricPrompt). `04-09` (scaling, mobile fleet 100M+ devices: APNs HTTP/2 batching, FCM topic-based fan-out, Firebase A/B + Remote Config rollout staged). `03-08` (security, App Attest iOS + Play Integrity Android pra device attestation, blocking emulators e jailbreak/root em paths sensíveis).
+
+**Anti-patterns mobile 2026.**
+
+1. Swift 6 strict concurrency desligado em prod ("vamos depois") — débito explode quando Apple force migration; ligar agora module-by-module.
+2. KMP shared module exposto na UI direto via `expect`/`actual` sem domain mapper — UI fica acoplada a internal types Kotlin/Native, refactor brutal depois.
+3. RN bridge mode em 2026 — bridgeless é default 0.76+; bridge causa crash em iOS 18 SDK e perde 30% startup vs New Architecture.
+4. Foreground Service sem type declarado (Android 14+) — `ForegroundServiceTypeException` em runtime, app crasha em launch.
+5. `ObservableObject` + `@Published` em código novo iOS 17+ — `@Observable` macro recompose mais granular, performance melhor, código menor.
+6. Skia renderer em Flutter 3.27 — deprecated em iOS desde 3.10, Impeller é mandatory; manter Skia = janks visíveis no iPhone.
+7. App Intents ignorado — perder integração Siri + Apple Intelligence + Spotlight + Shortcuts em iOS 18.2+ é desperdiçar surface de discovery free.
+8. Sem Baseline Profile em Android — startup fica 30-40% pior, Android Vitals score cai, Play Store ranking afeta downloads.
+9. Compose Multiplatform iOS em produção sem testar Memory Model edge cases — Kotlin/Native ainda tem GC tuning quirks; profile antes de ship.
+10. XCTest em código novo em 2026 — Swift Testing é estratégia oficial Apple, parametrized + traits + concurrent execution; XCTest fica pra suites legadas.
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:
