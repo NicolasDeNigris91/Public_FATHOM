@@ -525,6 +525,163 @@ Cruza com **02-07 §2.4** (event loop foundation), **02-07 §2.10** (cluster bas
 
 ---
 
+### 2.19 Performance profiling deep — clinic.js, 0x flamegraphs, V8 deopts, heap snapshots
+
+Profiling sem método é teatro. Sem método, abre Chrome DevTools, screenshot do flame, e "otimiza" função que consumia 0.3% do tempo. §2.19 cobre stack 2026: **clinic.js 13+** (Doctor → categoriza problem antes de mergulhar), **0x 5+** (flamegraph standalone), **V8 deopt tracing** (perda silenciosa de JIT), **heap snapshots comparison** (leak detection real), **Pyroscope 0.21+** (continuous prod profiling). Node 22 LTS assumido.
+
+**Stack 2026 — escolha por sintoma**:
+
+- **clinic.js** (NearForm): suíte completa — Doctor (event loop + GC), Bubbleprof (async ops), Flame (CPU), Heap (memory). Uso em dev/staging.
+- **0x** (David Mark Clements): flamegraph único em CLI. Mais leve que clinic Flame.
+- **node --inspect** + chrome://inspect: profiler builtin (CPU, allocation timeline). Use pra debugging interativo, não pra prod.
+- **node --cpu-prof / --heap-prof**: profilers builtin desde Node 12. Output direto pra arquivo `.cpuprofile` / `.heapprofile`.
+- **Pyroscope / Parca**: continuous profiling em produção; flamegraphs sempre-ligados, agregados. Overhead 1-2% CPU.
+- **autocannon** (NearForm): HTTP benchmark pra reproduzir load enquanto profila.
+
+**clinic.js workflow — Doctor primeiro, sempre**:
+
+```bash
+# Step 1: Doctor categoriza problem (EventLoop / GC / IO / CPU)
+npx clinic doctor --on-port 'autocannon -d 30 -c 100 http://localhost:3000/orders' -- node server.js
+
+# Step 2 (se CPU-bound): Flame pra detalhe de CPU
+npx clinic flame --on-port 'autocannon -d 30 -c 100 http://localhost:3000/orders' -- node server.js
+
+# Step 3 (se async chain confuso): Bubbleprof
+npx clinic bubbleprof --on-port 'autocannon -d 30 -c 100 http://localhost:3000/orders' -- node server.js
+
+# Step 4 (se memory growth): Heap
+npx clinic heap --on-port 'autocannon -d 30 -c 100 http://localhost:3000/orders' -- node server.js
+```
+
+- Doctor emite recommendation explícita ("likely event loop blocking", "GC pressure detected"). Pular Doctor leva a investigar tool errado.
+
+**0x — flamegraph standalone**:
+
+```bash
+npx 0x -- node server.js
+# Em outro terminal: rode load (autocannon, k6, vegeta)
+# Ctrl+C no 0x; output HTML flamegraph abre em browser
+
+# Variant: profile já-rodando-em-background
+npx 0x -P 'autocannon -d 20 -c 50 http://localhost:3000' -- node server.js
+```
+
+- **Reading flamegraph**: largura ∝ tempo de CPU; altura = profundidade do stack; topo = leaves (onde tempo é gasto). Click pra zoom em subtree. Procure plateaus largos no topo — são leaves quentes.
+
+**V8 deoptimization — JIT silenciosamente desistindo**:
+
+V8 JIT-compila funções hot via TurboFan. Se assumption de tipo é violada, V8 **deopta** pra interpretador — mesma função, 10-100× mais lenta, sem warning.
+
+Causas comuns:
+
+- Polymorphic call site (mesma função chamada com shapes diferentes).
+- `try/catch` em hot loop (pre-Node 14; mitigado em Node 14+ mas ainda penaliza inlining).
+- `arguments` object usage (use rest `...args`).
+- `with`, `eval`, mutação de prototype em runtime.
+
+```bash
+# Trace deopts em runtime
+node --trace-deopt server.js 2>&1 | grep -i 'deopt'
+
+# Em flamegraph (clinic Flame, 0x): blocos vermelhos = deopted; amarelo = optimized eager; verde = not yet optimized.
+# Hot path com vermelho = perda significativa.
+```
+
+**Pattern Logística — fix polymorphic deopt no preço**:
+
+```ts
+// BAD — shapes variando entre chamadas
+function calculatePrice(item: any) {
+  return item.price * item.quantity;          // V8 deopta quando shapes divergem
+}
+calculatePrice({ price: 10, quantity: 2 });           // {price, quantity}
+calculatePrice({ price: 5, quantity: 1, tax: 0 });    // shape diferente
+calculatePrice({ price: 8, quantity: 3, discount: 1 }); // shape diferente de novo
+
+// GOOD — monomorphic, shape fixo
+interface PricedItem { price: number; quantity: number; tax: number; discount: number }
+
+function calculatePrice(item: PricedItem) {   // sempre mesmo shape; TurboFan inlina
+  return item.price * item.quantity * (1 + item.tax) - item.discount;
+}
+```
+
+- TypeScript não garante shape em runtime — só compile-time. Garanta inicialização consistente (default values em factory) pra V8 tratar como hidden class única.
+
+**Heap snapshots — leak detection real**:
+
+```ts
+// Snapshot programático
+import v8 from 'node:v8';
+
+v8.writeHeapSnapshot('./snapshot-' + Date.now() + '.heapsnapshot');
+```
+
+```bash
+# Auto-snapshot perto de OOM (Node 12+): captura 3 snapshots antes de crash
+node --heapsnapshot-near-heap-limit=3 server.js
+
+# Análise: Chrome DevTools → Memory → Load profile
+```
+
+- **Comparison view**: tire snapshot A, gere load, tire snapshot B 5min depois. DevTools "Comparison" filter mostra objects criados em B mas não freed — candidatos a leak.
+- **Retention path**: clique no objeto suspeito → "Retainers" mostra cadeia até GC root (qual closure/global segura). Sem path = sem leak.
+
+**Pyroscope — continuous profiling em produção**:
+
+```ts
+import Pyroscope from '@pyroscope/nodejs';   // SDK 2026, version 0.21+
+
+Pyroscope.init({
+  serverAddress: process.env.PYROSCOPE_URL!,
+  appName: 'orders-api',
+  tags: {
+    region: process.env.REGION!,
+    version: process.env.VERSION!,            // CRÍTICO pra diff entre deploys
+  },
+});
+Pyroscope.start();
+```
+
+- Always-on, ~1-2% CPU overhead. Flamegraphs agregados na UI.
+- **Diff over time**: compare flamegraph hoje vs último deploy → spot regressão antes de incident.
+- **Cardinality**: tags estáveis (`region`, `version`, `env`). NUNCA `user_id`, `tenant_id`, `request_id` — explosion de séries.
+- Alternativas: Datadog Continuous Profiler (managed), Parca (OSS), Polar Signals (managed).
+
+**Profiling em produção — sem matar latency**:
+
+- **Sampling profiling** (default V8, Pyroscope): captura stack a cada N ms; baixo overhead; perde funções breves.
+- **Tracing profiling** (`--cpu-prof`): cada call gravado; alto overhead; só windows curtos (segundos).
+- **Single instance + LB drain**: drene traffic de 1 pod, profile com tracing, retorne. Não profile todos os pods simultâneos (overhead × N).
+- Evite profilar dev com synthetic data — patterns de produção (cardinality real, payload sizes reais) divergem.
+
+**Logística — investigation real (deploy v3.4 → v3.5)**:
+
+- **Sintoma**: `/orders` p99 latency 100ms → 800ms após deploy v3.4. Sem alert óbvio em CPU/memory.
+- **Step 1**: clinic Doctor em staging com autocannon réplica do load → "likely event loop blocking".
+- **Step 2**: clinic Flame → `JSON.parse` consumindo 60% CPU em hot path; payload de 12KB+ por request.
+- **Step 3**: investigation no diff → nova feature serializa courier object completo com nested route history. Refactor pra selective fields (id, name, status, currentLat, currentLng).
+- **Resultado**: p99 volta pra 95ms; flamegraph re-rodado confirma `JSON.parse` < 5%.
+- **Pyroscope contínuo**: regressão equivalente em v3.5 detectada em 1h via diff vs v3.4 — antes de virar user-facing incident.
+
+**Anti-patterns observados**:
+
+- **Profiling em dev sem realistic load**: production patterns (cardinality, payload size, concurrency) divergem. Use autocannon com volume real.
+- **Skipping Doctor**: ir direto pro Flame sem categorizar problem. Doctor sinaliza qual tool é certa.
+- **V8 deopts ignorados em hot path**: `--trace-deopt` deveria ser 0 linhas em código quente. Cada deopt = JIT desistiu.
+- **Polymorphic em hot loop**: TypeScript não basta; runtime shape pode variar. Inicialize fields consistente.
+- **`try/catch` em hot inner loop pre-Node 14**: deopta. Refatore catch pro outer scope.
+- **Heap snapshot único pra leak**: leak precisa de **comparison** (2 snapshots minutos apart). Único só mostra estado.
+- **Production profiling em todas instâncias simultâneo**: overhead × N. Single instance + LB drain.
+- **`--inspect` permanente em prod**: porta de debugger exposta + overhead. Usar só ad-hoc com firewall.
+- **Pyroscope com tag cardinality alta** (`tenant_id`, `user_id`): explosion de séries no backend storage.
+- **Profilar só pós-incident**: continuous profiling pega regressão antes de virar p99 spike user-facing.
+
+Cruza com **02-07 §2.18** (event loop blocking + worker_threads — profiling localiza onde bloquear), **03-09** (frontend perf, mesmos princípios de flamegraph), **03-07** (observability stack, profiling como pilar adjacente a logs/metrics/traces), **03-10** (backend perf patterns broader), **04-09** (scaling, capacity planning profile-driven).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

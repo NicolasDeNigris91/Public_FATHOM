@@ -597,6 +597,149 @@ Schedule (cron via Airflow/Dagster): compaction nightly; expiration weekly; orph
 
 **Cruza com:** [`02-09`](../02-plataforma/02-09-postgres-deep.md) (Postgres, source para CDC); [`02-12`](../02-plataforma/02-12-mongodb.md) (Mongo, alternative source); [`03-13`](../03-producao/03-13-time-series-analytical-dbs.md) (analytical DBs, query layer); [`04-02`](./04-02-messaging.md) (messaging, Kafka pra CDC); [`04-09`](./04-09-scaling.md) (scaling, lakehouse storage cost economics); [`03-05`](../03-producao/03-05-aws-core.md) (AWS, S3 Tables managed).
 
+### 2.19 Apache Flink stateful streaming deep — watermarks, savepoints, CEP, exactly-once
+
+**Status 2026.** Flink 1.20 (LTS, lançado 08/2024) consolidou-se como runtime padrão pra low-latency stateful streaming + CEP em workloads onde Kafka Streams não escala (cross-key state, complex joins) e Spark Structured Streaming sofre com micro-batch latency. Flink Kubernetes Operator 1.10+ entrega lifecycle declarativo (CRDs `FlinkDeployment`, `FlinkSessionJob`); savepoints automáticos antes de upgrade. Stack maduro: Flink 1.20 + Kafka 3.7+ + RocksDB state backend + S3 checkpoint storage.
+
+**Flink vs Kafka Streams vs Spark Structured Streaming.**
+
+| Dimensão | Flink 1.20 | Kafka Streams 3.7 | Spark Struct. Streaming 3.5 |
+|---|---|---|---|
+| **Modelo** | Dedicated streaming runtime | Library embedded em app JVM | Micro-batch sobre Spark engine |
+| **Latency** | Sub-100ms (sub-ms tunável) | 50-500ms | 100ms-2s (continuous mode experimental) |
+| **State** | ValueState/ListState/MapState; RocksDB; petabyte-scale | RocksDB local; bounded by app heap | Stateful ops via state store (HDFSBackedStateStore/RocksDB) |
+| **CEP** | Native CEP library | Manual (no library) | Manual |
+| **Languages** | Java/Scala/Python (PyFlink) | Java/Scala only | Polyglot (Scala/Java/Python/R/SQL) |
+| **Sources/sinks** | Kafka, Kinesis, Pulsar, JDBC, Iceberg, S3 | Kafka-only | Kafka, Kinesis, files, JDBC, Delta/Iceberg |
+| **Decision** | Low-latency + complex state + CEP | Kafka-only + simplicity (cobre [`04-02`](./04-02-messaging.md) §2.19) | Batch+stream unified + ML pipelines |
+
+**Flink core concepts 2026.** **DataStream API**: typed stream operators (Java/Scala/Python). **Table API + SQL**: declarative; planner converts em DataStream. **State**: ValueState (single value per key), ListState (append-only list), MapState (keyed map); todos keyed; backed by RocksDB. **Watermarks**: track event-time progress; trigger window closures. **Checkpoints**: periodic state snapshots to S3/HDFS; recovery on failure (interval típico 30-60s). **Savepoints**: manual checkpoints pra upgrades; preservam state across job versions.
+
+**Watermark fundamentals.** Event time = quando evento ocorreu (no device/source); processing time = quando sistema vê. Watermark `W(t)` = assertion "todos eventos com event_time < t já foram observados". Late events = chegam após watermark passar; dropped ou roteados pra side output. Allowed lateness: window permanece aberto após watermark por grace period. Logística: courier ping `event_time` from device; watermark = max(event_time) - 30s; tolera 30s de GPS lag em túneis/áreas sem cobertura.
+
+**Watermark generation:**
+
+```java
+DataStream<TrackingPing> pings = env.fromSource(
+  KafkaSource.<TrackingPing>builder()
+    .setBootstrapServers("kafka:9092")
+    .setTopics("tracking.pings")
+    .setGroupId("flink-tracking")
+    .setStartingOffsets(OffsetsInitializer.committedOffsets())
+    .setDeserializer(KafkaRecordDeserializationSchema.valueOnly(TrackingPingDeserializer.class))
+    .build(),
+  WatermarkStrategy.<TrackingPing>forBoundedOutOfOrderness(Duration.ofSeconds(30))
+    .withTimestampAssigner((ping, ts) -> ping.eventTimeMillis())
+    .withIdleness(Duration.ofMinutes(1)),
+  "Tracking Pings"
+);
+```
+
+`forBoundedOutOfOrderness`: most common; tolera late events até N segundos. `forMonotonousTimestamps`: assume strict ordering; faster mas error-prone em streams reais. `withIdleness`: marca partition idle quando sem dados, evita stalled watermark global.
+
+**Stateful operator com keyed state + event-time timer:**
+
+```java
+public class CourierIdleDetector extends KeyedProcessFunction<String, TrackingPing, IdleAlert> {
+  private transient ValueState<Long> lastPingTime;
+
+  @Override
+  public void open(Configuration parameters) {
+    lastPingTime = getRuntimeContext().getState(
+      new ValueStateDescriptor<>("lastPingTime", Long.class)
+    );
+  }
+
+  @Override
+  public void processElement(TrackingPing ping, Context ctx, Collector<IdleAlert> out) throws Exception {
+    lastPingTime.update(ping.eventTimeMillis());
+    ctx.timerService().registerEventTimeTimer(ping.eventTimeMillis() + 10 * 60 * 1000L);
+  }
+
+  @Override
+  public void onTimer(long timestamp, OnTimerContext ctx, Collector<IdleAlert> out) throws Exception {
+    Long last = lastPingTime.value();
+    if (last != null && timestamp - last >= 10 * 60 * 1000L) {
+      out.collect(new IdleAlert(ctx.getCurrentKey(), timestamp));
+    }
+  }
+}
+
+pings
+  .keyBy(p -> p.courierId)
+  .process(new CourierIdleDetector()).uid("courier-idle-detector")
+  .sinkTo(alertsSink);
+```
+
+**CEP (Complex Event Processing).** Use case: detectar sequências (fraud, multi-step user journey, anomalies). Logística — fraud detection: 3 cancellations dentro de 5min:
+
+```java
+Pattern<OrderEvent, ?> fraudPattern = Pattern.<OrderEvent>begin("first")
+  .where(SimpleCondition.of(e -> e.type.equals("OrderCancelled")))
+  .followedBy("second")
+  .where(SimpleCondition.of(e -> e.type.equals("OrderCancelled")))
+  .followedBy("third")
+  .where(SimpleCondition.of(e -> e.type.equals("OrderCancelled")))
+  .within(Time.minutes(5));
+
+PatternStream<OrderEvent> patternStream = CEP.pattern(
+  events.keyBy(e -> e.tenantId),
+  fraudPattern
+);
+
+DataStream<FraudAlert> alerts = patternStream.select(matches -> {
+  OrderEvent first = matches.get("first").get(0);
+  return new FraudAlert(first.tenantId, first.eventTime, "3 cancellations em 5 min");
+});
+```
+
+`keyBy` antes de `CEP.pattern` é mandatório; sem isso, matches cruzam tenants (alerts sem sentido).
+
+**Exactly-once (Flink + Kafka via 2PC).** Two-phase commit: Flink JobManager coordena com Kafka producer transacional. Pre-commit: producer escreve batch mas não commita. Commit: após checkpoint barrier completar, Flink chama producer commit. Recovery: from last checkpoint; uncommitted batch é replayed. Config crítico: `transaction.timeout.ms` no producer < `transaction.max.timeout.ms` no broker (default 15min); checkpoint interval < transaction timeout. Sink config:
+
+```java
+KafkaSink<AlertEvent> sink = KafkaSink.<AlertEvent>builder()
+  .setBootstrapServers("kafka:9092")
+  .setRecordSerializer(...)
+  .setDeliveryGuarantee(DeliveryGuarantee.EXACTLY_ONCE)
+  .setTransactionalIdPrefix("flink-alerts-")
+  .setProperty("transaction.timeout.ms", "600000")
+  .build();
+```
+
+**Savepoints — upgrade preservando state:**
+
+```bash
+# Trigger savepoint (job continua rodando)
+flink savepoint <jobId> s3://logistica-savepoints/sp-2026-05-06
+
+# Cancel job
+flink cancel <jobId>
+
+# Deploy nova versão, restore from savepoint
+flink run -s s3://logistica-savepoints/sp-2026-05-06 \
+  -c com.logistica.flink.OrdersJob \
+  orders-job-v2.jar
+```
+
+**Operator UID** é mandatório pra state migration: `myOperator.uid("courier-idle-detector")`. Sem UID, Flink gera hash from operator chain; qualquer mudança no DAG quebra restore. Schema evolution: ValueState com Avro/JSON Schema-typed state sobrevive schema add (defaults aplicados); rename/drop requer custom migration.
+
+**Logística applied stack.** Sources: Kafka topics (`orders.events`, `tracking.pings`, `payments.events`). Flink jobs: `CourierIdleDetector` (alert se courier offline > 10min); `FraudPatternDetector` (CEP 3-cancellation pattern); `OrderJoinEnrichment` (stream-stream join order + courier profile, windowed 1h); `RealtimeMetrics` (windowed counts → ClickHouse sink). State backend: RocksDB; checkpoints to S3 a cada 60s; savepoints nightly + antes de cada deploy. Cluster: 3-node TaskManager (4 vCPU, 16GB cada) ~$300/mês em K8s; Flink Kubernetes Operator 1.10+ gerencia lifecycle (HA via K8s ConfigMap, sem ZooKeeper).
+
+**Anti-patterns observados:**
+- Watermark `forMonotonousTimestamps` em real-world stream (bursts causam infinite waits; use `forBoundedOutOfOrderness`).
+- ValueState sem `.update(null)` cleanup quando key terminal (state cresce unbounded; use TTL ou explicit clear).
+- Savepoint sem operator UID em new operators (state migration falha em upgrade; sempre `.uid("nome-estavel")`).
+- Checkpoint interval < 30s em high-throughput job (overhead dominates; tune por throughput, não por intuição).
+- CEP `within` sem `keyBy` (matches cruzam keys; alerts nonsense).
+- Stream-stream join sem windowed join (unbounded state; OOM em horas).
+- Flink JobManager single instance em prod (SPOF; HA mode com K8s ConfigMap ou ZooKeeper).
+- `forBoundedOutOfOrderness(Duration.ofMinutes(5))` arbitrário (mede actual lateness P99 antes; tune accordingly).
+- Allowed lateness + watermark grace combinados em downstream com aggregation (double counting).
+- Operator parallelism > Kafka partitions (slots idle; rebalance até match).
+
+**Cruza com:** [`04-02`](./04-02-messaging.md) §2.19 (Kafka Streams alternative); §2.18 acima (lakehouse Iceberg sink); [`03-13`](../03-producao/03-13-time-series-analytical-dbs.md) (analytical DBs como sink, ClickHouse); [`04-09`](./04-09-scaling.md) (parallelism, Kafka partition alignment); [`04-04`](./04-04-resilience-patterns.md) (resilience, exactly-once via 2PC).
+
 ---
 
 ## 3. Threshold de Maestria

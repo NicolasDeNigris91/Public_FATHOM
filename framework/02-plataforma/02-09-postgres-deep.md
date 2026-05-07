@@ -904,6 +904,157 @@ Cruza com **02-10** (ORMs, replicaUrl config); **03-05** (AWS RDS Postgres + Aur
 
 ---
 
+### 2.22 JSONB advanced patterns — jsonpath, GIN indexes, expression indexes, jsonb_path_query 2026
+
+PostgreSQL 16/17 entrega JSONB maduro: jsonpath estável desde 12, GIN `jsonb_path_ops` standard, `jsonb_path_query` em produção. Trate JSONB como tipo first-class, não escape hatch.
+
+**JSONB vs JSON vs schema relacional**:
+
+- **`JSON`** (text storage): preserva key order + whitespace; parse na cada leitura; lento. Use só se ordem importa (raríssimo).
+- **`JSONB`** (binary): parsed once on insert; indexável via GIN; lossy em whitespace; queries rápidas.
+- **Schema relacional** ganha quando: campos conhecidos + queries estruturadas + joins frequentes. Type system + foreign keys + estatísticas precisas no planner.
+- **JSONB ganha quando**: schema variável (multi-tenant config), event payloads (audit log), nested documents, schemaless API ingest.
+- **Híbrido (80% dos casos)**: colunas estruturadas pros campos quentes + coluna JSONB pra extras variáveis. Best of both.
+
+**Setup Logística (orders table)**:
+
+```sql
+CREATE TABLE orders (
+  id UUID PRIMARY KEY,
+  tenant_id UUID NOT NULL,
+  status TEXT NOT NULL,
+  total_cents BIGINT NOT NULL,
+  metadata JSONB NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO orders (id, tenant_id, status, total_cents, metadata) VALUES
+  ('ord-1', 'tenant-a', 'placed', 12500, '{"source": "web", "items": [{"sku": "BOX-A", "qty": 2}], "promo_code": "SAVE10"}'),
+  ('ord-2', 'tenant-a', 'placed', 8000, '{"source": "mobile", "items": [{"sku": "BOX-B", "qty": 1}], "courier_pref": "fast"}');
+```
+
+**Operadores JSONB (Postgres 16+ stable)**:
+
+- **`->`** retorna JSONB: `metadata->'source'` → `"web"` (com aspas).
+- **`->>`** retorna text: `metadata->>'source'` → `web`.
+- **`#>` / `#>>`** path nested: `metadata#>'{items,0,sku}'` retorna sku do primeiro item.
+- **`@>`** contains: `metadata @> '{"source": "web"}'` true se metadata contém aquele par.
+- **`<@`** contained-by: inverso.
+- **`?`** key exists: `metadata ? 'promo_code'`.
+- **`?|` / `?&`** any-of / all-of keys.
+
+**GIN indexes — `jsonb_ops` (default) vs `jsonb_path_ops`**:
+
+- **`jsonb_ops`** (default): suporta `?`, `?|`, `?&`, `@>`. Índice maior, mais flexível.
+- **`jsonb_path_ops`**: suporta apenas `@>`. Índice ~30% menor, queries mais rápidas.
+- **Decisão**: app só faz `@>` containment? Use `jsonb_path_ops`. Senão, default.
+
+```sql
+-- Default (jsonb_ops): suporta ?, ?|, ?&, @>
+CREATE INDEX idx_orders_metadata ON orders USING gin (metadata);
+
+-- Path-only (menor, mais rápido pra @>)
+CREATE INDEX idx_orders_metadata_path ON orders USING gin (metadata jsonb_path_ops);
+```
+
+**Expression indexes — index path específico**:
+
+```sql
+-- Query frequente por source? Index só ele.
+CREATE INDEX idx_orders_source ON orders ((metadata->>'source'));
+-- WHERE metadata->>'source' = 'mobile' agora usa index.
+
+-- Path nested
+CREATE INDEX idx_orders_first_item_sku ON orders ((metadata#>>'{items,0,sku}'));
+```
+
+Cada expression index aumenta custo de write; escolha queries top, não cada path.
+
+**`jsonb_path_query` (Postgres 12+; mature em 2026)** — SQL/JSON path language, sintaxe Postgres-specific:
+
+- **`@?`** path exists: `metadata @? '$.items[*] ? (@.qty > 1)'`.
+- **`@@`** path predicate: retorna boolean.
+
+Pattern Logística — orders com pelo menos 1 item de quantidade > 1:
+
+```sql
+SELECT id, tenant_id
+FROM orders
+WHERE metadata @? '$.items[*] ? (@.qty > 1)';
+
+-- Extrair elementos que match
+SELECT id, jsonb_path_query(metadata, '$.items[*] ? (@.qty > 1)')
+FROM orders;
+
+-- Primeiro match apenas
+SELECT id, jsonb_path_query_first(metadata, '$.items[*] ? (@.qty > 1)')
+FROM orders;
+```
+
+**JSONB updates — partial paths**:
+
+```sql
+-- Set nested key
+UPDATE orders SET metadata = jsonb_set(metadata, '{courier_pref}', '"premium"') WHERE id = 'ord-1';
+
+-- Append em array (concat)
+UPDATE orders SET metadata = jsonb_set(
+  metadata,
+  '{items}',
+  metadata->'items' || '{"sku": "BOX-C", "qty": 3}'::jsonb
+) WHERE id = 'ord-1';
+
+-- Remove key
+UPDATE orders SET metadata = metadata - 'promo_code' WHERE id = 'ord-1';
+
+-- Remove nested (primeiro item do array)
+UPDATE orders SET metadata = metadata #- '{items,0}' WHERE id = 'ord-1';
+```
+
+`jsonb_set` é atômica per-statement; updates concorrentes fazem read-modify-write race. Use `SELECT ... FOR UPDATE` ou optimistic locking via versão.
+
+**Performance**:
+
+- **TOAST** (The Oversized-Attribute Storage Technique): JSONB > 2KB armazenado out-of-line; UPDATE em JSONB grande reescreve tudo (caro).
+- **Cap size**: alvo < 2KB por linha em hot tables; passou disso, normalize.
+- **GIN write overhead**: 5-30% slowdown em INSERT/UPDATE; pesa em high-write tables.
+- **Números reais**: `@>` em tabela de 10M linhas com GIN ~1-5ms; sem index ~1-10s sequential scan.
+
+**Validação parcial via CHECK**:
+
+```sql
+ALTER TABLE orders ADD CONSTRAINT metadata_valid_source
+  CHECK (metadata ? 'source' AND metadata->>'source' IN ('web', 'mobile', 'api'));
+```
+
+Enforça schema parcial; mais barato que coluna separada quando o campo é semi-opcional.
+
+**Stack Logística aplicada**:
+
+- `orders.metadata` JSONB: source + items + promo_code + courier_pref + custom tenant fields.
+- GIN `jsonb_path_ops`: maioria das queries são `@>` (containment); índice menor.
+- Expression index em `(metadata->>'source')`: filtro frequente por canal.
+- `jsonb_path_query` em analytics: "orders com items > $50/unidade nos últimos 30 dias".
+- CHECK constraint valida `source` em enum permitido.
+- `audit_log` table com `details JSONB` único (variável por event type).
+
+**Anti-patterns observados**:
+
+- JSONB pra dados sempre estruturados (use colunas; perde tipo + index efficiency).
+- GIN `jsonb_ops` quando só faz `@>` queries (use `jsonb_path_ops`; ~30% menor).
+- Expression index em todo path (cada um adiciona write cost; pick top queries).
+- Tipo `JSON` text em vez de `JSONB` (parse lento toda leitura; só se ordem importa).
+- JSONB > 100KB por linha (TOAST overhead massivo no UPDATE; normalize pra tabela separada).
+- `jsonb_path_query` em hot path (lento vs expression index pré-computado).
+- Update JSONB sem `FOR UPDATE` lock (race condition; writes concorrentes perdidos).
+- Sem CHECK constraint em JSONB com schema parcial conhecido (garbage acumula).
+- GIN index em coluna raramente queried (write overhead sem benefit; drop).
+- Multi-tenant com `tenant_id` dentro do JSONB em vez de coluna (sem WHERE eficiente; refatore pra coluna + FK).
+
+Cruza com **02-09 §2.15** (intro JSON em Postgres); **02-09 §2.16** (schema design + híbrido relacional/JSONB); **02-09 §2.21** (partitioning + JSONB columns particionadas); **02-12** (Mongo como alternativa quando schema é majoritariamente variável); **04-13** (CDC capturando JSONB columns pra lakehouse).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:
