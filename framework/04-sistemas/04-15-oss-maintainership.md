@@ -374,6 +374,144 @@ Walking away é decisão sã. Ficar resentido é o anti-padrão pior — gera th
 
 Cruza com **04-12** (tech leadership: ADR/RFC discipline transfere pra OSS), **03-04** (CI/CD: contribuições passam por mesma rigor), **04-16** (product/business: OSS contribution as career capital), `superpowers:receiving-code-review` (skill aplicável diretamente), **§2.10** (building contributors interno espelha), **§2.12** (sustainability/funding após maturity).
 
+### 2.19 OSS supply chain security — Sigstore, OIDC trusted publishers, SBOM, provenance attestations
+
+Maintainer sério em 2026 não publica artifact sem signed provenance. Cadeia de confiança quebra em qualquer elo fraco — token vazado, build host comprometido, dep transitiva backdoored. Esta seção cobre o stack que se tornou default: Sigstore + OIDC + SBOM + SLSA.
+
+#### Timeline de incidentes 2020-2026
+
+- **SolarWinds (2020)**: build-system compromise → 18k organizações injetadas com Orion backdoor. Trust chain quebrou no build host.
+- **event-stream (2018)**: maintainer transferiu npm publish rights pra contributor desconhecido; malicious dep injetada via minor release.
+- **Log4Shell (2021)**: não é supply chain stricto, mas expôs falência de dependency management — ninguém sabia onde Log4j rodava.
+- **3CX (2023)**: signed binaries com stolen code-signing certs. Provou que long-lived signing keys são liability.
+- **xz-utils (2024)**: 3 anos de social engineering plantando backdoor em util core do Linux. Single-maintainer burnt out, hostile contributor virou co-maintainer, slow-rolled o ataque até `sshd` comprometido.
+- **Pattern**: trust chain breaks; key/certificate management é o weak link.
+- **2026 reality**: SLSA framework adoção mainstream, Sigstore default, npm/PyPI mandam trusted publishers pra packages críticos.
+
+#### Sigstore — keyless signing
+
+**Identidade-baseado, não key-baseado**. Signers usam OIDC token (GitHub Actions, Google OAuth) ao invés de long-lived signing keys. Componentes (Sigstore project, Cosign 2.4+):
+
+- **Cosign**: CLI sign/verify containers + arbitrary blobs.
+- **Fulcio**: certificate authority emite cert short-lived (10 min) baseado em OIDC token validado.
+- **Rekor**: transparent log de signatures (auditable, append-only, Merkle tree-backed).
+
+Insight central: **no key management problem**. Key existe por 10 minutos durante o build; depois disso, prova de quem assinou está em Rekor + cert tied to OIDC subject. Adoção 2026: Kubernetes, distroless, npm/PyPI provenance attestation.
+
+#### GitHub Actions — npm provenance pattern
+
+```yaml
+# .github/workflows/release.yml
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  id-token: write    # OIDC token pra Sigstore (mandatório)
+  contents: read
+  packages: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: Publish com provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance --access public
+```
+
+`--provenance` (npm 9.5+): npm CLI gera SLSA provenance, assina via Sigstore com OIDC token do GitHub Actions, registra em Rekor, anexa ao package metadata. Consumer roda `npm audit signatures` pós-install — verifica que provenance chain bate.
+
+#### Cosign para container images
+
+```bash
+# Sign keyless (rodando dentro de GitHub Actions, OIDC implícito)
+cosign sign --yes ghcr.io/logistica/orders-api:v1.5.0
+
+# Gerar SBOM CycloneDX 1.6 e atestar
+syft ghcr.io/logistica/orders-api:v1.5.0 -o cyclonedx-json > sbom.json
+cosign attest --predicate sbom.json --type cyclonedx --yes \
+  ghcr.io/logistica/orders-api:v1.5.0
+
+# Verify signature (consumer side) — exige bind a workflow/tag específico
+cosign verify ghcr.io/logistica/orders-api:v1.5.0 \
+  --certificate-identity 'https://github.com/logistica/orders-api/.github/workflows/release.yml@refs/tags/v1.5.0' \
+  --certificate-oidc-issuer 'https://token.actions.githubusercontent.com'
+
+# Verify SBOM attestation
+cosign verify-attestation ghcr.io/logistica/orders-api:v1.5.0 \
+  --type cyclonedx \
+  --certificate-identity 'https://github.com/logistica/orders-api/.github/workflows/release.yml@refs/tags/v1.5.0' \
+  --certificate-oidc-issuer 'https://token.actions.githubusercontent.com'
+```
+
+Detalhe crítico: `--certificate-identity` e `--certificate-oidc-issuer` são **mandatórios**. Sem eles, qualquer workflow OIDC-capable assina com identidade arbitrária e o `verify` aceita.
+
+#### SBOM — Software Bill of Materials
+
+- **Formatos**: CycloneDX 1.6+ (OWASP, broader use cases) ou SPDX 2.3+ (Linux Foundation, license-focused).
+- **Geradores**: Syft (Anchore), CycloneDX CLI, SPDX SBOM generator, `npm sbom` (built-in npm 10+).
+- **Use cases**: vulnerability scan (Grype, Trivy, Snyk), license audit, compliance regulatória (US Executive Order 14028 mandata SBOM pra software vendido ao governo federal).
+- Pattern Logística: cada release publica SBOM como cosign attestation; downstream verifica + roda Grype na pipeline de deploy.
+
+#### OIDC trusted publishers (npm + PyPI 2024+)
+
+Modelo antigo: long-lived API token em GitHub secrets. Leak = supply chain attack (event-stream-style).
+
+Modelo trusted publisher: registry valida OIDC token diretamente do GitHub Actions runner. Sem secret armazenado.
+
+- **npm**: package settings → Trusted Publisher → declare GitHub org/repo + workflow path + environment opcional.
+- **PyPI**: similar; suporta GitHub, GitLab, Google Cloud, ActiveState.
+- **Effect**: mesmo se atacante pwn o repo, não consegue publicar de workflow arbitrário — config liga ao path exato. Tighten ainda mais com environment protection rules + required reviewers.
+
+#### Logística applied — `@logistica/idempotency-kit`
+
+- **Source**: `logistica-org/idempotency-kit` no GitHub.
+- **Release pipeline**: GitHub Actions com `id-token: write`; `npm publish --provenance`; cosign sign de tarball auxiliar.
+- **SBOM**: CycloneDX 1.6 gerado por release; attested com cosign, anexado ao GitHub Release.
+- **Trusted publisher**: npm configurado pra aceitar somente `release.yml@refs/tags/v*` de `logistica-org/idempotency-kit`. Branch pushes não publicam, ever.
+- **Verification consumer-side**: pipeline da Logística roda `npm audit signatures` em CI; bloqueia install se provenance falhar. Grype scan diário do SBOM publicado.
+
+#### SLSA framework — Supply chain Levels for Software Artifacts (v1.0)
+
+- **L0**: zero requirements (default da maioria dos projetos).
+- **L1**: build process documentado + provenance gerada (não obrigatoriamente assinada).
+- **L2**: hosted build service + signed provenance — alvo realista pra maioria.
+- **L3**: source + build platform com guarantees fortes (auditable, hardened, isolated builds).
+- **L4**: reproducible builds + 2-person review obrigatório.
+
+2026 industry baseline: **L2 mínimo**; L3 pra security-critical (crypto libs, infra core). L4 raríssimo fora de Linux kernel + alguns Google internal.
+
+#### Continuous vulnerability scanning + VEX
+
+- **Static scan**: Grype, Trivy, Snyk consomem SBOM e cruzam com CVE databases (NVD, GitHub Advisory).
+- **VEX (Vulnerability Exploitability eXchange)**: spec OpenVEX — annota "CVE-X afeta lib Y mas não é exploitable no nosso uso porque não chamamos função vulnerável". Reduz alert fatigue real.
+- **Dependabot / Renovate**: auto-PR pra deps vulneráveis. Renovate é mais configurável; Dependabot é nativo GitHub.
+- **Pattern Logística**: nightly Grype em images deployadas; Renovate auto-PR pra CVE high/critical; VEX statements revisados em security review trimestral.
+
+#### Anti-patterns observados (10)
+
+1. Long-lived npm/PyPI token em GitHub secrets pra publish (rotate em compromise; substituir por OIDC trusted publisher).
+2. `cosign verify` sem `--certificate-identity` + `--certificate-oidc-issuer` (qualquer workflow assina; verificação é teatro).
+3. SBOM gerado mas não attested ou armazenado (no audit trail; útil zero pós-deploy).
+4. SLSA L0 vendido como "secure" em marketing (L0 é literalmente "no requirements").
+5. VEX statements escritos sem verificação — marca CVE como "not exploitable" sem auditar callgraph; silently dismiss real vulnerabilities.
+6. Trusted publisher set pra `*/refs/heads/main` (qualquer branch publica; tighten pra `refs/tags/v*` only).
+7. Provenance attestations publicadas mas consumer não verifica (`npm audit signatures` opcional; chain incompleta).
+8. SLSA L4 attempted em projeto OSS de 1 maintainer (overhead > benefit; aim L2).
+9. Renovate auto-merge sem review humano (introduz breaking changes silently; restrict a patch-only).
+10. SBOM com placeholder values (`version: "0.0.0"` everywhere; useless pra CVE lookup; valida geração em CI).
+
+Cruza com **03-08** §2.20 (SBOM lifecycle deep), **03-08** §2.14 (supply chain security overview), **03-04** (CI/CD pipelines + GitHub Actions OIDC), **§2.18** (becoming maintainer — OIDC publish é passo do release flow), **03-02** §2.21 (Docker provenance attestations), **§2.7** (security disclosure — provenance ajuda forensics).
+
 ---
 
 ## 3. Threshold de Maestria

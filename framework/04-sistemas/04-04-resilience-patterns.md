@@ -875,6 +875,196 @@ Cached fallback aceitável em 90% leituras business; **NUNCA em writes** (read m
 
 ---
 
+### 2.29 Chaos engineering practices — Gamedays, ChaosMonkey/Toxiproxy, FIS, blast radius management
+
+§2.26 cobre principles. Aqui: tooling 2026, gameday playbook, blast radius discipline, achados típicos em produção.
+
+**1. Why chaos engineering**
+
+- **Hipótese**: sistema tem failure modes desconhecidos; só revelam sob stress.
+- **Approach**: injetar falhas deliberadamente em ambiente controlado; observar + corrigir.
+- **Origem**: Netflix Chaos Monkey 2010; Principles of Chaos Engineering manifesto 2014.
+- **Adoção 2026**: standard SRE practice; AWS FIS managed; Gremlin/Litmus enterprise; Chaos Mesh CNCF graduated.
+
+**2. Hierarchy of chaos sophistication**
+
+- **L0 — Manual disaster simulations**: tabletop exercises ("what if RDS primary dies?"). No injection real.
+- **L1 — Controlled gameday**: scheduled, em staging, observa team response. Mensal.
+- **L2 — Automated gamedays**: scheduled chaos em staging, semanal, runbook-driven.
+- **L3 — Continuous chaos staging**: automated injections contínuas em staging (Mon/Wed/Fri).
+- **L4 — Production chaos**: controlled injections em produção real (Netflix-tier; anos de investimento).
+
+**3. Tools 2026**
+
+- **Chaos Monkey** (Netflix, OSS): legacy; randomly terminates instances. Substituído internamente por Chaos Engine.
+- **AWS FIS** (Fault Injection Simulator, 2026 GA matured): managed; AWS-native; suporta EC2, ECS, EKS, RDS, Lambda, networking.
+- **Gremlin** (commercial 2026): UI polished; broad failure types; SaaS; enterprise-friendly.
+- **Litmus** (CNCF, OSS, 3+): K8s-native; chaos experiments via CRDs; ChaosHub catalog.
+- **Chaos Mesh** (CNCF, OSS, 2.7+): K8s-native alternative; origem ecossistema chinês; rich network chaos.
+- **Toxiproxy** (Shopify, OSS, 2+): network-layer chaos (latency, drops, slow_close); ideal integration tests.
+- **PowerfulSeal** (Bloomberg, OSS): K8s + cloud-aware; menos ativo 2026.
+
+**4. Toxiproxy pattern Logística (integration tests)**
+
+```ts
+import Toxiproxy from 'toxiproxy-node-client';
+const client = new Toxiproxy('http://toxiproxy:8474');
+
+beforeEach(async () => {
+  await client.populate([{
+    name: 'redis_proxy',
+    listen: '0.0.0.0:6380',
+    upstream: 'redis:6379',
+  }]);
+});
+
+test('order creation survives Redis 500ms latency', async () => {
+  const proxy = await client.get('redis_proxy');
+  const toxic = await proxy.addToxic({
+    type: 'latency',
+    attributes: { latency: 500, jitter: 50 },
+  });
+
+  const start = Date.now();
+  const res = await fetch('/orders', { method: 'POST', body: JSON.stringify(order) });
+  expect(res.status).toBe(201);
+  expect(Date.now() - start).toBeLessThan(2000);  // total budget §2.28
+
+  await proxy.removeToxic(toxic.name);
+});
+
+test('order creation falls back to memory cache if Redis down', async () => {
+  const proxy = await client.get('redis_proxy');
+  await proxy.disable();  // cuts connection
+
+  const res = await fetch('/orders', { method: 'POST', body: JSON.stringify(order) });
+  expect(res.status).toBe(201);  // graceful fallback ativo
+
+  await proxy.enable();
+});
+```
+
+**5. AWS FIS — production-grade fault injection**
+
+Experiment template (JSON): targets + actions + stop conditions. Pattern Logística — terminate 1 EC2 em `orders-api` ASG:
+
+```json
+{
+  "actions": {
+    "terminateInstance": {
+      "actionId": "aws:ec2:terminate-instances",
+      "parameters": { "instanceCount": "1" },
+      "targets": { "Instances": "ordersAsg" }
+    }
+  },
+  "targets": {
+    "ordersAsg": {
+      "resourceType": "aws:ec2:instance",
+      "selectionMode": "COUNT(1)",
+      "resourceTags": { "AutoScalingGroup": "orders-api" }
+    }
+  },
+  "stopConditions": [{
+    "source": "aws:cloudwatch:alarm",
+    "value": "arn:aws:cloudwatch:us-east-1:123:alarm:orders-api-error-rate-high"
+  }]
+}
+```
+
+- **Stop conditions**: CloudWatch alarm halt experiment se real damage detectado. NUNCA omitir.
+- Outras actions FIS 2026: `aws:rds:reboot-db-instances`, `aws:network:disrupt-connectivity`, `aws:eks:pod-cpu-stress`.
+
+**6. K8s chaos via Litmus**
+
+```yaml
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosEngine
+metadata:
+  name: orders-api-pod-delete
+  namespace: logistica
+spec:
+  appinfo:
+    appns: logistica
+    applabel: app=orders-api
+    appkind: deployment
+  chaosServiceAccount: litmus-admin
+  experiments:
+    - name: pod-delete
+      spec:
+        components:
+          env:
+            - name: TOTAL_CHAOS_DURATION
+              value: '60'
+            - name: CHAOS_INTERVAL
+              value: '10'
+            - name: PODS_AFFECTED_PERC
+              value: '20'
+```
+
+Chaos Mesh equivalente: `kind: PodChaos`, `action: pod-kill`, `selector.labelSelectors`. Litmus mais customizável; Chaos Mesh UI superior 2026.
+
+**7. Gameday playbook**
+
+- **Pre-gameday (1 semana antes)**:
+  - Definir hipótese ("Order endpoint mantém SLO durante DB primary failover").
+  - Definir blast radius (env: staging; serviços impactados; janela temporal).
+  - Definir stop criteria (error rate > 5% sustained 1min → halt; p99 > 3x baseline → halt).
+  - Notificar Ops + Customer Support (no surprises).
+  - Identificar observers: IC, Ops, Comms (cobre `03-15` §2.19).
+- **Day of gameday**:
+  - 30min preflight (verifica monitoring ativo, baseline metrics capturados).
+  - Inject single failure first (uma variável só).
+  - Observa 15-30min sob falha contínua.
+  - Halt imediato se stop criteria met.
+  - Roll back deliberadamente (não auto-recover; observa recovery time).
+- **Post-gameday**:
+  - Document findings (postmortem-style; cobre `03-15`).
+  - File action items (P0 imediato, P1 dentro do sprint).
+  - Re-run experiment após fixes; falha não corrigida = falha conhecida.
+
+**8. Blast radius management**
+
+- **Staging-first**: todo chaos começa em staging. Production só após staging clean por 3+ ciclos.
+- **Single dimension**: um failure type por experiment (não combinar latency + pod-kill).
+- **Smallest scope first**: 1 pod < 10% pods < 50% pods. Escalar gradualmente após cada green.
+- **Time-bounded**: todo experiment tem hard timeout; auto-rollback no FIS via `stopConditions`.
+- **Reversible preferred**: latency/drop reversíveis > delete destrutivo.
+- **Observed**: full monitoring + alerting active; abort se real impact em users.
+
+**9. Logística chaos engineering program**
+
+- **Q1**: integrar Toxiproxy em CI integration tests; ~30 cenários latency/disconnect cobrindo Redis, Postgres, payment gateway.
+- **Q2**: monthly staging gameday com runbook preparado; foco DB failover e dependency outage.
+- **Q3**: AWS FIS staging continuamente (Mon/Wed/Fri auto-injections; weekend off para reduzir alert fatigue).
+- **Q4**: first production gameday (1h, controlled, full IC team on-call, comms pre-notificado).
+- **Findings tracked** em postmortem-style docs no Notion; action items em Linear, owner + due date.
+
+**10. Common findings (chaos reveals)**
+
+- **Cascade failures**: 1 service slow → entire system slow (timeout/circuit breaker missing; cobre §2.28).
+- **Retry storms**: failure → all clients retry sync → upstream piora (jitter ausente).
+- **Connection pool starvation**: 1 slow query holds all DB conns (pool isolation/bulkhead missing).
+- **Timeout > caller timeout**: DB call 30s mas caller 5s = caller desiste, DB ainda processa (deadline propagation missing).
+- **Missing fallbacks**: cache fail → no degraded mode → 500s direto.
+- **Health check too strict**: transient failure → pod restarted → cascade reschedule storm.
+
+**11. Anti-patterns observados (10 itens)**
+
+1. Production chaos sem staging baseline first — real damage; users impactados.
+2. Chaos sem clear hypothesis ("let's see what happens") — no learning, só ruído.
+3. No stop criteria defined — experiment runs unbounded; vira outage real.
+4. Multi-failure injection first time — não isolável; cause unknown.
+5. Gameday sem comms team notified — customer support floods de tickets confusos.
+6. Tool chosen over hypothesis (FIS porque available, não porque needed).
+7. No post-gameday action items tracked — findings esquecidos; mesmo chaos result próximo gameday.
+8. Continuous production chaos sem maturity — Netflix-level needs years de investimento prior.
+9. Toxiproxy em unit tests em vez de integration — overkill; unit tests devem mockar.
+10. Chaos team isolado de product team — no shared learning; chaos vira "their job".
+
+**12. Cruza com**: `04-04` §2.26 (chaos principles foundation), `04-04` §2.28 (resilience tuning informa chaos targets — onde tunar timeout antes de injetar latency), `03-15` (incident response, IC roles em gameday), `03-04` (CI/CD, integration tests com Toxiproxy), `04-09` (scaling, blast radius cresce com scale).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:
