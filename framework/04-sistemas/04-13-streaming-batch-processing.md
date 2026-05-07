@@ -742,6 +742,192 @@ flink run -s s3://logistica-savepoints/sp-2026-05-06 \
 
 ---
 
+### 2.20 Apache Iceberg internals + REST catalogs 2026
+
+§2.18 cobriu o trade-off entre Iceberg, Delta e Hudi. Em 2024-2026 a disputa terminou: Iceberg ganhou tração como **table format** dominante (Snowflake adotou nativo, Databricks comprou Tabular por US$2B em 2024 e abriu Delta UniForm para Iceberg, AWS lançou Glue Iceberg REST endpoint em GA, Polaris graduou como TLP no Apache em early 2026). A fronteira agora é o **catalog layer** — quem federa namespaces, controla credenciais e expõe REST API padronizada. Format estável; engines (Spark, Trino, DuckDB, ClickHouse, Flink, StarRocks) consomem pelo mesmo spec; catalog é onde Polaris, Unity, Lakekeeper, Nessie e Glue brigam. Engineering de dados em 2026 é desenhar partition specs corretos, configurar compaction policy, entender hidden partitioning e escolher catalog sem lock-in.
+
+**Architecture (4 camadas):**
+
+```
+catalog (REST/Hive/Glue) → metadata.json (current snapshot pointer, schema, partition spec)
+                              ↓
+                          manifest list (snapshot manifest = lista de manifests)
+                              ↓
+                          manifest files (lista de data files + stats min/max por column)
+                              ↓
+                          data files (Parquet/ORC/Avro)
+```
+
+Cada commit é atomic swap do `metadata.json` no catalog. Manifest list aponta para snapshot atual; snapshots antigos retidos para time travel. Stats em manifest enable file pruning sem abrir Parquet (planning rápido em milhares de files).
+
+**Hidden partitioning + transforms:**
+
+Iceberg aplica partition transform na ingest, mas query não precisa conhecer a partition column. Diferente de Hive (onde `WHERE dt='2026-05-07'` é mandatório), Iceberg deduz da timestamp original.
+
+```sql
+CREATE TABLE prod.orders (
+  order_id BIGINT,
+  tenant_id STRING,
+  ts TIMESTAMP,
+  amount DECIMAL(18,2),
+  status STRING
+) USING iceberg
+PARTITIONED BY (days(ts), bucket(16, tenant_id))
+TBLPROPERTIES (
+  'write.target-file-size-bytes' = '536870912',
+  'write.parquet.compression-codec' = 'zstd',
+  'commit.retry.num-retries' = '4',
+  'history.expire.max-snapshot-age-ms' = '604800000'
+);
+
+-- Query usa ts diretamente; Iceberg aplica days(ts) e prune partitions
+SELECT SUM(amount) FROM prod.orders
+WHERE ts >= TIMESTAMP '2026-05-01' AND ts < TIMESTAMP '2026-05-07'
+  AND tenant_id = 'acme';
+```
+
+Transforms suportados: `identity`, `bucket(N, col)`, `truncate(W, col)`, `year`, `month`, `day`, `hour`, `void`. Mudança de partition spec é metadata-only — old data permanece na spec antiga, new data na nova; query planner lida com ambas.
+
+**Schema evolution (ID-based, safe):**
+
+Cada coluna tem field ID interno; nome é alias. ADD/DROP/RENAME/REORDER/PROMOTE (int → long, float → double, decimal precision up) são metadata-only. Nunca reescreve data.
+
+```sql
+ALTER TABLE prod.orders ADD COLUMN region STRING AFTER status;
+ALTER TABLE prod.orders RENAME COLUMN status TO order_status;  -- safe; field ID preservado
+ALTER TABLE prod.orders ALTER COLUMN amount TYPE DECIMAL(20,2);  -- promote OK
+-- DROP + ADD com mesmo nome cria field ID novo → data antigo invisível (data loss lógico).
+```
+
+**REST catalog ecosystem 2026:**
+
+| Catalog          | Stewardship             | Cred vending | Multi-engine | Federation | Notes 2026                                  |
+|------------------|-------------------------|--------------|--------------|------------|---------------------------------------------|
+| Polaris          | Apache TLP (Snowflake)  | Sim (vended) | Sim          | Roadmap    | Graduated TLP Q1 2026; spec-compliant       |
+| Unity Catalog    | Linux Found (Databricks)| Sim          | Sim (OSS GA 2024) | Sim   | Governance + lineage built-in; pesado       |
+| Lakekeeper       | OSS (Rust)              | Sim          | Sim          | Sim        | 0.5+ leve, alta perf; choice para self-host |
+| Nessie           | Dremio                  | Parcial      | Sim          | Sim        | 0.95+; branching nativo Git-like            |
+| Glue Iceberg REST| AWS                     | Sim (IAM)    | Sim          | Não        | GA 2024; lock-in AWS mas zero ops           |
+| HMS (legacy)     | Apache Hive             | Não          | Limited      | Não        | Evitar greenfield; migrar para REST         |
+
+Polaris config (Spark REST endpoint):
+
+```json
+{
+  "spark.sql.catalog.prod": "org.apache.iceberg.spark.SparkCatalog",
+  "spark.sql.catalog.prod.type": "rest",
+  "spark.sql.catalog.prod.uri": "https://polaris.internal.acme.com/api/catalog",
+  "spark.sql.catalog.prod.credential": "${POLARIS_CLIENT_ID}:${POLARIS_CLIENT_SECRET}",
+  "spark.sql.catalog.prod.warehouse": "s3://acme-lake/prod",
+  "spark.sql.catalog.prod.scope": "PRINCIPAL_ROLE:data_engineer",
+  "spark.sql.catalog.prod.header.X-Iceberg-Access-Delegation": "vended-credentials"
+}
+```
+
+Vended credentials: catalog gera STS temporary creds escopadas ao path da tabela; engine não tem acesso direto ao bucket. Padrão 2026 para zero-trust em data lake.
+
+**Branching + tagging (WAP — Write-Audit-Publish):**
+
+```sql
+CREATE BRANCH dev IN prod.orders;
+INSERT INTO prod.orders.branch_dev SELECT * FROM staging.orders_today;
+
+-- Audit em dev sem afetar consumers de main
+SELECT COUNT(*), SUM(amount) FROM prod.orders.branch_dev WHERE ts >= current_date;
+
+-- Validações passaram → fast-forward
+CALL system.fast_forward('prod.orders', 'main', 'dev');
+
+-- Tag imutável de release (compliance, rollback point)
+CREATE TAG release_2026_05_07 IN prod.orders RETAIN 365 DAYS;
+
+-- Rollback se algo quebrar downstream
+CALL system.set_current_snapshot(table => 'prod.orders', ref => 'release_2026_05_06');
+```
+
+CI for data: pipeline DBT/Spark roda em branch, executa testes (row count delta, null ratio, distribution shift), só faz fast-forward se passar. Equivalente a PR + CI para data.
+
+**Time travel:**
+
+```sql
+SELECT * FROM prod.orders TIMESTAMP AS OF '2026-05-06 14:00:00';
+SELECT * FROM prod.orders VERSION AS OF 8127364521;
+
+-- Diff entre snapshots (debugging "o que mudou?")
+SELECT * FROM prod.orders.changes
+  WHERE snapshot_id BETWEEN 8127364521 AND 8127364999;
+```
+
+Retenção controlada por `history.expire.max-snapshot-age-ms` e `min-snapshots-to-keep`. Sem expiração → metadata bloat (planning lento, listing custoso em S3).
+
+**Compaction strategies:**
+
+Streaming sinks (Flink, Spark Structured Streaming) escrevem files pequenos (10-50MB) por micro-batch. Sem compaction, query latency degrada 5-10x e S3 LIST é gargalo.
+
+```sql
+-- Rewrite data files: target 512MB, sort por columns frequentes em filter
+CALL system.rewrite_data_files(
+  table => 'prod.orders',
+  strategy => 'sort',
+  sort_order => 'ts ASC, tenant_id ASC',
+  options => map(
+    'target-file-size-bytes', '536870912',
+    'min-input-files', '5',
+    'max-concurrent-file-group-rewrites', '8',
+    'partial-progress.enabled', 'true'
+  )
+);
+
+-- Rewrite manifests (consolida manifest files após muitos commits)
+CALL system.rewrite_manifests('prod.orders');
+
+-- Expire snapshots antigos (libera storage)
+CALL system.expire_snapshots(
+  table => 'prod.orders',
+  older_than => TIMESTAMP '2026-04-30 00:00:00',
+  retain_last => 10
+);
+
+-- Remove orphan files (data files não referenciados por nenhum snapshot)
+CALL system.remove_orphan_files(
+  table => 'prod.orders',
+  older_than => TIMESTAMP '2026-04-23 00:00:00'  -- buffer 7d para in-flight commits
+);
+```
+
+Sort durante rewrite é equivalente funcional ao Z-order do Delta (data clustering por múltiplas columns; melhora pruning em queries multi-dimensionais). Schedule diário em jobs idempotentes; rodar fora de janela de write-heavy se possível.
+
+**v2 vs v3 spec preview:**
+
+v2 (stable): row-level deletes via position deletes (file + row offset) e equality deletes (predicate). MERGE/UPDATE/DELETE eficientes. v3 (em flight Q2 2026): variant types (semi-structured nativo, sem JSON cast), deletion vectors (bitmap por file, mais compacto que position deletes), default values em ADD COLUMN, geometry types. Adoção engine-side: Spark e Trino lideram; Flink e DuckDB seguindo.
+
+**Stack Logística:**
+
+- `s3://logistica-lake/prod/` warehouse, Polaris REST catalog em ECS Fargate (2 instâncias), Postgres metastore para Polaris.
+- Tabelas: `orders`, `events`, `shipments` partitioned by `days(ts), bucket(32, tenant_id)`. File size target 512MB, zstd.
+- Sink: Flink Streaming → Iceberg via `IcebergSink` exactly-once (cruza com §2.16); commit interval 60s (~10MB files, OK pré-compaction).
+- Compaction: Airflow daily 02:00 UTC roda `rewrite_data_files` com sort `(ts, tenant_id)` em tabelas hot, weekly em cold.
+- Retention: snapshots 7 dias (debug + rollback), tags mensais retidas 365 dias (compliance fiscal Receita).
+- Read: Trino + DuckDB (analytics ad-hoc), ClickHouse via iceberg engine (cruza com [`03-13`](../03-producao/03-13-time-series-analytical-dbs.md), dashboard ops). Vended creds; nenhum engine tem IAM direto ao bucket.
+- WAP em pipelines críticos (pricing, billing): branch `dev`, dbt tests, fast-forward gated por PR review.
+
+**10 anti-patterns:**
+
+1. Snapshot retention infinito → metadata.json bloat, planning lento (>500ms para listar manifests), S3 LIST cost explode. Sempre `expire_snapshots`.
+2. Compaction nunca rodada em streaming sink → small file problem; query latency 10x e ListObjects throttling. Diário no mínimo.
+3. `commit.retry.num-retries` baixo (default 4) em high-write tables → conflict failures cascateiam para pipelines. Subir para 8-12 + jitter.
+4. Hidden partitioning ignorada manualmente em queries (`WHERE day(ts) = '...'` em vez de `WHERE ts >= ...`) → Iceberg não consegue aplicar transform reverso, perde pruning.
+5. Schema evolve por DROP + ADD com mesmo nome em vez de RENAME → field ID novo, data antigo fica invisível (data loss lógico, nem aparece em query).
+6. HMS (Hive Metastore) em greenfield 2026 → zero credential vending, sem branching, lock-in. REST catalog ou nada.
+7. Partition spec com cardinalidade alta sem `bucket()` (ex: `PARTITIONED BY (user_id)` com milhões de users) → milhões de partitions, metadata explode. Use `bucket(N, user_id)`.
+8. `remove_orphan_files` sem buffer de tempo (`older_than` < retention de write in-flight) → apaga files de commits em progresso, corrupção. Buffer mínimo 3-7 dias.
+9. Múltiplos engines escrevendo na mesma tabela sem catalog comum (ex: Spark via Hive + Trino via REST apontando paths diferentes) → split brain, snapshots inconsistentes, data loss.
+10. Sort key de compaction desalinhado com queries reais (`sort_by ts` mas queries filtram por `tenant_id`) → pruning inefetivo, custo de rewrite sem benefício. Análise de query patterns antes.
+
+**Cruza com:** §2.18 acima (lakehouse intro, comparativo Iceberg/Delta/Hudi); §2.11 (lakehouse compare); §2.12 (CDC source para Iceberg sink); §2.16 (exactly-once em sinks streaming → Iceberg commit); [`03-13`](../03-producao/03-13-time-series-analytical-dbs.md) (analytical DBs ClickHouse/DuckDB lendo Iceberg direto); [`04-09`](./04-09-scaling.md) (partition design, bucket cardinality, parallelism em compaction); [`03-05`](../03-producao/03-05-aws-core.md) (S3 storage costs, lifecycle policies para snapshots expirados).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:
