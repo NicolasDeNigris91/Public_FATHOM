@@ -503,6 +503,283 @@ Cruza com **[04-03 §2.1](../04-sistemas/04-03-event-driven-patterns.md)** (even
 
 ---
 
+### 2.19 Integration patterns deep 2026 — ACL, OHS, Published Language, Customer-Supplier, Conformist, Shared Kernel, Partnership em produção
+
+Bounded contexts isolados resolvem complexidade dentro de cada contexto, mas sistema real tem 8-15 BCs que precisam trocar dados. Sem padrões explícitos de integração, BCs viram **big ball of mud distribuído**: coupling implícito via banco compartilhado, eventos sem schema, clients quebrando a cada release, equipes brigando por ownership. Eric Evans catalogou 9 context relationship patterns no DDD blue book (capítulo 14); o trabalho estratégico é escolher o padrão certo por par de contextos no context map e aplicá-lo com rigor de schema, contract testing e evolution policy.
+
+Stack 2026 deu ferramental concreto pra implementar esses patterns: **AsyncAPI 3.0** (GA Q4 2024 — operations e channels separadas, reuso de mensagens, melhor mapeamento pra event-driven BCs), **OpenAPI 3.2** estável, **JSON Schema 2020-12**, **Pact 5+** (rust core, performance e cross-language matching), schema registries (**Confluent**, **Apicurio**, **AWS Glue**, **Buf Schema Registry** pra Protobuf), **Buf CLI** detectando breaking changes em CI. Não há mais desculpa pra "passa um JSON aí" entre contexts.
+
+#### Context relationships taxonomy (Evans 9 patterns)
+
+| Pattern | Direção | Quando usar | Custo |
+|---|---|---|---|
+| **Partnership** | Bidirectional | Dois BCs com sucesso interdependente; teams coordenam roadmap | Alto — exige sync constante |
+| **Shared Kernel** | Bidirectional | Subset pequeno explícito de modelo compartilhado (tenant_id, currency) | Médio — qualquer change vira coordenação |
+| **Customer-Supplier** | Upstream → Downstream | Downstream tem voice no roadmap upstream; SLA explícito | Médio — supplier respeita customer needs |
+| **Conformist** | Upstream → Downstream (passive) | Downstream adota modelo upstream as-is; sem voice | Baixo — mas downstream perde pureza |
+| **Anti-Corruption Layer (ACL)** | Upstream → Downstream (defensive) | Modelo upstream é tóxico/legado; isolar via translator | Médio — código de tradução, mas modelo interno preservado |
+| **Open Host Service (OHS)** | Upstream → many Downstream | BC vira service público; protocolo formal (OpenAPI/AsyncAPI) | Alto — versioning, deprecation, suporte multi-cliente |
+| **Published Language (PL)** | Cross-cutting | Vocabulário formal compartilhado (DTOs, event schemas) | Alto — governance de evolução |
+| **Separate Ways** | Sem relação | Integração não vale custo; cada BC resolve sozinho | Zero — mas exige disciplina pra não acoplar depois |
+| **Big Ball of Mud** | Caos | Anti-pattern reconhecido; isolar com ACL na fronteira | Existencial — todo o resto morre se não isolar |
+
+#### Anti-Corruption Layer (ACL) — translator entre modelos
+
+Quando modelo externo (legado, terceiro, BC com semantics ruim) **contamina** modelo interno se importado direto. ACL é adapter dedicado: traduz vocabulário, esconde quirks, blinda BC interno. Padrão essencial em **Strangler Fig migration** (04-08 §2.7) — ACL na fronteira do legado permite reescrever incrementalmente sem corromper modelo novo.
+
+```typescript
+// payments-context/acl/stripe-translator.ts
+// ACL: traduz Stripe domain → Payment domain interno.
+// Stripe expõe `PaymentIntent` com 47 fields, status enum confuso, currency lowercase string.
+// Payment BC interno tem `Payment` aggregate com semantic claro.
+
+import Stripe from 'stripe';
+import { Payment, PaymentStatus, Money, Currency } from '../domain/payment';
+
+export class StripePaymentTranslator {
+  /** External (Stripe) → Internal (Payment aggregate). */
+  toPayment(intent: Stripe.PaymentIntent): Payment {
+    return Payment.rehydrate({
+      id: intent.metadata.payment_id, // ID interno injetado em metadata
+      tenantId: intent.metadata.tenant_id,
+      amount: this.toMoney(intent.amount, intent.currency),
+      status: this.toStatus(intent.status),
+      externalRef: { provider: 'stripe', id: intent.id },
+      createdAt: new Date(intent.created * 1000),
+    });
+  }
+
+  private toMoney(amountMinor: number, currency: string): Money {
+    // Stripe envia em menor unidade (cents) lowercase; interno usa Money VO + Currency enum.
+    return Money.fromMinor(amountMinor, Currency.parse(currency.toUpperCase()));
+  }
+
+  private toStatus(stripeStatus: Stripe.PaymentIntent.Status): PaymentStatus {
+    // 9 statuses Stripe → 4 internos. Translator decide mapeamento.
+    switch (stripeStatus) {
+      case 'succeeded': return PaymentStatus.Captured;
+      case 'processing':
+      case 'requires_capture': return PaymentStatus.Authorized;
+      case 'canceled': return PaymentStatus.Canceled;
+      default: return PaymentStatus.Pending;
+    }
+  }
+}
+```
+
+ACL fica **fora do aggregate** (anti-pattern: translator dentro do `Payment`). Aggregate fala só linguagem interna; adapter na fronteira.
+
+#### Open Host Service (OHS) — BC como service público
+
+BC publica protocolo formal pra múltiplos consumers. Dois protocolos típicos em 2026: **OpenAPI 3.2** pra sync REST/RPC, **AsyncAPI 3.0** pra eventos. Schema vira contrato versionado em registry; clients geram SDK; breaking changes detectados em CI via Buf/openapi-diff.
+
+```yaml
+# orders-context/openapi.yaml — Orders BC como OHS
+openapi: 3.2.0
+info:
+  title: Orders Service
+  version: 2.4.0  # SemVer estrito; major bump = breaking
+servers:
+  - url: https://api.logistica.example/orders/v2
+paths:
+  /orders/{orderId}:
+    get:
+      summary: Recupera order por id
+      parameters:
+        - { name: orderId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderView' }
+components:
+  schemas:
+    OrderView:  # Published Language: contrato externo, NÃO é o aggregate interno
+      type: object
+      required: [id, tenantId, status, items, total]
+      properties:
+        id: { type: string, format: uuid }
+        tenantId: { type: string }
+        status: { type: string, enum: [created, picking, in_transit, delivered, canceled] }
+        items: { type: array, items: { $ref: '#/components/schemas/OrderItem' } }
+        total: { $ref: '#/components/schemas/Money' }
+```
+
+Eventos via AsyncAPI 3.0:
+
+```yaml
+# orders-context/asyncapi.yaml
+asyncapi: 3.0.0
+info: { title: Orders Events, version: 1.3.0 }
+channels:
+  orderPlaced:
+    address: orders.placed.v1
+    messages:
+      orderPlaced: { $ref: '#/components/messages/OrderPlaced' }
+operations:
+  publishOrderPlaced:
+    action: send
+    channel: { $ref: '#/channels/orderPlaced' }
+components:
+  messages:
+    OrderPlaced:
+      payload:
+        $ref: 'https://schemas.logistica.example/orders/order-placed/1.3.0.json'
+```
+
+Schema URL aponta pra registry (Confluent/Apicurio); CI valida compat backward com Buf:
+
+```bash
+buf breaking --against '.git#branch=main' schemas/
+```
+
+#### Published Language (PL)
+
+PL é o vocabulário externo formal: schemas em OAS/AsyncAPI/Protobuf que múltiplos BCs compartilham. **Não é o modelo interno** — é DTO de fronteira. Regra de evolução em 2026:
+
+- **Additive only** dentro de major version (campo novo opcional, enum value novo tolerado pelos clients);
+- **Major bump** pra remoção/rename;
+- **Deprecation policy** explícita (mínimo 2 minor versions com `deprecated: true` antes de remover no major);
+- Registry centraliza versões; clients pinam major; CI valida via Pact + Buf.
+
+#### Customer-Supplier — downstream com voice
+
+Downstream depende de upstream mas tem **canal formal** pra influenciar roadmap. Contrato selado por **Pact 5** (consumer-driven contract testing): customer publica expectations, supplier valida em CI antes de release.
+
+```typescript
+// orders-context/test/pact/courier-availability.pact.ts
+import { PactV4, MatchersV3 } from '@pact-foundation/pact';
+
+const pact = new PactV4({ consumer: 'orders', provider: 'courier-availability' });
+
+pact
+  .addInteraction()
+  .given('courier 7f3a is available in zone SP-01')
+  .uponReceiving('check availability')
+  .withRequest('GET', '/availability', (b) => b.query({ courierId: '7f3a', zone: 'SP-01' }))
+  .willRespondWith(200, (b) =>
+    b.jsonBody({
+      courierId: MatchersV3.uuid('7f3a...'),
+      available: MatchersV3.boolean(true),
+      slotsRemaining: MatchersV3.integer(3),
+    }),
+  )
+  .executeTest(async (mock) => {
+    /* call client, assert behavior */
+  });
+```
+
+Pact broker armazena contracts; supplier roda `pact:verify` em CI com **todos** os customers' expectations. Breaking change vira PR-blocker.
+
+#### Conformist — pragmatic adoption
+
+Downstream adota modelo upstream as-is. Válido quando upstream é estável (Stripe, AWS) e tradução não agrega valor. Risco: modelo upstream vaza pra dentro do BC. Use só pra **integration code path**, nunca pra core domain.
+
+```typescript
+// notifications-context/conformist/stripe-webhook-handler.ts
+// Conformist: aceita payload Stripe direto, sem traduzir. OK porque Notifications BC só
+// faz log + relay, não modela Payment internamente.
+export async function handleStripeWebhook(event: Stripe.Event) {
+  await notificationsRepo.log({
+    source: 'stripe',
+    type: event.type,
+    rawPayload: event,  // armazena bruto; translation seria desperdício aqui
+    receivedAt: new Date(),
+  });
+}
+```
+
+Quando Stripe vira fonte de Payment domain real, **upgrade pra ACL** (caso anterior). Conformist é decisão consciente, não preguiça.
+
+#### Shared Kernel — pequeno e explícito
+
+Subset minúsculo de modelo compartilhado entre BCs em **Partnership**. Mantenha **tiny** (10-50 linhas) ou converta pra Customer-Supplier. Anti-pattern: "shared types" virou monorepo coupling.
+
+```typescript
+// shared-kernel/index.ts — usado por orders, couriers, payments, notifications
+export type TenantId = string & { readonly __brand: 'TenantId' };
+export type Currency = 'BRL' | 'USD' | 'EUR';
+
+export class Money {
+  private constructor(readonly minor: number, readonly currency: Currency) {}
+  static of(minor: number, currency: Currency): Money {
+    if (!Number.isInteger(minor) || minor < 0) throw new Error('invalid amount');
+    return new Money(minor, currency);
+  }
+  add(other: Money): Money {
+    if (other.currency !== this.currency) throw new Error('currency mismatch');
+    return new Money(this.minor + other.minor, this.currency);
+  }
+}
+```
+
+Mudança aqui exige coordenação entre **todos** os BCs Partnership. Por isso o tamanho importa.
+
+#### BFF (Backend for Frontend) como ACL pattern
+
+Web BFF traduz N microservice contracts em shape UI-friendly. Sem translation = puro proxy = anti-pattern.
+
+```typescript
+// web-bff/order-detail-view.ts — ACL entre microservices e UI React
+export async function buildOrderDetailView(orderId: string): Promise<OrderDetailView> {
+  const [order, courier, payment] = await Promise.all([
+    ordersClient.get(orderId),         // OAS: OrderView
+    couriersClient.byOrder(orderId),   // OAS: CourierProfile
+    paymentsClient.byOrder(orderId),   // OAS: PaymentSummary
+  ]);
+  // Translation: 3 contracts → 1 view model otimizado pra UI
+  return {
+    id: order.id,
+    customerLabel: `${order.customerName} (${order.customerEmail})`,
+    statusBadge: mapStatusToBadge(order.status),
+    courierCard: courier ? { name: courier.fullName, phone: courier.phoneE164 } : null,
+    paymentLine: `${payment.method} • ${formatMoney(payment.total)} • ${payment.status}`,
+  };
+}
+```
+
+#### Decision tree
+
+- Modelo externo é tóxico/legado/instável → **ACL**.
+- BC vai servir 3+ consumers → **OHS** com OpenAPI/AsyncAPI versionado.
+- Downstream tem influência sobre upstream → **Customer-Supplier** + Pact.
+- Upstream é estável e modelo serve → **Conformist** (só integration paths).
+- Modelo pequeno realmente compartilhado + teams Partnership → **Shared Kernel** tiny.
+- Integração não traz valor proporcional ao custo → **Separate Ways**.
+- Existe legacy big ball of mud na fronteira → **ACL** + Strangler Fig.
+
+#### Stack Logística aplicada
+
+Context map típico (8 BCs): **Orders**, **Couriers**, **Routing**, **Payments**, **Notifications**, **Auth**, **Tenants**, **Pricing**. Relationships:
+
+- **Orders** → OHS via OpenAPI 3.2 + AsyncAPI 3.0 (consumido por Couriers, Routing, Notifications, Web BFF).
+- **Payments** → **ACL** sobre Stripe (translator isola Stripe domain).
+- **Couriers ↔ Routing** → **Partnership** + Shared Kernel pra `Location`/`Zone` types (teams coordenam).
+- **Notifications** → **Conformist** com Stripe webhooks (só log/relay).
+- **Auth** → **OHS** (OIDC/OAuth2 padrão).
+- **Tenants** → **Shared Kernel** mínimo (`TenantId`).
+- **Pricing → Orders** → **Customer-Supplier** com Pact (Pricing supplier; Orders customer).
+- **Web BFF** → **ACL** entre N microservices e UI.
+
+Schema registry (Apicurio em Postgres backend) hospeda OAS + AsyncAPI; Buf cobre Protobuf interno; CI roda `buf breaking` + `pact:verify` + `openapi-diff` em todo PR.
+
+#### 10 anti-patterns
+
+- ACL Translator dentro do aggregate — mistura concerns; mover pra adapter separate na infra layer.
+- OHS sem versioning explícito — todo change vira breaking; obrigatório SemVer + registry.
+- Shared Kernel obeso ("shared-types" com 200 classes) — virou monorepo coupling; encolher ou converter pra Customer-Supplier.
+- Conformist quando upstream model é ruim — toxicidade vaza; obrigatório upgrade pra ACL.
+- BFF como puro proxy sem translation — sem valor agregado; vira middleware extra na latência.
+- Customer-Supplier sem Pact contract testing — silent breakage em produção; CI tem que falhar antes do deploy.
+- Cross-context queries via SQL JOIN — destrói autonomy de BC; usar materialized read model (CQRS) ou compose API/event-driven.
+- Published Language sem deprecation policy — versions acumulam; obrigatório `deprecated: true` por N minor antes de remover.
+- Partnership entre BCs com goals divergentes — forced collaboration mata os dois; reavaliar relationship (talvez Customer-Supplier ou Separate Ways).
+- Schema sem registry central — clients descobrem contracts por screenshot/Slack; obrigatório Apicurio/Confluent/Buf com URL canônica em produção.
+
+Cruza com **[§2.4](#24)** (context map intro), **[§2.5](#25)** (strategic vs tactical), **[§2.7](#27)** (tactical patterns + Repository), **[§2.10](#210)** (modular monolith com BCs), **[§2.13](#213)** (ACL mention), **[§2.18](#218)** (Event Storming workshop), **[04-08 §2.7](../04-sistemas/04-08-services-monolith-serverless.md)** (Strangler Fig + ACL), **[04-08 §2.11](../04-sistemas/04-08-services-monolith-serverless.md)** (service mesh — infra pra OHS), **[04-05 §2.27](../04-sistemas/04-05-api-design.md)** (OpenAPI 3.2 + AsyncAPI como PL formats), **[04-02](../04-sistemas/04-02-messaging.md)** (events como PL), **[04-12 §2.24](../04-sistemas/04-12-tech-leadership.md)** (Conway's Law dita BC integration), **[04-03 §2.13](../04-sistemas/04-03-event-driven-patterns.md)** (ACL como anti-corruption foundation).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:
