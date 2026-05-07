@@ -444,6 +444,173 @@ Cruza com **02-08** (Fastify schema-first, Zod), **03-04** (CI/CD, `can-i-deploy
 
 ---
 
+### 2.20 Visual regression testing + Playwright advanced patterns + flake elimination
+
+E2E funcional valida comportamento; CSS regression passa silenciosa (botão deslocado 4px, contraste quebrado, layout collapse em viewport intermediário). Visual regression captura snapshot e compara pixel-a-pixel. Custo: alta manutenção, falsos positivos em data-driven UI. Adote por componente (design system) e por página crítica (checkout, dashboard); nunca por página inteira em SaaS data-heavy.
+
+#### Quando vale (e quando NÃO vale)
+
+- **Use case**: design system com Storybook; página user-facing crítica (checkout, dashboard, landing); componente reutilizado cross-product.
+- **NÃO use case**: toda página; UI data-driven que muda diariamente; conteúdo high-noise (feeds, dashboards live).
+- **Trade-off**: pega CSS regression invisível a teste funcional; manutenção alta (false positives em font rendering, anti-aliasing, OS diff).
+- **Adoption signal**: design team valoriza pixel-perfect; ou component library compartilhada cross-team.
+
+#### Tools 2026 — comparativo
+
+| Tool | Tipo | Custo | Best fit |
+|---|---|---|---|
+| **Playwright `toHaveScreenshot()`** | Built-in | Free | Most apps; integrado ao E2E |
+| **Storybook + Chromatic** | Component-level | $149+/mo | Design systems |
+| **Percy (BrowserStack)** | Pro SaaS | $599+/mo | Cross-browser focus |
+| **Applitools Eyes** | AI-based diff | $299+/mo | Tolerante a valid changes |
+| **Reg-suit (open-source)** | CI-only | Free | Self-host workflow |
+| **BackstopJS** | Legacy OSS | Free | Maintenance only |
+
+#### Playwright `toHaveScreenshot()` — prático
+
+```ts
+// orders.visual.spec.ts (Playwright 1.50+)
+import { test, expect } from '@playwright/test';
+
+test('orders dashboard visual', async ({ page }) => {
+  await page.goto('/orders');
+  await page.waitForLoadState('networkidle');
+  await expect(page).toHaveScreenshot('orders-dashboard.png', {
+    mask: [page.locator('[data-testid="updated-at"]')], // dynamic content
+    maxDiffPixelRatio: 0.01,                            // 1% tolerance (anti-aliasing)
+    animations: 'disabled',
+    caret: 'hide',
+  });
+});
+```
+
+Primeira execução gera baseline; subsequentes comparam. `maxDiffPixelRatio` absorve diff de anti-aliasing entre máquinas. Fonts/rendering divergem entre OS; rode em Docker pra consistência CI ↔ baseline.
+
+#### Docker para consistência
+
+```dockerfile
+# Dockerfile.e2e
+FROM mcr.microsoft.com/playwright:v1.50.0-jammy
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+CMD ["npx", "playwright", "test"]
+```
+
+Pinne versão Playwright; baseline screenshots tirados na mesma imagem. Em GitHub Actions, use `container: mcr.microsoft.com/playwright:v1.50.0-jammy` direto no job, evita rebuild.
+
+#### Storybook + Chromatic — pattern
+
+```ts
+// OrderCard.stories.tsx (Storybook 8+)
+import type { Meta, StoryObj } from '@storybook/react';
+import { OrderCard } from './OrderCard';
+
+const meta: Meta<typeof OrderCard> = {
+  title: 'Components/OrderCard',
+  component: OrderCard,
+  parameters: {
+    chromatic: { viewports: [375, 768, 1280], delay: 300 },
+  },
+};
+export default meta;
+
+export const Default: StoryObj<typeof OrderCard> = { args: { order: mockOrder } };
+export const LongName: StoryObj<typeof OrderCard> = {
+  args: { order: { ...mockOrder, customerName: 'A'.repeat(100) } },
+};
+export const Late: StoryObj<typeof OrderCard> = {
+  args: { order: { ...mockOrder, status: 'late' } },
+};
+```
+
+Cada story = 1 visual snapshot. Chromatic é hosted; auto-detecta diffs; PR review UI pra approval. Pricing 2026: free até 5k snapshots/mês, $149/mo pra 35k. `delay` espera animação/data load.
+
+#### Page Object Model + fixtures
+
+```ts
+// fixtures/orders.ts
+import { test as base, Page } from '@playwright/test';
+
+class OrdersPage {
+  constructor(public page: Page) {}
+  async goto() { await this.page.goto('/orders'); }
+  async filterByStatus(status: string) {
+    await this.page.getByRole('combobox', { name: /status/i }).selectOption(status);
+    await this.page.waitForResponse(r => r.url().includes('/api/orders') && r.status() === 200);
+  }
+  async createOrder(data: { items: string[] }) {
+    await this.page.getByRole('button', { name: /new order/i }).click();
+    for (const item of data.items) {
+      await this.page.getByLabel(/items/i).fill(item);
+      await this.page.keyboard.press('Enter');
+    }
+    await this.page.getByRole('button', { name: /submit/i }).click();
+  }
+}
+
+export const test = base.extend<{ ordersPage: OrdersPage }>({
+  ordersPage: async ({ page }, use) => use(new OrdersPage(page)),
+});
+```
+
+```ts
+// tests/orders.spec.ts
+import { test } from '../fixtures/orders';
+import { expect } from '@playwright/test';
+
+test('create order', async ({ ordersPage }) => {
+  await ordersPage.goto();
+  await ordersPage.createOrder({ items: ['Box A', 'Box B'] });
+  await expect(ordersPage.page.getByText('Order created')).toBeVisible();
+});
+```
+
+POM por feature (não god-class); fixture injeta página pronta no teste, reduz setup boilerplate.
+
+#### Flake elimination — patterns
+
+- **NÃO use `page.waitForTimeout(2000)`**: anti-pattern; substitua por `waitForResponse` ou `waitFor` específico.
+- **Auto-waiting**: `getByRole('button').click()` já espera elemento actionable; nada de `waitForSelector` manual.
+- **Network-aware**: `await page.waitForResponse(r => r.url().includes('/api/orders'))`.
+- **Retry on flake**: `retries: 2` no config, mas só em CI (`process.env.CI ? 2 : 0`); local mascara bug real.
+- **Trace viewer**: `npx playwright test --trace=retain-on-failure` → debug visual de runs falhos.
+- **Test isolation**: cada teste novo browser context; sem shared state entre tests.
+
+#### Common flake sources + fixes
+
+- **Animation race**: injete `* { transition: none !important; animation: none !important; }` pre-test via `page.addStyleTag`.
+- **Fonts não carregadas**: `await page.evaluate(() => document.fonts.ready)` antes de screenshot.
+- **`Date.now()` varia**: mock via `page.addInitScript(() => { Date.now = () => 1700000000000 })`.
+- **Random IDs (UUID)**: stub gerador; use deterministic test data (`uuid: 'test-uuid-001'`).
+- **Network flakiness**: stub APIs via `page.route('/api/**', route => route.fulfill({ json: fixture }))` em testes não-E2E-puros.
+
+#### Logística — applied stack
+
+- **Component visual regression**: Storybook + Chromatic pra design system (`OrderCard`, `CourierBadge`, `FilterBar`, `StatusPill`).
+- **Page-level visual regression**: Playwright `toHaveScreenshot` em `/orders`, `/dashboard`, `/settings` (3 critical journeys).
+- **E2E flow tests**: 8 critical paths via POM + fixtures (criar pedido, atribuir courier, marcar entregue, cancelar, etc.).
+- **Mobile E2E**: Maestro pro courier app (10 flows: login, accept job, mark delivered, etc.).
+- **CI pipeline**: container Playwright Docker; Chromatic on PR via path filter (`src/components/**`); total ~12min E2E + visual suite.
+
+#### Anti-padrões
+
+- `await page.waitForTimeout(2000)` em todo teste (slow; flake-prone; use specific waits).
+- Visual regression em todo PR (high noise; ative só quando path filter detecta mudança visual-relevant).
+- Storybook stories sem `viewports` / `delay` (snapshots variam; flake garantido).
+- Visual baselines committed em OS diferente do CI (Linux baseline + dev macOS = false positive crônico).
+- POM com 50+ methods em single class (refactor; split por feature: `OrdersPage`, `CheckoutPage`).
+- Tests compartilhando data via DB sem cleanup (test 2 falha porque test 1 deixou estado).
+- Playwright config sem `retries: 2` em CI (transient network = false failure block PR).
+- `expect(...).toBeVisible()` sem timeout adequado (default 5s pode ser pouco em slow CI; use `{ timeout: 15000 }`).
+- Visual regression em data-driven UI sem `mask` (timestamps/IDs mudam; mask obrigatório).
+- Mock APIs em todo teste E2E (defeats purpose; use real backend via Testcontainers + selective stubs em edges).
+
+Cruza com `03-01` §2.6 (E2E basics, Playwright fundamentals), `03-01` §2.18 (CI integration), **03-04** (CI/CD, parallel sharding, container reuse), **02-04** (React + Storybook component dev), **03-09** (frontend perf, visual budget enforcement em CI).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

@@ -630,6 +630,132 @@ Trade-offs práticos:
 
 Padrão maduro: gRPC entre serviços, REST público (com OpenAPI), GraphQL pra agregação BFF, tRPC em monorepo TS controlado.
 
+### 2.27 HATEOAS + hypermedia + JSON:API spec — when hypermedia wins, when REST-Lite suffices
+
+**HATEOAS** = "Hypermedia As The Engine Of Application State". Roy Fielding (dissertation 2000) define como REST level 4 no Richardson Maturity Model. Ideia: client não hardcoda URLs; server retorna links relevantes por estado do recurso ("de `placed`, dá pra `cancel` ou `assign_courier`"). Realidade 2026: ~5% das public APIs implementam HATEOAS verdadeiro. Resto é REST-Lite (RPC sobre HTTP com JSON). Por que adoção mínima: client devs ignoram links e hardcodam mesmo assim; OpenAPI cobre discoverability suficiente.
+
+**Richardson Maturity Model**:
+- Level 0: endpoint único + RPC verbs (`POST /api`).
+- Level 1: resources com nouns (`/orders`, `/orders/123`).
+- Level 2: HTTP verbs + status codes (`GET`/`POST`/`PUT`/`DELETE`; `200`/`201`/`404`).
+- Level 3: HATEOAS — hypermedia controls.
+
+Maioria das APIs senta em Level 2; "REST-Lite" pragmático.
+
+**JSON:API spec 1.1 (jsonapi.org)** — formato hypermedia padronizado pra JSON. Conventions: data envelope, included/relationships, links, meta, sparse fieldsets, sorting, pagination. Pros: consistência cross-team; tooling gerado (clients, OpenAPI). Cons: verbose; learning curve; ganho pequeno em times pequenos.
+
+Exemplo response Logística order:
+```json
+{
+  "data": {
+    "type": "orders",
+    "id": "ord-123",
+    "attributes": {
+      "status": "in_transit",
+      "createdAt": "2026-05-06T10:00:00Z",
+      "totalCents": 12500
+    },
+    "relationships": {
+      "courier": { "data": { "type": "couriers", "id": "cou-456" } },
+      "items": { "data": [{ "type": "items", "id": "i-1" }, { "type": "items", "id": "i-2" }] }
+    },
+    "links": {
+      "self": "/api/orders/ord-123",
+      "cancel": { "href": "/api/orders/ord-123/cancel", "method": "POST" }
+    }
+  },
+  "included": [
+    { "type": "couriers", "id": "cou-456", "attributes": { "name": "João" } }
+  ],
+  "links": { "self": "/api/orders/ord-123" }
+}
+```
+
+**Hypermedia prático em REST-Lite (Stripe-style)** — não é JSON:API completo, mas `expand` extensivo pra relations:
+```http
+GET /api/orders/ord-123?expand=courier,items.product
+```
+```json
+{
+  "id": "ord-123",
+  "status": "in_transit",
+  "courier": { "id": "cou-456", "name": "João" },
+  "items": [
+    { "id": "i-1", "quantity": 2, "product": { "id": "prod-1", "name": "Box A" } }
+  ]
+}
+```
+
+Sem campo "links"; client conhece URLs via OpenAPI / docs.
+
+**HAL (Hypertext Application Language)** — formato hypermedia leve; menos verbose que JSON:API. Spec: IETF draft; suporte amplo (Spring HATEOAS, AWS API Gateway opcional):
+```json
+{
+  "id": "ord-123",
+  "status": "in_transit",
+  "_links": {
+    "self": { "href": "/orders/ord-123" },
+    "courier": { "href": "/couriers/cou-456" },
+    "cancel": { "href": "/orders/ord-123/cancel" }
+  },
+  "_embedded": {
+    "items": [{ "id": "i-1", "qty": 2 }]
+  }
+}
+```
+
+**HTMX 2.0+ renaissance** — client hypermedia-driven; HTML response + atributos `hx-*` pra partial updates. Server retorna HTML fragments; sem mapeamento JSON-pra-DOM no client. Pattern Logística admin panel (Hono backend):
+```ts
+app.post('/orders/:id/cancel', async (c) => {
+  const id = c.req.param('id');
+  await db.update(orders).set({ status: 'cancelled' }).where(eq(orders.id, id));
+  // Retorna HTML fragment; HTMX faz swap no DOM
+  return c.html(`
+    <div id="order-${id}" class="order cancelled">
+      <span>${id} - cancelled</span>
+      <button hx-post="/orders/${id}/restore" hx-swap="outerHTML">Restore</button>
+    </div>
+  `);
+});
+```
+
+Compelling pra: admin panels, CRUD-heavy apps, stacks simples. Trade-off: ruim pra UI altamente interativa (drag-drop, real-time collaborative).
+
+**Quando HATEOAS / hypermedia ganha**:
+- APIs long-lived com muitos clients (versioning via discoverable links).
+- Server-driven UI (admin panels via HTMX, mobile apps com backend-driven UI).
+- Workflow APIs (state machines expostos via available actions).
+- NÃO ganha: CRUD simples com client único (overhead > benefit).
+
+**Recomendação pragmática 2026**:
+- Default: REST-Lite (Level 2) + OpenAPI pra discoverability + Stripe-style `expand`.
+- Stretch: JSON:API pra consistência cross-team / cross-product.
+- HATEOAS: só se workflow API ou HTMX-driven UI.
+- GraphQL: prefira pra needs de client-driven querying (já coberto §2.7+).
+
+**Logística applied stack**:
+- Public API: REST-Lite + OpenAPI (Stripe-style); `expand` pra relations; sem overhead HATEOAS.
+- Admin panel: HTMX (Hono backend); HTML fragments pra CRUD; JS mínimo.
+- Mobile API (courier app): REST-Lite com campo `actions` explícito por order (semi-HATEOAS pra state machine):
+  ```json
+  { "id": "ord-123", "status": "assigned", "actions": ["pickup", "cancel"] }
+  ```
+- Webhook events: envelope JSON:API-inspired pra consistência cross event types.
+
+**Anti-patterns**:
+- HATEOAS hardcoded mas client ignora links (server overhead sem benefit; remove).
+- JSON:API em microservice simples (verbose; REST-Lite suffices).
+- HTMX em SPA-heavy interactive UI (defeats purpose; usa React/Svelte).
+- HAL `_embedded` com 100+ items (response payload bloat; pagine).
+- Misturar JSON:API e REST-Lite no mesmo API (inconsistência frustra clients).
+- HATEOAS sem documentação (clients não descobrem semantics; OpenAPI ainda needed).
+- Stripe-style `expand` sem limit em depth (`expand=a.b.c.d.e.f`) — N+1 query trap.
+- Server retorna HTML pra "API" sem contexto HTMX (clients esperam JSON).
+- Versioning via URL (`/v1/orders`) quando HATEOAS daria forward-compatibility.
+- Action links em estado errado (`cancel` em order já delivered) — confusão no client.
+
+Cruza com: §2.7 (REST levels); §2.20 (GraphQL Federation); §2.24 (versioning evolution); `../02-frontend/02-04-react-ecosystem.md` (React, HTMX como alternativa); `04-08-services-monolith.md` (BFF pattern complementary).
+
 ---
 
 ## 3. Threshold de Maestria
