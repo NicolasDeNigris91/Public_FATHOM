@@ -526,6 +526,218 @@ Cruza com **02-02 §a11y RTL** (`dir` attribute + screen reader announce), **02-
 
 ---
 
+### 2.20 Translation Management Systems (TMS) + AI-assisted translation production 2026
+
+§2.17-2.19 cobriu fundamentos: Unicode, ICU MessageFormat, RTL, locale negotiation, pluralização, formatação. Falta o **lado humano + máquina da produção de localization**: como fonte de verdade dos strings sai do repositório, atravessa um **TMS** (Translation Management System), passa por **machine translation** (DeepL / GPT-4o / Claude 3.7 Sonnet), volta revisada por humanos, e retorna ao repositório sem drift. 2024-2026 quebrou o equilíbrio antigo: AI raw já produz tier 1 com glossário forte; humano virou **post-editor + reviewer** em vez de tradutor primário. Throughput humano puro: ~2000 palavras/dia a $0.10-0.20/palavra. AI + post-edit: ~8000 palavras/dia a $0.01/palavra raw + $0.04 review. Custo cai 5-10x. Mas qualidade só sustenta se TMS + glossary + style guide + MQM rubric estiverem operando como single source of truth.
+
+**TMS comparison matrix 2026** (escolha não é trivial — depende de open-source vs SaaS, GitHub-native, in-context, AI workflow nativo):
+
+| TMS | Modelo | GitHub sync | AI built-in | In-context | Forte em |
+|-----|--------|-------------|-------------|------------|----------|
+| **Lokalise** (acquired SmartCat 2024) | SaaS | Action oficial | DeepL + GPT | Plugin Figma + web | UI rich, mid-large teams, JSON/ICU/XLIFF |
+| **Phrase TMS** (Memsource rebrand) | Enterprise SaaS | API + CLI | AI workflows GA 2024 | Limited | Enterprise compliance, MQM nativo, XLIFF heavy |
+| **Crowdin** | SaaS | Action oficial | DeepL + OpenAI | Crowdin In-Context | Community translation (gamification), open-source projects |
+| **Tolgee 2.x** | Open-source self-hosted ou Cloud | CLI + Action | OpenAI + DeepL plugin | Chrome extension overlay (best-in-class) | Self-hosted, in-context superior, dev-first |
+| **Transifex** | Enterprise SaaS | API | AI add-on | Yes | Enterprise legacy, mature, conservadora |
+
+Logística aplicada: **Tolgee self-hosted** (Postgres + Docker compose, controle total, $0 SaaS) + **Claude 3.7 Sonnet via API** para tier 1 EN→pt-BR/es-MX/pt-PT + revisor nativo humano em pt-BR (interno) e contractor em es-MX/pt-PT.
+
+**GitHub Action sync pattern**. Source language em Git (e.g. `locales/en.json`); TMS espelha; PR auto-aberto quando traduções voltam:
+
+```yaml
+# .github/workflows/i18n-sync.yml
+name: i18n sync (Tolgee)
+on:
+  push:
+    branches: [main]
+    paths: ['locales/en.json', 'locales/en/**']
+  schedule:
+    - cron: '0 6 * * 1' # Monday 06:00 UTC: pull translated strings
+  workflow_dispatch:
+
+jobs:
+  push-source:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Push source EN to Tolgee
+        uses: tolgee/tolgee-action@v2
+        with:
+          api-key: ${{ secrets.TOLGEE_API_KEY }}
+          api-url: https://tolgee.logistica.internal
+          command: push
+          languages: en
+          files-pattern: 'locales/en/**.json'
+          override-key-descriptions: true # screenshots + context preserved
+
+  pull-translations:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pull translated locales
+        uses: tolgee/tolgee-action@v2
+        with:
+          api-key: ${{ secrets.TOLGEE_API_KEY }}
+          api-url: https://tolgee.logistica.internal
+          command: pull
+          languages: pt-BR,pt-PT,es-MX
+          path: locales
+      - name: Open PR
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: 'i18n: sync translations from Tolgee'
+          branch: i18n/sync-${{ github.run_id }}
+          title: 'i18n: weekly translation sync'
+          body: 'Auto-sync from Tolgee. Review string diffs before merge.'
+          labels: i18n,automated
+```
+
+Push é **eager** (toda mudança no `en` propaga); pull é **batched semanal** + PR (humano revisa o diff antes de mergear — captura quebra de variável ICU, contagem de placeholders divergente, encoding bug).
+
+**Locale file conventions**. JSON nested por feature/page namespace (não flat com chaves english-as-key):
+
+```json
+// locales/en/checkout.json
+{
+  "checkout": {
+    "header": "Review your order",
+    "total_label": "Total: {amount, number, ::currency/USD}",
+    "items_count": "{count, plural, =0 {No items} one {1 item} other {# items}}",
+    "submit_cta": "Place order",
+    "terms_accept": "I agree to the <link>Terms of Service</link>"
+  }
+}
+```
+
+Namespace por feature (`checkout`, `dashboard`, `auth`) evita translation memory cross-pollination indevida e permite lazy-load por rota. ICU MessageFormat para plurals/select. Nunca chave english-as-key (`{ "Place order": "Place order" }`) — translator vê chave igual ao valor e traduz mecanicamente, sem context.
+
+**AI translation pipeline 2026**. Claude 3.7 Sonnet com glossary + style guide + tone embutidos no system prompt. TMS chama API ou worker bate em batch:
+
+```typescript
+// scripts/ai-translate.ts — invoked from Tolgee webhook on new untranslated key
+import Anthropic from '@anthropic-ai/sdk';
+
+const client = new Anthropic();
+
+const GLOSSARY = {
+  'Logistica': 'Logistica', // brand: NEVER translate
+  'order': { 'pt-BR': 'pedido', 'es-MX': 'pedido', 'pt-PT': 'encomenda' },
+  'shipment': { 'pt-BR': 'envio', 'es-MX': 'envío', 'pt-PT': 'envio' },
+  'tracking number': { 'pt-BR': 'codigo de rastreio', 'es-MX': 'numero de rastreo', 'pt-PT': 'codigo de seguimento' },
+};
+
+const STYLE_GUIDE = {
+  'pt-BR': 'Use "voce" (informal). Tom direto, conciso. Evite gerundio em titulos. Capitalize apenas primeira palavra em CTAs.',
+  'pt-PT': 'Use "voce" formal. Vocabulario distinto de pt-BR (encomenda, ecra, ficheiro). Acordo Ortografico 1990.',
+  'es-MX': 'Use "usted" em CTAs formais, "tu" em microcopy informal. Vocabulario neutro mexicano.',
+};
+
+export async function translate(key: string, source: string, targetLang: string, context?: string) {
+  const glossaryHints = Object.entries(GLOSSARY)
+    .filter(([term]) => source.toLowerCase().includes(term.toLowerCase()))
+    .map(([term, val]) => {
+      const target = typeof val === 'string' ? val : val[targetLang];
+      return `- "${term}" -> "${target}"`;
+    })
+    .join('\n');
+
+  const msg = await client.messages.create({
+    model: 'claude-3-7-sonnet-20250219',
+    max_tokens: 1024,
+    system: `You translate UI strings from English to ${targetLang} for Logistica (logistics SaaS).
+
+Style guide: ${STYLE_GUIDE[targetLang]}
+
+Glossary (MUST follow):
+${glossaryHints || '(no glossary terms in this string)'}
+
+Rules:
+- Preserve ICU MessageFormat syntax: {var}, {n, plural, ...}, {x, select, ...}.
+- Preserve XML-like tags: <link>, <bold>.
+- Match string length within 1.3x of source (UI space constraints).
+- Never translate brand names: Logistica, Stripe, AWS.
+- Output ONLY the translated string, no quotes, no explanation.`,
+    messages: [{
+      role: 'user',
+      content: `Key: ${key}\nContext: ${context ?? 'general UI'}\nSource (EN): ${source}\nTranslate to ${targetLang}:`,
+    }],
+  });
+
+  return (msg.content[0] as { type: 'text'; text: string }).text.trim();
+}
+```
+
+Output entra em Tolgee como **machine-translated draft** (estado MT), não auto-publica. Reviewer humano valida e promove para `REVIEWED`.
+
+**Glossary + term base + translation memory**. Tres conceitos distintos, frequentemente confundidos:
+- **Translation Memory (TM)**: pares source-target previamente aprovados. Match 100% reutiliza, 75-99% (fuzzy) sugere com edit. Reduz custo: 30-50% das strings em release N+1 batem com release N. TMS armazena automaticamente.
+- **Term base / glossary**: lexicon de termos brand/domain com tradução fixa. "Logistica" -> "Logistica" (não traduz). "Order" -> "pedido" (pt-BR) / "encomenda" (pt-PT). Enforced no MT prompt e validado em review.
+- **Style guide**: regras de tom/registro/grammar. "voce" vs "tu", capitalização de CTAs, tratamento formal/informal por contexto. Vive como markdown no repo + linkado no TMS, não como Google Doc não-versionado.
+
+**In-context translation** (Tolgee Chrome ext, killer feature). Tradutor abre app em staging, vê strings renderizadas; clica num botão "Place order" e edita inline com contexto visual completo (tamanho do botão, posição, vizinhança). Resolve **string-only ambiguity** (e.g. "Open" — verbo "abrir" ou adjetivo "aberto"?). Reduz erros de tradução em 30-40%. Setup: instalar ext + apontar pra Tolgee API + adicionar SDK no app:
+
+```tsx
+// app/layout.tsx (staging only)
+import { TolgeeProvider, DevTools, Tolgee, FormatIcu } from '@tolgee/react';
+
+const tolgee = Tolgee()
+  .use(DevTools())
+  .use(FormatIcu())
+  .init({
+    apiUrl: process.env.NEXT_PUBLIC_TOLGEE_API_URL,
+    apiKey: process.env.NEXT_PUBLIC_TOLGEE_API_KEY, // staging only, never prod
+    language: 'en',
+  });
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <TolgeeProvider tolgee={tolgee} fallback="Loading...">
+      {children}
+    </TolgeeProvider>
+  );
+}
+```
+
+Em produção, build com flag `NEXT_PUBLIC_TOLGEE_DEV=false` que tree-shakes DevTools fora do bundle.
+
+**Quality measurement: MQM (Multidimensional Quality Metrics)**. ASTM/ISO standard. Reviewer marca erros em rubric ponderada:
+
+| Categoria | Severity | Peso |
+|-----------|----------|------|
+| **Accuracy** (mistranslation, omission, addition) | minor=1 / major=5 / critical=25 | 1.0 |
+| **Fluency** (grammar, spelling, register) | minor=1 / major=5 | 1.0 |
+| **Style** (style guide adherence, tone) | minor=0.5 / major=2 | 0.5 |
+| **Terminology** (glossary deviation) | minor=1 / major=5 | 1.0 |
+
+MQM Score = `100 - (sum_errors / word_count) * 100`. Tier 1 (CTAs, errors, billing) gate em MQM ≥ 95. Tier 2 (marketing, long-form) gate em ≥ 90. Spot-check 10% das strings AI-translated tier 1 — se > 2 strings com major error em sample de 50, **reject batch e re-prompt** com glossary reforçado.
+
+**Stack Logistica produção**:
+- **Tolgee self-hosted** em Railway (Docker compose: tolgee-app + Postgres + Redis), `tolgee.logistica.internal`.
+- **Source EN** em Git (`locales/en/**.json`), GitHub Action push on merge to main.
+- **Claude 3.7 Sonnet** webhook on new key untranslated em Tolgee, gera draft com glossary + style guide. ~$0.005/string.
+- **Reviewer pt-BR** (interno, native), revisa via Tolgee UI + Chrome ext em staging. MQM tracked.
+- **Contractor pt-PT/es-MX** via marketplace (e.g. Smartcat), 200 words/dia each, MQM gate ≥ 90.
+- **Pull weekly** Monday 06:00 UTC, PR auto-aberto, dev review + merge.
+- **Glossary** em `i18n/glossary.json` versionado, sync to Tolgee via CLI on change.
+
+**10 anti-patterns**:
+1. **AI translation deployed sem human review** em customer-facing UI: brand voice drift, glossary violations não detectadas, tone inconsistente. Mínimo: post-edit por nativo em tier 1.
+2. **TMS sync via manual upload/download** (alguém puxa CSV, edita em Excel, faz upload): drift garantido entre Git e TMS, race conditions, perda de TM. Sempre via API/Action.
+3. **Flat keys sem namespace** (`{"placeOrder":"Place order","placeOrderDashboard":"Place order"}`): translator confuso (mesma string, contextos divergentes), TM cross-polluted entre features, lazy-load impossível.
+4. **Glossary mantido em Google Doc não sincronizado** com TMS: dev atualiza doc, TMS continua usando termo antigo, AI gera com glossary stale. Glossary é código — vive em Git, sync automático.
+5. **Reviewer humano sem MQM rubric**: subjetivo, "parece ok"; sem accountability nem trend tracking. MQM force tipificação de erro + severity.
+6. **AI translation sem glossary context** no prompt: brand term renderizado errado ("Logistica" → "Logística" em pt-BR, ou pior "Logistics"), terminologia inconsistente entre features.
+7. **JSON locale com chaves english-as-key** (`{"Place order":"Place order"}`): translator não sabe se chave é literal ou identifier; quando EN muda, todas as chaves shiftam (chave nova, traduções perdidas).
+8. **Review em batch >500 strings**: reviewer fadiga após ~200, qualidade despenca exponencialmente. Batch ≤ 200 strings, ou ≤ 4 horas.
+9. **Locale files sem version control + diff em PR**: regressões silenciosas (string deletada por engano, encoding bug UTF-8/16 mistura), nenhum dev nota até customer reportar.
+10. **Machine translation cost não-monitored**: GPT-4o em tier 1 high-traffic features, sem cap, sem dashboard. Conta surpresa $$$/mês. Cap por mês + alerta em 70%/90%.
+
+Cruza com **§2.4** (pluralization — input do MT prompt), **§2.6** (number/currency/date — não traduzir, format por locale), **§2.7** (timezones — strings de "X minutes ago" precisam locale-aware), **§2.17** (i18n process + tooling intro), **§2.18** (anti-patterns base), **§2.19** (ICU MessageFormat + RTL + locale negotiation), **02-05 §2.23** (Next 15 Document Metadata por locale via TMS), **../03-infraestrutura/03-04-ci-cd.md §2.21** (release-please reconhecendo translation file changes como `chore(i18n)` no changelog), **../04-produto/04-10-ai-product-engineering.md §2.23** (MCP — expor TMS como MCP server pra Claude Desktop puxar status de tradução), **../04-produto/04-16-product-engineering.md §2.21** (SaaS pricing tiers por locale: locale availability como gate de plan).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

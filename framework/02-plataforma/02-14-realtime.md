@@ -473,6 +473,154 @@ Self-hosted threshold: < 50k → Soketi single-node. > 50k → Centrifugo cluste
 
 ---
 
+### 2.18 WebSocket Scaling Production 2026 — Managed vs Self-Hosted, Durable Objects, Fan-out Economics
+
+WebSocket scaling em 2026 não é mais "põe nginx + Redis Pub/Sub". A decisão real é **managed-vs-self-hosted** com economia que muda hard em thresholds específicos: <10K concurrent → managed barato; 10K-100K → custo de message-pricing dói, self-hosted vence; >100K → edge fan-out (Cloudflare Durable Objects) ou broker dedicado (Centrifugo cluster). Cloudflare Durable Objects WebSocket Hibernation (GA 2024) virou líder por permitir 1M+ concurrent em workers baratos via hibernação de DOs idle (75% cost reduction vs DO sempre ativo); SQLite-backed DO (Q1 2025) elimina Redis pra muito caso. AWS API Gateway WebSocket continua serverless mas escala mal: $1/M messages + $0.25/M connection-minutes + hard limit 100K conn/account/region.
+
+#### Managed services matrix 2026
+
+| Serviço | Modelo | Preço típico | Limit por conta/região | Quando usar |
+|---|---|---|---|---|
+| **AWS API Gateway WebSocket** | serverless, Lambda backend | $1/M msg + $0.25/M conn-min | 100K concurrent (hard) | <50K concurrent, baixa msg-rate, já-AWS |
+| **Cloudflare Durable Objects** | edge, leader-elected per DO, Hibernation | $0.15/M req + $5/M GB-s (hibernated quase free) | 1M+ practical | rooms/channels com leader claro, edge-first |
+| **Ably** | premium DX, multi-region built-in, presence | $0.50-2/M msg, peak conn pricing | unlimited (paga) | DX-first, presence + history out-of-box |
+| **Pusher** | Pusher protocol, MessageBird-owned (acq 2022) | $$ por conn + msg | tiered | legacy/protocol-compat only |
+| **PieSocket** | budget Pusher-alternative | $ baixo | tiered | startup/MVP barato |
+
+Custo real 10K concurrent + 10 msg/s broadcast (100K msg/s fan-out): API Gateway $260K/mês só msg + $1.8K conn-min — proibitivo. DO Hibernation: ~$200-500/mês mesma carga. Self-hosted Centrifugo em 3x c6i.large: ~$300/mês infra. **Threshold de migração managed→self-hosted: ~5K-10K concurrent.**
+
+#### Cloudflare Durable Objects WebSocket Hibernation pattern
+
+```ts
+// worker.ts — 1 DO por room (channel), leader globally elected
+export class RoomDO implements DurableObject {
+  state: DurableObjectState
+  sessions = new Map<WebSocket, { userId: string; lastSeen: number }>()
+
+  constructor(state: DurableObjectState, env: Env) {
+    this.state = state
+    // restaurar sessions hibernadas (Hibernation API)
+    this.state.getWebSockets().forEach((ws) => {
+      const meta = ws.deserializeAttachment() as { userId: string }
+      this.sessions.set(ws, { userId: meta.userId, lastSeen: Date.now() })
+    })
+  }
+
+  async fetch(req: Request): Promise<Response> {
+    const url = new URL(req.url)
+    if (url.pathname === '/ws') {
+      const userId = url.searchParams.get('user')!
+      const pair = new WebSocketPair()
+      const [client, server] = Object.values(pair)
+      // Hibernation API: server WS sobrevive eviction
+      this.state.acceptWebSocket(server)
+      server.serializeAttachment({ userId })
+      this.sessions.set(server, { userId, lastSeen: Date.now() })
+      return new Response(null, { status: 101, webSocket: client })
+    }
+    return new Response('not found', { status: 404 })
+  }
+
+  // handlers chamados ao acordar de hibernação — sem custo CPU enquanto idle
+  async webSocketMessage(ws: WebSocket, msg: string | ArrayBuffer) {
+    // broadcast pra todos no room (single-instance fan-out, sem Redis)
+    for (const [peer] of this.sessions) {
+      if (peer !== ws && peer.readyState === WebSocket.OPEN) peer.send(msg)
+    }
+    // persist em DO SQLite (added Q1 2025) — substitui Redis pra last-state
+    this.state.storage.sql.exec(
+      `INSERT INTO events(ts, user, payload) VALUES (?, ?, ?)`,
+      Date.now(), this.sessions.get(ws)!.userId, msg.toString()
+    )
+  }
+
+  async webSocketClose(ws: WebSocket, code: number, reason: string) {
+    this.sessions.delete(ws)
+  }
+}
+
+// Worker entry: routing room_id → DO instance (consistent per-room leader)
+export default {
+  async fetch(req: Request, env: Env) {
+    const url = new URL(req.url)
+    const roomId = url.searchParams.get('room')!
+    const id = env.ROOM_DO.idFromName(roomId)        // determinístico por room
+    return env.ROOM_DO.get(id).fetch(req)
+  },
+}
+```
+
+Vantagens: 1 leader por room (ordering trivial, sem Pub/Sub), hibernação faz idle DO custar ~zero, SQLite local pra estado. Limite: 1 DO = 1 região (latência cross-region pra users distantes; mitigar com smart-placement ou DO RPC entre instances).
+
+#### Self-hosted: Centrifugo 5.x
+
+```yaml
+# centrifugo.json — Go-based broker, Redis cluster pra horizontal scale
+{
+  "token_hmac_secret_key": "${JWT_SECRET}",
+  "admin": true,
+  "engine": "redis",
+  "redis_cluster_address": ["redis-1:6379", "redis-2:6379", "redis-3:6379"],
+  "namespaces": [
+    {
+      "name": "courier",
+      "presence": true,
+      "presence_disconnect_for_anonymous": true,
+      "history_size": 100,
+      "history_ttl": "300s",
+      "join_leave": true,
+      "force_recovery": true        // channel-resume após reconnect
+    }
+  ],
+  "websocket_compression": false,   // off por default — CPU > banda em mobile
+  "websocket_ping_interval": "25s",
+  "websocket_pong_timeout": "8s",
+  "client_queue_max_size": 1048576  // backpressure: 1MiB por client
+}
+```
+
+Soketi 1.x (Pusher protocol drop-in, escrito em uWebSockets.js) vence quando legacy Pusher SDK precisa ficar. SocketCluster pra Node-stack puro com broker incluso. Build-your-own (uWebSockets.js + Redis Pub/Sub) só se workload justifica engenharia dedicada — Centrifugo resolve 95% dos casos.
+
+#### Connection sharding + fan-out economics
+
+Sharding: `shard_id = consistentHash(room_id) % N`. NLB ip-hash garante cliente cai sempre no mesmo node; cross-shard fan-out via Redis Pub/Sub (sharded em Redis 7+) adiciona ~1-3ms latency mas é necessário se room atravessa shards. **Custo fan-out**: broadcast 1 msg pra N receivers = `msg_size × N × delivery_factor`. Em 100K concurrent + 10 msg/s, hub central serializa N×R msgs/s outbound — bottleneck em NIC. Edge fan-out (DO per-room ou CDN-style) distribui custo geograficamente: cada edge node entrega só pros conectados nele.
+
+#### Backpressure handling
+
+Slow consumer mata broadcaster: TCP buffer enche → write block → outros clients atrasam. Estratégias: (1) per-client outbound queue com `max-buffer-size` (Centrifugo: `client_queue_max_size`); (2) drop policy quando queue cheia (drop oldest, drop newest, ou disconnect); (3) detecção: se queue >80% por >5s → marcar slow channel, isolar; (4) `per-message-deflate` OFF em mobile high-CPU (compress trade CPU pra banda — em rede 4G+ não vale).
+
+#### Stack Logística aplicada
+
+- **Cloudflare Durable Objects**: 1 DO por tenant pra "routing room" (dispatcher + couriers ativos). Hibernation cobre off-hours (madrugada). DO SQLite armazena last-seen courier (lat/lon, ts) com TTL 30s.
+- **Centrifugo cluster** (3 nodes c6i.large + Redis 3-node cluster) pra legacy clientes mobile que ainda usam SDK Centrifugo (web pulou direto pra DO).
+- **Connection sharding** por `tenant_id` (hash-ring 32 shards) — tenant grande nunca cai em 1 node só.
+- **Fan-out**: courier location update → DO RPC binding entrega aos dispatchers no mesmo DO (zero Redis). Order status → Centrifugo namespace `order:{tenant}` com history 300s pra channel-resume.
+- **Compression**: `per-message-deflate` OFF (frota 70% Android low-end, CPU drain mata bateria).
+
+#### 10 anti-patterns
+
+1. **API Gateway WebSocket em workload >50K concurrent** — cost explosion ($1/M msg vira $260K/mês em 100K msg/s); migrar pra DO ou Centrifugo.
+2. **Durable Objects sem WebSocket Hibernation API** — DO sempre-ativo custa 3-4x; usar `acceptWebSocket` + `serializeAttachment`.
+3. **Pusher protocol em greenfield 2026** — protocol legacy, melhor Ably (DX) ou DO (custo); Soketi só se já há Pusher SDK no cliente.
+4. **ALB sem stickiness em WS upgrade** — cliente reconecta em shard diferente, presence/history/resume quebram; usar NLB ip-hash ou ALB cookie stickiness.
+5. **Centrifugo single-Redis em prod** — Redis SPOF derruba broker; Redis cluster mínimo 3 shards + replicas.
+6. **per-message-deflate enabled em mobile** — CPU drain bateria em Android low-end; medir antes de ligar; off por default.
+7. **Slow consumer broadcasting blocks** — write blocking 1 client trava broadcaster; per-client outbound queue + drop policy + slow-channel detection.
+8. **Idle WS sem ping/pong** — zombies eat connection slots; `pingInterval=25s` + `pongTimeout=8s` (Centrifugo defaults razoáveis).
+9. **Broadcasting via fan-out central em 100K+ concurrent** — NIC do hub vira bottleneck; edge fan-out (DO per-room ou CDN) distribui custo.
+10. **WebSocket "scale" sem load-test at 80% capacity** — surprise OOM em peak (presence map cresce O(N), buffer queues acumulam); load-test sintético com 1.2x peak antes de ship.
+11. **DO room atravessando regiões sem placement hints** — DO fica fixo na primeira região que escreve; usar `locationHint` pra co-localizar com majority dos clientes.
+12. **Channel-resume sem history TTL** — history infinito enche storage; Centrifugo `history_ttl=300s` cobre 99% dos reconnects (mobile flap).
+
+#### Cruza com
+
+- `02-14` §2.4-§2.5 (WS protocol foundation), §2.8 (WS em scale intro), §2.9 (sticky session), §2.10 (SSE em scale alternativa), §2.13 (delivery semantics), §2.15 (edge runtime + WS), §2.17 (presence at scale + ordering).
+- `02-11` §2.20 (Redis 8 + Valkey + Dragonfly — broker layer alternativas).
+- `04-08` §2.22 (edge runtimes — Durable Objects são edge-native).
+- `04-09` §2.22 (multi-region WS — DO smart placement, Centrifugo cluster cross-region).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:
