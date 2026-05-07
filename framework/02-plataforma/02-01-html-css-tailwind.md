@@ -363,7 +363,7 @@ Plugins JS antigos não funcionam, novo modelo é CSS-first. Migração v3→v4:
 - Tailwind v4 com `tailwind.config.js` legado, build aceita mas tokens não aplicam, deve ser `@theme`.
 - `light-dark()` sem `color-scheme: light dark` no `:root`, retorna sempre o primeiro valor, dark mode não funciona.
 
-**Cruza com**: [02-02](02-02-accessibility.md) (`prefers-color-scheme` + `light-dark` + ARIA), [02-04](02-04-react-deep.md) (container queries em componentes React isolados), [02-05](02-05-nextjs.md) (Tailwind v4 setup com App Router), [03-09](../03-producao/03-09-frontend-performance.md) (layer ordering substitui especificidade war, reduz bundle).
+**Cruza com**: [02-02](02-02-accessibility.md) (`prefers-color-scheme` + `light-dark` + ARIA), [02-04](02-04-react-deep.md) (container queries em componentes React isolados), [02-05](02-05-nextjs.md) (Tailwind v4 setup com App Router), [03-09](../03-producao/03-09-frontend-performance.md) (layer ordering substitui especificidade war, reduz bundle), **03-09 §2.21** (image optimization 2026 — `<picture>` + `aspect-ratio` CSS pra reservar space pré-load + AVIF/WebP/JPEG XL matrix + INP-aware loading).
 
 ---
 

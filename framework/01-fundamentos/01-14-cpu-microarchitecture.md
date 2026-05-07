@@ -235,6 +235,8 @@ Output útil:
 
 PMU é **fonte de verdade** sobre o que CPU está fazendo. Profiling sem PMU é guess.
 
+**Cruza com:** **01-13 §2.17** (V8 Maglev/TurboShaft pipeline — JIT moderno aproveita μarch features), **01-07 §2.12** (V8 internals 2026).
+
 ---
 
 ## 3. Threshold de Maestria

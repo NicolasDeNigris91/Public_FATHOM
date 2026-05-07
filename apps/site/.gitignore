@@ -9,3 +9,8 @@ next-env.d.ts
 !.env.example
 .DS_Store
 Thumbs.db
+
+# Playwright
+playwright-report/
+test-results/
+playwright/.cache/

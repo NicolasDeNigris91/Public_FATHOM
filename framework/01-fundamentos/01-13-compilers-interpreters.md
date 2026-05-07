@@ -172,6 +172,131 @@ Antes de escrever DSL, considere: subset de JSON, YAML com schema, ou config em 
 
 ---
 
+### 2.17 Modern JS toolchain 2026 — Rust wave (oxc/rolldown/biome) + tsgo + Bun JSC + V8 Maglev/TurboShaft
+
+**Tese.** Em 2026 a indústria JS migrou tooling de JS-on-Node para nativos (Rust, Go, Zig). Razão técnica: AOT compilado, sem GC pause, paralelismo trivial via `rayon`, single-binary distribution. Ganho típico: 10-100x speedup vs equivalentes JS. Quem ainda roda Babel + ESLint + Prettier + Webpack em projeto novo paga imposto de DX desnecessário.
+
+#### Rust-based wave (2024-2026)
+
+- **oxc** (Oxidation Compiler, Boshen ex-VueJS, GA 2025): toolchain unificado em Rust — parser, linter (`oxlint`), formatter, transformer, minifier. ~50-100x faster que Babel/ESLint. Vite planeja integração; Astro avalia. Fonte: oxc.rs.
+- **rolldown** (2024+, beta 2026): port Rust de Rollup. Vite 7 (target 2026 GA) substitui Rollup por Rolldown como bundler default. Fonte: Vite blog "Rolldown" Out 2024.
+- **Biome** (2023+, fork pós-shutdown do Rome): linter + formatter Rust, alternativa a ESLint+Prettier. ~30x faster lint, single config (`biome.json`). Adoption: Astro, Discord migrando de Prettier. Fonte: biomejs.dev.
+- **tsgo / TypeScript Native** (Microsoft, anúncio Mar 2025): port do compilador TS para Go, target 10x typecheck speedup. Cruza com `01-08`. Fonte: Microsoft DevBlogs "A 10x Faster TypeScript" Mar 2025.
+- **swc** (Vercel, mainstream 2024): Rust-based Babel replacement. Interno Next.js, Deno, Parcel.
+- **esbuild** (Go, mainstream desde 2022): bundler/transpiler 10-100x faster que Webpack. Vite usa internamente em dev.
+- **Turbopack** (Vercel, Rust, GA 2024): bundler alternativo Next.js. Estável apenas em dev-mode em 2026; prod build ainda Webpack.
+- **Rspack** (ByteDance, Rust): port Webpack-compatible, drop-in replacement para projetos Webpack-heavy.
+
+#### Bun (JavaScriptCore-based) — arquitetura alternativa
+
+JSC (JIT da Apple, Safari) tem perf comparável a V8 com footprint menor. Bun 1.2+ (2025) é production-ready: package manager (~30x faster que `npm install` via global cache + symlinks), bundler, transpiler, test runner. Single binary all-in-one. Limitações: compat npm ~95% (módulos nativos como `sharp`, `canvas` ainda quebram); ecossistema menor; suporte Windows recente. Em 2026 é hot em CI (cold start fast) e edge runtimes (Cloudflare Workers Bun em beta). Fonte: bun.sh.
+
+#### Decision matrix 2026
+
+| Categoria | Default 2026 | Alternativas |
+|---|---|---|
+| Linter | oxlint OR Biome | ESLint + plugins (legacy ecosystem) |
+| Formatter | Biome | Prettier (ubíquo, legacy) |
+| Bundler dev | Vite (Rolldown quando GA) | Turbopack (Next.js dev), Bun |
+| Bundler prod | Vite/Rolldown | Webpack 5 (legacy), Rspack (Rust port) |
+| Typecheck | `tsc` → `tsgo` (GA late 2026 esperado) | — |
+| Test runner | Vitest | `bun test`, `node:test` (Node 22+), Jest (legacy) |
+| Package manager | pnpm (default monorepo) | Bun, npm, yarn 4 |
+
+#### V8 internals 2026 (cruza com `01-07 §2.12`)
+
+Pipeline tier-up V8 atual:
+
+1. **Ignition** (interpreter): bytecode register-machine; first tier, sempre executa.
+2. **Sparkplug** (V8 9.x+, 2021): baseline JIT, tier-up rápido sem optimization.
+3. **Maglev** (V8 11.7+, Q3 2023): mid-tier optimizing JIT. 2x compile speed do TurboFan, ~75% do peak perf. Default para hot fns. Reduziu compile time 2x; throughput Node +5-10%. Fonte: V8 blog "Maglev" Aug 2023.
+4. **TurboFan / TurboShaft** (TurboShaft new IR, Mai 2024+): peak optimization. TurboShaft substitui TurboFan por etapas para suportar codegen Maglev e simplificar pipeline. Fonte: V8 blog "TurboShaft" Mai 2024.
+
+#### Engines panorama 2026
+
+- **V8**: Chrome, Node, Deno, Cloudflare Workers, Edge.
+- **JavaScriptCore**: Safari, Bun, React Native iOS.
+- **SpiderMonkey**: Firefox, Servo.
+- **Hermes**: Meta, React Native Android, AOT bytecode otimizado.
+- **QuickJS**: Bellard, embedded, footprint mínimo.
+- **Boa**: Rust, embeddable, experimental.
+
+Decisão: V8 default; JSC para mobile-iOS-heavy ou ecossistema Bun; Hermes para RN Android perf-critical (cold start); QuickJS para IoT.
+
+#### AOT vs JIT em 2026
+
+- **V8/JSC**: JIT puro (Ignition→Sparkplug→Maglev→TurboFan/TurboShaft).
+- **Hermes**: AOT bytecode + JIT seletivo.
+- **JavaScript Restrict Mode** (Stage 1, hipotético): subset AOT-compilable. Não shipped.
+- **WebAssembly**: AOT/streaming compilation. Cruza com `03-12`.
+
+#### Code blocks
+
+```bash
+# oxlint vs eslint — repositório médio (~50k LOC)
+$ time eslint src/
+real    0m18.412s
+
+$ time oxlint src/
+real    0m0.234s
+# ~78x faster, mesmo conjunto de regras core.
+```
+
+```ts
+// vite.config.ts — switch Rollup → Rolldown (Vite 7, 2026)
+import { defineConfig } from 'vite';
+import { rolldown } from 'rolldown/vite'; // experimental flag em Vite 6.x
+
+export default defineConfig({
+  experimental: { rolldown: true },
+  build: { target: 'es2022', minify: 'oxc' },
+});
+```
+
+```bash
+# bun install vs npm install — repo Next.js fresh, sem cache
+$ time npm install
+real    0m42.318s
+
+$ time bun install
+real    0m1.487s
+# ~28x faster; reusa global cache + hardlinks.
+```
+
+```yaml
+# package.json scripts (recorte) — toolchain moderno 2026
+scripts:
+  lint: "biome lint ."
+  format: "biome format --write ."
+  typecheck: "tsgo --noEmit"        # fallback: tsc --noEmit
+  test: "vitest run --coverage"
+  build: "vite build"
+  dev: "vite"
+```
+
+#### Anti-patterns
+
+1. **ESLint + Prettier separados em 2026** — Biome unifica, é faster, single config.
+2. **Webpack em projeto web novo** — Vite/Rolldown ou Turbopack vencem em DX e build time.
+3. **`tsc` full em CI** quando `isolatedDeclarations` + `tsgo` (quando GA) entregam 10-100x speedup.
+4. **Babel em projeto novo sem necessidade legacy** — `swc`/`oxc` targetam ES2020+ direto.
+5. **Jest em projeto novo** — Vitest é faster, ESM-native, cobertura via `c8` nativo.
+6. **Yarn 1 (classic) em 2026** — pnpm é default monorepo; yarn 4 é alternativa moderna.
+7. **`npm install` em CI sem cache** — 5-10x slower que pnpm/Bun com cache global.
+8. **Single bundler dev+prod (Webpack only)** — Vite + Rollup/Rolldown otimiza por purpose.
+9. **Hermes ignorado em RN Android** — ganho de cold start é real e mensurável.
+10. **Turbopack em prod 2026** — ainda dev-mode-only stable; usa Webpack/Rspack para prod build.
+
+#### Logística aplicada
+
+Monorepo Turborepo + pnpm workspaces. `apps/site` em Vite + Rolldown (target Vite 7 GA 2026). `apps/courier-rn` Hermes Android (cold start importa). CI roda Bun para `bun install` 30x faster em cold start de runner. Biome lint+format unificado substitui ESLint+Prettier. `tsgo` em avaliação para CI typecheck quando GA.
+
+**Cruza com**: `01-07 §2.12` (V8 pipeline + ES features), `01-08` (TS toolchain + tsgo), `02-04` (React, JSX transform via swc/oxc), `02-05` (Next.js, Turbopack dev), `03-12` (WebAssembly + AOT).
+
+**Fontes**: V8 blog "Maglev" Aug 2023; V8 blog "TurboShaft" Mai 2024; Microsoft DevBlogs "A 10x Faster TypeScript" Mar 2025; Vite blog "Rolldown" Out 2024; bun.sh; biomejs.dev; oxc.rs.
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

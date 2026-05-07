@@ -1128,7 +1128,7 @@ function OrdersFilter({ query }: { query: string }) {
 9. `<title>` em múltiplos componentes irmãos sem coordenação — ordem de mount decide; resultado não-determinístico em re-renders.
 10. `use(Context)` em loop assumindo que substitui `useReducer` — `use` lê valor atual do Context, não cria estado. Para state local + Context, ainda precisa `useReducer`/`useState`.
 
-**Cruza com**: `02-04` §2.6 (hooks foundation), §2.7 (React Compiler), §2.8 (Suspense + streaming), §2.9 (RSC), §2.13 (React 19 Forms + Actions), §2.14 (RC + state mgmt 2026), `02-05` §2.23 (Next 15 async APIs + `use` compat), `03-09` (frontend perf — View Transitions são INP-friendly), `02-19` (i18n + Document Metadata por locale).
+**Cruza com**: `02-04` §2.6 (hooks foundation), §2.7 (React Compiler), §2.8 (Suspense + streaming), §2.9 (RSC), §2.13 (React 19 Forms + Actions), §2.14 (RC + state mgmt 2026), `02-05` §2.23 (Next 15 async APIs + `use` compat), `03-09` (frontend perf — View Transitions são INP-friendly), `02-19` (i18n + Document Metadata por locale), **01-07 §2.12** (JS moderno 2026 — V8 Maglev/TurboShaft afetam React perf), **01-08 §2.16** (TS moderno 2026 — types pra components + RSC), **01-13 §2.17** (toolchain Rust — JSX transform via swc/oxc), **02-17 §2.20** (mobile native vs RN, KMP shared logic), **03-09 §2.21** (image optimization 2026), **03-17 §2.22** (a11y testing axe-playwright + Storybook).
 
 ---
 

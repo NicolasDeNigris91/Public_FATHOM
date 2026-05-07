@@ -996,7 +996,7 @@ Dev-only: edits em RSC não refazem `fetch()` upstream. No-op em prod build. Hab
 
 #### Cruza com
 
-**02-05 §2.6** (Server Actions foundation), **§2.16** (Server Actions deep — `useActionState` + validation), **§2.21** (PPR + cache layers — `'use cache'` é a evolução), **§2.22** (parallel/intercepting routes + middleware), **§2.13–§2.14** (RSC mental model — async APIs só fazem sentido em RSC), **§2.17** (edge runtime constraints — `instrumentation.edge.ts` separado), **02-04 §2.13** (React 19 forms + `useActionState`), **03-07 §2.21** (instrumentation = OTel hook unificado), **02-13** (auth via middleware + `cookies()` async em RSC), **03-08** (Taint API = PII protection em defesa em profundidade).
+**02-05 §2.6** (Server Actions foundation), **§2.16** (Server Actions deep — `useActionState` + validation), **§2.21** (PPR + cache layers — `'use cache'` é a evolução), **§2.22** (parallel/intercepting routes + middleware), **§2.13–§2.14** (RSC mental model — async APIs só fazem sentido em RSC), **§2.17** (edge runtime constraints — `instrumentation.edge.ts` separado), **02-04 §2.13** (React 19 forms + `useActionState`), **03-07 §2.21** (instrumentation = OTel hook unificado), **02-13** (auth via middleware + `cookies()` async em RSC), **03-08** (Taint API = PII protection em defesa em profundidade), **03-09 §2.21** (image optimization 2026 — Next 15 `<Image>` component + `next.config.js` remote patterns Cloudflare Images + dynamic OG via `@vercel/og`), **03-17 §2.22** (a11y testing 2026).
 
 ---
 

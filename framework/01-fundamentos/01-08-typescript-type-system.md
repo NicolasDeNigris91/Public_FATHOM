@@ -352,6 +352,133 @@ const oid: OrderId = uid; // erro, nominal
 
 ---
 
+### 2.16 TypeScript moderno 2026 — TS 5.6-5.8 + tsgo + Zod 4 / Valibot / ArkType + tRPC v11
+
+O TS de 2026 não é o TS de 2022. Compiler ganhou flags que mudam emit (`--erasableSyntaxOnly`, `--rewriteRelativeImportExtensions`), reescrita em Go (`tsgo`) está em preview com 10x speedup, e o ecossistema de validation runtime (Zod 4, Valibot, ArkType, Effect Schema) consolidou single-source-of-truth schemas substituindo JSON Schema duplicado. Quem ainda escreve `enum` e `namespace` em código novo está em 2020.
+
+**TS 5.6 (Set 2024).** `--noUncheckedSideEffectImports` (default `true` sob `strict`) emite erro quando `import "./side-effect"` aponta pra arquivo inexistente — antes era silently ignored, fonte de bugs em refactor. Iterator Helper types alinham com ES2025 (`.map()`, `.filter()`, `.take()` em iterators). Disallowed truthy/nullish checks: `if (someFn)` quando `someFn` sempre defined vira erro (provavelmente faltou `()`).
+
+**TS 5.7 (Nov 2024).** `--rewriteRelativeImportExtensions` reescreve `.ts` → `.js` em emit, encerrando o debate "preciso escrever `.js` em import mesmo em source TS?" — escreve `.ts` em source, sai `.js` em build. Stricter checks pra variáveis nunca inicializadas. Editor: project loading mais rápido, inlay hints melhores.
+
+**TS 5.8 (Mar 2025).** `--erasableSyntaxOnly` é a flag que define o futuro: emite erro em features que TS **codegen** (não apenas remove types) — `enum`, `namespace` com valores, parameter properties (`constructor(private x: number)`), decorators experimentais. Alinha com Node `--experimental-strip-types` (Node 22.6+) e Bun strip mode, que rodam TS source apenas removendo annotations. Granular checks em `return` dentro de conditional types.
+
+**`const` type parameters** (TS 5.0, mainstream 2026). Preserva literal types em arguments sem `as const` no caller — fundamental pra DSL builders e route definitions.
+
+```typescript
+function defineRoutes<const T extends readonly { path: string }[]>(routes: T): T {
+  return routes;
+}
+
+const r = defineRoutes([
+  { path: "/users", method: "GET" },
+  { path: "/orders", method: "POST" },
+] as const); // sem `const T`, `path` viraria `string`; com `const T`, fica literal "/users" | "/orders"
+```
+
+**`NoInfer<T>`** (TS 5.4+). Bloqueia inference numa posição específica do generic, forçando outro arg a ser fonte da inferência.
+
+```typescript
+function move<T extends string>(start: T, dest: NoInfer<T>): void {
+  console.log(`${start} → ${dest}`);
+}
+
+move("home", "office"); // T inferido só de start; dest validado contra T sem expandir union
+// move("home", "house"); // erro: "house" não é "home"
+```
+
+**`isolatedDeclarations`** (TS 5.5+, mainstream 2026). Exige type annotations explícitos em fns exportadas — permite tools terceiros (oxc, swc, esbuild, **tsgo**) gerar `.d.ts` sem rodar `tsc` full. Ganho 10-100x em build pipelines monorepo. Vue 3.5+ adotou; RxJS 8 considera. Em Turborepo, packages com `isolatedDeclarations` buildam em paralelo sem bloquear declaration emit.
+
+**`using` / `await using` + `Symbol.dispose` types** (TS 5.2+). Type system reconhece o runtime feature ES2024 (cruza com `01-07`) — `Disposable` e `AsyncDisposable` interfaces.
+
+```typescript
+async function withDb() {
+  await using db = await connectPool(); // dispose automático no fim do scope
+  const rows = await db.query("SELECT 1");
+  return rows;
+} // db.dispose() chamado mesmo se query throw
+```
+
+**tsgo — TypeScript em Go** (Microsoft, anunciado Mar 2025, expected GA late 2026). Reescrita do compiler em Go pra 10x speedup. Alvo: typecheck instantâneo em monorepos grandes (próprio TS codebase, VS Code, Office). Em 2026 ainda alpha/preview — não substitui `tsc` em produção, mas vale rodar em CI pra `tsc --noEmit` quando GA. Fonte: Microsoft DevBlogs "A 10x Faster TypeScript" (Mar 2025).
+
+**Validation libs 2026.** O ecossistema consolidou em quatro players, cada um com nicho:
+
+- **Zod 4** (GA Mai 2025). Default pra schema validation. Perf 10-50x melhor que Zod 3, bundle -50%, error messages melhores. Migração tem breaking changes; vale a pena em projetos novos.
+- **Valibot** (2024+). Tree-shakable extremo: bundle 10-100x menor que Zod pra schemas pequenos. API funcional: `parse(schema, value)`. Use quando bundle critical (edge functions, Cloudflare Workers).
+- **ArkType** (GA Mai 2024). Syntax TS-native: `type({ name: "string" })`. Runtime types == compile-time types automaticamente, sem dupla declaração.
+- **Effect Schema** (Effect.ts ecosystem). Integrado com Effect monad e error model. Use **só** se o app já roda em Effect; standalone é overengineering pra REST simples.
+
+```typescript
+// Zod 4 — default
+import { z } from "zod";
+
+const UserSchema = z.object({
+  id: z.string().uuid(),
+  email: z.string().email(),
+  age: z.number().int().min(18),
+});
+
+type User = z.infer<typeof UserSchema>;
+
+const result = UserSchema.safeParse(rawInput);
+if (!result.success) {
+  console.error(result.error.issues);
+} else {
+  const user: User = result.data;
+}
+```
+
+```typescript
+// ArkType — syntax TS-native
+import { type } from "arktype";
+
+const User = type({
+  id: "string",
+  email: "string.email",
+  "age?": "number > 17",
+});
+
+type UserT = typeof User.infer; // tipo TS inferido sem declaração separada
+```
+
+**tRPC v11** (Mar 2025). Type-safe RPC TS↔TS. Removeu legacy v10 procedures middleware, integrou React Query melhor, suporta streamed responses, file uploads e RSC. Compete com gRPC-web — gRPC mais portable cross-language, tRPC mais ergonômico mas TS-only. Em monorepo Next.js + Node backend, tRPC v11 + Zod 4 schemas dão end-to-end type safety sem codegen.
+
+**Type narrowing patterns 2026.** Discriminated unions + exhaustiveness via `never` continuam o padrão. `satisfies` operator (TS 4.9, mainstream 2026) valida value contra type sem widening — substitui `as` em config objects. Branded types (nominal via intersection com tag fantasma) pra domain primitives (`UserId`, `OrderId`).
+
+```typescript
+type Event =
+  | { kind: "click"; x: number; y: number }
+  | { kind: "key"; code: string }
+  | { kind: "scroll"; delta: number };
+
+const handlers = {
+  click: (e) => `${e.x},${e.y}`,
+  key: (e) => e.code,
+  scroll: (e) => `${e.delta}px`,
+} satisfies { [K in Event["kind"]]: (e: Extract<Event, { kind: K }>) => string };
+// `satisfies` valida shape; preserva literal types das keys; sem widening
+```
+
+**Logística aplicada.** API contracts entre `app/`, `web/` e `backend/` ficam em Zod 4 schemas + tRPC v11 — single source of truth, type-safe end-to-end. `await using db = await connectPool()` em handlers garante connection cleanup mesmo em throw. `--isolatedDeclarations` em packages de monorepo permite Turborepo paralelizar declaration emit. Quando `tsgo` GA (late 2026), roda em CI pra `tsc --noEmit` e cai pipeline de 90s pra 9s.
+
+**Anti-patterns:**
+
+1. `enum` em código novo — não eraseable, quebra `--erasableSyntaxOnly` e `--isolatedDeclarations`. Use `as const` literal unions: `const Status = { Active: "active", Done: "done" } as const; type Status = typeof Status[keyof typeof Status];`.
+2. `namespace` com valor (não apenas types) — quebra strip-types tooling (Node, Bun). Use ES modules.
+3. `any` cast pra "fix" type error — esconde bug. Use `unknown` + narrow via type guard ou Zod parse.
+4. Zod 3 em projeto novo — Zod 4 é 10x faster, bundle -50%, error messages melhores. Migra ou começa em v4.
+5. Cadeias manuais de `if (typeof x === ...)` quando discriminated union resolve. Adiciona campo discriminante (`kind`, `type`) e usa exhaustive switch + `never`.
+6. JSON Schema duplicado + TS types declarados separadamente — drift garantido. Use Zod/Valibot/ArkType como single source.
+7. Parameter properties (`constructor(private x: number)`) — quebra `isolatedDeclarations` e `erasableSyntaxOnly`. Declara field e atribui no body.
+8. Decorators experimentais (`--experimentalDecorators`) — TC39 stage 3 stable já disponível em TS 5.0+. Migra antes do tooling abandonar legacy.
+9. `<const T>` em toda fn signature por hábito — só onde literal type matters (DSL, config builders). Em fn comum vira ruído.
+10. tRPC v10 em projeto novo — v11 tem breaking changes, mas suporte v10 vai degradar. Migra antes do tech debt acumular.
+
+**Cruza com:** `01-07` (JS/ES2024 — `using`, iterator helpers, decorators stage 3 que TS types refletem), `02-04` (React — types pra components, hooks, Suspense boundaries), `02-05` (Next.js 15 + RSC — server/client component type integration), `02-08` (backend frameworks — Fastify/Hono types end-to-end com tRPC), `04-05` (API design — Zod schemas como contracts versionáveis).
+
+**Fontes:** TypeScript release notes 5.6 (Set 2024), 5.7 (Nov 2024), 5.8 (Mar 2025); Microsoft DevBlogs "A 10x Faster TypeScript" (Mar 2025); Zod 4 changelog (Mai 2025); ArkType release notes (Mai 2024); tRPC v11 docs (Mar 2025); Effect Schema docs (effect.website).
+
+---
+
 ## 3. Threshold de Maestria
 
 Pra passar o **Portão Conceitual**, sem consultar:

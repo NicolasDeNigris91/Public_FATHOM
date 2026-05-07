@@ -2,7 +2,7 @@
 capstone: novice
 title: HTTP/1.1 Server from Scratch
 stage: fundamentos
-prereqs: [01-01, 01-02, 01-03, 01-04, 01-05, 01-06, 01-07, 01-08, 01-09, 01-10]
+prereqs: [01-01, 01-02, 01-03, 01-04, 01-05, 01-06, 01-07, 01-08, 01-09, 01-10, 01-11, 01-12, 01-13, 01-14, 01-15]
 status: locked
 gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
@@ -24,6 +24,11 @@ O que ele força você a integrar:
 - **TypeScript (01-08):** tipos estritos pra request/response, types pra parser states.
 - **Git (01-09):** repo separado bem versionado.
 - **Unix (01-10):** logging estruturado, CLI, signals (SIGTERM graceful shutdown).
+- **Concorrência (01-11):** worker pool com escolha consciente entre CSP/actors/async; backpressure entre I/O e worker threads.
+- **Cripto (01-12):** TLS termination opcional via Node `tls` (cert + key), Argon2id em endpoint demo de auth, constant-time compare em tokens.
+- **Compilers (01-13):** mini-DSL pra config de routes ou middleware chain (templating + lexer/parser bem separados).
+- **CPU (01-14):** profile via `perf` ou `clinic.js`, identifica hot path no parser, alinha buffers em `Buffer` reuse pool.
+- **Math (01-15):** análise de capacity (req/s vs RAM por conn) com fila M/M/c teórica antes de measurement.
 
 Este é o projeto que distingue **fundamentos sólidos** de **decoração**.
 

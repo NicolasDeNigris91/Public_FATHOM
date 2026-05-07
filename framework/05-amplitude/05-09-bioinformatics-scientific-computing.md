@@ -243,6 +243,69 @@ Empresas relevantes: Recursion, Genomatic, Insitro, Tempus, Verily, 23andMe, Gin
 
 ---
 
+### 2.19 Bioinformatics + scientific computing 2026 — AlphaFold 3, ESM3, uv/pixi/Mojo, modern HPC
+
+Bioinformatics em 2026 não é mais Python + BLAST + Bash. Stack mudou: structure prediction virou commodity (AF3), gerative protein design saiu do paper (ESM3), Python tooling foi reescrito em Rust (uv, Polars, pixi), e HPC ganhou novo competitor de hardware (AMD MI300X, Apple Silicon). Quem entra em bio/biotech/pharma/healthcare AI hoje precisa conhecer este stack — não o stack 2020.
+
+**1. AlphaFold 3 (DeepMind + Isomorphic Labs, Mai 2024).** Successor a AF2 (2021, Nobel Prize Química 2024 pra Hassabis/Jumper). AF3 prediz estrutura de proteínas + DNA + RNA + ligands + ions — todo complexo biomolecular, não só monômeros proteicos. ~50% improvement em interaction prediction vs AF2 (Nature, Mai 2024, "Accurate structure prediction of biomolecular interactions with AlphaFold 3", Abramson et al). Server access free pra non-commercial via alphafoldserver.com (Isomorphic Labs hospeda). Model weights restricted — não-OSS, fonte de tensão na community científica que esperava liberação como AF2. Use case: docking, drug discovery exploratory, target validation. Limites: hallucination em complexos raros, conformational dynamics não modelado (snapshot estático), allosteric não capturado bem.
+
+**2. ESM3 (EvolutionaryScale, Jun 2024).** Model gerativo (não predictive only) — design de proteínas novas com properties target. 98B params (largest variant). Open weights parcial (small/medium variants liberados, large restricted commercial). "Generative 1B-task language model for proteins" architecture — multimodal (sequence + structure + function tokens). Use cases: drug discovery (binders novos), enzyme design (catalytic activity engineered), synthetic biology. Paper: Hayes et al, Jun 2024, EvolutionaryScale. Research split de Meta — equipe ESM/ESMFold migrou pra EvolutionaryScale (commercial spinout).
+
+**3. RoseTTAFold (Baker Lab, UW) e ESMFold (Meta).** Alternativas open-source.
+- **RoseTTAFold All-Atom (Mar 2024)**: prediz estrutura de proteínas + small molecules + nucleic acids. Open weights. Baker laboratory ganhou Nobel Química 2024 junto com DeepMind.
+- **ESMFold (Meta, 2022)**: single-sequence prediction, no MSA needed (faster mas slightly lower accuracy que AF2/AF3). Útil pra metagenomics em scale (milhões de seqs).
+- **Boltz-1 (MIT, Out 2024)**: open-source AF3-like reimplementation, weights liberados — começa a fechar gap OSS vs DeepMind.
+
+**4. Modern Python scientific tooling 2024-2026.**
+
+- **uv (Astral, Fev 2024 → GA Set 2024).** Rust-based pip+pip-tools+venv replacement. **10-100x faster** em dependency resolution e install. Comandos: `uv pip install`, `uv venv`, `uv lock`, `uv sync`. Substitui pip/pipx/poetry stack inteiro em projetos novos. PEP 723 inline scripts suportado. Astral também produz ruff (linter) e ty (type checker beta). Default em new Python projects 2026. Source: astral.sh/uv.
+- **pixi (Prefix, 2024).** Conda-compatible package manager em Rust — solver speed muito superior a conda em conda-forge envs. Use case: scientific computing com C/Fortran deps que não estão em PyPI (BLAS, MPI, GDAL, htslib). Lockfile cross-platform. Source: pixi.sh.
+- **Mojo (Modular AI, 2023+, beta 2024-2026).** Python-superset designed pra ML perf — claims 35,000x faster que CPython em hot loops via MLIR backend. SDK preview público; commercial license pra full features. Use cases: ML kernels custom, scientific compute hot paths, vetorized numerical loops. Status 2026: beta, ecosystem nascente, breaking changes ainda frequentes. Não substitui Python ainda em prod — usar como acceleration layer pontual.
+- **Polars (DataFrame Rust + Python bindings, 1.x mature 2024).** 10-100x faster que pandas em queries column-oriented. Lazy evaluation API similar (não drop-in). Default DataFrame em new analytics projects 2026. Streaming engine pra > RAM datasets.
+- **JAX (Google).** Mature em ML research, autograd + XLA jit. `vmap`/`pmap`/`scan` primitivas funcionais. Default em ML scientific groups (AlphaFold, ESM são JAX/PyTorch hybrids). PyTorch ainda dominante em ML eng prod.
+- **PyTorch 2.x compile (`torch.compile()`, 2023+).** Graph-mode compile via TorchDynamo + Inductor backend, 30-100% speedup em training/inference hot paths. Default em new training code 2026.
+
+**5. Reproducibility 2026 stack.**
+
+- **Pixi/uv lockfiles** — exact dep version pinning, cross-platform.
+- **Nix flakes** — fully reproducible (kernel level down). Used em research-heavy labs com cultura functional/declarative.
+- **Apptainer/Singularity** — HPC containers (Docker rootful incompatible com shared compute clusters academic). SIF format, OCI-compatible.
+- **Workflow managers** — Nextflow (Java/Groovy DSL2), Snakemake (Python), Cromwell (WDL). Nextflow ainda dominante 2026 em bioinformatics pipelines (nf-core repository com 100+ pipelines validados).
+- **DVC (Data Version Control)** — git for data. Less hype 2026 mas útil em projetos com large datasets versionados.
+- **MLflow / Weights & Biases / Comet ML** — experiment tracking. W&B dominante em research; MLflow em enterprise.
+
+**6. HPC + scientific cluster trends 2026.**
+- **AMD MI300X/MI325X** disputando Nvidia H100/H200 em ML training. ROCm (AMD's CUDA equivalent) ganhou maturity — PyTorch/JAX support production-grade.
+- **Apple Silicon (M3 Ultra, M4 Max/Pro)** ganhando em prototyping ML local. MLX framework (Apple) — autograd + lazy eval otimizado pra unified memory architecture.
+- **ARM-based supercomputing** — Fugaku (Japão) ainda top 10. NVIDIA Grace Hopper (ARM CPU + H100 GPU) em new clusters.
+- **Quantum computing** — IBM (Eagle/Heron), Google (Sycamore), AWS Braket. **Não production-ready 2026** — pra projetos toy/exploratory only. Quantum advantage demonstrado em problemas sintéticos, não em workloads práticos.
+
+**7. Domain ML stacks específicos.**
+- **Genomics**: variant calling com DeepVariant (Google, CNN-based). AlphaMissense (DeepMind 2023, Science) pra missense variant pathogenicity. Enformer pra gene expression.
+- **Drug discovery**: Boltz-1 (MIT 2024) open-source AF3-like. ChemBERTa, Mol2vec pra molecular embeddings. RFdiffusion (Baker Lab) pra de novo protein binder design.
+- **Climate**: Aurora (Microsoft Research, 2024) — foundation model atmospheric. GraphCast (DeepMind, 2023) — neural weather forecasting, beats ECMWF em medium-range. Pangu-Weather (Huawei).
+- **Cryo-EM**: cryoSPARC, RELION 5 com ML denoising integrado.
+
+**8. Anti-patterns numerados (10).**
+1. Pip + pip-tools em 2026 — uv é 10-100x faster, drop-in mostly. Migrar.
+2. Conda em projetos sem deps C/Fortran — pixi é faster + better resolver. Pip+uv vence se PyPI puro.
+3. Pandas pra > 1M rows — Polars vence consistentemente, sintaxe próxima. Migrar hot paths.
+4. PyTorch sem `torch.compile()` em training loops 2026 — perf gap real, 30-100% deixado na mesa.
+5. AlphaFold 3 server submissions sem caching local — re-submit waste, rate limit alphafoldserver. Cachear PDB outputs.
+6. ESM3 commercial use sem checar license terms — large variant é restricted, uso comercial sem licença viola TOS.
+7. Reproducibility "depois" — sem lockfile/container desde dia 1, paper review pede e você não consegue reproduzir nem o próprio resultado 6 meses depois.
+8. Mojo em production 2026 sem fallback Python — beta ecosystem, breaking changes a cada minor release.
+9. Quantum computing como solver pra problema clássico — overkill, slow vs CPU em qualquer benchmark prático.
+10. JAX sem `vmap`/`pmap` em batch operations — perde 10x speedup grátis, código fica imperative-loop style.
+
+**Logística applied (1 paragraph).** Se Logística adiciona route ML model (predict ETA from histórico + traffic + weather), train pipeline em Polars (feature engineering em colunas, 100M rows histórico) + JAX em GCP TPUs (autograd + jit + vmap em batch). Inference em prod via PyTorch 2.x exportado ONNX + `.compile()`, deployed em Lambda/Cloud Run com cold start < 500ms. Dependency management dos scripts CI e training jobs via uv (lockfile committed, `uv sync` em cada CI run). Reprodutibilidade via Pixi lockfile (deps com BLAS/LAPACK) + Apptainer image versionada por commit SHA. Experiment tracking em W&B. Não usar Mojo (beta), não usar quantum (irrelevante).
+
+**Cruza com:** `04-10 §2.x` (LLM tooling — overlap em ML inference patterns, serving), `04-13 §2.x` (streaming/batch — pipelines de dados scientific), `01-15 §2.x` (math foundations — linear algebra, calculus subjacente), `03-10 §2.x` (backend perf — Polars/uv/JIT relevância em APIs analytics), `05-04 §2.15` (papers reading list — AF3, ESM3 papers cited).
+
+**Fontes inline.** Nature "Accurate structure prediction of biomolecular interactions with AlphaFold 3" (Abramson et al, Mai 2024); ESM3 paper (Hayes et al, EvolutionaryScale, Jun 2024); astral.sh/uv docs (GA Set 2024); pixi.sh docs (Prefix); Modular AI Mojo blog e SDK release notes; Polars 1.x release notes (Q3 2024); Aurora foundation model (Microsoft Research blog, 2024); GraphCast (DeepMind blog, 2023); RoseTTAFold All-Atom (Krishna et al, Science Mar 2024); Boltz-1 (Wohlwend et al, MIT, Out 2024); AlphaMissense (Cheng et al, Science 2023); Nobel Prize Chemistry 2024 announcement (Hassabis, Jumper, Baker).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

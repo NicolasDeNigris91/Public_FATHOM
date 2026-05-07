@@ -1008,7 +1008,7 @@ CI build: GitHub Actions com `id-token: write` → docker build → cosign sign 
 9. Verificação cosign sem `--certificate-identity` (só checa "tem assinatura") — atacante assina com qualquer OIDC válido.
 10. GUAC/dependency-track exposto sem auth na intranet — SBOM completa = mapa de vulnerabilidades para atacante interno.
 
-Cruza com **03-08 §2.14** (supply chain intro), **§2.20** (SBOM lifecycle + VEX intro), **§2.21** (OWASP applied), **03-02 §2.22** (Wolfi + cosign + Trivy CI integration), **03-04** (CI/CD — Artifact Attestations as build gate), **03-03** (K8s admission validando attestations via sigstore-policy-controller), **04-15** (OSS maintainership — npm provenance impact em maintainers).
+Cruza com **03-08 §2.14** (supply chain intro), **§2.20** (SBOM lifecycle + VEX intro), **§2.21** (OWASP applied), **03-02 §2.22** (Wolfi + cosign + Trivy CI integration), **03-04** (CI/CD — Artifact Attestations as build gate), **03-03** (K8s admission validando attestations via sigstore-policy-controller), **04-15** (OSS maintainership — npm provenance impact em maintainers), **02-17 §2.20** (mobile security — App Attest iOS + Play Integrity Android pra device attestation), **04-15 §2.20** (OSS supply chain post-XZ + EU CRA + npm provenance + Sigstore).
 
 ---
 

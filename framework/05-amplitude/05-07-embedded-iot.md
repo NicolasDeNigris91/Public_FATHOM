@@ -278,6 +278,8 @@ Default: smartphone como compute + sensors + network. Custom hardware quando:
 
 Nem todos justificam build próprio; smartphone-app-only sim.
 
+**Cruza com:** **05-02 §2.11** (Capstone B on-device AI — overlap com edge AI em embedded), **02-17 §2.20** (mobile native — patterns que cross-over com edge IoT).
+
 ---
 
 ## 3. Threshold de Maestria

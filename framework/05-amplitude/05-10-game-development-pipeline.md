@@ -286,6 +286,78 @@ Empresas: Riot, Epic, EA, Ubisoft, Activision, Roblox, Unity, Niantic, Roblox, G
 
 ---
 
+### 2.21 Game dev stack 2026 — Unity 6 + Unreal 5.4 + Godot 4.3 + Bevy 0.14 + WebGPU + ML in games
+
+Game dev 2026 fragmentou em quatro engines viáveis (Unity 6, Unreal 5.4/5.5, Godot 4.3, Bevy 0.14) mais runtimes web (WebGPU GA) e ML embedded (NPC LLM, neural assets). Pós Unity Runtime Fee fallout (Set 2023) e ~27k layoffs 2023-2024, escolha de engine virou decisão de risk management — não só técnica.
+
+**1. Engines decision matrix 2026.**
+
+- **Unity 6** (release Out 2024) — pós Runtime Fee fallout (Set 2023, walked back parcialmente Out 2023). Trust damage durou. Lessons aprendidas: avoid revenue-share pivots; license tiers Personal/Pro/Enterprise estabilizadas pós-crise. URP/HDRP renderers maduros, DOTS (data-oriented tech stack) production-ready. Use case: 2D/casual mobile, AR/VR (XR Interaction Toolkit), prototyping rápido. Fonte: Unity blog Set 12 2023 + Set 22 2023 statement.
+- **Unreal 5.4** (Abr 2024) → **5.5** (Out 2024) — Nanite (virtualized geometry), Lumen (real-time GI), MetaHuman (photorealistic chars), Niagara VFX. Use case: AAA, archviz, virtual production (LED walls). Stack: C++ + Blueprints visual scripting. Verse language emergindo via Unreal Editor for Fortnite (UEFN). Fonte: Unreal 5.4 release notes Abr 2024.
+- **Godot 4.3** (Ago 2024) — open-source MIT, GDScript primary + C# + GDExtension (C++/Rust binding). Vulkan/OpenGL/Metal/D3D12 multi-backend. Use case: indie 2D/3D, jam games, lightweight projects, non-corporate alternative. Crescimento pós Unity Runtime Fee mensurável (Steam tag charts). Fonte: Godot 4.3 changelog Ago 2024.
+- **Bevy 0.14** (Jul 2024) — Rust ECS engine, modular, no editor (Bevy editor em desenvolvimento 2026). Steep learning curve (Rust + ECS paradigm). Use case: experimental, perf-critical, devs Rust-fluent. ECS reference: bevy.org/learn. Fonte: bevy crate docs.
+- **Construct 3 / GameMaker / RPG Maker** — niche mas viável (2D web exports, retro RPGs).
+- **Custom engines** — só justifica em scope MMO custom-protocol ou hyper-niche (pixel art roguelike with proprietary tooling). Caso contrário abandonment garantido.
+
+**2. Unity Runtime Fee fallout (Set 2023 → 2026 lessons).** Unity tentou retroativamente cobrar per-install fee em Set 12 2023 — backlash massivo de devs, threats de migration coletiva, John Riccitiello forced out. Walked back parcialmente Set 22 2023 statement. Trust em engine vendor virou critical concern. Implicação prática: **diversifica skills entre engines** se career risk-averse — devs single-engine ficaram exposed. Lesson generaliza: vendor lock-in em ferramenta core de produção é risco operacional, não conveniência.
+
+**3. WebGPU stable 2024+ — wgpu rust, browser support.**
+
+- WebGPU GA: Chrome 113 (Mai 2023), Safari 18 (Set 2024), Firefox Nightly + Beta 2024 (estable previsto 2025). Cobertura cross-browser ainda incompleta — fallback WebGL2 obrigatório.
+- **wgpu** (Rust crate, 0.20+ em 2024-2026) é abstração cross-platform: WebGPU → Vulkan/Metal/D3D12/OpenGL. Default stack pra Rust graphics. Used em Bevy.
+- WebGPU Compute Shaders → ML inference no browser via transformers.js, ONNX Runtime Web. Inference local de modelos pequenos (< 1B params) viável.
+- **WGSL** (WebGPU Shading Language) — alternativa a GLSL/HLSL, designed pra safety + portabilidade.
+
+**4. ML in games 2024-2026.**
+
+- **NPC dialogue via local LLM** — Inworld AI, Convai partnerships. Concerns: latency (target < 200ms TTFB pra conversa fluida), cost ($0.01-0.10 per interaction em cloud), hallucination (NPC inventando lore inconsistente). Solução: cache + fallback rules-based em hot path.
+- **Neural assets** — denoising, upscaling, animation. Nvidia DLSS 3 (frame generation, Mai 2023), DLSS 4 (CES Jan 2025) — multi-frame generation. AMD FSR 3, Intel XeSS competidores.
+- **Procedural content + ML** — terrain gen, level gen via GANs/diffusion. Cite: "Tencent ACE" 2024 (NPC AI demo).
+- **Animation** — motion capture com inferência ML eliminando suit physical. ZeroBrush, RokoMotion (2024+).
+
+**5. Layoffs 2023-2025 reality check.** ~16k+ game industry layoffs em 2023, 11k em 2024 (gameindustrylayoffs.com tracker, ~27k total). Affected: Embracer Group (split em três), Microsoft (Bethesda, Activision-Blizzard pos-aquisição $69B), Unity (25%+ workforce cuts), Sega, Bungie. Lessons:
+
+- Funding bubble 2020-2021 (COVID gaming surge) popped.
+- AAA "platinum studios" não imune — name brand não protege.
+- Indie/solo dev model em alta (itch.io discoverability, Steam Direct $100 fee acessível).
+- Multi-platform shipping (Steam + console + mobile + web) cresce como hedge.
+
+**6. Cross-platform deployment 2026.**
+
+- **Steam** — PC gaming dominant, $100 Steam Direct fee one-time, ~30% revenue share Valve. Wishlist + algoritmo de discovery decisivos.
+- **Consoles** — PS5, Xbox Series X|S, Nintendo Switch 2 (Mar 2025+). Dev kits expensive ($), platform certification rigorous (TRC/TCR/Lotcheck).
+- **Mobile** — App Store + Play Store (~30% cuts, Epic v Apple ongoing). Mobile gaming ~50% global game revenue.
+- **Web** — itch.io, CrazyGames, Poki via WebGPU/WebGL. Lower revenue per user mas discovery free.
+- **Cloud gaming** — GeForce NOW, Xbox Cloud Gaming. Niche, mas latency-tolerant genres viáveis.
+
+**7. Tooling moderno 2026.**
+
+- **Source control** — Git LFS pra binary assets (Unreal/Unity), Perforce ainda dominant em AAA (file locking, depot model). Git enterprise (GitHub LFS, GitLab) em monorepos grandes.
+- **CI/CD** — Unity Cloud Build, Unreal via Buildkite/Jenkins/GitHub Actions, Bevy use rust toolchain standard (cargo + cross).
+- **Asset pipeline** — FBX/GLTF interchange, Substance Painter (texturing), Houdini procedural (terrain, VFX).
+- **Live service ops** — PlayFab (Microsoft), Unity Gaming Services, Photon (multiplayer authoritative server).
+
+**8. Anti-patterns numerados (10).**
+
+1. Único engine know-how — Unity Runtime Fee mostrou risk de vendor lock-in.
+2. Custom engine pra primeiro projeto sem AAA experience prévio — abandonment garantido em 6-12 meses.
+3. Git sem LFS pra projeto > 5GB binary assets — repo unusable em meses (clone times, history bloat).
+4. Unity Personal license em jogo > $200k revenue threshold — viola TOS, lawsuit risk.
+5. NPC LLM em hot path sem cache + fallback rules-based — latency unplayable, cost catastrófico em scale.
+6. WebGL fallback ausente em projeto WebGPU → 30%+ users (Safari < 18, Firefox stable previsto 2025) sem game.
+7. Mobile sem certificação Apple Privacy Manifest (obrigatório 2024+) — rejected publish.
+8. Console dev kit sem CI integration — manual builds não escalam, certification cycles longos.
+9. AAA scope em indie team — burnout, scope creep, projeto morre antes do alpha.
+10. DLSS/FSR/XeSS ignorado em PC port — 30%+ perceived perf gap vs competitors.
+
+**Logística applied (1 paragraph):** se Logística virar gamified courier app (achievements por entregas, leaderboards regionais, missões dynamic), engine choice = mobile-first → Godot 4.3 (custo zero, exports Android/iOS limpos) ou Unity (asset store huge, mobile pipeline matura, analytics builtin). NPC AI via local LLM (Llama 3.2 1B on-device) pra missões generative — coordenador virtual sugerindo rotas com personalidade. WebGPU prototype pra "tracking visualization" — heatmap rotas em browser dashboard sem instalar app, fallback WebGL2 pra Safari < 18.
+
+**Cruza com:** `03-14 §2.x` (codecs/graphics — WebGPU, GPU programming), `03-12 §2.x` (WebAssembly — Rust → wasm pra game web), `04-10 §2.x` (LLM tooling — NPC AI), `02-06 §2.x` (React Native — game UI overlay mobile).
+
+**Fontes:** Unity blog Set 12 2023 (Runtime Fee announcement) + Set 22 2023 (walk-back statement); Unreal Engine 5.4 release notes Abr 2024; Godot 4.3 changelog Ago 2024; Bevy book + bevy 0.14 release Jul 2024; wgpu crate docs (gfx-rs/wgpu); gameindustrylayoffs.com tracker; Nvidia DLSS 4 announcement CES Jan 2025.
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

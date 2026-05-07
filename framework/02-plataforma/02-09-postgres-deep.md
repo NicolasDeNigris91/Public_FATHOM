@@ -1232,7 +1232,7 @@ Caggs operacionais úteis pro capstone: `fleet_speed_5min` (dashboard real-time)
 - Cagg refresh policy a cada 5 segundos (background worker satura; mínimo prático é 30-60s).
 - Query sem filtro temporal em hypertable (chunk exclusion não dispara; full scan em todos os chunks; sempre WHERE em `time`).
 
-Cruza com **02-09 §2.13** (replication — Timescale herda streaming/logical do Postgres); **02-09 §2.20** (tuning — `shared_buffers` deve caber chunks ativos); **02-09 §2.21** (partitioning nativo Postgres como alternativa quando não precisa de caggs); **03-07** (observability time-series e Grafana sobre Timescale); **04-09** (scaling — sharding via multi-node Timescale ou Citus); **04-13** (data engineering — CDC de hypertable pra lakehouse com chunk-aware replication).
+Cruza com **02-09 §2.13** (replication — Timescale herda streaming/logical do Postgres); **02-09 §2.20** (tuning — `shared_buffers` deve caber chunks ativos); **02-09 §2.21** (partitioning nativo Postgres como alternativa quando não precisa de caggs); **03-07** (observability time-series e Grafana sobre Timescale); **04-09** (scaling — sharding via multi-node Timescale ou Citus); **04-13** (data engineering — CDC de hypertable pra lakehouse com chunk-aware replication); **02-16 §2.18** (graph DB landscape 2026 — Apache AGE como Postgres extension hybrid graph+relational + RLS multi-tenant).
 
 ---
 

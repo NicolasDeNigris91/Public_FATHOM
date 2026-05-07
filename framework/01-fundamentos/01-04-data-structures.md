@@ -405,6 +405,8 @@ Com ambas: amortized O(α(n)) ≈ O(1) per operation (α = inverse Ackermann).
 
 Uso: Kruskal MST, connected components, image segmentation, percolation.
 
+**Cruza com:** **01-07 §2.12** (JS moderno 2026 — Set methods nativos `.union()/.intersection()/.difference()`).
+
 ---
 
 ## 3. Threshold de Maestria

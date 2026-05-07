@@ -2,7 +2,7 @@
 module: CAPSTONE-amplitude
 title: Staff Capstone, Specialization Track + Public Showcase
 stage: amplitude
-prereqs: [05-01, 05-02, 05-03, 05-04, 05-05, 05-06]
+prereqs: [05-01, 05-02, 05-03, 05-04, 05-05, 05-06, 05-07, 05-08, 05-09, 05-10]
 gates:
   conceitual: { status: pending, date: null, attempts: 0, notes: null }
   pratico: { status: pending, date: null, attempts: 0, notes: null }
@@ -24,6 +24,9 @@ Você já fez:
 - 05-05: stream público com 6+ posts + talk.
 - 05-06: 3 mentees acompanhados.
 - 05-07 opcional: tracker IoT.
+- 05-08 opcional: hardware design board com schematic + BOM.
+- 05-09 opcional: pipeline scientific computing reproducível (uv/pixi + Nextflow ou Snakemake).
+- 05-10 opcional: jogo shipped em itch.io (Godot/Unity/Bevy).
 
 Esse capstone pega tudo isso e cristaliza num **showcase de specialization** + **promo case** público. Output não é projeto novo; é **integração + posicionamento** do que você já fez.
 

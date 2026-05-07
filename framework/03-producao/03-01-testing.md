@@ -844,7 +844,7 @@ POM por feature (não god-class); fixture injeta página pronta no teste, reduz 
 - Visual regression em data-driven UI sem `mask` (timestamps/IDs mudam; mask obrigatório).
 - Mock APIs em todo teste E2E (defeats purpose; use real backend via Testcontainers + selective stubs em edges).
 
-Cruza com `03-01` §2.6 (E2E basics, Playwright fundamentals), `03-01` §2.18 (CI integration), `03-01 §2.20` (testing stack 2026 — Playwright 1.55 + visual regression integrado), **03-04** (CI/CD, parallel sharding, container reuse), **02-04** (React + Storybook component dev), **03-09** (frontend perf, visual budget enforcement em CI).
+Cruza com `03-01` §2.6 (E2E basics, Playwright fundamentals), `03-01` §2.18 (CI integration), `03-01 §2.20` (testing stack 2026 — Playwright 1.55 + visual regression integrado), **03-04** (CI/CD, parallel sharding, container reuse), **02-04** (React + Storybook component dev), **03-09** (frontend perf, visual budget enforcement em CI), **03-17 §2.22** (a11y testing 2026 — axe-core 4.10, Playwright fixture, Storybook a11y addon, guidepup SR automation).
 
 ---
 

@@ -225,6 +225,119 @@ Scripts em `.git/hooks/` executados em eventos. Úteis: `pre-commit` (lint), `co
 
 ---
 
+### 2.14 VCS moderno 2026 — Jujutsu (jj), Git 2.40+ features, Sapling, SHA-256 transition
+
+Git é o substrato. Mas o ecossistema VCS evoluiu: Jujutsu (jj) surgiu como modelo conceitual mais limpo, Git 2.40+ shipou features que mudam workflows (stacked PRs, partial clone), Sapling (Meta) circula em engineering blogs, e SHA-256 transition continua opt-in. Conhecer o estado real 2026 separa quem usa Git mecanicamente de quem entende a fronteira.
+
+#### Jujutsu (jj) — VCS de próxima geração
+
+Criado por Martin von Zweigbergk (Google) em 2020. Backend git-compatible (read/write em repos Git existentes), modelo conceitual diferente:
+
+- **Changes vs commits**: cada change tem ID estável; commits são snapshots imutáveis derivados.
+- **No branches mandatory**: anonymous heads são first-class. Branches são labels opcionais.
+- **No staging area**: every working state é automaticamente um commit. `jj describe` ajusta a message.
+- **Conflict resolution descritivo**: jj armazena conflitos como metadata estruturada, não markers `<<<<<<<` no arquivo. Resolve no working state, jj propaga.
+
+Adoption real 2026: Google internal, comunidade open source crescendo (early adopters em Cloudflare, Mozilla); ~15k+ GitHub stars (jj-vcs/jj). Use cases: branchy work (múltiplos WIP em paralelo), `jj squash` UX superior a `git rebase -i`, conflict UX humano.
+
+Cite: jj-vcs.github.io.
+
+```bash
+jj git clone https://github.com/foo/bar      # clones Git repo, cria jj overlay
+jj new                                       # nova change em cima da current
+jj edit <change-id>                          # switch pra change existente
+jj rebase -d main                            # rebase sub-tree onto main
+jj split                                     # split current change interativamente
+jj squash --into <change-id>                 # squash current dentro de target
+jj git push --change @-                      # push da change anterior como Git branch
+```
+
+`jj rebase -d main` é o equivalente de `git rebase main`, mas conflict markers não aparecem no arquivo: jj resolve no working state e tracks resolution metadata até a próxima change.
+
+#### Git 2.40+ features (mainstream 2026)
+
+- **`git rebase --update-refs`** (Git 2.38, default-friendly em 2.40+): rebase atualiza branches dependentes na stack. Resolve dor de stacked PRs — branch B baseado em A, rebase A, B atualiza junto.
+- **`git switch`** + **`git restore`** (Git 2.23+, mainstream em 2026): substitui `git checkout` overloaded. `checkout` em tutoriais novos é code smell.
+- **Sparse checkout cone mode** (Git 2.27+, refined em 2.40+): `git sparse-checkout init --cone` + `git sparse-checkout set src/`. Integração refinada com partial clone.
+- **`git maintenance`** (Git 2.30+): background prefetch, pack, gc — substitui cron com `git gc --auto`. `git maintenance start` agenda no scheduler do OS.
+- **Partial clone refinements** (`--filter=blob:none`): clones sem blobs pra repos enormes (Linux kernel, Chromium, monorepos > 5GB); blobs baixados on-demand.
+- **`git log --remerge-diff`** (Git 2.35+): mostra resolução real de merge conflicts (vs `--cc` que filtra). Forensic merge debugging.
+
+Cite: Git release notes 2.38, 2.40, 2.45.
+
+```bash
+# Stacked PRs: branch feature-b baseado em feature-a, ambos baseados em main
+git switch feature-a
+git rebase --update-refs main      # rebase feature-a, feature-b acompanha
+git push --force-with-lease origin feature-a feature-b
+```
+
+```bash
+# Sparse checkout cone mode em monorepo
+git clone --filter=blob:none --no-checkout https://github.com/org/monorepo
+cd monorepo
+git sparse-checkout init --cone
+git sparse-checkout set apps/site apps/courier-rn
+git checkout main                   # baixa só os blobs dos paths configurados
+```
+
+```bash
+# Background maintenance em laptop dev
+git maintenance start               # registra no scheduler do OS
+git maintenance run --task=prefetch # manual prefetch
+```
+
+#### SHA-256 transition status 2026
+
+Git suporta SHA-256 desde 2.29 (2020) experimentalmente. Status 2026: ainda **opt-in only**. Repos novos podem `git init --object-format=sha256`. Hash interop entre SHA-1 e SHA-256 ainda não shipou (em RFC, Git Hash Function Transition document). GitHub, GitLab, Bitbucket: rejeitam push de repos SHA-256.
+
+Conclusão prática: não migra prod em 2026. Mantém SHA-1 + use signed commits/tags (`git commit -S`, `git tag -s`) pra integrity. Cite: Git Hash Function Transition document.
+
+#### Meta Sapling (open-source 2022)
+
+VCS Mercurial-derived que Meta usa internamente. Ships com Git interop layer. Designed pra monorepos massivos (1B+ files). Stack diff workflow nativo (`sl ssl`, `sl pr submit`). Adoption fora Meta: limitada. Vale conhecer pra ler engineering blogs Meta com contexto. Cite: sapling-scm.com.
+
+#### GitHub-flow 2026 (workflow patterns)
+
+- **Stacked PRs** virou first-class: GitHub UI suporta parcialmente; ferramentas dedicadas: Graphite (graphite.dev), Sapling stack, ghstack (Meta tool). Padrão moderno: PRs pequenos chained, não mega-PR.
+- **Conventional commits** + **commitlint** em CI: padroniza changelog generation, semver bump automático.
+- **Husky + lint-staged + pre-commit hook**: mainstream pra block commits que quebram lint local antes de push.
+- **GitHub Actions + Dependabot + Renovate**: automated security + version bump PRs.
+
+#### Code review tooling 2026
+
+- Reviewable.io (mais features que GitHub PR padrão).
+- Graphite.dev (stack-aware, integra com GitHub).
+- git-review (gerrit fluxo).
+- Phabricator (deprecated upstream, legacy uses).
+- GitHub Copilot Workspace (lançado Mar 2025+): proposed change suggestions inline em PRs.
+
+#### Anti-patterns
+
+1. `git checkout` em tutoriais 2026 — usa `git switch` pra branches, `git restore` pra arquivos. `checkout` overloaded é fonte recorrente de confusão.
+2. `git pull` (default merge) sem entender semântica — config `pull.rebase=true` ou `pull.ff=only` global e sabe o que está fazendo.
+3. SHA-1 collision paranoia em 2026 sem migration plan real — em prática, GitHub e amigos ainda rejeitam SHA-256. Usa signed commits.
+4. Stacked PRs feitos manualmente sem `--update-refs` — rebase do base branch quebra todos os downstream.
+5. `git push --force` sem `--force-with-lease` — pode sobrescrever push de colega silenciosamente.
+6. Sparse checkout sem cone mode em 2026 — non-cone é deprecated path, cone é otimizado pra partial clone.
+7. Monorepo > 5GB sem partial clone (`--filter=blob:none`) — clone leva 30 min, dev novo pira no onboarding.
+8. Sem `git maintenance` configurado em laptops dev — gc manual sob carga ativa é overhead percebido.
+9. Conventional commits sem CI enforce (commitlint) — drift inevitável em time > 5 devs, changelog vira lixo.
+10. `git rebase -i` interactive em 2026 quando jj `squash`/`split` é UX superior, mesmo sobre repo Git remoto.
+
+#### Logística aplicada (Fathom)
+
+Monorepo dispatch+web+app via partial clone (`--filter=blob:none`); sparse checkout cone pra dev focado num app (`apps/site`, `apps/courier-rn`). Stacked PRs via Graphite quando feature requer split. CI Conventional Commits enforced via commitlint. Devs early-adopters experimentam jj sobre o remote Git existente — risco zero, ganho de UX em squash/split.
+
+#### Cruza com
+
+- `03-04` (CI/CD, GitHub Actions): commitlint + Dependabot + Renovate são parte do CI pipeline.
+- `04-15` (OSS maintainership): PR triage e review patterns dependem de stacked PR culture.
+- `04-12` (tech leadership): code review culture e stacked PR adoption são decisão de liderança técnica.
+- `02-07` (Node monorepo tooling): pnpm workspaces + sparse checkout combinam pra dev experience escalável.
+
+---
+
 ## 3. Threshold de Maestria
 
 Pra passar o **Portão Conceitual**, sem consultar:

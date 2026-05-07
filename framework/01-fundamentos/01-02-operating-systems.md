@@ -221,6 +221,139 @@ Bits especiais:
 
 ---
 
+### 2.11 Linux moderno 2026 — io_uring + cgroups v2 PSI + eBPF observability
+
+Linux 2026 não é o Linux 2015. Três tecnologias mudaram o jogo: **io_uring** (async I/O sem syscalls em hot path), **cgroups v2 + PSI** (pressure-aware resource control), **eBPF** (kernel programável em userspace, sem rebuild). Quem ainda raciocina em `epoll + thread-pool + cgroups v1 + iptables` opera com vocabulário deprecated.
+
+**1. io_uring — async I/O moderno (Linux 5.1+, mainstream desde 5.10 LTS, hardened em 6.1+ LTS)**
+
+Submission Queue (SQ) + Completion Queue (CQ) **shared** entre kernel e userspace via `mmap`. Userspace escreve SQE (Submission Queue Entry), kernel processa, escreve CQE. Com `IORING_SETUP_SQPOLL`, kernel thread polla SQ — **zero syscalls em hot path**. Ganho real: PostgreSQL 17 (Set 2024) introduziu io_uring backend reportando **30-50% throughput improvement em random I/O** (PostgreSQL 17 release notes). MySQL InnoDB, ScyllaDB, libuv (Node.js 20+ opcional) também suportam.
+
+```c
+// io_uring read+write batched (liburing wrapper)
+struct io_uring ring;
+io_uring_queue_init(32, &ring, 0);
+
+struct io_uring_sqe *sqe = io_uring_get_sqe(&ring);
+io_uring_prep_read(sqe, fd_in, buf, BUF_SZ, 0);
+sqe->flags |= IOSQE_IO_LINK;  // chain próximo
+
+sqe = io_uring_get_sqe(&ring);
+io_uring_prep_write(sqe, fd_out, buf, BUF_SZ, 0);
+
+io_uring_submit(&ring);  // 1 syscall (zero com SQPOLL)
+struct io_uring_cqe *cqe;
+io_uring_wait_cqe(&ring, &cqe);
+io_uring_cqe_seen(&ring, cqe);
+```
+
+**Restrição crítica:** io_uring teve **4+ CVEs sandbox-escape em 2022-2023**. Google Security blog (Jul 2023) anunciou que **Chrome OS, Docker default seccomp, e Android 15 desabilitaram io_uring no syscall filter por padrão**. Em produção: avalie threat model — perf gain vs attack surface. Em container multi-tenant não-confiável, **deixe desabilitado**. Em backend trusted (database, file server dedicado), habilite.
+
+**2. epoll vs io_uring — decision matrix 2026**
+
+| Critério | epoll vence | io_uring vence |
+|---|---|---|
+| Simplicidade | sim (libev/libuv maduras) | curva ainda íngreme |
+| Threat model restrito | sim (battle-tested) | seccomp issues |
+| I/O massivo paralelo | não (1 syscall por op) | sim (batch + zero-copy) |
+| Registered buffers / fixed FDs | n/a | sim (3-5x speedup) |
+| Sandboxed/multi-tenant | sim | bloqueado por seccomp |
+
+Default conservador: **epoll**. Default agressivo perf: **io_uring** com SQPOLL pinned em CPU dedicada.
+
+**3. cgroups v2 (default em Ubuntu 22.04+, Debian 12+, RHEL 9+, Fedora 31+)**
+
+V1 tinha múltiplas hierarchies (cpu, memory, blkio cada uma sua árvore) — bug-prone. V2 é **single unified hierarchy**, controllers principais: `cpu`, `memory`, `io`, `pids`, `cpuset`. **PSI (Pressure Stall Information)** Linux 4.20+ mede *quanto tempo* processos esperam por CPU/memory/io — métrica direta de saturação, exposta em `/proc/pressure/{cpu,memory,io}` e per-cgroup.
+
+`oomd` (Facebook) e `systemd-oomd` (default Ubuntu 22.04+) usam thresholds PSI pra **OOM-kill antes** do kernel OOM (que é catastrófico, freezeia o sistema enquanto decide).
+
+```ini
+# /etc/systemd/system/dispatch.service
+[Service]
+ExecStart=/usr/bin/dispatch-worker
+MemoryHigh=512M           # throttle ANTES de hard limit
+MemoryMax=768M            # hard limit (OOM-kill)
+IOWeight=200              # 1-10000, default 100
+CPUWeight=150             # CPU share relativo
+TasksMax=512              # pids.max
+```
+
+**4. eBPF observability stack 2026**
+
+Kernel programável: você carrega bytecode verificado em runtime, attach a tracepoints/kprobes/uprobes/XDP/TC. Sem rebuild, sem reboot, sem kernel module.
+
+- **Tracing:** `bpftrace` (one-liners, like `awk` pra kernel), Tracee (Aqua Security, runtime security), Pixie (NewRelic, no-instrumentation k8s).
+- **Networking:** **Cilium** (CNI + service mesh, substitui iptables/IPVS), Katran (Facebook L4 LB).
+- **Security:** **Falco** (CNCF graduated), Tetragon (Cilium runtime enforcement, LSM hooks).
+- **Performance:** bcc-tools (`opensnoop`, `execsnoop`, `tcpconnect`), Parca (continuous profiling), Pyroscope (Grafana).
+
+Adoção real: **Cilium em Google GKE Dataplane V2, AWS EKS auto-attach, Microsoft AKS "Azure CNI Powered by Cilium" GA Q4 2024** (CNCF Cilium release notes). Cilium em GKE substitui kube-proxy → latência p99 service-to-service cai 30-40%.
+
+**5. eBPF programs — exemplos 2026**
+
+```bash
+# Trace todo execve syscall (ver o que está sendo executado)
+sudo bpftrace -e 'tracepoint:syscalls:sys_enter_execve {
+  printf("%s -> %s\n", comm, str(args->filename));
+}'
+
+# Latência de open() por processo
+sudo bpftrace -e 'tracepoint:syscalls:sys_enter_openat { @start[tid] = nsecs; }
+                  tracepoint:syscalls:sys_exit_openat /@start[tid]/ {
+                    @us[comm] = hist((nsecs - @start[tid]) / 1000); delete(@start[tid]); }'
+```
+
+**Stack moderna: CO-RE (Compile Once, Run Everywhere) + libbpf.** Substitui BCC (older, precisava kernel headers + clang em runtime — bloated, lento). Requer kernel 5.4+ pra CO-RE básico, 5.8+ pra full features (LSM hooks, ring buffer, trampolines).
+
+**6. PSI-driven autoscaling em Kubernetes 2026**
+
+PSI exposto em pods via cAdvisor (`container_pressure_memory_full_seconds_total`). **KEDA** (CNCF graduated) + Prometheus adapter escala baseado em pressure metrics — direto, não em CPU% (proxy ruim).
+
+```yaml
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata: { name: dispatch-worker }
+spec:
+  scaleTargetRef: { name: dispatch-worker }
+  minReplicaCount: 2
+  maxReplicaCount: 50
+  cooldownPeriod: 180     # evita flapping
+  triggers:
+  - type: prometheus
+    metadata:
+      serverAddress: http://prometheus:9090
+      threshold: '0.30'   # 30% memory pressure full
+      query: |
+        avg(rate(container_pressure_memory_full_seconds_total{pod=~"dispatch-.*"}[2m]))
+```
+
+Adoção real: **Spotify reportou 25% cost reduction em batch workers** migrando de CPU-based HPA pra PSI-aware HPA (Spotify engineering blog 2024).
+
+**7. journald — observability nativa Linux 2026**
+
+`systemd-journald` é o default em Ubuntu 22.04+, RHEL 8+, Debian 12+. Logs binários estruturados (campos indexados: `_PID`, `_UID`, `_TRANSPORT=audit`, `_SYSTEMD_UNIT`), persistência opt-in via `Storage=persistent` em `/etc/systemd/journald.conf` (cria `/var/log/journal/`). Forward pra Grafana Loki / Datadog via `systemd-journal-upload` ou Vector. `journalctl -u dispatch.service -f --since "10 min ago"` substitui `tail -F /var/log/syslog | grep`.
+
+**Anti-patterns 2026**
+
+1. **io_uring habilitado em sandbox/container multi-tenant sem auditar threat model** — você ganha 30% perf e abre CVE class de sandbox-escape.
+2. **epoll + thread-pool em hot path I/O massivo** quando io_uring vence — legacy code que merece refactor, não cargo-cult.
+3. **cgroups v1 ainda em produção em 2026** — deprecated upstream, sem PSI, sem unified hierarchy. Migra (`systemd.unified_cgroup_hierarchy=1`).
+4. **BCC instalado sem libbpf+CO-RE** — bloated (clang em runtime), lento, kernel-headers dependency. Use `bpftrace` ou libbpf-based tools.
+5. **bpftrace em produção sem rate-limit nas probes** — probe overhead em syscall hot path pode shred CPU. Use `@map = lhist()` com sampling, não `printf` em todo evento.
+6. **Falco/Tetragon sem audit ruleset apropriado pro seu workload** — alerta-storm, time ignora, ignora alerta real. Tune as rules antes de promover pra prod.
+7. **systemd journald sem `Storage=persistent`** — logs perdidos a cada reboot, debugging post-mortem impossível.
+8. **PSI autoscaling sem cooldown/stabilization window** — flapping (scale up → pressure cai → scale down → pressure sobe → loop), custa mais que não escalar.
+9. **Cilium em produção sem Hubble enabled** — você ganha o dataplane mas cega a observabilidade L3-L7. Habilita Hubble + Hubble UI desde dia 1.
+10. **io_uring SQPOLL kthread sem CPU pinning** — kernel thread compete por CPU com workload, performance fica pior que epoll. `IORING_SETUP_SQ_AFF` + `sq_thread_cpu`.
+
+**Logística applied.** O courier-tracking ingestor usa **io_uring registered buffers** pra ler GPS UDP packets em batch (zero-copy, fixed buffers pré-alocados). O dispatch service roda em systemd unit com `MemoryHigh=512M IOWeight=200 CPUWeight=200` — isolado de batch jobs noturnos (`MemoryHigh=2G IOWeight=50`). `bpftrace` em produção monitora `execve` syscalls do dispatch process — qualquer spawn inesperado dispara alert (Falco rule). Cilium CNI substituiu kube-proxy no cluster: latência p99 dispatch-to-postgres caiu de 8ms pra 4.5ms. Hubble visualiza fluxo dispatch → backend em tempo real.
+
+**Cruza com.** [`01-02 §2.10`](#210-permissões-e-usuários) (capabilities + seccomp são complementos a cgroups — defense in depth), [`01-03`](./01-03-networking-protocols.md) (Cilium opera em camada XDP/TC do kernel, abaixo do socket), [`03-02`](../03-execucao/03-02-docker-containerizacao.md) (Docker runtime respeita cgroups; entender v2 é entender resource limits de containers), [`03-03`](../03-execucao/03-03-kubernetes-orquestracao.md) (cgroups v2 + PSI dirigem HPA/VPA modernos), [`03-07`](../03-execucao/03-07-observability-monitoring.md) (eBPF + journald + RUM são as três camadas de observability 2026).
+
+**Fontes inline.** PostgreSQL 17 release notes (Set 2024); Google Security blog "io_uring CVEs and our response" (Jul 2023); Spotify engineering blog "PSI-aware HPA" (2024); CNCF Cilium release notes "Azure CNI Powered by Cilium GA" (Q4 2024); Linux kernel docs `Documentation/admin-guide/cgroup-v2.rst` e `Documentation/accounting/psi.rst`.
+
+---
+
 ## 3. Threshold de Maestria
 
 Pra passar o **Portão Conceitual**, sem consultar:

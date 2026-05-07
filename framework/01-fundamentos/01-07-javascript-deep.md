@@ -346,6 +346,193 @@ Em Node, `package.json` `"type": "module"` faz `.js` ser ESM. ESM importa CJS, m
 
 ---
 
+### 2.12 JavaScript moderno 2026 — ES2024/2025, Node 22/24 LTS, V8 Maglev + TurboShaft, Bun, Deno 2
+
+JavaScript de 2026 não é o de 2020. ES2024 e ES2025 entregaram features que extinguem categorias inteiras de utility code (lodash group/uniq, hand-rolled set ops, custom Date wrappers). Node 22 LTS (Out 2024) e Node 24 LTS (esperado Out 2026) trazem TypeScript stripping nativo, permission model, WebSocket built-in, `require(esm)` estável. V8 evoluiu pipeline (Ignition → Sparkplug → Maglev → TurboFan/TurboShaft). Quem ainda escreve código com padrões de 2018 paga em bytes, latência e bug surface.
+
+#### ES2024 estável em 2026
+
+**Iterator helpers** (TC39 Stage 4, ES2025; V8 13.0 Q4 2024). Métodos prototípicos em iteradores: `.map()`, `.filter()`, `.take()`, `.drop()`, `.flatMap()`, `.reduce()`, `.toArray()`, `.forEach()`, `.some()`, `.every()`. Diferença crítica vs Array: lazy. Chain de transformações não materializa intermediários — só consome quando o sink puxa.
+
+```ts
+// Materializa 3 arrays intermediários (1M elements cada) — O(n) memory
+const result = Array.from({ length: 1_000_000 }, (_, i) => i)
+  .map(x => x * 2)
+  .filter(x => x % 3 === 0)
+  .slice(0, 10);
+
+// Iterator helpers: lazy, zero arrays intermediários
+function* range(n: number) { for (let i = 0; i < n; i++) yield i; }
+const result2 = range(1_000_000)
+  .map(x => x * 2)
+  .filter(x => x % 3 === 0)
+  .take(10)
+  .toArray(); // só aqui materializa, com 10 elementos
+```
+
+**`Promise.withResolvers()`** (ES2024). Substitui o pattern imperativo de declarar `resolve`/`reject` fora do construtor:
+
+```ts
+// Antigo
+let resolve: (v: string) => void, reject: (e: Error) => void;
+const p = new Promise<string>((res, rej) => { resolve = res; reject = rej; });
+
+// ES2024
+const { promise, resolve, reject } = Promise.withResolvers<string>();
+```
+
+**`Object.groupBy()` / `Map.groupBy()`** (ES2024). Mata `lodash.groupBy`:
+
+```ts
+const orders = [{ region: "BR", total: 100 }, { region: "US", total: 50 }, { region: "BR", total: 200 }];
+const byRegion = Object.groupBy(orders, o => o.region);
+// { BR: [{...}, {...}], US: [{...}] }
+```
+
+**`Array.prototype.findLast()` + `findLastIndex()`** (ES2023, ubíquos em 2026).
+
+**RegExp `/v` flag** (ES2024). Set notation, intersection, string properties:
+
+```ts
+/[\p{Letter}--\p{ASCII}]/v.test("ç"); // true (letras não-ASCII)
+/[\p{Greek}&&\p{Letter}]/v.test("α"); // true (intersection)
+/\p{RGI_Emoji}/v.test("🇧🇷"); // true (string property, multi-codepoint)
+```
+
+#### ES2025
+
+**Set methods** (TC39 Stage 4): `.union()`, `.intersection()`, `.difference()`, `.symmetricDifference()`, `.isSubsetOf()`, `.isSupersetOf()`, `.isDisjointFrom()`. Substitui hand-rolled com Array+filter+includes (O(n²)) por nativo (O(n)):
+
+```ts
+// Antigo: O(n*m) — filter+includes
+const intersection = a.filter(x => b.includes(x));
+
+// ES2025: O(n+m) — hash-backed
+const a = new Set([1, 2, 3, 4]);
+const b = new Set([3, 4, 5, 6]);
+const inter = a.intersection(b); // Set { 3, 4 }
+const union = a.union(b);        // Set { 1, 2, 3, 4, 5, 6 }
+const diff = a.difference(b);    // Set { 1, 2 }
+```
+
+**`Promise.try()`** (Stage 4). Wraps função sync ou async em Promise sem ramo extra:
+
+```ts
+// Antigo
+Promise.resolve().then(() => fn(arg));
+
+// ES2025
+Promise.try(fn, arg);
+```
+
+**`Float16Array`** (Stage 4). Half-precision (16-bit) pra ML inference no browser, GPU shaders, audio buffers. Reduz memory 50% vs Float32Array com perda controlada.
+
+**`Array.fromAsync()`** (ES2024 final). Coleta async iterable em array — útil pra Server-Sent Events, streams de arquivo, WebSocket buffers:
+
+```ts
+const lines = await Array.fromAsync(readSseStream(url));
+```
+
+#### Temporal API (TC39 Stage 3, polyfill production-ready 2026)
+
+`Date` é irreparável: timezone bugs, mutável, parser inconsistente. Temporal substitui com tipos imutáveis e timezone-aware. Types: `Temporal.Instant`, `Temporal.PlainDate`, `Temporal.PlainTime`, `Temporal.PlainDateTime`, `Temporal.ZonedDateTime`, `Temporal.Duration`. Polyfill `@js-temporal/polyfill` é maduro e production-ready (TC39 Temporal status 2024). Browser: Firefox em flag 2024, Safari TP 2024, Chromium em discussão 2026.
+
+```ts
+import { Temporal } from "@js-temporal/polyfill";
+
+const delivery = Temporal.ZonedDateTime.from({
+  year: 2026, month: 5, day: 7, hour: 14, minute: 30,
+  timeZone: "America/Sao_Paulo",
+});
+const eta = delivery.add({ hours: 6, minutes: 15 });
+const duration = eta.since(delivery); // Temporal.Duration
+console.log(duration.toString()); // PT6H15M
+```
+
+#### Symbol.dispose + `using` (Stage 4 — ES2024 explicit resource management)
+
+```ts
+class DbConnection {
+  constructor() { /* open */ }
+  [Symbol.dispose]() { /* close socket */ }
+  query(sql: string) { /* ... */ }
+}
+
+{
+  using conn = new DbConnection();
+  conn.query("SELECT 1");
+} // dispose() invocado automaticamente at scope exit, mesmo em throw
+```
+
+Async version: `Symbol.asyncDispose` + `await using`. TypeScript 5.2+ implementa types; Node 22+ runtime suporta. Hot use cases: DB connections, file handles, mutex locks, Kafka consumers, span tracers.
+
+#### Node 22 LTS (Out 2024) + Node 24 LTS (esperado Out 2026)
+
+Fontes: Node 22 release notes (Out 2024), Node 22.12 changelog.
+
+- **`fetch` GA nativo** (estável desde Node 21, default em Node 22). Mata `node-fetch`, `axios` em scripts simples.
+- **`--experimental-strip-types`** (Node 22+). Roda `.ts` direto sem `tsc`/`tsx`/`ts-node` — type annotations stripped. Útil pra scripts e prototyping.
+- **`--env-file=.env`** (Node 20.6+, enriquecido em 22). Mata `dotenv` em scripts.
+- **`node:test` runner estável** (Node 20.x → 22 LTS). `node --test` substitui Jest/Vitest pra suites simples — TAP output, paralelo, fixtures via `before`/`after`.
+- **Permission Model** (Node 20+ experimental, melhorado em 22). `--experimental-permission --allow-fs-read=/etc --allow-net=api.example.com`. Sandbox-style; restringe blast radius.
+- **WebSocket client built-in** (Node 22+). `new WebSocket(url)` sem `ws` package.
+- **`require(esm)` estável** (Node 22.12+). `require()` carrega ESM síncrono — encerra dual-package hazard.
+
+```bash
+# Roda TS direto + permission model em prod
+node --experimental-strip-types \
+     --experimental-permission \
+     --allow-fs-read=/app/config \
+     --allow-net=api.stripe.com,api.cloudflare.com \
+     server.ts
+```
+
+#### V8 pipeline 2026 — Maglev + TurboShaft + TurboFan
+
+Fontes: V8 blog "Maglev" (Ago 2023), V8 blog "TurboShaft" (Mai 2024).
+
+1. **Ignition** — interpreter, primeiro tier. Bytecode direto, zero compile cost.
+2. **Sparkplug** (V8 9.x+) — baseline non-optimizing JIT. Tier-up rápido do Ignition.
+3. **Maglev** (V8 11.7+, Ago 2023) — mid-tier optimizing JIT. ~2x compile speed do TurboFan, ~75% peak performance. Default pra hot functions.
+4. **TurboFan → TurboShaft** (transição 2023-2025) — TurboShaft é IR nova, mais maintainable, AOT-friendly. GA por etapas, substitui TurboFan como top tier.
+
+Implicação prática: cold start reduzido (Sparkplug/Maglev fast tier-up); steady-state mantém ou melhora (TurboShaft). Afeta TTI, INP, throughput de servidor.
+
+#### Bun 1.2+ (JavaScriptCore, JIT da Apple) 2026
+
+Bun 1.2 (changelog 2024-2025) é alternative production-ready a Node — `bun install` ~30x mais rápido que `npm install`, native bundler, native TypeScript runner, native test framework. Limitações: npm compat ~95%, alguns native modules (canvas, sharp antigo) quebram. Use cases: prototyping, CI runner (cold start fast), edge runtime. Não substitui Node em prod pra serviços B2B críticos sem CI compat test.
+
+#### Deno 2.0 (Out 2024) + Deno 2.x 2026
+
+Standards-aligned (Web APIs primeiro). `deno.json` substitui `package.json`. `deno install npm:react` resolve npm. Built-in TypeScript, lint, fmt, test, coverage. Permission runtime nativo. Use cases: edge functions (Deno Deploy), serverless, scripting.
+
+#### Anti-patterns (10)
+
+1. Custom Date utility code em 2026 — Temporal pronto via polyfill; `date-fns`/`dayjs` são bridge pra deprecation.
+2. `import { groupBy, uniq } from "lodash"` — `Object.groupBy`, `Set` ops nativos.
+3. `try/finally` manual pra cleanup — `using` é declarativo e à prova de throw.
+4. `tsx`/`ts-node` em scripts simples — Node 22 `--experimental-strip-types` resolve.
+5. Jest em projetos novos onde `node:test`/Vitest cobrem — Jest config overhead crescente, ESM ainda problemático.
+6. `RegExp` sem `/u` ou `/v` em 2026 — Unicode quebrado por padrão (surrogate pairs, `\p{}`).
+7. `Array.from(generator()).map().filter()` — materializa intermediários; usa Iterator helpers lazy.
+8. `dotenv` em scripts — Node 20.6+ tem `--env-file` nativo.
+9. Polyfill de `fetch` em Node — built-in desde Node 18, GA em 21.
+10. Bun em prod sem CI compatibility test contra Node — algumas libs (sharp, canvas, alguns Prisma engines) quebram silently.
+
+#### Logística aplicada
+
+Backend Node 22 LTS roda `--experimental-permission --allow-net=api.stripe.com,api.cloudflare.com --allow-fs-read=/app/config` pra restringir blast radius de execução suspeita. Ingestor de GPS processa SSE stream com Iterator helpers (`.take()`, `.filter()`, `.map()`) lazy — zero intermediários em fluxo de 50k events/s. Kafka consumer usa `await using consumer = await kafka.connect(...)` (`Symbol.asyncDispose` cleanup automático em throw ou cancel). Datas de entrega em `Temporal.ZonedDateTime` com timezone explícito (cross-region: BR São Paulo, AR Buenos Aires, CL Santiago) — elimina classe inteira de bugs DST.
+
+#### Cruza com
+
+- `01-08` — TS type system, `using`/`Symbol.dispose` types em TS 5.2+.
+- `02-04` — React 19+ usa Iterator helpers internamente em transitions e Suspense.
+- `02-07` — Node.js internals, V8 pipeline e event loop interaction.
+- `03-02` — Docker base image Node 22 LTS slim/alpine.
+- `03-09` — frontend perf, V8 optimization tiers afetam INP e TTI.
+
+---
+
 ## 3. Threshold de Maestria
 
 Pra passar o **Portão Conceitual**, sem consultar:

@@ -264,6 +264,8 @@ Trade-offs: zero-cost em Rust (state machine compilada). Em JS é trivial mas co
 
 Modelos não são exclusivos: Akka adiciona streams (CSP-like) sobre actors; Tokio tem `tokio::sync::mpsc` (channel CSP-style sobre futures).
 
+**Cruza com:** **01-07 §2.12** (Symbol.dispose + `using` em ES2024 — explicit resource management análogo a Python `with`/Rust RAII), **02-17 §2.20** (mobile structured concurrency — Swift actors + Kotlin Coroutines).
+
 ---
 
 ## 3. Threshold de Maestria

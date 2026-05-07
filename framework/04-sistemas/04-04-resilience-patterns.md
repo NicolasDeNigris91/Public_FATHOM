@@ -1061,7 +1061,7 @@ Chaos Mesh equivalente: `kind: PodChaos`, `action: pod-kill`, `selector.labelSel
 9. Toxiproxy em unit tests em vez de integration — overkill; unit tests devem mockar.
 10. Chaos team isolado de product team — no shared learning; chaos vira "their job".
 
-**12. Cruza com**: `04-04` §2.26 (chaos principles foundation), `04-04` §2.28 (resilience tuning informa chaos targets — onde tunar timeout antes de injetar latency), `03-15` (incident response, IC roles em gameday), `03-04` (CI/CD, integration tests com Toxiproxy), `04-09` (scaling, blast radius cresce com scale).
+**12. Cruza com**: `04-04` §2.26 (chaos principles foundation), `04-04` §2.28 (resilience tuning informa chaos targets — onde tunar timeout antes de injetar latency), `03-15` (incident response, IC roles em gameday), `03-04` (CI/CD, integration tests com Toxiproxy), `04-09` (scaling, blast radius cresce com scale), **02-17 §2.20** (mobile structured concurrency — Swift Concurrency Task tree, Kotlin Coroutines `coroutineScope` propagam cancellation determinística — análogo a supervision tree Erlang).
 
 ---
 

@@ -62,6 +62,7 @@ export function GlossaryClient({ terms, sections }: Props) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Buscar termo ou definição…"
+          aria-label="Buscar termo ou definição no glossário"
           className="flex-1 bg-transparent outline-none border-none
                      font-sans text-body text-pearl placeholder:text-mist"
         />

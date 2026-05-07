@@ -913,7 +913,7 @@ const supervisor = new StateGraph(AgentState)
 9. Misturar concerns: 1 MCP server com 40 tools de domínios distintos — split por bounded context (orders-mcp, billing-mcp).
 10. Sampling capability ativada sem rate limit — server pede LLM completion ao client em loop, custo explode.
 
-**Cruza com**: **04-10 §2.6** (function calling foundation — MCP é a versão portável), **04-10 §2.10** (agents intro, ReAct), **04-10 §2.20** (agentic patterns + eval de tool use), **04-10 §2.13** (LLM observability — tracing de MCP calls), **03-08** (security — tool auth, sandbox, prompt injection defense), **04-05** (API design — JSON-RPC 2.0 vs REST).
+**Cruza com**: **04-10 §2.6** (function calling foundation — MCP é a versão portável), **04-10 §2.10** (agents intro, ReAct), **04-10 §2.20** (agentic patterns + eval de tool use), **04-10 §2.13** (LLM observability — tracing de MCP calls), **03-08** (security — tool auth, sandbox, prompt injection defense), **04-05** (API design — JSON-RPC 2.0 vs REST), **02-16 §2.18** (GraphRAG patterns Microsoft Apr 2024 + Neo4j GenAI integrations), **05-01 §2.16** (toy GPT scratch — fundamentos LLM internals), **05-02 §2.11** (Capstones MCP agentic + on-device AI + tool-use orchestrator), **05-04 §2.15** (LLM papers 2021-2026 reading list), **05-09 §2.19** (scientific computing — overlap em ML inference patterns).
 
 ---
 

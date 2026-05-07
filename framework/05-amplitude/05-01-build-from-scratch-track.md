@@ -198,6 +198,81 @@ Após pronto:
 
 ---
 
+### 2.16 Modern build-from-scratch tracks 2026 — toy GPT + toy vector DB + mini-Wasm runtime
+
+**1. Why these.** Build-from-scratch tracks anteriores cobrem clássicos (toy DB, scheduler, Kafka). Em 2026, três novas frentes alta-leverage: LLM internals, vector DBs (RAG era), Wasm runtimes (edge era). Cada track 1-3 meses sustained, single-file ou small repo, refs canônicas.
+
+**2. Track A — Toy GPT (2-3 meses).**
+
+- **Goal:** transformer decoder-only pequeno (~10-100M params) treinado em corpus pequeno (Shakespeare, TinyStories), generating coherent text.
+- **Reference path:** Andrej Karpathy "Let's build GPT from scratch" (YouTube Jan 2023) → nanoGPT repo → "Let's reproduce GPT-2" (Jun 2024) → "Let's build the GPT Tokenizer" (Fev 2024). Plus: "Neural Networks: Zero to Hero" series.
+- **Tech stack:** Python + PyTorch (default), JAX optional, Triton/CUDA opcional pra perf.
+- **Milestones:**
+  1. Bigram model + matmul.
+  2. Self-attention single-head.
+  3. Multi-head + positional encoding (rotary RoPE moderno).
+  4. Layer norm + residual + feed-forward.
+  5. Pretrain em TinyStories.
+  6. Sampling (temperature, top-k, top-p).
+  7. (Optional) RLHF/DPO em preference dataset toy.
+- **Showcase:** repo `tiny-gpt-from-scratch`, blog 2-3 posts série, model card no HuggingFace, samples generated.
+
+**3. Track B — Toy vector database (1-2 meses).**
+
+- **Goal:** vector DB que indexa embeddings + serve queries k-NN sub-100ms em 100k vectors.
+- **Reference:** "Faiss: A Library for Efficient Similarity Search" (Facebook Research, 2017+); pgvector source code; Qdrant arch docs; HNSW paper (Malkov & Yashunin 2018).
+- **Stack:** Rust ou Go (perf-friendly); Python wrapper opcional.
+- **Milestones:**
+  1. Linear scan k-NN (baseline).
+  2. IVF (Inverted File Index) — clusters via k-means.
+  3. HNSW (Hierarchical Navigable Small World) — gold standard graph index.
+  4. Quantization (PQ — Product Quantization, scalar quantization).
+  5. HTTP API (REST or gRPC).
+  6. Persistence (memory-mapped file).
+  7. (Optional) Hybrid search BM25 + vector.
+- **Showcase:** repo `tiny-vec-db`, benchmark vs Qdrant em dataset 100k vectors, blog post arquitetura.
+- **Real numbers:** HNSW recall@10 > 95% with M=16, ef_construction=200, ef_search=50 (em paper benchmarks).
+
+**4. Track C — Mini-Wasm runtime (2-3 meses).**
+
+- **Goal:** runtime que carrega `.wasm` modules, valida, executa, com import/export bindings.
+- **Reference:** WebAssembly Spec (webassembly.github.io/spec); Wasmtime source (Rust); wasmer-rs; "Wasm by Example" (rsms 2022).
+- **Stack:** Rust (default, easiest given wasmparser crate); C/C++ (lower-level).
+- **Milestones:**
+  1. Parse `.wasm` binary format (magic + version + sections).
+  2. Decode types (i32, i64, f32, f64, function, table, memory).
+  3. Linear memory + stack.
+  4. Interpret instructions (basic: const, add, sub, call, return).
+  5. Function tables + indirect calls.
+  6. Imports (host functions: print_int, write).
+  7. (Optional) JIT via Cranelift or LLVM.
+  8. (Optional) WASI subset.
+- **Showcase:** repo `tiny-wasm-runtime`, run `fib.wasm` (compiled from Rust/C) successfully, perf comparison vs wasmtime (expected 5-10x slower em interpreter; OK).
+
+**5. Track selection matrix.** LLM track quem quer fundamentos AI/ML deep. Vector DB track quem quer DB internals + RAG modernos. Wasm track quem quer compilers/VM internals + edge runtimes.
+
+**6. Capstone integration.** Cada track pode virar parte de capstone Logística ou standalone. Ex: Logística usa toy vector DB pra similar-routes lookup; toy GPT pra dispatcher AI hint generator (toy, não prod); toy Wasm runtime pra plugin sandbox em CSP rules.
+
+**7. Anti-patterns numerados (10):**
+1. Tentar implementar 100% spec Wasm em primeiro try — escopo monstruoso, abandono.
+2. nanoGPT scale-up sem GPU adequado — CPU training é dolorosamente lento, frustração.
+3. Vector DB sem benchmark vs lib madura (Faiss/Qdrant) — não saber se a sua lib é boa.
+4. LLM pretrain sem learning rate schedule — diverge.
+5. HNSW sem param tuning — recall ruim, low quality output.
+6. Wasm runtime sem validation step — security holes (CFI bypass).
+7. Reading paper sem reproducer — esquece em 2 semanas.
+8. Vector DB sem distance metric configurable — locked-in cosine quando dot/L2 vence em domain.
+9. Toy GPT pretrain em corpus muito grande sem preprocess (raw HTML) — convergência ruim.
+10. Wasm runtime sem profile-guided optimization — interpreter lento mesmo em hot paths simples.
+
+**Logística applied (1 paragraph):** capstone v3 (sistemas) usa toy vector DB pra similarity search em "couriers ↔ trabalhos similares" + toy LLM (educational) pra dispatcher hint UI experimental + toy Wasm runtime pra CSP rules sandbox em edge functions Cloudflare Workers. Tracks rodam em paralelo a v3 — não precisam ship em prod, só prove understanding.
+
+**Cruza com:** `04-10` (LLM em produção — toy GPT é fundamentos), `02-15` (search engines — vector hybrid search), `02-16` (graph DB — alternative pra similarity), `03-12` (WebAssembly — toy runtime é deep dive), `05-04` (paper-reading — papers cited inform tracks).
+
+Fontes: Karpathy YouTube channel; Faiss repo; HNSW paper Malkov & Yashunin 2018; WebAssembly Spec 1.0; Wasmtime book; nanoGPT repo Karpathy.
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

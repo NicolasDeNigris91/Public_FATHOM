@@ -281,6 +281,8 @@ Same applies inverse: post deep → talk → expanded book chapter eventually.
 
 Publishing helps not only você; helps next-gen junior. Stack Overflow answers, helpful tweet replies, blog posts that survive 5+ years em search results. **Public mentorship.**
 
+**Cruza com:** **05-04 §2.15** (reading list 2021-2026 — papers como sourcing pra technical posts/talks), **05-02 §2.11** (Capstones modernos — output público amplifica capstone signal).
+
 ---
 
 ## 3. Threshold de Maestria

@@ -666,7 +666,7 @@ Fleet de ~40 services Node em EKS. Antes: Datadog APM SDK em todos, vendor lock,
 9. **Tail sampling `decision_wait` muito curto** (5s) em fleet com long-running traces (background jobs) — decisão tomada antes do trace completar, perde spans tardios. Calibrar com P99 trace duration real.
 10. **`spanmetrics` sem dimension cap** — incluir `url.full` como dimension explode séries Prometheus. Whitelist dimensions: `service.name`, `http.route`, `http.response.status_code`. Nunca path raw.
 
-Cruza com **§2.5** (traces foundation, span/context propagation), **§2.13** (profiling intro, motivação), **§2.16** (eBPF, base do continuous profiling kernel-side), **§2.18** (cost — tail sampling é alavanca #1 de redução), **§2.19** (LLM observability — OTel GenAI semconv 2026 estável), **02-07** (Node `--require` order pra `@opentelemetry/auto-instrumentations-node`), **03-15** (MTTR via traces correlacionados a profiles), **04-09** (scaling — Collector horizontal sharding por trace_id).
+Cruza com **§2.5** (traces foundation, span/context propagation), **§2.13** (profiling intro, motivação), **§2.16** (eBPF, base do continuous profiling kernel-side), **§2.18** (cost — tail sampling é alavanca #1 de redução), **§2.19** (LLM observability — OTel GenAI semconv 2026 estável), **02-07** (Node `--require` order pra `@opentelemetry/auto-instrumentations-node`), **03-15** (MTTR via traces correlacionados a profiles), **04-09** (scaling — Collector horizontal sharding por trace_id), **02-17 §2.20** (mobile observability 2026 — Sentry SDK 8 + MetricKit + Macrobenchmark + Android Vitals), **03-09 §2.21** (RUM + LoAF integration pra INP attribution), **01-02 §2.11** (Linux observability stack — eBPF + journald + PSI).
 
 ---
 

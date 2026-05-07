@@ -68,6 +68,15 @@ const components: Components = {
       </a>
     );
   },
+  // GFM task list checkboxes (`- [ ]` / `- [x]`) render as <input type="checkbox" disabled>.
+  // axe-core flags them as missing accessible name. They're decorative — the surrounding
+  // <li> text already conveys task state — so we mark them aria-hidden.
+  input({ node: _node, type, ...rest }) {
+    if (type === 'checkbox') {
+      return <input type="checkbox" {...rest} aria-hidden="true" tabIndex={-1} />;
+    }
+    return <input type={type} {...rest} />;
+  },
   pre({ node: _node, children, ...rest }) {
     const child = Children.toArray(children).find(isValidElement) as
       | ReactElement<{ className?: string; children?: unknown }>

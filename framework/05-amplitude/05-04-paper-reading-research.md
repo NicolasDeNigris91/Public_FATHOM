@@ -260,6 +260,90 @@ Not vanity: ensure consistency.
 
 ---
 
+### 2.15 Reading list essencial 2021-2026 — LLM era + systems modernos + classics
+
+**1. Why this matters.** Paper backlog do estágio 05 deveria refletir ondas 2021-2026 (LLM revolution, post-Attention era, modern systems papers). Lista anterior parou em ~2020 (Attention 2017, GPT-3 2020). Em 2026, ML/systems está dominado por arquiteturas pós-Attention, MoE, state space models, LLM serving infra, e reasoning agents. Reading list que ignora essas ondas produz Staff/Principal desatualizado: incapaz de discutir trade-offs MoE vs dense, vLLM vs TGI, Mamba vs Transformer, DPO vs PPO. Catching-up via blog post é débito conceitual — paper ensina rigor, blog filtra.
+
+**2. LLM era foundation papers (must-read 2026).**
+
+- "LLaMA: Open and Efficient Foundation Language Models" — Touvron et al, Meta, Fev 2023, arXiv 2302.13971. Open foundation; ignited open-source LLM wave.
+- "Llama 2: Open Foundation and Fine-Tuned Chat Models" — Touvron et al, Meta, Jul 2023, arXiv 2307.09288. RLHF + safety + commercial license.
+- "Mistral 7B" — Jiang et al, Mistral AI, Set 2023, arXiv 2310.06825. SWA (Sliding Window Attention), GQA, outperformed Llama 2 13B.
+- "Mixtral of Experts" — Jiang et al, Mistral AI, Jan 2024, arXiv 2401.04088. Sparse MoE 8x7B; first open-source SOTA MoE.
+- "Mamba: Linear-Time Sequence Modeling with Selective State Spaces" — Gu & Dao, Dez 2023, arXiv 2312.00752. State space model; alternative a Transformer pra long sequences.
+- "RWKV: Reinventing RNNs for the Transformer Era" — Peng et al, Mai 2023, arXiv 2305.13048. RNN with parallelizable training.
+- "Direct Preference Optimization: Your Language Model is Secretly a Reward Model" — Rafailov et al, Mai 2023, arXiv 2305.18290. Substituto ao RLHF complexo; SFT + preference data.
+- "Scalable Diffusion Models with Transformers (DiT)" — Peebles & Xie, Dez 2022 (NeurIPS 2023), arXiv 2212.09748. Backbone de Sora, Stable Diffusion 3.
+
+**3. Reasoning / agentic papers 2022-2024.**
+
+- "Chain-of-Thought Prompting Elicits Reasoning in Large Language Models" — Wei et al, Jan 2022, arXiv 2201.11903. CoT primer.
+- "ReAct: Synergizing Reasoning and Acting in Language Models" — Yao et al, Out 2022, arXiv 2210.03629. Tool use foundation.
+- "Reflexion: Language Agents with Verbal Reinforcement Learning" — Shinn et al, Mar 2023, arXiv 2303.11366.
+- "Self-Refine: Iterative Refinement with Self-Feedback" — Madaan et al, Mar 2023, arXiv 2303.17651.
+- "Tree of Thoughts: Deliberate Problem Solving with Large Language Models" — Yao et al, Mai 2023, arXiv 2305.10601.
+
+**4. Multimodal foundation 2022-2025.**
+
+- "GPT-4 Technical Report" — OpenAI, Mar 2023, arXiv 2303.08774. Multimodal closed model paper.
+- "Flamingo: a Visual Language Model for Few-Shot Learning" — Alayrac et al, DeepMind, Abr 2022, arXiv 2204.14198. Vision-language fusion.
+- "LLaVA: Visual Instruction Tuning" — Liu et al, Abr 2023, arXiv 2304.08485. Open-source multimodal.
+
+**5. Systems papers 2021-2025 (databases, distributed, ML infra).**
+
+- "FoundationDB Record Layer" — Apple, ICDE 2021. Distributed transactional engine.
+- "Anna: A KVS for Any Scale" — Wu et al, ICDE 2018, com continuação relevante 2024+ em FaaS workloads.
+- "Snowflake Hybrid Tables" — Snowflake whitepaper 2024. OLTP + OLAP blur.
+- "Ray: A Distributed Framework for Emerging AI Applications" — Moritz et al, OSDI 2018; Anyscale Ray 2.x (2024) é stack default ML workloads.
+- "Efficient Memory Management for Large Language Model Serving with PagedAttention (vLLM)" — Kwon et al, SOSP 2023, arXiv 2309.06180. KV-cache memory mgmt.
+- "FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning" — Dao, Jul 2023, arXiv 2307.08691. Memory-efficient attention.
+- "FlashAttention-3: Fast and Accurate Attention with Asynchrony and Low-Precision" — Shah et al, Jul 2024, arXiv 2407.08608. Hopper GPU specific.
+
+**6. CS classics (timeless — read em paralelo).**
+
+- "Time, Clocks, and the Ordering of Events in a Distributed System" — Lamport, CACM 1978.
+- "The Bayou Architecture: Support for Data Sharing among Mobile Users" — Demers et al, IEEE 1995. CRDT precursor.
+- "Dynamo: Amazon's Highly Available Key-Value Store" — DeCandia et al, SOSP 2007.
+- "MapReduce: Simplified Data Processing on Large Clusters" — Dean & Ghemawat, OSDI 2004.
+- "The Google File System" — Ghemawat et al, SOSP 2003.
+- "Spanner: Google's Globally Distributed Database" — Corbett et al, OSDI 2012.
+
+**7. Reading cadence 2026.** 1 paper / semana sustained. Mix recomendado: 2 LLM/ML : 1 systems : 1 classic (rotação de 4 semanas). Use templates de §2.x deste módulo (Q&A notes per paper, three-pass, reproducer no codebase). Track em `PROGRESS.md` ou meta-diretório `papers/` com 1 markdown per paper.
+
+**8. Sources 2026.**
+
+- arXiv (cs.AI, cs.LG, cs.DC, cs.DB, cs.OS) — pre-prints, mas validar peer-review status.
+- Semantic Scholar — citation tree, influence graph.
+- Papers With Code — reproducibility, código + benchmark.
+- Daily Papers HuggingFace — ML curated, daily digest.
+- The Morning Paper (Adrian Colyer) — ainda updates esporádicos, summaries de qualidade.
+
+**9. AI-assisted paper reading 2026.**
+
+- Claude / GPT-4 pra summarize abstract + identify gaps.
+- NotebookLM (Google) pra Q&A sobre PDFs upload.
+- Elicit pra sumarizar literature reviews.
+- Caveat: AI hallucina detalhes — sempre validate citations, datasets, numbers contra paper original.
+
+**10. Anti-patterns (10).**
+
+1. Ler só LLM papers, ignorar systems classics — débito conceitual em data structures, scheduling, consistency.
+2. Hype-chasing (cada nova arch reading) — ignora que MoE ideas vêm dos 1990s (Jacobs et al, "Adaptive Mixtures of Local Experts", 1991).
+3. arXiv abstract-only sem ler methodology — faz claims públicos não-fundamentados.
+4. Pre-print não-peer-reviewed citado em decisão prod sem caveats.
+5. Backlog de 50+ papers acumulado — sinal de over-aspirational schedule, não diligence.
+6. AI summary sem validate — hallucinations em datasets / numbers / citations.
+7. Reproducer ausente no codebase — retention decay 80% em 2 semanas.
+8. Daily Papers HF como single source — viés selection (ML-heavy, anglophone).
+9. Confiar em paper "old" (1990s) pra workload 2026 sem checar assumptions (hardware, scale).
+10. Não anotar Q (perguntas geradas) durante leitura — perde 70% do learning value.
+
+**Logística applied.** Time backend lê vLLM paper antes de implementar batch inference pra dispatch AI assistant. Papers de FlashAttention-2/3 pra justificar GPU choice (A100 vs H100). Mistral / Mixtral papers pra avaliar self-hosted vs API trade-off. Ray papers antes de adotar Ray Serve em produção. Reading-list compartilhado em `framework/00-meta/reading-list.md`, com PR per paper adicionado (peer review do filtering).
+
+**Cruza com:** `04-10` (LLM tooling, papers usados como justificativa stack), `05-01` (build-from-scratch — implementa toy versions de papers lidos), `05-02` (capstones — papers como starting point pra projeto), `04-13` (streaming/batch processing — Ray, Flink papers), **05-01 §2.16** (toy GPT/vector DB/Wasm — implementa toy de papers lidos), **05-02 §2.11** (Capstones modernos — papers como starting point).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

@@ -219,6 +219,8 @@ Implementações sérias usam mascaramento, instruções constant-time, hardware
 - **TOTP/HOTP** (RFC 6238/4226): MFA baseado em HMAC.
 - **WebAuthn / passkeys**: assinatura via dispositivo, sem senha. Padrão emergente.
 
+**Cruza com:** **04-15 §2.20** (OSS supply chain — Sigstore + cosign + Rekor transparency log + Fulcio CA pra release attestations).
+
 ---
 
 ## 3. Threshold de Maestria
