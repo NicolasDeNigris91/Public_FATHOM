@@ -3,12 +3,12 @@
 # Build context expected: repo root (FATHOM/), Railway should set Root Directory = "" (repo root)
 # and Dockerfile path = "apps/site/Dockerfile".
 
-FROM node:22-alpine AS deps
+FROM node:22-alpine@sha256:8ea2348b068a9544dae7317b4f3aafcdc032df1647bb7d768a05a5cad1a7683f AS deps
 WORKDIR /app
 COPY apps/site/package.json apps/site/package-lock.json* ./
-RUN npm install --no-audit --no-fund
+RUN npm ci --no-audit --no-fund --ignore-scripts
 
-FROM node:22-alpine AS builder
+FROM node:22-alpine@sha256:8ea2348b068a9544dae7317b4f3aafcdc032df1647bb7d768a05a5cad1a7683f AS builder
 WORKDIR /app
 
 # Copy site sources
@@ -25,7 +25,7 @@ WORKDIR /app/apps/site
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-FROM node:22-alpine AS runner
+FROM node:22-alpine@sha256:8ea2348b068a9544dae7317b4f3aafcdc032df1647bb7d768a05a5cad1a7683f AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
