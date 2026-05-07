@@ -682,6 +682,213 @@ Cruza com **02-07 §2.18** (event loop blocking + worker_threads — profiling l
 
 ---
 
+### 2.20 Node 24 features 2026 — Permission Model GA, native test runner, type stripping, node:sqlite, WebSocket, --watch, SEA
+
+Node passou por renaissance 2024-2026. Bun 1.2 (Q1 2026) e Deno 2.x (Q4 2024) pressionaram o ecossistema com batteries-included: test runner nativo, TS sem build, SQLite embedded, WebSocket client, watch mode. Node 22 LTS (Apr 2024) e **Node 24 LTS (Apr 2025)** responderam absorvendo essas features no core — Permission Model GA, node:test mature, --experimental-strip-types, node:sqlite, native WebSocket stable, --watch + --env-file. Resultado: razões pra adotar runtime alternativo encolheram. Bun ainda vence em startup + bundle (cold start ~3x mais rápido), Deno em security-by-default + URL imports. Node vence em compat + ecossistema + LTS previsível. Node 25 Current (Q4 2025) traz V8 13.x com Maglev mais maduro (já em Node 22 com V8 12.4, ~5-15% throughput em hot paths sintéticos).
+
+#### Permission Model GA (Node 24)
+
+Sandbox granular no runtime — sem container/SELinux. Defesa-em-profundidade contra supply-chain attack (lib maliciosa em node_modules tentando ler `~/.aws/credentials` ou abrir socket pra C2).
+
+```bash
+# Sem permission model: lib pode ler tudo, abrir socket pra qualquer host
+node app.js
+
+# Com permission model (Node 24 GA — sem --experimental)
+node --permission \
+  --allow-fs-read=./data,./config \
+  --allow-fs-write=./logs,./tmp \
+  --allow-net=api.stripe.com:443,postgres-internal:5432 \
+  --allow-child-process \
+  --allow-worker \
+  app.js
+```
+
+API runtime pra checar:
+
+```js
+import { permission } from 'node:process';
+
+if (!permission.has('fs.read', '/etc/passwd')) {
+  throw new Error('FS read denied — esperado');
+}
+```
+
+**Custo**: ~5-10% overhead em workload syscall-heavy (FS scan, muitas conexões). Worker threads herdam permissions do parent. Node addons nativos (`.node`) bloqueados por default — `--allow-addons` libera (cuidado: addon bypassa o modelo).
+
+**Production hardening**: rode workers Cloud Run / Kubernetes com `--permission --allow-fs-read=/app --allow-net=postgres-internal:5432,redis-internal:6379`. Postmortem-friendly: tentativa de ler `/etc/shadow` lança `ERR_ACCESS_DENIED` com stack trace, não silently succeeds.
+
+#### Native test runner mature (node:test, Node 22+)
+
+Zero-config, pure ESM, sem dep externa. API estilo Mocha/Jest familiar.
+
+```js
+// test/user.test.js
+import { describe, it, before, after, mock } from 'node:test';
+import assert from 'node:assert/strict';
+import { createUser } from '../src/user.js';
+
+describe('createUser', () => {
+  let db;
+
+  before(async () => { db = await openTestDb(); });
+  after(async () => { await db.close(); });
+
+  it('creates user with hashed password', async () => {
+    const user = await createUser(db, { email: 'a@b.com', password: 'p' });
+    assert.equal(user.email, 'a@b.com');
+    assert.notEqual(user.password, 'p'); // hashed
+  });
+
+  it('mocks external API', async (t) => {
+    const fetchMock = t.mock.method(global, 'fetch', async () => ({
+      ok: true, json: async () => ({ valid: true })
+    }));
+    await createUser(db, { email: 'x@y.com', password: 'p' });
+    assert.equal(fetchMock.mock.callCount(), 1);
+  });
+});
+```
+
+```bash
+node --test --test-reporter=spec test/
+node --test --experimental-test-coverage  # built-in coverage Node 22+
+node --test --watch                        # re-roda em mudança
+```
+
+**Quando usar node:test vs vitest**: node:test vence em projeto **pure ESM monorepo backend** sem Vite (zero-config, ~2x faster cold start em suites pequenas <50 testes, sem `vitest.config.ts` pra manter). Vitest vence em **frontend / fullstack com Vite** (HMR test, browser mode, jsdom integrado, snapshot mais maduro, plugin ecosystem). Não migre vitest funcional pra node:test só por modismo — custo de migração > benefício.
+
+#### Type stripping --experimental-strip-types (Node 22.6+)
+
+Roda `.ts` direto, sem `tsc` / `tsx` / `ts-node`. Apenas remove tipos — não transpila enum, namespace, parameter properties, decorators legacy.
+
+```bash
+node --experimental-strip-types src/server.ts
+
+# Com transform (suporta enum, namespace — Node 22.7+)
+node --experimental-transform-types src/server.ts
+```
+
+**Limitação crítica**: `enum Color { Red, Green }` em `--strip-types` puro = **silent miscompile** (vira nada, runtime error em uso). Use `--experimental-transform-types` ou prefira union literal `type Color = 'red' | 'green'`. Declaration merging, parameter properties (`constructor(private x: number)`), `import = require()` também não suportados em strip puro.
+
+**Quando usar**: scripts internos, CLIs, dev/test loop rápido. **Não use em prod com bundle complexo** — esbuild/swc são mais rápidos em suites grandes e suportam tudo. Útil pra eliminar `tsx` em `package.json` scripts simples.
+
+#### node:sqlite (Node 22+)
+
+SQLite embedded no core. Sem build native (`better-sqlite3` requer Python + node-gyp em CI). Synchronous API.
+
+```js
+import { DatabaseSync } from 'node:sqlite';
+
+const db = new DatabaseSync('cache.db');
+db.exec(`
+  CREATE TABLE IF NOT EXISTS sessions (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_expires ON sessions(expires_at);
+`);
+
+const insert = db.prepare('INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)');
+insert.run('sess_abc', 42, Date.now() + 3600_000);
+
+const get = db.prepare('SELECT * FROM sessions WHERE id = ? AND expires_at > ?');
+const session = get.get('sess_abc', Date.now());
+```
+
+**Use em**: cache local de CLI tool, embedded config DB, dev fixtures, test isolation. **Não use em**: banco compartilhado entre processos (single-process write lock — use Postgres), workload write-heavy concorrente (better-sqlite3 ainda ~10-20% mais rápido em micro-benchmarks).
+
+#### Built-in WebSocket client (Node 22+ stable)
+
+API Web standard — mesma do browser. Elimina `ws` lib pra cliente.
+
+```js
+const ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@trade');
+
+ws.addEventListener('open', () => console.log('connected'));
+ws.addEventListener('message', (ev) => {
+  const trade = JSON.parse(ev.data);
+  console.log(trade.p, trade.q);
+});
+ws.addEventListener('close', (ev) => console.log('closed', ev.code));
+ws.addEventListener('error', (err) => console.error(err));
+```
+
+**Limitação**: **sem auto-reconnect**, sem heartbeat/ping built-in, sem subprotocol negotiation avançada. Pra prod com reconexão exponential backoff + ping/pong, ainda precisa wrapper (ou `ws` lib pra server-side). Use built-in pra clients simples + scripts.
+
+#### Watch mode + env-file
+
+```bash
+node --watch --env-file=.env src/server.js
+node --watch-path=./src --watch-path=./config src/server.js
+```
+
+`--watch` substitui `nodemon`. `--env-file=.env` substitui `dotenv` (parser simples — `KEY=value`, sem expansion `${OTHER_VAR}` em `.env` por default; Node 22+ aceita `--env-file-if-exists`). **Não use --watch em prod** — filewatcher overhead + restart loop em log rotation.
+
+#### Single Executable Apps (SEA)
+
+Bundle JS + Node runtime em 1 binário. Distribui CLI sem requerir Node instalado.
+
+```json
+// sea-config.json
+{
+  "main": "dist/cli.js",
+  "output": "sea-prep.blob",
+  "disableExperimentalSEAWarning": true
+}
+```
+
+```bash
+node --experimental-sea-config sea-config.json
+cp $(command -v node) my-cli
+npx postject my-cli NODE_SEA_BLOB sea-prep.blob \
+  --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
+./my-cli  # standalone binary ~80MB
+```
+
+**Limitação**: addons nativos (`.node`) limitados (top-level require de `.node` não funciona em SEA stable). Use pra CLI puro JS. Alternativa: `pkg` (deprecated), `bun build --compile` (Bun ~6MB binary, vence Node ~80MB).
+
+#### npm 11 (2025+)
+
+Workspaces protocol (`"dep": "workspace:*"`), install perf melhorada, `npm audit signatures` por default. Pin no `package.json`:
+
+```json
+{
+  "engines": { "node": ">=22.0.0", "npm": ">=11.0.0" },
+  "packageManager": "npm@11.0.0"
+}
+```
+
+CI sem pin: usa npm bundled com Node version do runner — pode ser npm 8/9 e quebrar workspaces protocol.
+
+#### Stack Logística aplicada
+
+- Workers Cloud Run com `node --permission --allow-fs-read=/app --allow-net=postgres-internal:5432,redis-internal:6379 dist/worker.js` — supply-chain defense.
+- Unit tests em `node:test` (backend pure ESM monorepo) — eliminou vitest config, CI ~30% mais rápido em cold start. E2E continua Playwright.
+- `node:sqlite` em CLI interna de batch reprocess — embedded cache de mapeamentos, sem subir Postgres local.
+- `--watch --env-file=.env` em dev — eliminou `nodemon` + `dotenv`.
+- WebSocket built-in pra script de monitor de filas RabbitMQ Management (HTTP polling fallback) — sem `ws` dep.
+
+#### 10 anti-patterns
+
+1. `--permission` sem `--allow-fs-*` em workload com FS legítimo — `ERR_ACCESS_DENIED` em runtime, postmortem barulhento.
+2. `--experimental-strip-types` em código com `enum` — silent miscompile, NaN/undefined em runtime. Use `--experimental-transform-types` ou union literal.
+3. Migrar vitest funcional pra `node:test` em projeto frontend — perde browser mode, jsdom, HMR test. Custo > benefício.
+4. `node:sqlite` pra banco compartilhado entre múltiplos processos — single-writer lock, contention. Use Postgres.
+5. Built-in WebSocket client em prod sem wrapper de reconnect/heartbeat — desconexão silenciosa, mensagens perdidas.
+6. `--watch` em prod (Docker, systemd) — filewatcher overhead + restart loop em log rotation, port-already-in-use.
+7. SEA pra app com native modules (`sharp`, `better-sqlite3`, `bcrypt`) — `.node` addons não funcionam stable em SEA.
+8. `package.json` sem `engines.npm` em projeto com workspaces protocol — CI usa npm bundled (8/9), `workspace:*` quebra.
+9. `node --permission --allow-net=*` (wildcard amplo) — anula o modelo, vira teatro de segurança.
+10. Strip-types em prod sem bundler — sem tree-shaking, sem minify, sem source map mature. Use esbuild/swc/tsc pra build, strip-types pra dev/scripts.
+
+#### Cruza com
+
+**02-07 §2.7** (streams sob fetch nova — Web Streams API mainstreamed Node 22+), **§2.9** (worker_threads herdam permission model), **§2.14** (AsyncLocalStorage relevante a permission scoping por request), **§2.17** (Node vs Bun vs Deno — Node 24 fechou maioria dos gaps), **§2.18** (worker_threads + cluster), **03-01** (testing — node:test categoria backend pure), **03-08** (security — Permission Model é defense-in-depth contra supply-chain), **03-04** (CI/CD — `engines.npm` + Node version pinning em workflow), **03-02** (Docker — distroless + SEA como alternativa de distribuição).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:
