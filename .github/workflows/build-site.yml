@@ -15,9 +15,17 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: build-site-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -34,9 +42,16 @@ jobs:
       - name: Lint
         working-directory: apps/site
         run: npm run lint
-      - name: Run tests
+      - name: Run tests with coverage
         working-directory: apps/site
-        run: npm test
+        run: npm run test:coverage
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: apps/site/coverage
+          retention-days: 14
       - name: Build (includes prebuild validation)
         working-directory: apps/site
         run: npm run build

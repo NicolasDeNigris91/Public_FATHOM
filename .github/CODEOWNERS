@@ -1,0 +1,23 @@
+# Code owners for Fathom.
+# Every PR is auto-requested from these owners.
+# Order matters: the last matching pattern wins.
+# https://docs.github.com/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+* @NicolasDeNigris91
+
+# Framework content (pedagogical authority)
+/framework/    @NicolasDeNigris91
+/MENTOR.md     @NicolasDeNigris91
+/STUDY-PROTOCOL.md  @NicolasDeNigris91
+/PROGRESS.md   @NicolasDeNigris91
+/README.md     @NicolasDeNigris91
+
+# Site application
+/apps/site/    @NicolasDeNigris91
+
+# Build, CI, and security
+/.github/      @NicolasDeNigris91
+/.githooks/    @NicolasDeNigris91
+/scripts/      @NicolasDeNigris91
+/Dockerfile    @NicolasDeNigris91
+/SECURITY.md   @NicolasDeNigris91

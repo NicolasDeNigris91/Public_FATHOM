@@ -1,0 +1,58 @@
+name: Lighthouse CI
+
+# Runs Lighthouse against representative routes on every PR. Fails the
+# job if performance, accessibility, best-practices, or SEO drop below
+# the thresholds in .lighthouserc.json. Treats the site as static — runs
+# `next build` then serves locally.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/site/**'
+      - '.github/workflows/lighthouse.yml'
+      - '.lighthouserc.json'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/site/**'
+      - '.github/workflows/lighthouse.yml'
+      - '.lighthouserc.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lighthouse-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: 'apps/site/package-lock.json'
+
+      - name: Install
+        working-directory: apps/site
+        run: npm ci --no-audit --no-fund
+
+      - name: Build
+        working-directory: apps/site
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SITE_URL: https://fathom.nicolaspilegidenigris.dev
+
+      - name: Install Lighthouse CI
+        run: npm install -g @lhci/cli@0.14.x
+
+      - name: Run Lighthouse CI
+        working-directory: apps/site
+        run: lhci autorun
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}

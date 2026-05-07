@@ -1,0 +1,62 @@
+name: SBOM & provenance
+
+# Builds an SPDX SBOM for the Next.js site dependency graph and attaches
+# build-provenance attestations to the build artifact. Run on every push
+# to main so the SBOM tracks shipped state.
+#
+# Provenance attestations follow SLSA v1 and are cosigned via Sigstore;
+# verifiable with: gh attestation verify <artifact> --repo <owner>/<repo>
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sbom-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sbom:
+    name: Generate SBOM
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: 'apps/site/package-lock.json'
+
+      - name: Install (production deps only)
+        working-directory: apps/site
+        run: npm ci --no-audit --no-fund --omit=dev
+
+      - name: Generate SPDX SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: apps/site
+          format: spdx-json
+          output-file: apps/site/sbom.spdx.json
+          upload-artifact: false
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-sbom-spdx
+          path: apps/site/sbom.spdx.json
+          retention-days: 90
+
+      - name: Attest SBOM
+        uses: actions/attest-sbom@v1
+        with:
+          subject-path: apps/site/sbom.spdx.json
+          sbom-path: apps/site/sbom.spdx.json

@@ -1,0 +1,23 @@
+# Gitleaks configuration for Fathom.
+# Extends the default ruleset with project-specific allowlists.
+# https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Allowlist patterns that are not real secrets"
+paths = [
+  '''(.*)?node_modules/''',
+  '''(.*)?\.next/''',
+  '''(.*)?playwright-report/''',
+  '''(.*)?test-results/''',
+  '''package-lock\.json''',
+]
+# Pedagogical example tokens are intentional in the framework markdown.
+# They are clearly labelled "example" and are never real secrets.
+regexes = [
+  '''example[-_]?(secret|token|key|password)''',
+  '''(your|my|fake|dummy|placeholder)[-_]?(secret|token|key|password)''',
+  '''sk_(test|live)_FAKE[A-Z0-9]+''',
+]

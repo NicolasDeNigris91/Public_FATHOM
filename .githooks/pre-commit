@@ -1,15 +1,43 @@
 #!/usr/bin/env sh
-# Pre-commit hook — roda validation script.
-# Catch typos e prereq references quebradas antes do CI.
+# Pre-commit hook — mirrors the relevant CI checks locally so commits
+# fail fast before push.
 #
-# Pra ativar:
+# To activate (one-time, per clone):
 #   git config core.hooksPath .githooks
 #
-# Pra pular pontualmente:
+# To skip in an emergency (last resort):
 #   git commit --no-verify
 
 set -e
 
-echo "[pre-commit] running content validation…"
-node scripts/validate-content.mjs --quiet
+cd "$(git rev-parse --show-toplevel)"
+
+# Resolve which top-level paths changed in this commit. Empty list = no
+# files staged; let git decide whether the commit is allowed.
+CHANGED=$(git diff --cached --name-only --diff-filter=ACMR)
+if [ -z "$CHANGED" ]; then
+  exit 0
+fi
+
+# 1. Framework content validation — fast (~ms), always runs when content
+#    or root docs are touched.
+if echo "$CHANGED" | grep -E '^(framework/|README\.md|MENTOR\.md|STUDY-PROTOCOL\.md|PROGRESS\.md|scripts/validate-content\.mjs)' > /dev/null; then
+  echo "[pre-commit] running content validation…"
+  node scripts/validate-content.mjs --quiet --strict
+fi
+
+# 2. Site checks — only when apps/site/ is touched. Skip silently
+#    otherwise so framework-only commits stay fast.
+if echo "$CHANGED" | grep '^apps/site/' > /dev/null; then
+  if [ ! -d "apps/site/node_modules" ]; then
+    echo "[pre-commit] apps/site/node_modules missing — skipping lint/typecheck."
+    echo "[pre-commit] run 'cd apps/site && npm install' to enable site checks."
+  else
+    echo "[pre-commit] running site lint…"
+    (cd apps/site && npm run lint --silent)
+    echo "[pre-commit] running site typecheck…"
+    (cd apps/site && npm run typecheck --silent)
+  fi
+fi
+
 echo "[pre-commit] ok"
