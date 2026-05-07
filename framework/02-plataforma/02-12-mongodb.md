@@ -487,6 +487,168 @@ try {
 
 Cruza com **02-12 §2.10** (replica sets — w='majority' pra durability), **02-12 §2.11** (sharding afeta transaction scope), **02-12 §2.16** (anti-patterns gerais), **02-09** (comparação Postgres pra mesmas decisions), **04-13 §2.12** (CDC de Mongo via change streams).
 
+### 2.19 Aggregation pipeline advanced ($lookup, $graphLookup, $facet, time-series, $merge analytics)
+
+Aggregation pipeline é o motor analytics do Mongo (7+, Atlas 2026). Domine stages avançados: `$lookup` (joins), `$graphLookup` (recursão), `$facet` (multi-pipeline), time-series collections, `$merge` (materialized views). Sem isso, fallback pra app-side joins ou sync pra warehouse — caro e lento.
+
+**Mental model**: pipeline = sequência de stages; documents fluem, transformam-se a cada stage. Stage order é load-bearing: `$match` first reduz input ANTES de operations caras; `$project` reduz fields para minimizar memory; `$sort` aproveita index APENAS se vier antes de stages que transformam (`$group`, `$lookup`). Memory limit: 100MB per stage default; `allowDiskUse: true` permite spill ao disk (10x mais lento). Index usage: APENAS `$match` + `$sort` em stages iniciais.
+
+**`$lookup` deep — equivalente SQL JOIN**:
+```js
+db.orders.aggregate([
+  { $match: { tenantId: 'tenant-123', status: 'delivered' } },  // first: usa index
+  { $lookup: {
+    from: 'couriers',
+    localField: 'courierId',
+    foreignField: '_id',
+    as: 'courier'
+  }},
+  { $unwind: '$courier' },  // flatten array (1-to-1 join)
+  { $project: { _id: 1, courierName: '$courier.name', deliveredAt: 1 } }
+]);
+```
+
+**Pipeline-form `$lookup`** (mais poderoso; filtra dentro do JOIN):
+```js
+{
+  $lookup: {
+    from: 'couriers',
+    let: { cid: '$courierId', tid: '$tenantId' },
+    pipeline: [
+      { $match: { $expr: { $and: [
+        { $eq: ['$_id', '$$cid'] },
+        { $eq: ['$tenantId', '$$tid'] },
+        { $eq: ['$active', true] }
+      ]}}},
+      { $project: { name: 1, vehicleType: 1 } }
+    ],
+    as: 'courier'
+  }
+}
+```
+
+Pegadinha performance: `$lookup` SEM index em `foreignField` = O(N×M) brutal. Index obrigatório.
+
+**`$graphLookup` — recursive traversal**: hierarquias (org chart, comment threads, courier referral chains). Logística — referral chain até 3 níveis:
+```js
+db.couriers.aggregate([
+  { $match: { _id: ObjectId('...') } },
+  { $graphLookup: {
+    from: 'couriers',
+    startWith: '$referredBy',
+    connectFromField: 'referredBy',
+    connectToField: '_id',
+    as: 'referralChain',
+    maxDepth: 3,
+    depthField: 'depth'
+  }}
+]);
+```
+
+Index em `connectToField` mandatory; sem isso, recursive scan brutal. Max depth 100; recommend `< 5` em prod por perf.
+
+**`$facet` — multi-pipeline single query**: roda múltiplas aggregations em parallel sem repeat input scan. Logística — dashboard cards (counts por status + top 5 couriers + revenue):
+```js
+db.orders.aggregate([
+  { $match: { tenantId: 'tenant-123', createdAt: { $gte: ISODate('2026-05-01') } } },
+  { $facet: {
+    byStatus: [
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ],
+    topCouriers: [
+      { $match: { status: 'delivered' } },
+      { $group: { _id: '$courierId', deliveries: { $sum: 1 } } },
+      { $sort: { deliveries: -1 } },
+      { $limit: 5 }
+    ],
+    revenueTotal: [
+      { $match: { status: 'delivered' } },
+      { $group: { _id: null, total: { $sum: '$priceCents' } } }
+    ]
+  }}
+]);
+```
+
+Cost: input scanned uma vez + N output paths; vs N separate queries 10x faster.
+
+**Time-series collections (Mongo 5.0+, stable 7+)**: native time-series storage com bucket optimization (similar TimescaleDB hypertables). Pattern courier location pings:
+```js
+db.createCollection('tracking_pings', {
+  timeseries: {
+    timeField: 'ts',
+    metaField: 'metadata',         // grouping key (courierId, tenantId)
+    granularity: 'minutes'         // 'seconds' | 'minutes' | 'hours'
+  },
+  expireAfterSeconds: 86400 * 90   // 90 days retention auto-purge
+});
+
+db.tracking_pings.insertMany([
+  { ts: new Date(), metadata: { courierId: 'c1', tenantId: 't1' }, lat: 12.34, lng: 56.78 }
+]);
+```
+
+Storage savings: 10-50x vs regular collection (column-oriented bucketization). Limitations: no UPDATE/DELETE per-document (apenas regen via `$out`); shard key deve incluir metaField.
+
+**`$merge` — output to collection (materialized views)**: precompute analytics; refresh nightly via cron.
+```js
+db.orders.aggregate([
+  { $match: { createdAt: { $gte: ISODate('2026-05-01'), $lt: ISODate('2026-06-01') } } },
+  { $group: {
+    _id: { tenantId: '$tenantId', status: '$status' },
+    count: { $sum: 1 },
+    revenue: { $sum: '$priceCents' }
+  }},
+  { $merge: {
+    into: 'monthly_reports',
+    on: '_id',
+    whenMatched: 'replace',
+    whenNotMatched: 'insert'
+  }}
+]);
+```
+
+Diferença `$out` vs `$merge`: `$merge` upserts (incremental refresh, runs em background); `$out` substitui collection inteira e bloqueia reads no target.
+
+**`$expr` + complex conditional logic** — inline expressions em `$match`/`$project`:
+```js
+{ $match: {
+  $expr: {
+    $and: [
+      { $gt: [{ $size: '$items' }, 0] },
+      { $lt: [{ $subtract: ['$deliveredAt', '$createdAt'] }, 1000 * 60 * 60 * 2] }  // delivered < 2h
+    ]
+  }
+}}
+```
+
+Pegadinha: `$expr` não usa indexes pre-4.4 (improved 5+); ainda mais lento que pure index match. Use sparingly.
+
+**Diagnostics + hints**:
+- `.explain('executionStats')`: pipeline plan + per-stage timing + index usage.
+- `.hint({ field: 1 })`: força specific index quando planner escolhe errado.
+- `maxTimeMS: 5000`: kill aggregations slow.
+- `allowDiskUse: true`: spill ao disk além do 100MB stage limit.
+
+**Logística applied — analytics dashboard**:
+- Real-time dashboard (lojista): `$facet` aggrega orders + couriers + revenue em `< 200ms` via index `(tenantId, createdAt, status)`.
+- Materialized views (`monthly_reports`): nightly cron refresh via `$merge`; faster reads em year-over-year analysis.
+- Time-series (`tracking_pings`): native time-series collection com 90d retention; 30x storage savings vs regular.
+- Recursive courier referral: `$graphLookup` para spam detection (anel circular = fraud signal).
+
+**Anti-patterns observados**:
+- `$match` AFTER `$lookup`/`$project`: index não usado; full scan.
+- `$lookup` em foreignField sem index: O(N×M) brutal.
+- `$graphLookup` sem `maxDepth`: infinite recursion stack overflow.
+- `$facet` em pipeline com 100GB input: cada branch scaneia full; redirect via early `$match`.
+- Time-series collection com UPDATE expectation: silently fails; redesign para regular collection.
+- `$merge` em hot path: write contention; schedule offline cron.
+- `allowDiskUse: false` em large pipeline: errors em prod; default `true` em recent drivers.
+- `$expr` em vez de native `$match` operators: less indexable.
+- Aggregation com 20+ stages: refactor; intermediate `$out` para break pipeline.
+- No `maxTimeMS` em hot endpoint aggregation: slow query DoS via crafted input.
+
+Cruza com **02-09** (Postgres, equivalente CTE/window functions), **04-13** (streaming/batch, lakehouse alternativo), **02-15** (search, $search Atlas), **03-13** (analytics DBs alternative), **04-09** (scaling, sharding aggregation considerations).
+
 ---
 
 ## 3. Threshold de Maestria
