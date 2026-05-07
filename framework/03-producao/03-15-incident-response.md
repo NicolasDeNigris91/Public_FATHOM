@@ -855,6 +855,203 @@ Cruza com **03-04** (CI/CD, deploy gate prevê regression antes de prod), **03-0
 
 ---
 
+### 2.20 Modern incident platforms 2026 — incident.io vs Rootly vs FireHydrant vs PagerDuty Incident Workflows
+
+Plataforma de incident response é o **sistema nervoso central de SRE**. Concentra paging, ChatOps, severity escalation, status page sync, postmortem, on-call schedule. 2024-2025 mudou o jogo: vendor consolidation (Atlassian Opsgenie EOL March 2025), AI-assisted summarization saiu de demo pra GA, Slack-first workflows substituíram dashboards web. Senior em 2026 conhece o trade-off por scale e escolhe stack que cabe no time — não cola tudo PagerDuty porque "é o nome".
+
+**Vendor matrix 2026** — quem ganha em cada tier:
+
+| Tool                    | Sweet spot           | Pricing              | ChatOps depth    | AI features          | On-call sched    |
+|-------------------------|----------------------|----------------------|------------------|----------------------|------------------|
+| **incident.io**         | Mid-market 50-500    | per-responder ~$25   | Slack-first nativo | Catalog AI (GA 2024) | Solid, Smart Routing |
+| **Rootly**              | Enterprise 500+      | per-responder ~$30   | Slack/Teams      | Sage AI (Q4 2024)    | Forte, RBAC pesado |
+| **FireHydrant**         | Mid-market 100-500   | per-responder ~$22   | Slack/Teams      | Signals (alerting)   | OK, On-Call addon |
+| **PagerDuty**           | Enterprise legacy    | per-call $$$$        | App, não nativo  | AIOps (Operations Cloud) | Gold standard, expensive |
+| **Grafana OnCall**      | Self-hosted / OSS    | free / Cloud $19     | Slack/Teams      | Nenhuma significativa | Decent, OSS-friendly |
+| **Better Stack Uptime** | Startup <50          | $29 flat             | Slack            | Mínimas              | Básico           |
+| **Opsgenie**            | **EOL March 2025**   | —                    | —                | —                    | **Migrate**      |
+
+incident.io fechou Series B $62M Q4/2023 e dominou mid-market 2024-2025; AI summarization GA mid-2024; ServiceNow integration Q1/2025. Rootly Series B $20M Q3/2024, foco enterprise. PagerDuty Operations Cloud é incumbent caro — vale só se você precisa AIOps event correlation pesado em ambiente >1000 services. Grafana OnCall (originalmente Amixr) é a saída OSS quando compliance ou budget proíbem SaaS.
+
+**Decision rule**: <50 eng → Better Stack ou Grafana OnCall. 50-500 eng → incident.io (default) ou FireHydrant. 500+ eng com regulação pesada → Rootly ou PagerDuty. Quem ainda está em Opsgenie em 2026: você está em prod numa plataforma EOL desde March 2025 — migration window fechou.
+
+**ChatOps deep — Slack-first é o padrão 2026**:
+
+```yaml
+# incident.io workflow YAML — auto-create channel + assign IC + page sec on SEV1
+name: sev1-auto-response
+trigger:
+  event: incident.created
+  conditions:
+    - severity: SEV1
+steps:
+  - action: create_slack_channel
+    name_template: "inc-{{incident.id}}-{{incident.short_title}}"
+    invite:
+      - role: incident_commander
+      - role: on_call_eng_manager
+      - role: on_call_vp_eng
+      - group: "@security-on-call"
+  - action: assign_role
+    role: incident_commander
+    user: "{{on_call.primary_sre}}"
+  - action: page_responders
+    escalation_policy: sev1-full-chain
+    timeout_minutes: 5
+  - action: create_zoom_meeting
+    post_link_to_channel: true
+  - action: post_status_page_update
+    page: public-status
+    status: investigating
+    message: "We are investigating reports of {{incident.short_title}}."
+  - action: link_runbook
+    from_alert_label: runbook_url
+```
+
+Slack `/inc` command flow padrão: `/inc declare` (cria incident + channel), `/inc severity SEV1`, `/inc handoff @new_ic` (transfere IC role com bot tagging visível), `/inc resolve` (encerra + dispara postmortem template em 24h). Voice channel auto-link (Zoom/Meet) postado no topo do channel — IC não perde 2min procurando link. Threaded comms enforcement: bot avisa quando alguém posta out-of-thread em incident channel; ruído mata signal.
+
+**On-call scheduling 2026 — Smart Routing + fatigue protection**:
+
+```yaml
+# rotation YAML — follow-the-sun 4 SREs
+schedule:
+  name: sre-primary
+  rotation: weekly
+  handoff_day: monday
+  handoff_time: "09:00 local"
+  layers:
+    - name: americas
+      timezone: America/Sao_Paulo
+      members: [alice, bob]
+      hours: "09:00-21:00"
+    - name: emea_apac
+      timezone: Europe/Dublin
+      members: [carol, dave]
+      hours: "09:00-21:00"
+  smart_routing:
+    skill_tags: [database, kubernetes, payments]
+    route_by: incident.affected_service.tags
+  fatigue_protection:
+    max_consecutive_on_call_hours: 12
+    min_rest_hours_between_shifts: 10
+    max_pages_per_shift_before_swap: 5
+  overrides:
+    enabled_via_slash_command: "/inc oncall override @user 4h"
+```
+
+Smart Routing 2026 = round-robin **per skill tag**, não cego. Incident em `payments-service` rota pra quem tem tag `payments`; sem isso, primary genérico vira gargalo. Follow-the-sun com 4 SREs distribuídos (BR + Dublin + Sydney) elimina wake calls 3am — cada plantão é horário comercial local. Override via slash command resolve "preciso sair 4h pra emergência médica" sem abrir ticket.
+
+**Severity escalation policies** — quem é paginado, em quanto tempo:
+
+| SEV  | Page targets                                | Timeout escalation       |
+|------|---------------------------------------------|--------------------------|
+| SEV1 | IC + Eng Manager + VP Eng + Security simultaneous | 5min → CEO + CTO           |
+| SEV2 | IC primary on-call only                     | 15min → backup on-call    |
+| SEV3 | Ticket criado, no page                      | Next business day         |
+| SEV4 | Backlog, weekly triage                      | —                         |
+
+SEV1 paginate full chain em 5min é não-negociável — VP Eng saber disso antes de cliente twittar é diferença entre 15min e 4h de damage.
+
+**AI-assisted features — usar como rascunho, nunca como source of truth**:
+
+```typescript
+// AI summarization prompt template (incident.io Catalog AI / Rootly Sage / PagerDuty AIOps)
+const summaryPrompt = `
+You are summarizing an incident channel transcript for a non-IC stakeholder.
+
+Transcript: {{slack_channel_messages}}
+Incident metadata: severity={{sev}}, started={{started_at}}, resolved={{resolved_at}}.
+
+Output (max 200 words):
+1. What broke (user-facing impact, not internal jargon).
+2. Detection method (alert / customer report / manual).
+3. Mitigation applied (rollback / config change / scale-up / failover).
+4. Current status (resolved / monitoring / ongoing).
+5. Next action item owner.
+
+Do NOT speculate root cause. Do NOT assign blame. If unsure, write "TBD by IC".
+`;
+```
+
+incident.io Catalog AI, Rootly Sage, PagerDuty AIOps fazem summarization decente em 2026, mas hallucinations existem — confunde rollback com forward-fix, atribui ação a quem só comentou. **Sempre IC revisa antes de mandar pra exec**. Útil pra rascunho de retro, status page draft, exec briefing — nunca pro postmortem oficial sem revisão humana.
+
+**Postmortem automation — template auto-populated 24h pós-resolve**:
+
+```markdown
+# Postmortem: {{incident.title}}
+**Date**: {{resolved_at}} | **SEV**: {{sev}} | **MTTR**: {{mttr_minutes}}min | **IC**: {{ic.name}}
+
+## Timeline (auto-extracted from Slack)
+{{ai_extracted_timeline}}  <!-- IC reviews, edits hallucinations -->
+
+## Impact
+- Users affected: {{auto_from_metrics or TBD}}
+- Revenue impact: TBD by Finance
+- Data loss: yes/no
+
+## Root cause
+TBD — 5 whys session before publishing.
+
+## What went well / What didn't / Action items
+- [ ] Action item → linked Linear ticket {{auto_create}}
+- [ ] Owner: @user | Due: {{+14d}}
+
+## Learning review schedule
+{{auto_calendar_invite}} 7d post-publish, 30min, all responders + 1 outsider.
+```
+
+Action items linkados automaticamente em Linear/Jira via API. Sem isso, action items viram backlog wishlist — incident.io e Rootly têm tracking nativo de aging (alert quando AI > 30d sem update).
+
+**Status page sync — separar comms internas de externas**:
+
+```typescript
+// Statuspage.io / Atlassian Statuspage / instatus auto-update
+await statuspage.incidents.create({
+  name: "Elevated latency on checkout API",
+  status: "investigating",
+  impact: "major",
+  components: ["checkout-api", "payments"],
+  body: customerFacingTemplate({  // never raw transcript
+    impact: "Some customers may experience slow checkout.",
+    eta_update: "30 minutes",
+  }),
+});
+// Em sev change ou resolve, sync automático
+```
+
+Customer-facing comms é template separado: zero jargão, zero blame, ETA realista. Status page silenciado "pra não causar pânico" é pior — cliente descobre por Twitter, perde confiança permanente. Statuspage.io / Atlassian Statuspage / instatus se integram nativo com incident.io/Rootly/PagerDuty via webhook.
+
+**Targets 2026 — benchmarks honestos**:
+- MTTA (acknowledge): P95 < 5min para SEV1.
+- MTTR (resolve): P95 < 60min para SEV1, < 4h para SEV2.
+- MTTD (detect): P95 < 2min — alert antes de cliente reportar (SLO multi-window burn-rate de §2.18 entrega isso).
+- Incident frequency: Google SRE benchmark — < 2 SEV1 per quarter é healthy. > 5/quarter = systemic problem, freeze features.
+
+**Stack Logística aplicada**:
+- incident.io Slack-first, $25/responder (~$1500/mês para 60 eng).
+- Rotation 4 SREs follow-the-sun (BR x2 + Dublin + Sydney), Smart Routing por skill tag (`payments`, `kafka`, `k8s`).
+- AI summarization Catalog AI para exec briefing + status page draft (IC revisa).
+- Statuspage.io sync automático em SEV1/SEV2.
+- SEV1 paginate IC + Eng Mgr + VP Eng + Security em 5min; escalate CEO em 15min.
+- Postmortem template auto-cria 24h pós-resolve, action items → Linear, learning review +7d.
+- MTTA atual P95 = 4min, MTTR SEV1 P95 = 52min, 1.4 SEV1/quarter — dentro target.
+
+**10 anti-patterns**:
+1. AI summarization tratada como postmortem oficial — hallucinations confundem rollback com forward-fix, blame errado.
+2. On-call rotation 1 pessoa 2 semanas seguidas — burnout garantido, single-point.
+3. Status page silenciado "pra não causar pânico" — cliente descobre por Twitter, confiança permanente perdida.
+4. Incident channel ephemeral / auto-archive 24h — perde memória institucional, postmortem sem fonte.
+5. **Opsgenie em prod 2026** — EOL March 2025; migrate pra incident.io/PagerDuty/JSM já.
+6. ChatOps com 5 ferramentas (Slack + PagerDuty app + Statuspage + Linear + custom bot) — context fragmentation, IC perde 10min só navegando.
+7. incident.io workflow firing em **todo** alert sem dedup — channel spam, alert fatigue, ninguém lê.
+8. Smart Routing desligado, primary on-call genérico vira gargalo único.
+9. Postmortem manual sem template auto-populated — IC gasta 2h escrevendo, posterga, esquece, action items somem.
+10. SEV1 paginate só primary on-call (sem Eng Mgr + VP) — exec descobre por cliente twitando, política depois é pior que o incidente.
+
+Cruza com **03-15** §2.4 (alerting actionable é input), §2.5 (on-call rotation humana), §2.6 (IC role formal), §2.6.1 (war-room rituals), §2.8 (comms structure during incident), §2.9 (postmortem blameless culture), §2.13 (customer comms templates), §2.17 (program metrics MTTR/MTTA), §2.18 (multi-window burn rate alimenta paging), §2.19 (IC structure + RCA disciplinado), **03-07** §2.21 (OTel observability feeds alerts), **04-04** §2.30 (DR runbooks linkados em alert label), **04-12** (engineering leadership, blameless culture top-down).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:
