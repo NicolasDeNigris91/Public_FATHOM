@@ -689,6 +689,144 @@ Cruza com **02-13** (auth — JWT + OAuth2 + refresh rotation), **02-09** (Postg
 
 ---
 
+### 2.22 Zero trust architecture + mTLS service mesh (SPIFFE/SPIRE, Istio, Linkerd) production
+
+NIST SP 800-207 (2020) formalizou **Zero Trust Architecture** — every request authenticated + authorized, "never trust, always verify". O modelo antigo (perimeter security: VPN + firewall, confiança plena dentro da rede) cai porque breach lateral movement é trivial uma vez dentro. Google **BeyondCorp** (2014) foi pioneer; em 2026 é default cloud-native enterprise. Cinco pilares: **identity** (workload + user), **device posture**, **network**, **application**, **data**. Misconception comum: "zero trust = VPN replacement" — reality é framework abrangente que muda como **cada componente** verifica, não só o edge. Adoção operacional 2026 ancora em **SPIFFE/SPIRE** (CNCF graduated 2022) pra workload identity e **service mesh** (Linkerd 2.16+, Istio 1.23+, Cilium 1.16+) pra mTLS automático pod-to-pod.
+
+**Workload identity — SPIFFE / SPIRE**:
+
+- **SPIFFE** (Secure Production Identity Framework For Everyone): standard de identidade pra **workloads** (não users); URI format `spiffe://logistica.example.com/ns/orders/sa/orders-api`.
+- **SPIRE**: reference implementation; CNCF graduated 2022.
+- **SVID** (SPIFFE Verifiable Identity Document): X.509 certificate ou JWT carregando o SPIFFE ID.
+- **Attestation**: SPIRE verifica node + workload automaticamente (Kubernetes ServiceAccount + node, AWS instance role, GCP metadata).
+- **Rotation**: certificates auto-rotated a cada 1h (configurável); zero distribuição manual de cert.
+
+**mTLS workload-to-workload — confidentiality + authenticity intra-cluster**:
+
+mTLS faz client + server apresentarem certificates e ambos verificarem — bloqueia lateral movement post-breach. Implementar mTLS app-level em cada serviço é boilerplate massivo; **service mesh** delega ao sidecar proxy de forma transparent.
+
+**Service mesh comparison 2026**:
+
+| Mesh | Architecture | mTLS | Performance | Best fit |
+|---|---|---|---|---|
+| **Istio** | Envoy sidecar | Auto | Heavy (~5-10ms p99 added) | Enterprise; many features |
+| **Linkerd** | Rust micro-proxy | Auto | Light (~1-2ms added) | Simplicity; CNCF graduated |
+| **Cilium Service Mesh** | eBPF-based | Auto | Light (kernel-level) | High-perf; replacing iptables |
+| **AWS App Mesh** | Envoy managed | Auto | Heavy | AWS-native, simpler ops |
+| **Consul Connect** | Envoy/built-in | Auto | Medium | HashiCorp ecosystem |
+
+**Linkerd setup (caminho mais simples, Rust micro-proxy)**:
+
+```bash
+# Install Linkerd CLI + check cluster
+linkerd install --crds | kubectl apply -f -
+linkerd install | kubectl apply -f -
+linkerd check
+
+# Inject sidecar to namespace
+kubectl annotate namespace logistica linkerd.io/inject=enabled
+kubectl rollout restart deployment -n logistica
+
+# Verify mTLS
+linkerd viz check
+linkerd viz top deployment/orders-api -n logistica
+```
+
+Auto mTLS pod-to-pod transparente; Linkerd emite SPIFFE ID por pod. Latency overhead ~1-2ms p99 (Rust micro-proxy vs Envoy C++ Istio).
+
+**Istio AuthorizationPolicy (cross-service authz, default-deny)**:
+
+```yaml
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: orders-api-allowlist
+  namespace: logistica
+spec:
+  selector:
+    matchLabels:
+      app: orders-api
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - "cluster.local/ns/logistica/sa/web-frontend"
+              - "cluster.local/ns/logistica/sa/orders-worker"
+      to:
+        - operation:
+            methods: ["GET", "POST"]
+            paths: ["/api/orders/*"]
+```
+
+Apenas ServiceAccounts listadas chamam `orders-api`; default-deny no resto. mTLS sozinho criptografa mas não autoriza — sem AuthorizationPolicy qualquer pod chama qualquer pod.
+
+**Network Policies K8s-native (L3/L4) + Cilium L7**:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: orders-api-isolation
+  namespace: logistica
+spec:
+  podSelector:
+    matchLabels:
+      app: orders-api
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: web-frontend
+      ports:
+        - protocol: TCP
+          port: 3000
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+```
+
+K8s default só especifica a API — exige CNI (Calico, Cilium) pra enforce. **Cilium 1.16+** adiciona eBPF + L7 policies (HTTP path filter, gRPC method) — kernel-level, sem sidecar.
+
+**Logística zero trust applied stack**:
+
+- **K8s + Linkerd**: auto mTLS pod-to-pod; SPIFFE ID por pod via Linkerd identity.
+- **AuthorizationPolicy** (Istio) ou **ServerAuthorization** (Linkerd): só `web-frontend` chama `orders-api`; só `orders-worker` chama `payments-api`.
+- **Network Policies via Cilium**: L3/L4 isolation + L7 HTTP path filtering (eBPF, kernel-level).
+- **External traffic**: API Gateway (Kong/Envoy) no edge; OAuth2 + JWT pra users; mTLS pra B2B integrations (parceiros logísticos).
+- **Workload-to-DB**: PostgreSQL `sslmode=verify-full` + IAM-based auth (RDS IAM, Cloud SQL IAM) ou per-app credentials rotacionadas.
+- **Audit**: cada request mesh logado (Linkerd Viz, Istio access logs); SIEM integration (cruza com **03-15**).
+
+**Zero trust user-side (BeyondCorp model)**:
+
+- **No VPN**: users acessam apps internos via authenticated reverse proxy — Cloudflare Access, Pomerium, AWS Verified Access.
+- **Identity provider**: Okta, Auth0, Google Workspace; SSO unificado pra todos apps internos.
+- **Device posture**: só dispositivos managed/healthy (CrowdStrike, Jamf, Kolide integration).
+- **Continuous verification**: re-auth em suspicious activity (location change, anomalous access pattern); session revogada em real-time.
+
+**Anti-patterns observados (10 itens)**:
+
+- VPN-only "zero trust" (flat trust dentro continua; não é zero trust).
+- mTLS implementado em cada serviço manualmente (boilerplate; use service mesh).
+- Service mesh sem AuthorizationPolicy (mTLS criptografa mas qualquer pod chama qualquer pod; lateral movement permanece).
+- Network Policies sem CNI plugin (default K8s ignora; verifique Cilium/Calico instalados).
+- Istio em projeto pequeno (5-10ms latency + ops complexity sem benefit; use Linkerd).
+- SPIFFE IDs hardcoded em authz rules sem rotation policy (cert mgmt drift).
+- Default-allow service mesh policy (nega zero trust; default-deny + explicit allow).
+- User auth via VPN bypassando identity provider (single point of trust failure).
+- mTLS habilitado mas certificates expirados em prod (mesh broken; adicione cert expiry monitoring).
+- Service mesh sidecar em system pods (resource overhead; exclude `kube-system`, `linkerd`, `istio-system`).
+
+Cruza com **03-03** (K8s NetworkPolicies), **02-13** (auth user-side OAuth2 + JWT), **03-08 §2.21** (OWASP applied), **04-08** (services — mesh requirement aparece em escala), **03-04** (CI/CD — cert rotation pipeline).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

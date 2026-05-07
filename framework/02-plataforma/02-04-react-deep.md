@@ -810,6 +810,175 @@ Metrics e OrdersList carregam em paralelo, cada uma streams independente — Nex
 
 **Cruza com**: `02-05` (Next.js 15+, Server Actions integration), `02-08` (backend frameworks, server actions ≈ POST endpoints), `03-09` (frontend perf, transition prevents jank), `02-10` (ORMs Drizzle/Prisma em server actions), `02-19` (i18n, `useActionState` + locale validation).
 
+### 2.14 React Compiler (RC) + state management 2026 — Zustand vs Jotai vs Valtio vs Redux Toolkit
+
+**React Compiler (RC) — what changes 2026**: stable desde late 2024 / 2025; default-enabled em new Next.js 15+/Remix projects 2026. Compiler detecta quando components/values são pure e auto-wraps em `memo()` / `useMemo()` / `useCallback()` equivalents. Resultado: 90%+ das annotations manuais (`useMemo`, `useCallback`, `React.memo`) tornam-se desnecessárias. Migration: opt-in via Babel plugin; codemod oficial remove redundant memos.
+
+**Configuration (Next.js 15+ + React Compiler)**:
+```ts
+// next.config.ts
+import type { NextConfig } from 'next';
+const config: NextConfig = {
+  experimental: {
+    reactCompiler: true,  // Enable React Compiler
+  },
+};
+export default config;
+```
+```bash
+# Manual: babel-plugin-react-compiler
+npm install babel-plugin-react-compiler
+```
+```jsonc
+// .babelrc
+{ "plugins": ["babel-plugin-react-compiler"] }
+```
+
+**Mental model RC**: tracks dependencies (sabe de que cada value depende; recompute apenas quando deps mudam); component memoization (auto-memoiza children quando props inalteradas); stable callbacks (function identity preservada cross-render quando closure values estáveis). Pattern Logística (before vs after RC):
+```tsx
+// BEFORE — manual memo
+const OrderRow = React.memo(({ order, onSelect }: Props) => {
+  const handleClick = useCallback(() => onSelect(order.id), [order.id, onSelect]);
+  const total = useMemo(() => calculateTotal(order.items), [order.items]);
+  return <div onClick={handleClick}>{total}</div>;
+});
+
+// AFTER — RC handles it
+function OrderRow({ order, onSelect }: Props) {
+  const handleClick = () => onSelect(order.id);
+  const total = calculateTotal(order.items);
+  return <div onClick={handleClick}>{total}</div>;
+}
+```
+
+**O que RC NÃO faz (ainda manual)**: side effects (`useEffect` deps continuam responsabilidade sua); external state subscriptions (`useSyncExternalStore` inalterado); async operations (data fetching, mutations inalterados); component identity para refs/`forwardRef` (manual); edge cases violando Rules of React (ESLint plugin `eslint-plugin-react-compiler` flagga).
+
+**State management 2026 — landscape**:
+- `useState` / `useReducer` (built-in): single component ou shallow tree; default.
+- Context API: cross-component limitado a subtree; re-render todos os consumers em update.
+- Zustand (~3KB; vanilla store): pragmático; sem Provider; selector-based subscriptions.
+- Jotai (~10KB; atoms): atomic granular subscriptions; sucessor de Recoil.
+- Valtio (~5KB; proxy-based): mutate-style API; reactive proxy.
+- Redux Toolkit (RTK): enterprise; time-travel debug; ecosystem amplo.
+- TanStack Query / SWR: server state caching (NÃO general state mgmt; complementar).
+
+**Zustand 5+ pattern Logística**:
+```ts
+import { create } from 'zustand';
+import { devtools, persist } from 'zustand/middleware';
+
+interface OrdersStore {
+  orders: Order[];
+  selectedId: string | null;
+  selectOrder: (id: string) => void;
+  fetchOrders: () => Promise<void>;
+}
+
+export const useOrdersStore = create<OrdersStore>()(
+  devtools(
+    persist(
+      (set) => ({
+        orders: [],
+        selectedId: null,
+        selectOrder: (id) => set({ selectedId: id }),
+        fetchOrders: async () => {
+          const res = await fetch('/api/orders');
+          const orders = await res.json();
+          set({ orders });
+        },
+      }),
+      { name: 'orders-store' }  // localStorage key
+    )
+  )
+);
+
+// Component
+function OrdersList() {
+  const orders = useOrdersStore((s) => s.orders);  // selector
+  const select = useOrdersStore((s) => s.selectOrder);
+  return orders.map(o => <button onClick={() => select(o.id)}>{o.id}</button>);
+}
+```
+
+**Jotai 2.10+ pattern (atoms)**:
+```ts
+import { atom, useAtom } from 'jotai';
+import { atomWithStorage } from 'jotai/utils';
+
+const ordersAtom = atom<Order[]>([]);
+const selectedIdAtom = atomWithStorage<string | null>('selectedId', null);
+
+// Derived atom (auto-computed from base atoms)
+const selectedOrderAtom = atom((get) => {
+  const orders = get(ordersAtom);
+  const id = get(selectedIdAtom);
+  return orders.find(o => o.id === id);
+});
+
+function OrderDetail() {
+  const [selected] = useAtom(selectedOrderAtom);  // re-renders only when selected changes
+  return selected ? <div>{selected.id}</div> : null;
+}
+```
+
+**Valtio 2+ pattern (proxy mutate-style)**:
+```ts
+import { proxy, useSnapshot } from 'valtio';
+
+const state = proxy({
+  orders: [] as Order[],
+  selectedId: null as string | null,
+});
+
+// Mutate directly (proxy tracks)
+function selectOrder(id: string) {
+  state.selectedId = id;
+}
+async function fetchOrders() {
+  state.orders = await (await fetch('/api/orders')).json();
+}
+
+function OrdersList() {
+  const snap = useSnapshot(state);  // immutable snapshot; re-renders on access changes
+  return snap.orders.map(o => <button onClick={() => selectOrder(o.id)}>{o.id}</button>);
+}
+```
+
+**Decision matrix 2026**:
+
+| Lib | Best for | Bundle | API style | DevTools |
+|---|---|---|---|---|
+| `useState` | Local component | 0 | Hooks | React DevTools |
+| Context | Subtree config (theme, auth) | 0 | Hooks | React DevTools |
+| Zustand | App-wide pragmático | ~3KB | Selector hooks | Redux DevTools middleware |
+| Jotai | Granular atoms + derived | ~10KB | Hooks per atom | Jotai DevTools |
+| Valtio | Mutate-style preference | ~5KB | Proxy | Valtio DevTools |
+| RTK | Enterprise + time-travel | ~30KB | Slices + reducers | Redux DevTools full |
+| TanStack Query | Server state | ~13KB | Hook per query | TQ DevTools |
+
+**Server state vs UI state — separation rígida**: server state (orders fetched from API) → TanStack Query 5.60+ / SWR (auto-refetch + cache + invalidation). UI state (filter selected, modal open) → Zustand/Jotai/`useState`. Anti-pattern: armazenar server state em Redux/Zustand sem invalidation logic explícita (replica responsabilidade que TQ resolve gratuitamente).
+
+**Logística applied stack**:
+- Server state: TanStack Query 5.60+ pra `/orders`, `/couriers`, `/dashboard`; auto-invalidate via mutation `onSuccess` + `queryClient.invalidateQueries`.
+- UI state global: Zustand 5+ stores per feature (orders filter, selected courier, modal state); persist middleware para filter persistence.
+- Atomic UI state: Jotai 2.10+ pra theme + locale + sidebar collapse (re-render granular por atom).
+- Form state: `useActionState` (cobre §2.13) pra forms simples; React Hook Form pra wizards multi-step.
+- React Compiler: enabled em `next.config.ts` (`experimental.reactCompiler: true`); codemod removeu 80% dos memos manuais; ESLint plugin enforce Rules of React.
+
+**Anti-patterns observados (10 itens)**:
+- Manual `useMemo`/`useCallback` everywhere (RC handle 90%; remove via codemod oficial).
+- RC enabled mas violando Rules of React (mutation in render, conditional hooks); ESLint plugin pega.
+- Storing server data em Redux/Zustand sem invalidation logic (use TanStack Query).
+- Context API pra app-wide state (every consumer re-renderiza; use Zustand/Jotai).
+- Zustand store > 30 fields em single store (split per feature; reduz coupling).
+- Jotai sem `atomWithStorage` ou `Suspense` boundary (sem persistence; flash on load).
+- Valtio mutating proxy fora de snapshot read scope (perde reactivity).
+- RTK pra app simples (boilerplate explosion; Zustand/Jotai resolvem).
+- Server state stale forever (sem `staleTime` configurado em TQ; data outdated silenciosamente).
+- 3+ state libraries misturadas sem boundary clara (cognitive load brutal; pick 2 max: server + UI).
+
+**Cruza com**: `02-05` (Next.js + RC integration), `02-04` §2.7 (RC introduction inicial), `02-04` §2.13 (React 19 Forms + `useActionState`), `03-09` (frontend perf, RC reduz re-renders), `02-19` (i18n state via context vs atom).
+
 ---
 
 ## 3. Threshold de Maestria

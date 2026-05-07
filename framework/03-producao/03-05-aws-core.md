@@ -551,6 +551,174 @@ Cruza com **03-05 §2.17** (custos foundation), **03-05 §2.19** (FinOps), **04-
 
 ---
 
+### 2.22 Lambda runtime tuning + EventBridge schemas + Step Functions vs Lambda choreography
+
+Senior+ owns serverless deep: runtime trade-offs, cold start mitigation, event-driven design schema-first, e quando orquestrar (Step Functions) vs coreografar (Lambda + EventBridge). Decisões aqui mudam latência P99 em 10x e custo mensal em ordens de grandeza.
+
+**Lambda runtime decision 2026** (escolha por workload, não por familiaridade):
+
+- **Node.js 22 LTS** (default web/API): ecosystem npm gigante; JIT warmup ~50-100ms; bundle ESBuild para cortar.
+- **Python 3.13** (data/ML): PyArrow + numpy nativos rápidos; SnapStart suportado 2025+.
+- **Java 21 + SnapStart**: cold start ~200ms (era 2-5s sem snapshot); enterprise legacy + Spring Cloud Function.
+- **Go 1.x via custom runtime (`provided.al2`)**: cold start ~50-100ms; binário ~10MB; alta concorrência.
+- **Rust via `cargo-lambda`**: cold start ~10-30ms (menor da indústria); binário ~5MB; growing forte 2026.
+- **Bun runtime**: Lambda Layer experimental 2025+; cold start competitivo com Node mas ecosystem ainda maduro.
+
+**Cold start optimization** (memory drives CPU):
+
+- Lambda aloca vCPU proporcional à memory: 256MB ~0.16 vCPU; 1769MB = 1 vCPU full; 3008MB ~2 vCPUs; 10240MB ~6 vCPUs.
+- **AWS Lambda Power Tuning** (Step Function open-source): roda função em N memory configs, plota cost × latência → sweet spot.
+- **Provisioned Concurrency**: instâncias pre-warmed; elimina cold start; ~$0.0000041/GB-second provisionado + execução normal. Use só em high-traffic previsível.
+- **SnapStart** (Java 21+, Python 3.12+): snapshot do init state; cold start 10x mais rápido; gratuito.
+- Pattern Logística: `provisioned_concurrency = 3` em `/api/orders` (tráfego constante); on-demand em `/webhooks/*` (irregular, custo provisionado não compensa).
+
+**Lambda Function URL vs API Gateway**:
+
+- **Function URL**: HTTPS endpoint direto na Lambda; sem overhead API Gateway; pricing simples (só Lambda).
+- **API Gateway HTTP API v2**: $1/1M requests; custom domains, JWT auth, throttling, WAF, CORS managed. Default 2026.
+- **API Gateway REST API**: legado; $3.50/1M requests (3.5x); raramente justificado sobre HTTP API v2 em 2026 (só se precisa request validation avançada ou usage plans).
+- **App Runner / ECS Fargate**: alternativa para serviços long-running além do limite Lambda 15min ou que precisam websocket persistente.
+
+**Lambda Powertools** (TS 2+ / Python) — production-grade utilities, abandone helpers caseiros:
+
+```ts
+import middy from '@middy/core';
+import { Logger, injectLambdaContext } from '@aws-lambda-powertools/logger';
+import { Tracer, captureLambdaHandler } from '@aws-lambda-powertools/tracer';
+import { Metrics, MetricUnit, logMetrics } from '@aws-lambda-powertools/metrics';
+import { makeIdempotent } from '@aws-lambda-powertools/idempotency';
+import { DynamoDBPersistenceLayer } from '@aws-lambda-powertools/idempotency/dynamodb';
+
+const logger = new Logger({ serviceName: 'orders-api' });
+const tracer = new Tracer({ serviceName: 'orders-api' });
+const metrics = new Metrics({ namespace: 'Logistica', serviceName: 'orders-api' });
+const persistenceStore = new DynamoDBPersistenceLayer({ tableName: 'idempotency-store' });
+
+const businessLogic = async (event: { body: { orderId: string; tenantId: string } }) => {
+  logger.info('Processing order', { orderId: event.body.orderId });
+  metrics.addMetric('OrderCreated', MetricUnit.Count, 1);
+  // business logic
+  return { statusCode: 200, body: JSON.stringify({ ok: true }) };
+};
+
+export const handler = middy()
+  .use(captureLambdaHandler(tracer))
+  .use(injectLambdaContext(logger, { logEvent: false }))
+  .use(logMetrics(metrics))
+  .handler(makeIdempotent(businessLogic, { persistenceStore, dataKeywordArgument: 'event' }));
+```
+
+Structured logs JSON correlation-id ready para CloudWatch Logs Insights; tracing X-Ray automático; metrics EMF zero-cost (parsing CloudWatch native); idempotency DynamoDB-backed (cruza com **04-02 §2.18**).
+
+**EventBridge fundamentals**:
+
+- **Event bus** (default + custom buses): pub/sub para eventos AWS-native + custom apps.
+- **Rules**: pattern match em event JSON → routing para targets (até 5 por rule).
+- **Targets**: Lambda, SQS, SNS, Step Functions, Kinesis, API destinations (HTTP externo), Firehose, etc.
+- **Schema Registry**: discover automático de schemas via traffic; versioning; auto-gen de TypeScript/Java/Python bindings via `aws schemas put-code-binding`.
+- **Archive + Replay**: retain eventos 14d-1y; replay subset por filtro temporal/pattern para debug ou reprocessamento pós-bug.
+
+**Schema-first event design (Logística)**:
+
+```json
+{
+  "Source": "logistica.orders",
+  "DetailType": "OrderPlaced",
+  "Detail": {
+    "version": "1.0",
+    "orderId": "ord-123",
+    "tenantId": "tenant-abc",
+    "items": [{ "sku": "BOX-A", "qty": 2 }],
+    "totalCents": 12500,
+    "placedAt": "2026-05-06T14:00:00Z"
+  }
+}
+```
+
+Registre schema em EventBridge Schema Registry → CI gera bindings TypeScript → consumers importam type. Toda mudança breaking incrementa `version`; consumers validam antes de processar. Sem schema registry, qualquer mudança em provider quebra consumers silenciosamente em produção.
+
+**EventBridge Pipes** (2022+) — substitui glue Lambdas:
+
+- Modelo `source → filter → enrich → target` com zero ou mínimo código.
+- Pattern: SQS queue (source) → filter (only `eventType = "OrderPlaced"`) → enrichment Lambda (carrega tenant config) → Step Function (target).
+- Elimina dezenas de "lambdas-conectoras" que só roteiam eventos. Menos código = menos bugs = menos cost.
+
+**Step Functions vs Lambda choreography**:
+
+- **Lambda choreography** (event-driven): cada Lambda emite evento; consumers reagem. Loose coupling. Hard de visualizar fluxo end-to-end. Debugging via correlation-id em logs distribuídos.
+- **Step Functions** (orchestration): state machine ASL JSON; visual workflow no console; retry + catch + parallel + map + wait built-in; histórico de execução por instância.
+- **Use Step Functions quando**: workflow multi-step com branches/retries (saga), execução > 15min, visibilidade de estado crítica (compliance/audit), human approval steps.
+- **Use Lambda choreography quando**: simple async fan-out, execução curta, loose coupling preferido, equipes independentes deployment-isoladas.
+
+**Step Functions example — Logística order saga**:
+
+```json
+{
+  "Comment": "Order Placement Saga",
+  "StartAt": "ReserveInventory",
+  "States": {
+    "ReserveInventory": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-1:111111111111:function:ReserveInventory",
+      "Retry": [{ "ErrorEquals": ["States.TaskFailed"], "IntervalSeconds": 2, "MaxAttempts": 3, "BackoffRate": 2.0 }],
+      "Catch": [{ "ErrorEquals": ["States.ALL"], "Next": "OrderFailed" }],
+      "Next": "ChargePayment"
+    },
+    "ChargePayment": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-1:111111111111:function:ChargePayment",
+      "Retry": [{ "ErrorEquals": ["PaymentRetryable"], "IntervalSeconds": 5, "MaxAttempts": 5, "BackoffRate": 2.0 }],
+      "Catch": [{ "ErrorEquals": ["States.ALL"], "Next": "ReleaseInventory" }],
+      "Next": "AssignCourier"
+    },
+    "AssignCourier": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-1:111111111111:function:AssignCourier",
+      "Catch": [{ "ErrorEquals": ["States.ALL"], "Next": "RefundPayment" }],
+      "Next": "OrderConfirmed"
+    },
+    "OrderConfirmed": { "Type": "Succeed" },
+    "RefundPayment": { "Type": "Task", "Resource": "arn:aws:lambda:us-east-1:111111111111:function:RefundPayment", "Next": "ReleaseInventory" },
+    "ReleaseInventory": { "Type": "Task", "Resource": "arn:aws:lambda:us-east-1:111111111111:function:ReleaseInventory", "Next": "OrderFailed" },
+    "OrderFailed": { "Type": "Fail", "Cause": "OrderProcessingFailed" }
+  }
+}
+```
+
+Compensações rodam em ordem reversa (saga pattern, cruza com **04-02 §2.18** e **04-04**). `Retry` antes de `Catch`; backoff exponencial built-in; sem código de orquestração custom.
+
+**Cost Step Functions**:
+
+- **Express** (< 5min, high-volume): $1/1M state transitions equivalente; sem histórico de execução retido (logs via CloudWatch). Default para sub-fluxos chamados por API.
+- **Standard** (long-running, audit): $25/M state transitions; histórico completo retido 90 dias; visualização console por execução. Default para sagas auditáveis.
+
+**Logística applied serverless stack**:
+
+- **API Gateway HTTP API v2** + Lambda (Node.js 22, 1024MB tuned via Power Tuning) para `/api/*`.
+- **EventBridge custom bus** `logistica-events` para eventos cross-service; schemas versionados no Schema Registry.
+- **Step Functions Standard** para `order-saga` (multi-step transacional auditável).
+- **EventBridge Pipes** para SQS → enrichment → Step Functions trigger.
+- **Lambda Powertools** em todas as funções (logs estruturados + idempotency DynamoDB + metrics EMF).
+- **Provisioned Concurrency = 3** em orders-api; on-demand em webhook handlers.
+- **Cost típico**: $50-200/mês para 10k orders/dia (Lambda + Step Functions Standard + EventBridge + DynamoDB idempotency).
+
+**Anti-patterns observados**:
+
+- Lambda 256MB em CPU-bound work: lento, custa mais (mais tempo × menos CPU); bump pra 1769MB sweet spot via Power Tuning.
+- Provisioned Concurrency em low-traffic Lambda: custo fixo > economia cold start; on-demand fine.
+- REST API Gateway em vez de HTTP API v2: 3.5x cost para mesma feature em 95% dos casos.
+- Lambda choreography em workflow com 5+ steps: debugging nightmare distribuído; migra para Step Functions.
+- Step Functions Standard em simple 2-step flow: over-engineered; use Express ou direct Lambda chain.
+- EventBridge sem Schema Registry: consumers quebram silenciosamente em provider change; sem governança.
+- Lambda sem Powertools structured logs: CloudWatch unstructured = grep manual = unsearchable em scale.
+- Lambda Layer com 50+ deps inflado: cold start penalty; tree-shake ESBuild bundle por função.
+- DynamoDB stream → Lambda → DynamoDB write: write amp 2x; use EventBridge Pipes com filter para evitar.
+- SnapStart desabilitado em Java/Python Lambda: cold start 10x maior evitável; flag gratuita.
+
+Cruza com **03-05 §2.21** (cost optimization compute layer), **04-08 §2.22** (Strangler Fig migration usa EventBridge para coexistência), **04-04** (Step Functions resilience, retry/catch states), **04-02 §2.18** (idempotent consumer DynamoDB-backed em Lambda Powertools), **02-08** (frameworks backend, Lambda Powertools como middleware pattern).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:
