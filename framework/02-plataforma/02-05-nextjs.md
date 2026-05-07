@@ -781,6 +781,225 @@ Cruza com **02-04** (React 19, `useActionState` em forms), **02-08** (backend fr
 
 ---
 
+### 2.23 Next.js 15+ production 2026 — async dynamic APIs, dynamicIO, after(), instrumentation, Form
+
+Next.js 15.0 (Q4 2024) quebrou contrato: `cookies()`, `headers()`, `params`, `searchParams` viraram `Promise<>`. Codemod `npx @next/codemod@latest next-async-request-api .` migra automaticamente; chamadas síncronas legadas emitem warning em 15.x e quebram em 16. Next 15.5 (Q3 2025) estabilizou `dynamicIO` + diretiva `'use cache'` — substitui `fetch({ next: { revalidate } })` + `unstable_cache` por modelo unificado. Next 16 RC (Q1 2026) traz Turbopack production stable e partial route caching v2. React 19.1 (Q1 2025) é peer dependency mínima. Vercel Functions runtime: Node 22 default, Edge para middleware.
+
+Padrão production 2026: `dynamicIO` ligado, `'use cache'` em data layer com `cacheTag` por entidade, `after()` para audit/telemetria fire-and-forget pós-response, `instrumentation.ts` com OTel + `onRequestError` para Sentry unificado Node + Edge, Form component (`next/form`) para SSR-friendly submit com prefetch, Taint API para impedir leak de PII Server→Client.
+
+#### Async dynamic APIs
+
+```ts
+// app/dashboard/page.tsx — Next 15+
+import { cookies, headers } from 'next/headers'
+
+export default async function DashboardPage() {
+  const cookieStore = await cookies()        // Promise<ReadonlyRequestCookies>
+  const headerStore = await headers()         // Promise<ReadonlyHeaders>
+
+  const tenantId = cookieStore.get('tenant_id')?.value
+  const userAgent = headerStore.get('user-agent')
+
+  if (!tenantId) throw new Error('tenant missing')
+  return <Dashboard tenantId={tenantId} ua={userAgent} />
+}
+
+// app/orders/[orderId]/page.tsx — params/searchParams também Promise
+type Props = {
+  params: Promise<{ orderId: string }>
+  searchParams: Promise<{ tab?: string }>
+}
+
+export default async function OrderPage({ params, searchParams }: Props) {
+  const { orderId } = await params
+  const { tab = 'summary' } = await searchParams
+  return <OrderView id={orderId} tab={tab} />
+}
+```
+
+Chamada síncrona em Next 15 → `TypeError: cookies()... should be awaited`. Em RSC com muitos awaits, paralelize: `const [c, h] = await Promise.all([cookies(), headers()])`.
+
+#### dynamicIO + 'use cache'
+
+```ts
+// next.config.ts
+import type { NextConfig } from 'next'
+
+const config: NextConfig = {
+  experimental: {
+    dynamicIO: true,
+    cacheLife: {
+      orders: { stale: 60, revalidate: 300, expire: 3600 },
+    },
+  },
+}
+export default config
+
+// lib/orders.ts — data layer
+import { unstable_cacheLife as cacheLife, unstable_cacheTag as cacheTag } from 'next/cache'
+
+export async function getOrders(tenantId: string) {
+  'use cache'
+  cacheLife('orders')                    // preset config'd ou 'minutes'/'hours'/'days'
+  cacheTag('orders', `tenant:${tenantId}`)
+
+  const rows = await db.order.findMany({ where: { tenantId } })
+  return rows
+}
+
+// app/actions/createOrder.ts — invalidação
+'use server'
+import { revalidateTag } from 'next/cache'
+
+export async function createOrder(input: OrderInput) {
+  const order = await db.order.create({ data: input })
+  revalidateTag(`tenant:${input.tenantId}`)  // mata cache de getOrders pra esse tenant
+  return order
+}
+```
+
+Defaults: `cacheLife('default')` = stale 5min + revalidate 1h + expire 1d. Presets nativos: `seconds`, `minutes`, `hours`, `days`, `weeks`, `max`. Custom via `next.config.ts`. Sem `cacheTag`, invalidação só por TTL — anti-pattern em multi-tenant.
+
+#### after() para fire-and-forget
+
+```ts
+// app/api/checkout/route.ts
+import { after } from 'next/server'
+
+export async function POST(req: Request) {
+  const body = await req.json()
+  const order = await processOrder(body)
+
+  after(async () => {
+    // Roda APÓS response enviada ao cliente
+    await Promise.all([
+      auditLog.write({ action: 'order.created', orderId: order.id }),
+      analytics.track({ event: 'checkout_complete', revenue: order.total }),
+      sendOrderEmail(order),
+    ])
+  })
+
+  return Response.json({ orderId: order.id })
+}
+```
+
+`after()` (estável em 15.0, ex-`unstable_after`) substitui `waitUntil` em hot paths: garante execução pós-response sem bloquear TTFB. Não use para trabalho cuja confirmação precisa estar na response — use `await` normal.
+
+#### instrumentation.ts
+
+```ts
+// instrumentation.ts (raiz do projeto)
+import { registerOTel } from '@vercel/otel'
+
+export async function register() {
+  registerOTel({ serviceName: 'logistica-api' })
+
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    await import('./instrumentation.node')   // Sentry Node SDK
+  }
+  if (process.env.NEXT_RUNTIME === 'edge') {
+    await import('./instrumentation.edge')   // Sentry Edge SDK
+  }
+}
+
+export async function onRequestError(
+  err: unknown,
+  request: { path: string; method: string; headers: Record<string, string> },
+  context: { routerKind: 'Pages Router' | 'App Router'; routePath: string; routeType: 'render' | 'route' | 'action' | 'middleware' }
+) {
+  const Sentry = await import('@sentry/nextjs')
+  Sentry.captureException(err, {
+    tags: { route: context.routePath, kind: context.routerKind, type: context.routeType },
+    extra: { path: request.path, method: request.method },
+  })
+}
+```
+
+`register()` chamado uma vez no startup (Node) ou por isolate (Edge). `onRequestError` unifica error reporting Server Components + route handlers + Server Actions + middleware — substitui wrapping manual por boundary.
+
+#### Form component (next/form)
+
+```tsx
+// app/search/page.tsx
+import Form from 'next/form'
+
+export default function SearchPage() {
+  return (
+    <Form action="/search/results" scroll={false}>
+      <input name="q" placeholder="buscar pedido" />
+      <button type="submit">Buscar</button>
+    </Form>
+  )
+}
+```
+
+`<Form>` faz prefetch da rota target ao montar, submit via client-side navigation (preserva estado React, sem full reload), e degrada para `<form>` HTML padrão se JS falhar — SSR-friendly. Para Server Actions, use `<form action={serverAction}>` normal (não `next/form`).
+
+#### Taint API (PII protection)
+
+```ts
+// lib/users.ts
+import { experimental_taintObjectReference as taintObject, experimental_taintUniqueValue as taintValue } from 'react'
+
+export async function getUser(id: string) {
+  const user = await db.user.findUnique({ where: { id } })
+  if (!user) return null
+
+  taintObject('Não passe o objeto User completo ao client', user)
+  taintValue('Não exponha CPF', user, user.cpf)
+  taintValue('Não exponha email', user, user.email)
+
+  return user
+}
+
+// page.tsx
+const user = await getUser(id)
+return <ClientCard user={user} />        // throws em build/render — impede leak
+return <ClientCard name={user.name} />   // ok — campo escolhido explicitamente
+```
+
+Habilita via `experimental.taint: true`. Defesa em profundidade — não substitui pick explícito de campos seguros.
+
+#### ServerComponentsHMRCache
+
+```ts
+// next.config.ts
+const config: NextConfig = {
+  experimental: {
+    serverComponentsHmrCache: true,   // dev-only — preserva fetch cache entre HMR
+  },
+}
+```
+
+Dev-only: edits em RSC não refazem `fetch()` upstream. No-op em prod build. Habilitar em CI/build confunde mas não quebra.
+
+#### Stack Logística aplicada
+
+- Multi-tenant resolver: `await cookies()` lê `tenant_id`, propagado em todo data layer; `cacheTag('orders', tenant:${id})` isola invalidação por tenant.
+- `after()` para audit log de mutations (criar pedido, cancelar entrega) — escreve em event store sem latência percebida.
+- `instrumentation.ts` registra OTel exporter para Tempo + Sentry para erros; `onRequestError` captura Server Action failures com `routePath` tag pra alerting por endpoint.
+- `<Form>` em busca de pedidos (input + filtros) — prefetch da página de resultados ao focar input acelera percepção.
+- Taint API em `getDriver()` impede CPF/CNH vazar para client component de mapa.
+
+#### 10 anti-patterns
+
+1. `cookies()` síncrono em Next 15 — `TypeError` em runtime; rode codemod `next-async-request-api`.
+2. `await params` esquecido em dynamic route — TS aceita (params é `any` se mistipado), runtime quebra ou retorna `[object Promise]`.
+3. `after()` em request crítico cuja response precisa confirmar o trabalho — use `await` ou `waitUntil` com semântica clara; `after()` não bloqueia mas também não garante delivery em edge cases (timeout do isolate).
+4. `dynamicIO` sem `cacheTag` em entidade mutável — invalidação impossível, depende só de TTL; queries stale após mutation.
+5. `'use cache'` em função com side effects (escrita em DB, log, mutação de objeto compartilhado) — re-execução silenciosa em revalidation quebra invariantes.
+6. `<Form>` (next/form) sem `action` — vira `<form>` regular sem prefetch nem SSR fallback, perde o ponto.
+7. `instrumentation.ts` sem `export function register()` — silent fail; sem warning, sem OTel, sem Sentry.
+8. `taintObjectReference` aplicado em algumas paths mas não todas (cache hit retorna objeto pre-taint) — PII leak permanece; taint deve estar no construtor da entidade ou no único getter.
+9. `serverComponentsHmrCache: true` em config production-shared — no-op mas confunde reviewers; isole em `next.config.dev.ts` ou condicional `process.env.NODE_ENV`.
+10. `revalidateTag` chamado dentro de `'use cache'` function — circular invalidation, comportamento indefinido; `revalidateTag` é exclusivo de Server Actions / route handlers.
+
+#### Cruza com
+
+**02-05 §2.6** (Server Actions foundation), **§2.16** (Server Actions deep — `useActionState` + validation), **§2.21** (PPR + cache layers — `'use cache'` é a evolução), **§2.22** (parallel/intercepting routes + middleware), **§2.13–§2.14** (RSC mental model — async APIs só fazem sentido em RSC), **§2.17** (edge runtime constraints — `instrumentation.edge.ts` separado), **02-04 §2.13** (React 19 forms + `useActionState`), **03-07 §2.21** (instrumentation = OTel hook unificado), **02-13** (auth via middleware + `cookies()` async em RSC), **03-08** (Taint API = PII protection em defesa em profundidade).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

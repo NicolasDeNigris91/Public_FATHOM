@@ -700,6 +700,195 @@ Cruza com **04-13** (streaming/batch, dbt + lakehouse alternative), **04-02 §2.
 
 ---
 
+### 2.20 Kafka 4.0 + NATS JetStream + RabbitMQ Streams 2026 — KRaft GA, Tiered Storage, Share Groups, Super Streams
+
+O landscape de brokers mudou estruturalmente entre 2024 e 2026. **Kafka 4.0** (Q1 2025) marcou KRaft GA e remoção definitiva do ZooKeeper (KIP-833), trouxe **share groups** (KIP-932) que adicionam consumo queue-like ao Kafka — competindo direto com RabbitMQ em cenários transacionais — e Tiered Storage GA (KIP-405) que separa hot data (SSD broker) de cold data (S3/GCS), reduzindo TCO 60–80% em tópicos com retenção >7d. **NATS JetStream 2.10+** (Q1 2024, estável em 2.10.20+ Q3 2025) consolidou KV bucket e ObjectStore como primitivas first-class, viabilizando NATS como stack único pra core messaging + state. **RabbitMQ 4.0** (Q3 2024) removeu mirrored queues (deprecated desde 3.8), tornou **quorum queues** (Raft-based) o default e introduziu **Streams 4 super streams** (partitioned streams) — RabbitMQ deixou de ser só broker AMQP pra competir em event log. Escolher broker em 2026 sem entender essas mudanças é decidir com mapa de 2020.
+
+#### Kafka 4.0 — KRaft GA + queues + tiered storage
+
+**KRaft cluster** (controller.quorum.voters) — sem ZooKeeper:
+
+```properties
+# server.properties (Kafka 4.0 — KRaft mode, combined controller+broker)
+process.roles=broker,controller
+node.id=1
+controller.quorum.voters=1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093
+listeners=PLAINTEXT://:9092,CONTROLLER://:9093
+inter.broker.listener.name=PLAINTEXT
+controller.listener.names=CONTROLLER
+log.dirs=/var/kafka-logs
+
+# Tiered Storage (KIP-405 GA Kafka 4.0)
+remote.log.storage.system.enable=true
+remote.log.storage.manager.class.name=org.apache.kafka.server.log.remote.storage.S3RemoteStorageManager
+remote.log.storage.manager.impl.prefix=rsm.config.
+rsm.config.s3.bucket.name=fathom-kafka-tier
+rsm.config.s3.region=sa-east-1
+
+# Per-topic: hot 24h local, cold S3 até 90d
+# kafka-configs.sh --alter --topic order_events \
+#   --add-config remote.storage.enable=true,local.retention.ms=86400000,retention.ms=7776000000
+```
+
+KRaft cluster sobe ~5x mais rápido que ZooKeeper-backed (controller election em <500ms vs 2–5s). Mínimo 3 controllers pra quorum (tolera 1 falha); 5 pra tolerar 2.
+
+**Share groups (KIP-932)** — queue-like consumption, per-message ack, sem partition affinity:
+
+```java
+// Kafka 4.0 — Share consumer (queue semantics, alternativa ao RabbitMQ)
+Properties props = new Properties();
+props.put("bootstrap.servers", "kafka:9092");
+props.put("group.id", "courier-assignment-share-group");
+props.put("group.type", "share"); // KIP-932
+props.put("share.acknowledgement.mode", "explicit");
+
+try (KafkaShareConsumer<String, String> consumer = new KafkaShareConsumer<>(props)) {
+    consumer.subscribe(List.of("courier_assignment"));
+    while (true) {
+        ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(100));
+        for (ConsumerRecord<String, String> r : records) {
+            try {
+                processAssignment(r.value());
+                consumer.acknowledge(r, AcknowledgeType.ACCEPT); // ack individual
+            } catch (TransientException e) {
+                consumer.acknowledge(r, AcknowledgeType.RELEASE); // requeue
+            } catch (PoisonException e) {
+                consumer.acknowledge(r, AcknowledgeType.REJECT); // DLQ
+            }
+        }
+        consumer.commitSync();
+    }
+}
+```
+
+Diferença consumer group vs share group: **consumer group** = ordering per-partition, throughput limitado por #partitions, rebalance custoso; **share group** = round-robin per message, ack individual, scaling sem reparticionamento, MAS sem ordering global. Use share group pra task queues (assignment, billing, notifications); consumer group pra event sourcing + ordering per-aggregate.
+
+**Tiered Storage economics** — exemplo Stack Logística: tópico `order_events`, 50k msg/s × 1KB = 50MB/s × 86400s × 90d = ~388TB. SSD broker a USD 0.10/GB/mês = USD 38.8k/mês. Tiered (24h local + 89d S3 Standard a USD 0.023/GB/mês): SSD ~432GB = USD 43 + S3 ~387TB = USD 8.9k. Total USD 8.95k vs USD 38.8k — **77% economia**. ATENÇÃO: S3 GET/PUT custa em high-throughput re-reads (consumer lag, replay); calcule USD 0.0004/1k GET (S3 Standard) × volume de fetch antes de migrar.
+
+#### NATS JetStream 2.10+ — KV + ObjectStore production
+
+```typescript
+// NATS JetStream 2.10 — stream + Pull consumer (Node.js)
+import { connect, AckPolicy, DeliverPolicy } from 'nats';
+
+const nc = await connect({ servers: 'nats://nats:4222' });
+const jsm = await nc.jetstreamManager();
+
+await jsm.streams.add({
+  name: 'ORDERS',
+  subjects: ['order.>'],
+  retention: 'limits',
+  max_age: 7 * 24 * 3600 * 1_000_000_000, // 7d em ns
+  storage: 'file',
+  num_replicas: 3,
+});
+
+await jsm.consumers.add('ORDERS', {
+  durable_name: 'fulfillment-worker',
+  ack_policy: AckPolicy.Explicit, // NUNCA None em produção
+  ack_wait: 30 * 1_000_000_000,    // 30s redelivery
+  max_ack_pending: 1000,
+  filter_subject: 'order.created',
+  deliver_policy: DeliverPolicy.All,
+});
+
+const js = nc.jetstream();
+const consumer = await js.consumers.get('ORDERS', 'fulfillment-worker');
+const msgs = await consumer.consume({ max_messages: 100 });
+
+for await (const m of msgs) {
+  try {
+    await processOrder(JSON.parse(m.string()));
+    m.ack();
+  } catch (e) {
+    m.nak(5_000); // retry em 5s
+  }
+}
+
+// KV bucket — Redis-like com replay e watch
+const kvm = await js.views.kv('courier_presence', { history: 5, ttl: 60_000 });
+await kvm.put('courier:42', JSON.stringify({ lat: -23.5, lng: -46.6, ts: Date.now() }));
+const entry = await kvm.get('courier:42');
+
+// ObjectStore — S3-compat embedded
+const os = await js.views.os('order_attachments');
+await os.put({ name: 'invoice-123.pdf' }, fileStream);
+```
+
+**Pull vs Push consumers**: Pull (consumer.consume) = back-pressure natural, recomendado >1k msg/s; Push = broker empurra, simples mas overflow risk em consumer lento. Em 2026 sempre Pull pra workloads sérios. **AckPolicy.None** = fire-and-forget (logs, metrics); **All** = ack acumulativo (batch processing); **Explicit** = ack individual (default pra business logic).
+
+#### RabbitMQ 4.0 — quorum queues + super streams
+
+```bash
+# Quorum queue (Raft-based, replaces mirrored queues)
+rabbitmqadmin declare queue name=billing.tasks \
+  durable=true arguments='{"x-queue-type":"quorum","x-quorum-initial-group-size":3,"x-dead-letter-exchange":"dlx.billing"}'
+
+# Super stream (partitioned stream — RabbitMQ Streams 4)
+rabbitmq-streams add_super_stream order_events \
+  --partitions 6 \
+  --binding-keys "BR-SP,BR-RJ,BR-MG,BR-RS,BR-PR,BR-BA"
+```
+
+```typescript
+// RabbitMQ Streams 4 — super stream producer + Single Active Consumer
+import { connect } from 'rabbitmq-stream-js-client';
+
+const client = await connect({ hostname: 'rabbit', port: 5552, username: 'admin', password: '...' });
+const producer = await client.declareSuperStreamPublisher(
+  { superStream: 'order_events' },
+  (order) => order.region, // routing key → partition
+);
+await producer.send(Buffer.from(JSON.stringify({ id: 'o1', region: 'BR-SP', total: 99.9 })));
+
+// Single Active Consumer — só 1 consumer ativo por partition (failover automático)
+const consumer = await client.declareSuperStreamConsumer({
+  superStream: 'order_events',
+  consumerRef: 'fulfillment-sac',
+  singleActive: true,
+  offset: Offset.first(),
+}, async (msg) => {
+  await processOrder(JSON.parse(msg.content.toString()));
+});
+```
+
+Mirrored queues **foram removidas** em 4.0 — migration obrigatória pra quorum (`rabbitmq-diagnostics check_if_any_deprecated_features_are_used`). Quorum queues custam ~30% mais latência que classic mas dão durability real (Raft replication, no message loss em network partition).
+
+#### Decision matrix 2026
+
+| Workload | Broker | Por quê |
+|---|---|---|
+| Event sourcing + CDC + analytics pipeline | **Kafka 4.0 KRaft** | Tiered storage barato, EOS v2, Streams/ksqlDB ecosystem |
+| Task queue (notifications, billing, jobs) | **Kafka share groups** OU **RabbitMQ quorum** | Share groups se já tem Kafka; RabbitMQ se precisa AMQP routing complexo |
+| IoT / edge / low-latency RPC + KV | **NATS JetStream 2.10** | <1ms latency, KV embedded, leaf nodes pra edge |
+| Legacy AMQP 0.9.1 partner integrations | **RabbitMQ** | Único com AMQP 0.9 maduro, exchanges (direct/topic/headers/fanout) |
+| Multi-tenant SaaS com isolation | **Pulsar** OU **NATS accounts** | Pulsar tenants/namespaces; NATS accounts isolam credentials |
+
+#### Stack Logística aplicada
+
+- **Kafka 4.0 KRaft + Tiered Storage**: `order_events` (90d retention, hot 24h SSD + cold S3), `delivery_telemetry` (30d), `payment_events` (7y compliance — tier 99% em S3 Glacier IR)
+- **Kafka share group**: `courier_assignment_queue` (round-robin assignment, ack individual, sem ordering)
+- **NATS JetStream KV**: `courier_presence` (TTL 60s, watch pra dashboard real-time), `cart_state` (session)
+- **NATS JetStream stream**: `device_telemetry` (IoT scanners, 1M msg/s peak, leaf node em CD)
+- **RabbitMQ 4.0 quorum queue**: integração com partner ERPs legados via AMQP 0.9.1 (NF-e, EDI)
+
+#### Anti-patterns
+
+- **ZooKeeper-backed cluster em greenfield 2026**: Kafka 3.3+ deprecated ZK; 4.0 removeu. Migre via KIP-866 (rolling) ou greenfield direto KRaft.
+- **Tiered Storage sem cost analysis**: S3 GET cost (USD 0.0004/1k) × replay/lag pode superar economia. Modele worst-case (full topic re-read) antes.
+- **Share groups onde precisa ordering per-key**: share group faz round-robin global, perde ordering. Use consumer group + partition key.
+- **NATS Push consumer em high-throughput**: consumer lento overflow; sempre Pull (consume API) acima de 1k msg/s.
+- **NATS AckPolicy.None em business logic**: mensagens perdidas silenciosamente. None só pra metrics/logs descartáveis.
+- **RabbitMQ classic mirrored queue em 4.0**: foi removido; cluster não sobe. Migre pra quorum antes do upgrade (`rabbitmqctl list_queues type`).
+- **KRaft com 1 controller**: zero quorum, downtime garantido em falha. Mínimo 3, ideal 5 em produção multi-AZ.
+- **Single-region tiered storage**: S3 cross-region GET cost surpresa (USD 0.02/GB) se broker em us-east-1 e bucket em sa-east-1. Co-localize.
+- **Super stream sem routing key estável**: rebalanceia partitions, perde Single Active Consumer affinity. Routing key = atributo imutável (region, tenant_id).
+- **MaxAckPending=0 (unlimited) no NATS**: consumer trava memória até OOM em redelivery storm. Sempre limite (1k–10k típico).
+
+Cruza com **04-02 §2.2-§2.5** (broker intros), **04-02 §2.7** (Pulsar/Redpanda/NATS deep), **04-02 §2.13** (consumer scaling), **04-02 §2.15** (operação Kafka), **04-02 §2.18** (idempotent consumer), **04-02 §2.19** (Kafka Streams + ksqlDB), **04-13 §2.2** (streaming engines consume), **04-13 §2.20** (Iceberg sink), **03-05** (AWS MSK + S3 tiered), **04-09 §2.4** (sharding via partitions), **04-04 §2.30** (multi-region MirrorMaker).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:
