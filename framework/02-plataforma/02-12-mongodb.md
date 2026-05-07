@@ -651,6 +651,259 @@ Cruza com **02-09** (Postgres, equivalente CTE/window functions), **04-13** (str
 
 ---
 
+### 2.20 MongoDB 8 + Atlas Search + Vector Search + Queryable Encryption + Change Streams advanced 2026
+
+CRUD + aggregation + replica set + sharding cobrem o core relacional do Mongo. Production stack 2026 sobrepõe quatro pilares Atlas-native que transformam Mongo em plataforma multi-modal: **Atlas Search** (Lucene-backed full-text via `$search` aggregation stage, GA desde 2020 — substitui Elastic standalone para workloads <10k QPS com ~30-50% menor TCO), **Atlas Vector Search** (HNSW índice via `$vectorSearch`, GA Q2 2024 — semantic retrieval co-locado com operational data, dispensa pgvector/Qdrant separados), **Queryable Encryption** (CSFLE evolved — equality queries GA 2023, range queries GA 2024 com MongoDB 8.0 Q4 2024 — encrypted-at-rest com queryability sem decrypt server-side), **Change Streams advanced** (resume token + fullDocument lookup + filter + sharded cluster awareness — base do Outbox pattern resiliente). MongoDB 8.1 (Q3 2025) adiciona `$rankFusion` para hybrid search nativo. Time-series collections (GA 5.0, otimização contínua até 8.0) competem com TimescaleDB para workloads <100k writes/s.
+
+**Atlas Search deep — Lucene index + `$search` stage**:
+
+```js
+// Definição de índice via Atlas UI/CLI/API — JSON declarativo
+// orders.search_idx (static mapping — recomendado >10M docs)
+{
+  "mappings": {
+    "dynamic": false,
+    "fields": {
+      "customer_name": [
+        { "type": "string", "analyzer": "lucene.portuguese" },
+        { "type": "autocomplete", "tokenization": "edgeGram", "minGrams": 2, "maxGrams": 10 }
+      ],
+      "product_name": { "type": "string", "analyzer": "lucene.standard" },
+      "status": { "type": "token" },           // exact match facet
+      "tenant_id": { "type": "token" },        // pre-filter multi-tenant
+      "created_at": { "type": "date" },
+      "total_amount": { "type": "number" }
+    }
+  }
+}
+
+// Query: full-text + autocomplete + fuzzy + facets + score boost
+db.orders.aggregate([
+  {
+    $search: {
+      index: "search_idx",
+      compound: {
+        must: [
+          { equals: { path: "tenant_id", value: "tenant_42" } } // pre-filter sempre
+        ],
+        should: [
+          {
+            text: {
+              query: "notebook dell",
+              path: ["customer_name", "product_name"],
+              fuzzy: { maxEdits: 1, prefixLength: 2 }, // typo tolerance
+              score: { boost: { value: 3 } }
+            }
+          },
+          {
+            autocomplete: {
+              query: "joa",
+              path: "customer_name",
+              score: { boost: { value: 2 } }
+            }
+          }
+        ],
+        filter: [
+          { range: { path: "created_at", gte: ISODate("2026-01-01") } }
+        ]
+      }
+    }
+  },
+  {
+    $facet: {
+      results: [{ $limit: 20 }, { $project: { customer_name: 1, score: { $meta: "searchScore" } } }],
+      status_facet: [{ $sortByCount: "$status" }]
+    }
+  }
+]);
+```
+
+`dynamic: true` indexa todos os campos — index size explode em collection 100M docs (overhead 30-60% storage). Static mapping com selected fields: 5-10% overhead. `analyzer: lucene.portuguese` aplica stemming PT (pedidos → pedid). `lucene.standard` para identifiers/SKUs.
+
+**Atlas Vector Search — HNSW + `$vectorSearch`**:
+
+```js
+// Índice vector — HNSW com filter fields declarados
+{
+  "fields": [
+    {
+      "type": "vector",
+      "path": "embedding",
+      "numDimensions": 1536,           // OpenAI text-embedding-3-small
+      "similarity": "cosine"           // cosine | euclidean | dotProduct
+    },
+    { "type": "filter", "path": "tenant_id" },   // pre-filter multi-tenant
+    { "type": "filter", "path": "status" }
+  ]
+}
+
+// Query: top-K semantic + pre-filter
+db.orders.aggregate([
+  {
+    $vectorSearch: {
+      index: "vector_idx",
+      path: "embedding",
+      queryVector: queryEmbedding,     // [1536 floats] gerado pelo embedder
+      numCandidates: 200,              // 10-20x limit — recall vs latency
+      limit: 20,
+      filter: {
+        tenant_id: "tenant_42",        // CRITICAL: filter declarado no índice
+        status: { $in: ["completed", "shipped"] }
+      }
+    }
+  },
+  { $project: { customer_name: 1, score: { $meta: "vectorSearchScore" } } }
+]);
+```
+
+`numCandidates` próximo de `limit` → recall ruim (HNSW retorna approximate, precisa explorar mais nós). Rule: 10-20x. p99 típico: 50-200ms para 1M docs 1536-dim em M30 cluster. Pre-filter via `filter` field declarado no índice usa HNSW pre-filtering nativo — sem isso, post-filter scan.
+
+**Hybrid search MongoDB 8.1 — `$rankFusion`**:
+
+```js
+// $rankFusion: combina múltiplos pipelines com Reciprocal Rank Fusion nativo
+db.orders.aggregate([
+  {
+    $rankFusion: {
+      input: {
+        pipelines: {
+          textSearch: [
+            { $search: { index: "search_idx", text: { query: "notebook dell", path: "product_name" } } },
+            { $limit: 100 }
+          ],
+          vectorSearch: [
+            { $vectorSearch: { index: "vector_idx", path: "embedding", queryVector: qVec, numCandidates: 200, limit: 100 } }
+          ]
+        }
+      },
+      combination: { weights: { textSearch: 0.4, vectorSearch: 0.6 } } // bias semantic
+    }
+  },
+  { $limit: 20 }
+]);
+```
+
+Pre-8.1: implementar RRF manual via `$unionWith` + `$group` + score normalization. `$rankFusion` faz isso nativo, normaliza ranks (não scores brutos — vector dominaria).
+
+**Queryable Encryption — range queries on encrypted fields (GA 8.0)**:
+
+```ts
+import { MongoClient, ClientEncryption } from 'mongodb';
+
+const encryptedFieldsMap = {
+  'logistics.customers': {
+    fields: [
+      { keyId: dekId1, path: 'cpf', bsonType: 'string', queries: { queryType: 'equality' } },
+      {
+        keyId: dekId2,
+        path: 'birth_year',
+        bsonType: 'int',
+        queries: { queryType: 'range', min: 1900, max: 2030, sparsity: 1, trimFactor: 4 }
+      },
+      { keyId: dekId3, path: 'email', bsonType: 'string', queries: { queryType: 'equality' } }
+    ]
+  }
+};
+
+const client = new MongoClient(uri, {
+  autoEncryption: {
+    keyVaultNamespace: 'encryption.__keyVault',
+    kmsProviders: { aws: { accessKeyId, secretAccessKey } },
+    encryptedFieldsMap
+  }
+});
+
+// Query — driver encrypta/decrypta transparente, server nunca vê plaintext
+await db.collection('customers').find({
+  email: 'joao@example.com',                    // equality on encrypted
+  birth_year: { $gte: 1980, $lte: 1995 }        // range on encrypted (8.0+)
+}).toArray();
+```
+
+QE usa structured encryption com encrypted indexes — server faz match em ciphertext. Overhead: storage 2-4x, query latency +20-50% para encrypted fields. vs application-level encryption: QE permite query, app-level força decrypt-all-then-filter. Aplicar só em PII queryable (CPF, email) — não em campos raramente filtrados.
+
+**Change Streams advanced — resume token + fullDocument + filter**:
+
+```ts
+const pipeline = [
+  { $match: { 'fullDocument.tenant_id': 'tenant_42', operationType: { $in: ['insert', 'update'] } } }
+];
+
+let resumeToken = await loadResumeTokenFromRedis(); // persistir SEMPRE
+
+const changeStream = db.collection('orders').watch(pipeline, {
+  fullDocument: 'updateLookup',          // SELECT full doc post-update (custa +read)
+  fullDocumentBeforeChange: 'whenAvailable', // 6.0+ — diff pre/post
+  resumeAfter: resumeToken,
+  maxAwaitTimeMS: 1000
+});
+
+for await (const change of changeStream) {
+  await publishToKafka('orders.cdc', change.fullDocument);
+  await persistResumeToken(change._id);   // após ack do downstream
+}
+```
+
+Sem `resumeAfter` persistido: restart perde events ocorridos durante downtime se janela > oplog retention (default 1h em replica sets pequenos). Configurar `replSetResizeOplog` para 24-48h em cluster com Change Stream consumers críticos. Sharded change streams: routing via `mongos`, latência +50-100ms vs replica set unsharded. `fullDocument: 'updateLookup'` faz read adicional pós-update — pode retornar versão > diff (eventual consistency entre oplog e majority read).
+
+**Time-series collections**:
+
+```js
+db.createCollection('courier_locations', {
+  timeseries: {
+    timeField: 'ts',
+    metaField: 'courier_id',
+    granularity: 'minutes'           // seconds | minutes | hours
+  },
+  expireAfterSeconds: 60 * 60 * 24 * 30   // TTL 30d automático
+});
+
+db.courier_locations.insertMany([
+  { ts: new Date(), courier_id: 'C-1', lat: -23.5, lng: -46.6, speed_kmh: 45 }
+]);
+
+// $bucketAuto para downsample em query
+db.courier_locations.aggregate([
+  { $match: { courier_id: 'C-1', ts: { $gte: ISODate('2026-05-01') } } },
+  { $bucketAuto: { groupBy: '$ts', buckets: 24, output: { avg_speed: { $avg: '$speed_kmh' } } } }
+]);
+```
+
+`granularity: 'seconds'` para hourly data → buckets de 1h cada com 1 doc → waste storage (compression bucket-level perde efeito). Match granularity ao write rate. vs TimescaleDB: Mongo time-series não tem continuous aggregates nativo (precisa scheduled `$merge` jobs); TSDB Postgres mais maduro para analytical workloads.
+
+**Stable API — versioned API**:
+
+```ts
+const client = new MongoClient(uri, {
+  serverApi: { version: '1', strict: true, deprecationErrors: true }
+});
+```
+
+Opt-in declara compatibilidade — server rejeita comandos fora da v1 ou deprecated. Forward-compat com upgrades server major sem breakage de driver.
+
+**Stack Logística aplicada**:
+- Atlas Search em `orders` (`customer_name` + `product_name` + `tracking_code`) com autocomplete em `customer_name` para CS dashboard — substitui Elasticsearch que tinha 18k QPS pico, custo M30 Atlas Search ~40% menor que cluster ES dedicado.
+- Vector Search em `order_embeddings` (descrição produto + endereço destino → embedding 1536-dim) para "pedidos similares" detection — fraud team usa para clusterizar padrões anômalos. Pre-filter `tenant_id` via filter field.
+- Queryable Encryption em `customers.cpf` + `customers.email` + `couriers.cpf` — equality queries para login/lookup, sem expor plaintext em backups/logs.
+- Change Streams em `orders` driving Outbox → Kafka topic `orders.events` (substitui polling outbox table — latência 2s → ~150ms p95). Resume token persistido em Redis com TTL 7d.
+- Time-series `courier_locations` granularity `minutes`, retention 30d, downsample hourly via `$merge` scheduled job para `courier_locations_hourly`.
+
+**Anti-patterns**:
+1. `$search` index com `dynamic: true` em collection 100M docs — index storage 30-60% overhead, build time horas. Static mapping com fields selected.
+2. `$vectorSearch` com `numCandidates` ≈ `limit` — recall <70% (HNSW approximate precisa explorar). Rule: 10-20x.
+3. Queryable Encryption em campo raramente queried — overhead storage/latency sem benefit; criptografar app-level + KMS basta.
+4. Change Stream consumer sem persistir resume token — restart perde events ocorridos durante downtime > oplog retention.
+5. Time-series com `granularity: 'seconds'` para hourly write rate — buckets sub-utilizados, perde compression vantagem.
+6. `$rankFusion` sem ajustar `weights` — text e vector contribuem 50/50 default, semantic-heavy use case quer 0.3/0.7.
+7. `$vectorSearch` `filter` em campo NÃO declarado como `filter` no índice — Mongo ignora pre-filter, faz full HNSW scan + post-filter (latência 10x).
+8. `fullDocument: 'updateLookup'` em high-throughput stream sem necessidade — duplica read load no primary; usar diff via `updateDescription` quando suficiente.
+9. Atlas Search index sem `tenant_id` no `compound.must` — multi-tenant search vaza dados via score ranking.
+10. QE com `sparsity: 1` em range field high-cardinality (timestamp ms) — query latency degrada (sparsity controla false-positives no encrypted index); ajustar `sparsity`/`trimFactor` por field.
+
+Cruza com **02-12 §2.4** (indexes foundation — search/vector indexes não substituem B-tree para OLTP), **§2.7** (aggregation pipeline — `$search`/`$vectorSearch` são primeiros stages), **§2.10** (replica sets — Change Streams dependem do oplog), **§2.11** (sharding — change stream routing via mongos), **§2.18** (schema design — embedded vs referenced afeta `fullDocumentBeforeChange`), **§2.19** (aggregation advanced — `$facet`/`$lookup` complementam `$search`), **02-15 §2.20** (vector search comparison: pgvector vs Atlas Vector Search vs Qdrant — co-location vs especialização), **03-08 §2.13** (encryption foundation — KMS + DEK hierarchy), **04-03 §2.19** (Outbox via Change Streams ao invés de polling table), **04-13 §2.12** (CDC Mongo → Kafka via Debezium connector como alternativa).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

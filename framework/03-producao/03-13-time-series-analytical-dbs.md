@@ -564,6 +564,168 @@ Cruza com **03-07** (observability, full stack), **03-05** (AWS, S3 backend cost
 
 ---
 
+### 2.20 ClickHouse 24.x + DuckDB 1.x deep 2026
+
+ClickHouse e DuckDB venceram 2024-2026 nos seus nichos. **ClickHouse** dominou OLAP at scale (>10TB) com ClickHouse Cloud GA (Dec 2022) consolidando o managed serverless tier sobre object storage. **DuckDB** virou padrão de embedded analytics: 1.0 GA Q2 2024, 1.1 (Q3), 1.2 (Q4 — encryption + extensions). Polars 1.x (Q3 2024) substituiu Pandas em pipelines Python sérios. Lance/LanceDB (v0.18 Q4 2024) emergiu como columnar format ML-native. Decisão 2026 não é mais "ClickHouse vs Snowflake" mas "qual nicho do stack analytics" — managed warehouse, embedded ad-hoc, ML embeddings, batch ETL — cada um tem ferramenta dedicada.
+
+**ClickHouse 24.x deep** (24.3 LTS Q1 2024, 24.10 Q4 2024 trouxe refreshable MVs e JSON object type GA):
+
+`ReplicatedMergeTree` é default em prod self-hosted desde sempre. Em **ClickHouse Cloud**, `SharedMergeTree` (GA 2023) substitui Replicated: storage compartilhado em S3, replicas são compute stateless, scaling horizontal trivial. Self-hosted continua Replicated com ZooKeeper/Keeper.
+
+```sql
+-- Self-hosted: ReplicatedMergeTree clássico
+CREATE TABLE orders_local ON CLUSTER prod_cluster (
+    order_id UUID,
+    user_id UInt64,
+    courier_id UInt64,
+    created_at DateTime64(3) CODEC(Delta, ZSTD(3)),
+    amount_cents UInt32 CODEC(T64, ZSTD(3)),
+    status LowCardinality(String),
+    payload JSON
+)
+ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/orders', '{replica}')
+PARTITION BY toYYYYMM(created_at)
+ORDER BY (user_id, created_at, order_id)
+TTL created_at + INTERVAL 365 DAY DELETE
+SETTINGS index_granularity = 8192,
+         allow_experimental_json_type = 1;
+
+-- Cloud: SharedMergeTree (object storage backed, scale-to-zero)
+CREATE TABLE orders_cloud (
+    order_id UUID,
+    user_id UInt64,
+    created_at DateTime64(3) CODEC(Delta, ZSTD),
+    amount_cents UInt32 CODEC(T64, ZSTD),
+    payload JSON
+)
+ENGINE = SharedMergeTree
+PARTITION BY toYYYYMM(created_at)
+ORDER BY (user_id, created_at);
+```
+
+**Codecs por column type**: `Delta + ZSTD` para sequential numerics (timestamps, IDs incrementais), `T64 + ZSTD` para integers com magnitudes variadas, `LowCardinality(String)` para enums/status (dictionary encoding automático), `ZSTD(level)` default geral, `LZ4` quando latência > compressão.
+
+**Refreshable Materialized Views** (24.4+) substituem cron externo:
+
+```sql
+CREATE MATERIALIZED VIEW orders_daily_agg
+REFRESH EVERY 1 HOUR
+ENGINE = ReplacingMergeTree
+ORDER BY (day, courier_id)
+AS SELECT
+    toDate(created_at) AS day,
+    courier_id,
+    count() AS orders_count,
+    sum(amount_cents) AS revenue_cents,
+    quantileTDigest(0.95)(delivery_seconds) AS p95_delivery
+FROM orders
+WHERE created_at >= now() - INTERVAL 7 DAY
+GROUP BY day, courier_id;
+```
+
+MV incremental clássica continua via `AggregatingMergeTree` para pre-agg em insert, `ReplacingMergeTree` para latest-version dedup. Refreshable é **batch-style**, ideal para BI compatibility (Metabase/Superset esperam tabelas materializadas estáveis).
+
+**JSON Object type GA** (24.8+): typing dinâmico sem schema upfront. Use `SETTINGS schema_inference_make_columns_nullable = 1` se ingerir JSON com fields opcionais — sem isso, NULL silencioso vira default value.
+
+**ClickHouse Cloud** (managed serverless):
+- **Separation compute/storage**: storage em S3 (region-local), compute em pods Kubernetes managed
+- **Scale-to-zero**: idle services suspendem após 15min default. Cold start ~30s
+- **Multi-region replication** built-in (extra cost)
+- **Throughput**: single-node 1B rows/sec scan agregação típica; cluster scale linear até centenas de billions
+- **Cost**: managed = 2-3x mais caro que self-hosted equivalente, mas zero ops (sem ZooKeeper/Keeper, sem upgrades, sem capacity planning). Tier "Production" desde ~$200/mês minimum
+
+**DuckDB 1.x deep** — embedded analytics, no server:
+
+Process-embedded (single binary, in-process). Single-writer (multi-process write **corrompe**). Reads concurrent OK. Throughput: ~500M rows/sec single-thread Parquet scan em hardware moderno.
+
+```sql
+-- Install + load extensions (one-time per session)
+INSTALL httpfs;
+LOAD httpfs;
+INSTALL iceberg;
+LOAD iceberg;
+
+-- S3 credentials via SECRET (DuckDB 1.x pattern)
+CREATE SECRET s3_logistics (
+    TYPE S3,
+    KEY_ID 'AKIA...',
+    SECRET 'xxx',
+    REGION 'us-east-1'
+);
+
+-- Federated query: S3 Parquet JOIN local table
+ATTACH 'logistics_local.duckdb' AS local;
+
+SELECT
+    o.user_id,
+    sum(o.amount_cents) AS revenue,
+    u.tier
+FROM read_parquet('s3://logistics-lake/orders/year=2026/*.parquet') o
+JOIN local.users u ON u.id = o.user_id
+WHERE o.created_at >= '2026-04-01'
+GROUP BY o.user_id, u.tier
+ORDER BY revenue DESC
+LIMIT 100;
+
+-- Iceberg: read latest snapshot
+SELECT count(*)
+FROM iceberg_scan('s3://lake/warehouse/orders', allow_moved_paths = true);
+```
+
+**Extensions GA**: `httpfs` (S3/HTTP/Azure direct read), `iceberg` (Iceberg table format), `delta` (Delta Lake), `parquet` (built-in), `postgres_scanner` (federated to Postgres). **MotherDuck** é DuckDB Cloud variant — hybrid local+cloud query, mesma sintaxe.
+
+**Polars + Lance ecosystem**:
+
+```python
+# Polars LazyFrame — Rust-backed, Arrow native, 5-10x mais rápido que Pandas
+import polars as pl
+
+df = (
+    pl.scan_parquet("s3://logistics-lake/orders/year=2026/*.parquet")
+    .filter(pl.col("created_at") >= pl.datetime(2026, 4, 1))
+    .group_by("courier_id")
+    .agg([
+        pl.col("amount_cents").sum().alias("revenue"),
+        pl.col("delivery_seconds").quantile(0.95).alias("p95"),
+    ])
+    .sort("revenue", descending=True)
+    .collect(streaming=True)  # streaming = larger-than-memory
+)
+```
+
+**Lance** é columnar format optimizado para ML: pyarrow-compatible, vector indexes (IVF_PQ, HNSW) built-in, versioned (time-travel via snapshots). LanceDB é o KV+vector store sobre Lance. Diferencial vs Parquet: random access barato (importante pra ML training shuffles), vector search nativo sem index externo (Pinecone/Weaviate alternative).
+
+**Decision matrix 2026**:
+
+| Caso de uso | Ferramenta |
+|---|---|
+| Dashboards low-latency (p95 < 100ms), >10TB | ClickHouse self-hosted |
+| Mesmo, sem ops | ClickHouse Cloud |
+| Embedded SQL em CLI tool / IDE / app | DuckDB |
+| Ad-hoc analytics em S3 lakehouse, sem warehouse cost | DuckDB + httpfs/iceberg |
+| ETL Python, DataFrame ergonomics | Polars |
+| ML embeddings + vector search dominante | Lance + LanceDB |
+| Time-series + Postgres compatibility | TimescaleDB (§2.6) |
+| Lakehouse curated, Spark/Flink heavy | Iceberg + Trino (04-13) |
+
+**Stack Logística aplicado**: ClickHouse Cloud para `orders` + `courier_locations` (365d retention TTL) + dashboards executivos p95 < 100ms via refreshable MVs hourly. DuckDB embedded em CLI tool de SRE — `logi-cli query "SELECT ... FROM read_parquet('s3://logs/...')"` substitui Athena para investigação ad-hoc (zero infra, query starts em <1s vs Athena ~5-10s). Polars em ETL Python jobs (reconciliação financeira, batch fraud features). Lance como vector store de order embeddings (similarity search "pedidos similares" sem rodar Pinecone/pgvector dedicado).
+
+**10 anti-patterns**:
+1. ClickHouse `ALTER TABLE ... UPDATE` em hot path — mutations são async + rewrite parts inteiros, lock IO. Use `ReplacingMergeTree` com versioning column ou `CollapsingMergeTree`.
+2. MaterializedView com `ORDER BY` diferente da query consumidora — sem index pruning, full scan da MV.
+3. ClickHouse Cloud sem auto-suspend habilitado — idle service queima crédito 24/7.
+4. DuckDB embedded em multi-process write workload — single-writer assumption, corrompe DB file. Use Postgres ou ClickHouse pra concurrent write.
+5. Iceberg via DuckDB sem pin de snapshot — race condition durante compaction do writer (Spark/Flink).
+6. Polars `.collect()` eager em dataset >RAM — use `streaming=True` ou continue lazy.
+7. Lance sem version control em schema changes — overwrite destrutivo, sem rollback.
+8. ClickHouse JSON Object type sem `schema_inference_make_columns_nullable = 1` — campos ausentes viram default silently, agregações erradas.
+9. ClickHouse `ORDER BY` começando com `created_at` (high cardinality timestamp) ao invés de coluna de filtro principal — sparse index inútil. Ordem certa: filter column → sort column → tiebreaker.
+10. SharedMergeTree (Cloud) usado em self-hosted — engine não disponível fora do Cloud. Self-hosted = `ReplicatedMergeTree` + Keeper.
+
+**Cruza com**: §2.5 (ClickHouse arquitetura base), §2.6 (TimescaleDB compare), §2.7 (DuckDB intro), §2.11 (lakehouse Iceberg/Delta), §2.18 (ClickHouse query optimization deep), §2.19 (time-series storage 2026), [02-09 §2.23](../02-plataforma/02-09-postgres-deep.md) (TimescaleDB deep), [04-13 §2.20](../04-sistemas/04-13-streaming-batch-processing.md) (Iceberg + REST catalogs), [02-15 §2.20](../02-plataforma/02-15-search-engines.md) (vector search — Lance native alternative), [03-05](./03-05-aws-core.md) (S3 backend para ClickHouse Cloud + DuckDB).
+
+---
+
 ## 3. Repeating threshold dropped
 
 ## 3. Threshold de Maestria
