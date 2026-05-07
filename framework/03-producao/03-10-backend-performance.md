@@ -465,6 +465,123 @@ Vary: Accept-Encoding
 
 ---
 
+### 2.21 Linux performance deep 2026 — eBPF, io_uring, NUMA, mimalloc/jemalloc, kernel tuning
+
+Performance backend de 2020 a 2026 mudou de patamar no kernel Linux. Três vetores convergiram: eBPF virou observability primária em produção (kprobe/uprobe/tracepoint sem recompilar kernel, overhead < 1%), `io_uring` substituindo `epoll` em workloads de alta concorrência (completion-based, batch syscalls, zero-copy via buffer rings), e allocators modernos (`mimalloc`, `jemalloc`) trocando `glibc malloc` em runtimes managed. Kernel tuning deixou de ser exótico: cgroups v2 + PSI viraram default em K8s 1.30+, BBR substituiu CUBIC como congestion control padrão em cloud, e NUMA awareness importa em bare metal multi-socket que o cloud expõe cada vez mais. Linux 6.6 LTS (Q4 2023) e 6.12 LTS (Q4 2024 — major io_uring improvements) consolidaram o stack; Linux 6.13 mainline (Q1 2026) trouxe BPF scheduler (`sched_ext`) GA. Quem opera backend high-throughput em 2026 e ignora essa camada paga 2-3x em hardware pra mascarar inefficiency que o kernel resolve.
+
+**eBPF como observability primária.** eBPF executa programs verificados no kernel em hooks: kprobe (kernel function entry), uprobe (userspace function entry — incluindo Node, JVM, Python), tracepoint (estável, ABI-stable), perf event, XDP (network fast path). `libbpf` + CO-RE (Compile Once Run Everywhere) significa que o BPF program compilado em um kernel roda em outros via BTF (BPF Type Format) relocation — fim do "compile per kernel version" que matava produção. `bpftrace` 0.21+ é a awk-do-kernel: one-liners ad-hoc para investigar latency spike sem deploy:
+
+```bash
+# latency p99 de syscall openat por processo
+bpftrace -e 'tracepoint:syscalls:sys_enter_openat { @start[tid] = nsecs; }
+            tracepoint:syscalls:sys_exit_openat /@start[tid]/ {
+              @lat[comm] = hist(nsecs - @start[tid]); delete(@start[tid]); }'
+
+# off-CPU profiling — onde threads bloqueiam (mutex, I/O)
+bpftrace -e 'kprobe:finish_task_switch { @[kstack] = count(); }'
+```
+
+`Pixie` (CNCF graduated Q4 2023) auto-instrumenta K8s clusters via eBPF — instala como DaemonSet, captura HTTP/gRPC/MySQL/Postgres/Redis traffic sem code change, sem sidecar, sem mudar deployment. Service maps, latency histograms, request bodies — tudo do kernel. `Cilium Hubble` faz o mesmo para service mesh (L3/4/7 flow visibility via eBPF, sem Envoy sidecar overhead). `Tetragon` (Isovalent, GA Q4 2023) captura security events (process exec, file access, network) com policy enforcement via eBPF. `Falco` migrou plugin model para eBPF como driver default. Stack de profiling continuous: `Parca` ou `Pyroscope` (agora Grafana) usam eBPF para coletar stack traces de todos processos sem instrumentation:
+
+```c
+// libbpf-bootstrap-style: trace tcp_connect latency
+SEC("kprobe/tcp_connect")
+int BPF_KPROBE(tcp_connect_entry, struct sock *sk) {
+    u64 ts = bpf_ktime_get_ns();
+    u32 tid = bpf_get_current_pid_tgid();
+    bpf_map_update_elem(&start, &tid, &ts, BPF_ANY);
+    return 0;
+}
+SEC("kretprobe/tcp_connect")
+int BPF_KRETPROBE(tcp_connect_exit, int ret) {
+    u32 tid = bpf_get_current_pid_tgid();
+    u64 *tsp = bpf_map_lookup_elem(&start, &tid);
+    if (!tsp) return 0;
+    u64 lat = bpf_ktime_get_ns() - *tsp;
+    bpf_map_delete_elem(&start, &tid);
+    /* emit lat to perf buffer */
+    return 0;
+}
+```
+
+**`io_uring` — I/O kernel-bypass-style.** Modelo `epoll` é readiness: kernel avisa "fd pronto", userspace faz `read()`/`write()` — N syscalls por op. `io_uring` (stable 5.1, production-ready 5.10+, hardened 6.x) é completion-based: userspace empurra `sqe` (submission queue entry) num ring shared com kernel, kernel processa async, devolve `cqe` (completion queue entry) — 1 syscall (`io_uring_enter`) processa batch de Ns. Buffer rings (5.19+) registram buffers pre-alocados — zero-copy real. Throughput mensurado: 30-50% acima de `epoll` em high-conn workloads (proxies, DBs), latência p99 menor por amortizar context switch. Node.js 22 (Q4 2024) trouxe `libuv` com `io_uring` backend opt-in (`UV_USE_IO_URING=1`), Tokio (Rust) tem feature flag, ScyllaDB e PostgreSQL 17 adotaram nativamente. Pré-5.10 acumulou CVEs (sandboxing fraco) — Google e Android baniram em workloads sensíveis até 6.x. Em 2026, default seguro:
+
+```c
+struct io_uring ring;
+io_uring_queue_init(256, &ring, 0);
+struct io_uring_sqe *sqe = io_uring_get_sqe(&ring);
+io_uring_prep_read(sqe, fd, buf, len, offset);
+io_uring_submit(&ring);
+struct io_uring_cqe *cqe;
+io_uring_wait_cqe(&ring, &cqe);
+/* cqe->res = bytes lidos */
+io_uring_cqe_seen(&ring, cqe);
+```
+
+**NUMA awareness.** Servers multi-socket (2+ CPUs físicas) particionam memória por node. Acesso cross-node custa 2-5x latência vs local. Cloud expõe NUMA cada vez mais em bare metal (AWS metal, GCP C3, Azure HBv4). `numactl --hardware` mostra topology; `numactl --cpunodebind=0 --membind=0 ./worker` força afinidade. K8s 1.28+ tem Topology Manager com policy `single-numa-node` para garantir pod inteiro num node. Cloud VMs às vezes escondem topology (vNUMA), o que quebra otimização — testar com `lscpu` e `numastat`. Anti-pattern: assumir uniform memory em bare metal de 2 sockets — workloads JVM/Postgres ganham 15-30% throughput com pinning correto.
+
+```bash
+# pin worker em NUMA node 0 (CPUs 0-31, memória local)
+numactl --cpunodebind=0 --membind=0 java -jar app.jar
+# verificar que páginas estão no node certo
+numastat -p $(pgrep java)
+```
+
+**Modern allocators.** `glibc malloc` (ptmalloc2) cria N arenas por thread → fragmentation explode em containers Java/Python/Node com muitos threads. Fix barato: `MALLOC_ARENA_MAX=2` corta RSS 30-50% em workloads Java em K8s sem perda de throughput. Upgrade real: `mimalloc` (Microsoft, 2.x em 2024) ou `jemalloc` 5.3+ via `LD_PRELOAD` — 10-20% mais rápido que glibc em Node, redução de fragmentation, sem mudar código:
+
+```bash
+# trocar allocator sem rebuild
+LD_PRELOAD=/usr/lib/libmimalloc.so.2 node server.js
+LD_PRELOAD=/usr/lib/libjemalloc.so.2 java -jar app.jar
+# em Dockerfile:
+ENV LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+ENV MALLOC_ARENA_MAX=2
+```
+
+Redis e ScyllaDB linkam `jemalloc` por default. Cuidado com workloads que têm custom allocator (V8 isolates, ClickHouse) — `LD_PRELOAD` pode conflitar.
+
+**cgroups v2 + PSI (Pressure Stall Information).** cgroups v2 (single hierarchy, default em K8s 1.25+, mandatory 1.32+) trouxe `memory.high` (soft limit — kernel reclaim agressivo antes de OOM) e `memory.max` (hard, OOM killer). PSI expõe `/proc/pressure/{cpu,memory,io}` com fração de tempo em pressure — sinal direto para autoscaler. K8s 1.28+ suporta PSI-based HPA via custom metrics — escalar antes de OOMKill, não depois. Pod spec:
+
+```yaml
+spec:
+  containers:
+  - name: app
+    resources:
+      limits: { memory: "1Gi" }
+      requests: { memory: "512Mi" }
+    # K8s 1.28+ memoryQoS feature gate → seta memory.high = requests
+```
+
+**BBR congestion control.** CUBIC (default histórico) usa loss como sinal — em cloud com bufferbloat e WAN longa, encolhe janela à toa. BBR (Google) modela bandwidth × RTT, mantém pipe cheio sem encher buffer. Ganho típico em uploads long-fat-network: 2-25x throughput, latência menor sob carga. Default em GCP, AWS adotou em ALB/NLB. Sysctl:
+
+```bash
+echo "net.core.default_qdisc=fq" >> /etc/sysctl.conf
+echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
+sysctl -p
+```
+
+Cuidado: em links internos low-latency (data center fabric), BBR pode regredir vs CUBIC — testar antes de aplicar global.
+
+**Off-CPU profiling.** `perf top` + flamegraphs (Brendan Gregg) mostram on-CPU — onde threads queimam ciclos. Mas latência alta frequentemente é **off-CPU**: thread bloqueado em mutex, I/O, lock. eBPF resolve via `offcputime` (bcc tool) — captura stack quando thread sai de runqueue, mostra exatamente onde dorme. Diferencial em diagnose de tail latency.
+
+**Stack Logística aplicada.** API Node em K8s: `mimalloc` via `LD_PRELOAD` no Dockerfile, `MALLOC_ARENA_MAX=2`, BBR no node, cgroups v2 com `memory.high`, Pixie DaemonSet auto-instrumentando HTTP/Postgres/Redis sem mudar código. Workers Java em fila: `jemalloc` + numactl pinning + `io_uring` se driver suportar. Ad-hoc latency investigation: `bpftrace` one-liner em vez de adicionar log + redeploy. HPA usando PSI memory pressure como sinal além de CPU. Pyroscope/Parca rodando continuous profiling via eBPF — flamegraph histórico de produção sem agente intrusivo.
+
+**10 anti-patterns**:
+1. **eBPF program em hot path sem CO-RE** — kernel version mismatch quebra em rolling upgrade; usar `libbpf` + BTF.
+2. **`bpftrace` em prod sem rate limit ou TTL** — map cresce indefinidamente, kernel memory explode.
+3. **`io_uring` assumido seguro pré-5.10** — CVEs 2020-2022 em sandbox; exigir kernel 6.x+ em workloads multi-tenant.
+4. **NUMA pinning ignorado em bare metal multi-socket** — latência random, throughput 15-30% abaixo do possível.
+5. **`mimalloc` `LD_PRELOAD` em workload com custom allocator** (V8 isolates, ClickHouse) — conflict, crash ou degradation silenciosa.
+6. **`MALLOC_ARENA_MAX` default em containers Java/Python multi-thread** — RSS 2-3x esperado, OOMKill por fragmentation.
+7. **BBR sysctl global sem testing em internal low-latency links** — regressão de throughput em fabric data center.
+8. **cgroups v1 em K8s 1.30+** — PSI indisponível, perde sinal pra autoscaling baseado em pressure.
+9. **CPU pinning sem `isolcpus` no boot do kernel** — scheduler ainda agenda outros processes no core "isolado", interferência.
+10. **Pixie/Tetragon/Parca acumulando agents sem monitorar overhead** — eBPF é < 1% por agent, mas 5 agents = 5%, não negligível em fleet grande.
+
+**Cruza com** `03-10` §2.2 (Node profiling foundation), §2.3 (event loop lag), §2.5 (connections), §2.13 (async I/O), §2.16 (microbenchmarks), §2.17 (cold start), §2.19 (outros runtimes JVM/.NET/Go), `02-07` §2.18 (event loop blocking + worker_threads — eBPF complementar), `02-07` §2.20 (Node 24 features), `03-07` §2.16 (eBPF observability intro), `03-07` §2.21 (OTel + continuous profiling — Pyroscope/Parca complementam Pixie), `03-03` §2.23 (K8s 1.32 cgroups v2 + PSI), `04-09` (scaling — io_uring throughput).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

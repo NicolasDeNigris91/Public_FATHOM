@@ -522,6 +522,160 @@ Cruza com **04-01 §2.16** (idempotência precisa ordering), **04-01 §2.18** (C
 
 ---
 
+### 2.22 Consensus algorithms applied — Raft em etcd/CockroachDB/Consul, Paxos legado, trade-offs práticos (2026)
+
+**§2.11** estabelece Raft/Paxos no whiteboard: leader election, log replication, safety. Produção é outra coisa. Raft em etcd 3.5+ rodando control plane do Kubernetes não é o mesmo Raft do paper Ongaro 2014 — tem prevote, learner role, joint consensus pra membership change, snapshot incremental, batched AppendEntries. Falhar em entender o gap entre teoria e implementação leva a clusters que perdem quorum durante upgrade rolling, leader election flapping em rede cross-region, ou pior: split-brain mascarado por timeouts mal configurados. §2.22 é o deep operacional: como Raft vive em etcd/CockroachDB/Consul/TiKV, por que Multi-Paxos sobrevive em Spanner/Chubby, quando Byzantine variants importam, e qual escolher pra qual problema.
+
+**Raft mechanics deep — state machine real**.
+
+```
+                 timeout, start election
+   ┌─────────┐  ─────────────────────────►  ┌──────────┐
+   │Follower │                              │Candidate │
+   └─────────┘  ◄───────────────────────── └──────────┘
+        ▲     receives AppendEntries from        │
+        │     leader with term >= currentTerm    │ wins majority
+        │                                        ▼
+        │     discovers higher term         ┌──────────┐
+        └────────────────────────────────── │  Leader  │
+                                             └──────────┘
+```
+
+Cada node mantém `currentTerm` (monotonic), `votedFor` (per term), `log[]` (replicated entries). Eleição: follower sem heartbeat por `electionTimeout` (típico 150-300ms randomizado pra evitar split votes simultâneos) vira candidate, incrementa term, vota em si, manda `RequestVote` pro cluster. Maioria → leader. Leader manda `AppendEntries` periódico (heartbeat ~50ms) pra suprimir nova eleição.
+
+**Prevote (etcd 3.5+, Raft thesis §9.6)** — antes de incrementar term de verdade, candidate manda RequestVote especulativo. Se não ganhar maioria, NÃO incrementa term. Evita disruption: node particionado que volta com term inflacionado força leader saudável a step down. Sem prevote: cluster em rede flaky sofre election storm.
+
+**Quorum math, 2026 reality**:
+
+| Cluster size | Quorum | Failures tolerated | Custo write |
+|---|---|---|---|
+| 3 | 2 | 1 | 2 fsync round-trips |
+| 5 | 3 | 2 | 3 fsync round-trips |
+| 7 | 4 | 3 | 4 fsync round-trips (raro fora de regulado) |
+
+Even number é anti-pattern: 4 nodes tolera 1 failure (igual a 3) e custa 1 write a mais. **Sempre odd**.
+
+**Latency napkin math (cross-AZ, mesma region, 2026)**:
+- fsync local NVMe: ~0.5ms
+- AZ-to-AZ RTT: ~1-2ms
+- AppendEntries roundtrip + fsync no follower: ~3-5ms
+- Commit em quorum 3-node single-region: **10-20ms p50, 30-50ms p99**
+- Cross-region (us-east → us-west): RTT ~70ms → commit 150-200ms (inviável pra OLTP hot path; usar follower reads / async replication)
+
+**Production systems — quem usa o quê**.
+
+```bash
+# etcd 3.5+ — Kubernetes control plane backend
+# Cluster típico: 3 ou 5 nodes, single region, dedicated SSD
+etcdctl --endpoints=https://etcd-0:2379,https://etcd-1:2379,https://etcd-2:2379 \
+  endpoint status --write-out=table
+# Mostra: leader, raft term, raft index, db size
+
+# Inspeção de health do Raft
+etcdctl endpoint health --cluster
+etcdctl member list  # Voters + learners
+
+# Adicionar learner (não conta pra quorum, faz catch-up)
+etcdctl member add etcd-3 --peer-urls=https://etcd-3:2380 --learner
+
+# Promover learner pra voter SOMENTE após log catch-up completo
+etcdctl member promote <member-id>
+```
+
+```sql
+-- CockroachDB 24.x — Raft per range (não per cluster)
+-- Cada range (~512MB) tem seu próprio Raft group de 3 ou 5 replicas
+SHOW RANGES FROM TABLE orders;
+-- range_id | start_key | end_key | replicas | lease_holder | ...
+
+-- Inspecionar Raft status de range específico
+SELECT * FROM crdb_internal.ranges WHERE range_id = 42;
+
+-- Zone config: força replicação cross-region
+ALTER TABLE orders CONFIGURE ZONE USING
+  num_replicas = 5,
+  constraints = '{"+region=us-east": 2, "+region=us-west": 2, "+region=eu-west": 1}',
+  lease_preferences = '[[+region=us-east]]';
+```
+
+```hcl
+# Consul 1.18+ — service registry + KV, Raft pra consistency
+# server count: 3 ou 5; clients são gossip-only (não participam Raft)
+consul operator raft list-peers
+# Node     ID  Address       State     Voter  RaftProtocol
+# server1  ... 10.0.1.1:8300 leader    true   3
+# server2  ... 10.0.1.2:8300 follower  true   3
+# server3  ... 10.0.1.3:8300 follower  true   3
+
+# Autopilot: cleanup de dead servers automático
+consul operator autopilot get-config
+```
+
+**Mapping pragmático**:
+- **etcd** → K8s API server backend (config, secrets, leader election de controllers via lease objects), service discovery em stacks pre-K8s, feature flags
+- **CockroachDB** → OLTP distribuído com Raft per range; ranges rebalanceados automaticamente
+- **TiKV** (PingCAP) → Raft per region, base do TiDB; mesmo modelo do CockroachDB
+- **Consul** → service mesh control plane, KV pra config dinâmica, leader election pra workers
+- **Nomad** → scheduler usa Raft pro state global de jobs/allocations
+- **Vault** → storage backend Raft (HA mode), substituiu Consul backend em deploys novos
+- **Kafka KRaft** (3.3+) → substituiu ZooKeeper como controller; metadata em Raft log
+
+**Multi-Paxos legado — onde Raft não chegou**.
+
+Spanner (Google), Chubby (Google), MegaStore — todos Multi-Paxos. Não migraram pra Raft porque infra interna foi escrita pre-Raft (paper Ongaro 2014, Spanner 2012, Multi-Paxos Lamport 2001). Multi-Paxos é mais complexo de provar correto mas roda igual em produção. **Phases**:
+
+- **Prepare/Promise** — leader elege ballot number maior que qualquer visto
+- **Accept/Accepted** — propõe valor, follower aceita se ballot ainda válido
+- **Multi-Paxos** — após eleger leader stable, skip Prepare phase, só Accept
+
+Raft = Multi-Paxos com restrições (log contíguo, leader-only writes). Trade-off: Raft é mais didático e implementável; Paxos é mais flexível (Generalized Paxos, EPaxos pra leaderless). **EPaxos** (CMU 2013) tem traction limitado: TiKV experimentou, abandonou; CockroachDB descartou. Leaderless soa bom no paper, em produção introduz dependency tracking complexo.
+
+**Byzantine variants — quando importa**.
+
+Raft/Paxos assumem **crash failure** (node morre ou silencia). Não toleram **byzantine failure** (node mente, manda dados corrompidos, age maliciosamente). Em datacenter próprio confiança alta + checksums TCP/aplicação = crash model basta.
+
+Quando byzantine importa:
+- **Blockchain** — nodes adversariais por design; PBFT (Castro/Liskov 1999), Tendermint, HotStuff (Diem/Libra → Aptos/Sui)
+- **Multi-org consortium** — Hyperledger Fabric usa Raft entre orderers (mesma org), endorsement byzantine entre orgs
+- **Nuclear/aerospace** — não é blockchain, é safety crítica com hardware unreliable
+
+**Custo**: PBFT precisa **3f+1 nodes** pra tolerar f byzantine failures (vs 2f+1 do crash model). 7 nodes pra tolerar 2 maliciosos. Comunicação O(n²) por round → não escala além de ~20 nodes sem otimização (HotStuff reduz pra O(n) com pipelining).
+
+**Operational reality — onde acordam às 3am**.
+
+1. **Split-brain por network partition** — Raft não permite, mas implementação bugada permite. CVE-2020-15113 (etcd) deixou minoria aceitar writes em condição rara
+2. **Election storm em rede flaky** — sem prevote, partição intermitente faz term disparar pra milhares; logs gigantes, snapshot lento
+3. **Write amplification** — cada write = entry no log + state machine apply + snapshot eventual + WAL fsync. CockroachDB típico: 1 logical write → 5-10x physical IO
+4. **Learner pra read scale** — voter count fixo (custo de quorum), learners replicam log mas não votam. etcd, TiKV, CockroachDB suportam. Read-only replicas servem stale reads
+5. **Membership change** — joint consensus (Raft thesis §4.3) ou single-server change. Trocar 3 nodes simultâneos sem joint = perda de quorum garantida
+6. **Snapshot from non-quorum backup** — restore de backup de 1 node sem confirmar que era líder ou estava no quorum no momento do snapshot = corrupção silenciosa
+7. **Disk fsync mentira** — alguns SSDs (consumer-grade, RAID controllers com cache write-back sem battery) confirmam fsync sem persistir. Raft assume fsync durável. Crash → log perdido → safety violation
+
+**Stack Logística aplicada**.
+
+- **Config store / feature flags / leader election de schedulers** → etcd ou Consul (3 nodes single-region, multi-AZ). Não precisa cross-region; latência mata.
+- **OLTP distribuído (orders, ledger, audit)** → CockroachDB 24.x ou Postgres + logical replication (não-Raft mas OK pra escala atual). CockroachDB Raft per range = scale-out automático.
+- **Service discovery** → Consul cluster dedicado OU usar K8s service / DNS direto se já em K8s (etcd via API server abstraído).
+- **Worker leader election** (cron singleton, scheduler único) → K8s Lease object (etcd backend) com `coordination.k8s.io/v1`, ou Consul session com TTL. NÃO escrever lock primitivo do zero.
+- **Cross-region** → assumir async replication. Raft cross-region só se latência tolerável (~150ms p50 OK pra config, NÃO pra hot path).
+
+**10 anti-patterns**.
+
+1. **3-node Raft single-AZ** — perde tolerância real (AZ outage = cluster down). Mínimo viável: 3 nodes em 3 AZs.
+2. **Even number of voters** (2, 4, 6) — mesmo F tolerável que N-1, custo write maior. Sempre odd.
+3. **Tight election timeout em high-latency network** — 150ms timeout em link com RTT 50ms p99 → flapping constante. Ajustar pra 10x RTT p99.
+4. **Learner promovido sem catch-up complete** — vira voter sem ter log atualizado, próxima election pode eleger node com log curto = data loss. Sempre validar `match_index` antes de promover.
+5. **Restoring snapshot from non-quorum backup** — backup de 1 node aleatório sem confirmar quorum membership no instante. Use snapshot coordenado (etcdctl snapshot save no leader) ou todos os nodes simultaneamente.
+6. **Membership change concurrente sem joint consensus** — adicionar e remover node ao mesmo tempo sem joint config = janela de quorum inconsistente. Use API que implementa joint consensus (etcd member add/remove sequencial).
+7. **Misturar voters cross-region sem entender latência** — 5-node Raft com 2 us-east + 2 us-west + 1 eu-west = commit precisa cross-Atlantic. Latência mínima 70-150ms.
+8. **Disk fsync não-durável** — consumer SSD ou RAID write-back sem BBU. Raft assume durabilidade real. Use enterprise NVMe ou desabilitar write cache.
+9. **Single Raft group pra dataset gigante** — etcd suporta ~8GB DB efetivo; CockroachDB resolve com Raft per range. Usar etcd como general-purpose KV store em escala = fail.
+10. **Confiar em "eventual consistency" em cluster Raft** — Raft é linearizable no leader. Reads de follower (sem ReadIndex/lease) podem ser stale. Documente explicitamente quando aceita.
+
+**Cruza com**: **04-01 §2.11** (Raft/Paxos foundation no whiteboard, base teórica), **04-01 §2.5** (CAP — Raft é CP, perde availability em partição minoritária), **04-01 §2.10** (quorum math + sloppy quorum em Dynamo-style; Raft é strict quorum), **03-03** (Kubernetes usa etcd como control plane, K8s Lease pra leader election), **02-12** (MongoDB replica set election é Raft-like com priorities + arbiters), **04-08** (Consul como service mesh control plane, Raft pro registry), **03-09** (resilience patterns aplicados a coordinators — circuit breaker em client de etcd, retry com jitter), **04-04 §2.25** (failover patterns + leader election cost), **04-13** (transactional outbox em system com Raft backend pra durability).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

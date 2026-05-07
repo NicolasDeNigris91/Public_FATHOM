@@ -763,6 +763,202 @@ Cruza com **02-08** (backend frameworks 2026, Axum vs Fastify), **03-12** (Wasm,
 
 ---
 
+### 2.20 Systems languages 2026 — Rust 2024 edition, Go 1.23/1.24, Zig 0.14, Gleam BEAM, Mojo + matriz de decisão
+
+Landscape de systems languages 2024–2026 consolidou: **Rust** virou mainstream para safety-critical + perf-sensitive (30% dos devs em Rust survey 2024, AWS/Cloudflare/Discord em prod), **Go** mantém domínio do ecossistema Kubernetes + ferramentas internas (1.23 trouxe `range` over function iterators em Aug 2024, 1.24 em Q1 2025 melhora inferência genérica), **Zig 0.14** (Q4 2024) ganha tração em DB engines (TigerBeetle) e runtimes (Bun usa Zig + JSC) com incremental compilation, **Gleam 1.6+** (Q4 2024) ocupa nicho fault-tolerant typed sobre BEAM, **Mojo 24.x** (Q4 2024, open-source stdlib) emerge para AI workloads como Python superset, **Bun 1.2** (Q1 2026, 95%+ Node compat) e **Deno 2.0** (Oct 2024, full npm compat) competem como JS runtimes alternativos. Decisão por linguagem em 2026 não é gosto — é matriz de constraints (perf, safety, ecosystem, time-to-market, team skill).
+
+**Rust 2024 edition (rust 1.85, Q4 2024)** simplificou pontos antigos. `let-else` estabilizou (early-exit pattern matching). Result/Option em `main()` direto. Lifetime captures em `impl Trait` virou explícita (`use<>`). Async closures estabilizaram em 1.85+ (essencial para handlers axum/tower). Tokio 1.40 (Q4 2024) trouxe melhorias em `JoinSet` (cancelamento granular, `spawn_blocking` integrado). **axum 0.8** (Q4 2024) refinou typed routing — extractors compõem com type-safety stricter, middleware via Tower. Ecosystem maduro: `sqlx` (compile-time checked SQL), `sea-orm` (async ORM), `diesel 2` (sync, type-safe). Para core service de courier matching (algoritmo perf-critical), Rust + axum 0.8 é escolha defensável:
+
+```rust
+// Rust 2024 edition — async closure + axum 0.8 typed routing
+use axum::{Router, routing::post, Json, extract::State};
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use tokio::task::JoinSet;
+
+#[derive(Deserialize)]
+struct MatchRequest { order_id: String, lat: f64, lng: f64 }
+
+#[derive(Serialize)]
+struct MatchResponse { courier_id: String, eta_seconds: u32 }
+
+#[derive(Clone)]
+struct AppState { db: Arc<sqlx::PgPool> }
+
+async fn match_courier(
+    State(state): State<AppState>,
+    Json(req): Json<MatchRequest>,
+) -> Result<Json<MatchResponse>, (axum::http::StatusCode, String)> {
+    let mut set = JoinSet::new();
+    // async closure (Rust 2024) — captures state per task
+    for shard in 0..4 {
+        let db = state.db.clone();
+        set.spawn(async move {
+            sqlx::query_as::<_, (String, f64)>(
+                "SELECT courier_id, distance FROM couriers_shard_$1 WHERE active ORDER BY distance LIMIT 1"
+            )
+            .bind(shard)
+            .fetch_optional(&*db)
+            .await
+        });
+    }
+    let mut best: Option<(String, f64)> = None;
+    while let Some(r) = set.join_next().await {
+        if let Ok(Ok(Some((id, d)))) = r {
+            if best.as_ref().map_or(true, |b| d < b.1) { best = Some((id, d)); }
+        }
+    }
+    let (courier_id, distance) = best.ok_or((axum::http::StatusCode::NOT_FOUND, "no courier".into()))?;
+    Ok(Json(MatchResponse { courier_id, eta_seconds: (distance * 60.0) as u32 }))
+}
+
+pub fn router(state: AppState) -> Router {
+    Router::new().route("/match", post(match_courier)).with_state(state)
+}
+```
+
+**Go 1.23 (Aug 2024)** mudou o jogo de iteração com `range` over function iterators — primeira extensão sintática significativa em anos. `slog` (structured logging) GA na stdlib elimina dependência de `zerolog`/`zap` para 90% dos casos. Profile-guided optimization (PGO) estável dá 5–15% de perf grátis em hot services (collect profile em prod, recompila com `-pgo`). Go 1.24 (Q1 2025) refinou inferência de tipos genéricos — menos `[T any]` redundante:
+
+```go
+// Go 1.23/1.24 — range over func + slog structured logging + PGO-friendly
+package matcher
+
+import (
+	"context"
+	"iter"
+	"log/slog"
+	"time"
+)
+
+type Courier struct{ ID string; Distance float64 }
+
+// range over func iterator — Go 1.23
+func ActiveCouriers(ctx context.Context, shards []Shard) iter.Seq[Courier] {
+	return func(yield func(Courier) bool) {
+		for _, s := range shards {
+			for c := range s.Iter(ctx) {
+				if !yield(c) { return } // caller pode interromper
+			}
+		}
+	}
+}
+
+func Match(ctx context.Context, shards []Shard, lat, lng float64) (Courier, error) {
+	start := time.Now()
+	defer func() {
+		slog.InfoContext(ctx, "match.done",
+			slog.Duration("dur", time.Since(start)),
+			slog.Float64("lat", lat))
+	}()
+	var best Courier
+	best.Distance = 1e9
+	for c := range ActiveCouriers(ctx, shards) { // Go 1.23 range-over-func
+		if c.Distance < best.Distance { best = c }
+	}
+	return best, nil
+}
+```
+
+Build com PGO: `go build -pgo=cpu.pprof ./...` — coleta profile via `pprof` em prod, recompila, ganha 5–15% sem mudar código.
+
+**Zig 0.14 (Q4 2024)** trouxe incremental compilation (builds 5–10x mais rápidos em projetos médios). Design ainda intacto: `comptime` (metaprogramação no tempo de compilação), `errdefer` (cleanup em erro), allocator-as-parameter (nada alloca implicitamente). TigerBeetle (DB financeiro), Bun runtime (JSC bindings + HTTP server) e ZSV (CSV parser) usam Zig em produção. Não substitui Rust para greenfield safety-critical, mas brilha em DB/kernel/embedded onde controle de allocator é essencial:
+
+```zig
+// Zig 0.14 — comptime + errdefer + allocator parameter
+const std = @import("std");
+
+pub fn parseRoute(allocator: std.mem.Allocator, raw: []const u8) ![]Point {
+    var list = std.ArrayList(Point).init(allocator);
+    errdefer list.deinit(); // cleanup automatico em erro
+    var iter = std.mem.tokenizeScalar(u8, raw, ';');
+    while (iter.next()) |tok| {
+        const p = try Point.parse(tok);
+        try list.append(p);
+    }
+    return list.toOwnedSlice();
+}
+
+// comptime — gera tabela de hash em compile time
+const Method = enum(u8) { GET, POST, PUT, DELETE };
+fn methodFromStr(comptime s: []const u8) Method {
+    return comptime if (std.mem.eql(u8, s, "GET")) .GET
+        else if (std.mem.eql(u8, s, "POST")) .POST
+        else @compileError("unknown method: " ++ s);
+}
+```
+
+**Gleam 1.6+ (Q4 2024, BEAM target stable)** é o nicho amado: tipos Hindley-Milner sobre BEAM (Erlang VM), interop nativa com Erlang/Elixir, fault-tolerance OTP grátis. Não compete com Rust/Go — compete com Elixir quando time quer types stricter sem largar BEAM. Comunidade pequena mas devotada (Lustre para frontend SSR, Wisp para HTTP):
+
+```gleam
+// Gleam — type-safe BEAM module + Erlang interop
+import gleam/erlang/process
+import gleam/otp/actor
+import gleam/result
+
+pub type CourierMsg { Match(lat: Float, lng: Float, reply: process.Subject(Result(String, Nil))) }
+
+pub fn start_courier_actor() -> Result(process.Subject(CourierMsg), actor.StartError) {
+  actor.start(initial_state(), handle_message)
+}
+
+fn handle_message(msg: CourierMsg, state: State) -> actor.Next(CourierMsg, State) {
+  case msg {
+    Match(lat, lng, reply) -> {
+      let courier = find_nearest(state, lat, lng) |> result.map(fn(c) { c.id })
+      process.send(reply, courier)
+      actor.continue(state)
+    }
+  }
+}
+```
+
+**Mojo 24.x (Q4 2024, Modular Inc, stdlib open-source)** é Python superset com SIMD/MLIR — Python que compila para nativo via MAX engine. Caso de uso: AI workloads (matrix multiplication, tensor ops) onde NumPy/PyTorch não bastam mas C++/CUDA é overkill. Não é systems language genérico — é AI-specific. Lock-in à Modular ainda é risco real:
+
+```python
+# Mojo 24.x conceptual snippet (Python superset com SIMD via MLIR)
+# Sintaxe completa usa parametric brackets fn name<type: DType>(args)
+# stdlib: tensor + algorithm.vectorize + sys.info.simdwidthof
+#
+# Pattern típico matmul vetorizado:
+# 1. alias nelts = simdwidthof do DType * 2  -> largura SIMD em compile-time
+# 2. loop tiled m/n -> outer iteration sobre output dims
+# 3. inner closure dot percorre k com vectorize<dot, nelts> em A.dim(1)
+# 4. cada load gera N float32 lanes via AVX/NEON automaticamente
+# 5. reduce_add agrega fora do hot loop interno
+#
+# MAX engine compila MLIR -> nativo CPU/GPU; sem GIL runtime.
+# Lock-in: stdlib evolui rápido, breaking changes pre-1.0.
+```
+
+**Bun 1.2 (Q1 2026)** = runtime JS escrito em Zig + JavaScriptCore, fastest cold start e HTTP throughput entre JS runtimes (~3x Node em benchmarks típicos). Compat Node 95%+, mas ainda há surpresas em native modules (sharp, bcrypt). **Deno 2.0 (Oct 2024)** trouxe full npm compat e workspaces — security-first (permissões explícitas) com pragmatismo. Bun para hot path edge functions; Deno para projetos onde supply-chain security pesa.
+
+**Stack Logística aplicada (decisão concreta)**: core de matching/pricing/route-optimization (perf-critical, safety-critical) → **Rust + axum 0.8 + sqlx + Tokio 1.40**; Kubernetes controllers + admin tools + sidecars (ecosystem-driven) → **Go 1.24 + slog + PGO**; edge functions (auth, rate limit, A/B routing) → **Bun 1.2 + Hono**; ML models para route optimization (tensor-heavy) → **Mojo + MAX engine** (experimental, fallback PyTorch); fault-tolerant orchestration de webhooks (precisa supervisão OTP) → considera **Gleam** se time topa BEAM, senão **Elixir + Phoenix**; nada em Zig em prod ainda — avalia para próxima geração de DB-of-record interno.
+
+**Decision matrix 2026**:
+- **Rust** → safety-critical, perf-sensitive, long-lived services (anos de manutenção). Custo: curva + compile times.
+- **Go** → K8s ecosystem, CLIs, simple concurrency, time-to-market médio. Custo: generics ainda menos ergonômicos que Rust/TS.
+- **Zig** → DBs, kernel, embedded, runtimes. Custo: 0.x (breaking changes), comunidade pequena.
+- **Gleam** → fault-tolerant typed apps na BEAM, interop com Erlang/Elixir legado. Custo: hiring quase impossível.
+- **Mojo** → AI workloads Python-adjacent. Custo: lock-in Modular, immature.
+- **Bun** → JS runtime fastest, edge functions, dev tools. Custo: native module surprises.
+- **Deno 2** → JS security-first, scripts, full npm compat. Custo: ecosystem menor que Node.
+
+**10 anti-patterns**:
+1. **Rust 2021 em greenfield 2026** — use 2024 edition (let-else, async closures, Result em main).
+2. **Go sem PGO em hot service** — deixa 5–15% de perf na mesa de graça.
+3. **Zig pinned em master/0.x não-release** — breaking changes weekly; pin em release tagged (0.13/0.14).
+4. **Gleam para CRUD stateless** — overkill, BEAM brilha em supervision; use TS/Go para CRUD.
+5. **Mojo para non-AI workload** — immature, lock-in Modular, sem ROI fora de tensor ops.
+6. **Bun em prod sem testar native modules** — sharp/bcrypt/canvas têm compat surprises.
+7. **Deno 2 assumindo 100% Node compat** — 95% real, edge cases em `process`, `Buffer`, native addons.
+8. **axum 0.7 em greenfield 2026** — use 0.8 (typed routing maduro, breaking changes pagos).
+9. **Tokio `current_thread` runtime em multi-core prod** — single-threaded por engano; use `multi_thread` (default `#[tokio::main]`).
+10. **Escolher linguagem por hype** — matriz de decisão por constraints (team, ecosystem, perf, safety), não por survey ranking.
+
+Cruza com **03-11 §2.5–§2.17** (intros individuais Rust/Go/Zig), **§2.18** (Go concurrency patterns deep), **§2.19** (Rust async runtimes + Zig systems alt), **02-07 §2.17/§2.20** (Node 24 + Bun + Deno comparison), **02-08** (axum/fiber/echo backend frameworks), **03-12** (WebAssembly — Rust/Zig main sources), **03-10 §2.21** (Linux perf — Rust + io_uring), **04-10 §2.23** (MCP servers em TS/Python/Go).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

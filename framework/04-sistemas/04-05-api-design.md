@@ -758,6 +758,244 @@ Cruza com: §2.7 (REST levels); §2.20 (GraphQL Federation); §2.24 (versioning 
 
 ---
 
+### 2.27 API spec 2026 — OpenAPI 3.2, tRPC v11, Connect-RPC, contract testing, codegen pipelines
+
+Spec-first venceu o ciclo 2024-2026. Times que tratam OpenAPI/Proto como fonte de verdade — não como documentation gerada *depois* do código — colhem SDKs typed, contract tests, mocks de dev, e linting CI quase de graça. Tooling ecosystem amadureceu: OpenAPI 3.2 alinhou com JSON Schema 2020-12, tRPC v11 estabilizou, Connect-RPC virou opção real pra browser + serviços, Pact 5 unificou em rust core, schemathesis 4 trouxe property-based fuzzing, MSW 2 padronizou mocking. Codegen pipelines (openapi-typescript 7 com oxc parser ~10x mais rápido que v6, Stainless e Fern gerando SDKs production-grade) são moat competitivo: provider que entrega SDK typed em 6 linguagens fecha venda; provider que entrega só Postman collection perde.
+
+**OpenAPI 3.2 (release Q3 2025)** — adições principais: `webhooks` paths (callbacks formalizados como cidadãos primários, não anexo de operação), `prefixItems` pra tuples (JSON Schema 2020-12 alignment), reform de `examples` (uma forma única, deprecou `example` singular em vários contextos), parameter style improvements, e `discriminator` mais preciso pra `oneOf`/`anyOf` polimórfico. JSON Schema 2020-12 traz `$dynamicRef`, `unevaluatedProperties`, `dependentSchemas` — vocabulary explícito.
+
+```yaml
+# openapi.yaml — OpenAPI 3.2 com webhooks, discriminator, prefixItems
+openapi: 3.2.0
+info:
+  title: Logistica Orders API
+  version: 2026-05-01
+servers:
+  - url: https://api.logistica.dev/v2026-05-01
+paths:
+  /orders:
+    post:
+      operationId: createOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateOrderRequest' }
+      responses:
+        '201':
+          description: Order criada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+webhooks:
+  orderStatusChanged:
+    post:
+      operationId: orderStatusChanged
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrderEvent' }
+      responses:
+        '2XX': { description: Webhook entregue }
+components:
+  schemas:
+    OrderEvent:
+      oneOf:
+        - $ref: '#/components/schemas/OrderCreated'
+        - $ref: '#/components/schemas/OrderShipped'
+        - $ref: '#/components/schemas/OrderCancelled'
+      discriminator:
+        propertyName: type
+        mapping:
+          order.created: '#/components/schemas/OrderCreated'
+          order.shipped: '#/components/schemas/OrderShipped'
+          order.cancelled: '#/components/schemas/OrderCancelled'
+    Coordinates:
+      type: array
+      prefixItems:
+        - { type: number, description: longitude }
+        - { type: number, description: latitude }
+      minItems: 2
+      maxItems: 2
+```
+
+**Spectral linting + breaking-change detection no CI**:
+
+```yaml
+# .spectral.yaml
+extends: ['spectral:oas', 'spectral:asyncapi']
+rules:
+  operation-operationId-unique: error
+  operation-success-response: error
+  no-$ref-siblings: error
+  contract-no-breaking-removal:
+    description: Endpoints removidos = breaking
+    given: $.paths
+    severity: error
+    then: { function: schema, functionOptions: { schema: { ... } } }
+# CI: spectral lint openapi.yaml && oasdiff breaking prev.yaml openapi.yaml
+```
+
+**tRPC v11 stable (Q4 2024, TypeScript v5+ obrigatório)** — server-side caller, batching nativo via `httpBatchLink`, FormData/file uploads de primeira classe, `inferRouterOutputs`/`inferRouterInputs` cobrem todo router. Não cross-language — só monorepo TS.
+
+```ts
+// server/router.ts
+import { initTRPC, TRPCError } from '@trpc/server';
+import { z } from 'zod';
+
+const t = initTRPC.context<Ctx>().create();
+const authed = t.middleware(({ ctx, next }) => {
+  if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED' });
+  return next({ ctx: { ...ctx, user: ctx.user } });
+});
+
+export const orderRouter = t.router({
+  create: t.procedure
+    .use(authed)
+    .input(z.object({ items: z.array(z.string()).min(1), addressId: z.string().uuid() }))
+    .output(z.object({ id: z.string(), status: z.enum(['pending', 'paid']) }))
+    .mutation(async ({ input, ctx }) => orderService.create(ctx.user.id, input)),
+  byId: t.procedure
+    .input(z.string().uuid())
+    .query(({ input }) => orderService.findById(input)),
+});
+
+export type AppRouter = typeof orderRouter;
+```
+
+```ts
+// client.ts — batching + types end-to-end
+import { createTRPCClient, httpBatchLink } from '@trpc/client';
+import type { AppRouter } from '../server/router';
+
+export const trpc = createTRPCClient<AppRouter>({
+  links: [httpBatchLink({ url: '/trpc', maxURLLength: 2083 })],
+});
+const order = await trpc.create.mutate({ items: ['sku-1'], addressId: '...' });
+// order.status: 'pending' | 'paid' — inferido, sem codegen
+```
+
+**Connect-RPC 2026 (stable desde 2024)** — protocolo gRPC-compatível que serializa Proto binário OU JSON sobre HTTP/1.1 e HTTP/2; browser-native via Connect-Web (sem proxy gRPC-Web), curl-friendly (JSON path). Server streaming OK; bidi limitado a HTTP/2. ConnectError com code enum compatível gRPC.
+
+```proto
+// orders.proto
+syntax = "proto3";
+package logistica.v1;
+service OrderService {
+  rpc CreateOrder(CreateOrderRequest) returns (Order);
+  rpc StreamOrderEvents(StreamOrderEventsRequest) returns (stream OrderEvent);
+}
+```
+
+```ts
+// Connect handler (Node) + client (browser) — mesmo protocolo
+import { ConnectRouter, ConnectError, Code } from '@connectrpc/connect';
+import { OrderService } from './gen/orders_connect';
+
+export default (router: ConnectRouter) => router.service(OrderService, {
+  async createOrder(req, ctx) {
+    if (!ctx.requestHeader.get('authorization'))
+      throw new ConnectError('missing auth', Code.Unauthenticated);
+    return await orderService.create(req);
+  },
+  async *streamOrderEvents(req) { for await (const ev of bus.subscribe(req.orderId)) yield ev; },
+});
+```
+
+**Contract testing stack**:
+- **Pact (consumer-driven)** — consumer escreve test gerando pact file com expected interactions; provider replay verifica. Pact Broker armazena versões + `can-i-deploy`. Pact 5 (rust core unificado) consolidou JS/Java/Go/.NET/Python sobre mesmo motor. Use entre serviços que deploy independente; *não* use em monorepo onde tudo deploy junto (overhead sem benefício; TS types resolvem).
+- **schemathesis 4.x** — property-based fuzzing direto do OpenAPI: gera milhares de inputs válidos por schema, encontra 5xx, response shape mismatch, status codes não documentados. Plugar em CI contra staging.
+- **Postman + Newman** — smoke tests pós-deploy (happy path), não substitui contract.
+
+```ts
+// orders-consumer.pact.test.ts (Pact JS v13)
+import { PactV4, MatchersV3 } from '@pact-foundation/pact';
+const { like, regex, eachLike } = MatchersV3;
+
+const provider = new PactV4({ consumer: 'web', provider: 'orders-svc' });
+
+test('GET /orders/:id retorna order paid', async () => {
+  await provider
+    .addInteraction()
+    .given('order 42 exists com status paid')
+    .uponReceiving('get order 42')
+    .withRequest('GET', '/orders/42', b => b.headers({ Accept: 'application/json' }))
+    .willRespondWith(200, b => b.jsonBody({
+      id: regex(/^\d+$/, '42'),
+      status: regex(/^(pending|paid|shipped)$/, 'paid'),
+      items: eachLike({ sku: like('sku-1'), qty: like(1) }),
+    }))
+    .executeTest(async (mock) => {
+      const res = await fetch(`${mock.url}/orders/42`, { headers: { Accept: 'application/json' } });
+      expect(res.status).toBe(200);
+    });
+});
+```
+
+```bash
+# Provider verification + can-i-deploy gate
+pact-provider-verifier --provider-base-url=http://staging.orders \
+  --pact-broker-url=$BROKER --provider=orders-svc --publish-verification-results
+pact-broker can-i-deploy --pacticipant orders-svc --version $GIT_SHA --to-environment production
+# schemathesis fuzz
+schemathesis run https://staging.api.logistica.dev/openapi.json --checks all --hypothesis-max-examples 500
+```
+
+**Mocking pipelines**:
+- **Prism (Stoplight)** — `prism mock openapi.yaml` sobe servidor HTTP que responde conforme schema + examples; usado em dev + tests E2E antes do backend existir.
+- **MSW 2.x** — Service Worker no browser + interceptor Node (vitest/jest); handlers podem ser gerados do OpenAPI via `@mswjs/source` ou `openapi-msw`. Manter handler manual quando spec existe = manutenção dupla.
+
+```ts
+// mocks/handlers.ts — gerado de OpenAPI via openapi-msw
+import { http, HttpResponse } from 'msw';
+import { createOpenApiHttp } from 'openapi-msw';
+import type { paths } from './gen/api';
+
+const api = createOpenApiHttp<paths>({ baseUrl: 'https://api.logistica.dev/v2026-05-01' });
+export const handlers = [
+  api.post('/orders', ({ response }) =>
+    response(201).json({ id: 'ord_mock', status: 'pending', items: [] })),
+  api.get('/orders/{id}', ({ params, response }) =>
+    response(200).json({ id: params.id, status: 'paid', items: [] })),
+];
+```
+
+**SDK generation** — três tiers:
+1. **openapi-typescript 7 (oxc parser, ~10x faster que v6) + openapi-fetch** — gera `paths`/`components` types; runtime fetch wrapper minúsculo (~2kb). Bom pra interno.
+2. **Hey API (`@hey-api/openapi-ts`)** — fork comunitário do openapi-typescript-codegen, gera client + types + zod schemas; ativo, plugável.
+3. **Stainless / Fern** — production-grade SDKs (retry com backoff, auth, pagination iterators, streaming, idiomatic naming por linguagem). Usados por OpenAI, Anthropic, Resend. Fern com geração TS/Python/Go/Java/Ruby/C# do mesmo OAS. Stainless idem + ergonomia.
+
+```ts
+// openapi-typescript 7 + openapi-fetch
+// $ npx openapi-typescript ./openapi.yaml -o ./src/gen/api.d.ts
+import createClient from 'openapi-fetch';
+import type { paths } from './gen/api';
+
+const client = createClient<paths>({ baseUrl: 'https://api.logistica.dev/v2026-05-01' });
+const { data, error } = await client.POST('/orders', {
+  body: { items: ['sku-1'], addressId: 'addr_42' },
+});
+// data: { id: string; status: 'pending' | 'paid' } | undefined — typed do OAS
+```
+
+**Stack Logística aplicada**: orders REST API mantida spec-first em `openapi.yaml` (OpenAPI 3.2 + JSON Schema 2020-12). CI roda `spectral lint` (style + breaking rules) e `oasdiff breaking` contra branch main — bloqueia PR com remoção de endpoint não-deprecated. Gera `paths.d.ts` via openapi-typescript 7 publicado como `@logistica/orders-sdk` (versionado por release date 2026-05-01). Fern gera SDKs públicos TS/Python/Go pra parceiros logísticos. Pact entre `web → orders-svc` e `orders-svc → couriers-svc`; broker gate `can-i-deploy` antes de prod. schemathesis fuzz contra staging em cron noturno. MSW handlers gerados do OAS pra Storybook + tests E2E — backend desenvolve em paralelo. Webhooks (`order.created`/`shipped`/`cancelled`) declarados em `webhooks:` paths, signature HMAC documentada em `securitySchemes`.
+
+**10 anti-patterns**:
+1. **OpenAPI mantida como "documentation" depois do código** — drift garantido em 3 sprints; spec-first ou nada.
+2. **Contract test só do consumer side** — Pact sem provider verification + `can-i-deploy` é confiança falsa; provider quebra silencioso.
+3. **Pact em monorepo onde tudo deploy junto** — overhead (broker, versionamento) sem benefício; TS types diretos resolvem.
+4. **MSW handlers manuais quando OpenAPI existe** — manutenção dupla, drift entre mock e contrato real; gerar do OAS.
+5. **Spectral só local sem CI gate** — regressões merged; rule sem enforcement = sugestão, não regra.
+6. **SDK manual quando spec existe** — desperdício; openapi-typescript/Hey API/Fern resolvem em 1 comando.
+7. **tRPC cross-language ou cross-org** — não suporta; use Connect-RPC ou gRPC.
+8. **Connect-RPC com bidi streaming sobre HTTP/1.1** — só HTTP/2; tooling falha silencioso em proxies antigos.
+9. **schemathesis sem `--checks all`** — pula response_schema_conformance; encontra 5xx mas perde shape mismatches.
+10. **Webhook documentado em prosa, não em `webhooks:` paths do OAS 3.2** — consumer não pode gerar SDK pra receber; perde validação de payload.
+
+**Cruza com**: §2.10 (OpenAPI intro foundation), §2.13 (tRPC/Connect intro), §2.7-§2.8 (versioning + deprecation), §2.18 (consumer experience + DX), §2.24 (Stripe versioning como referência de spec-first), [03-04 CI/CD](../03-producao/03-04-cicd.md) (Spectral + oasdiff + can-i-deploy como gates), [03-01 testing](../03-producao/03-01-testing.md) (contract testing como categoria de teste entre unit e E2E), [04-08 §2.11](./04-08-services-monolith-serverless.md) (service mesh consume contracts pra routing/policy).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

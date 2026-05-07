@@ -162,6 +162,16 @@ async function* walkMd(dir) {
   }
 }
 
+// Strip fenced code blocks (``` and ~~~) and inline code spans before scanning
+// for markdown links. Bracket-paren patterns inside code (e.g. Mojo
+// `vectorize[dot, nelts](A.dim(1))`, Rust generics, parametric DSLs) are NOT
+// links and must not trigger broken-link warnings.
+function stripCode(raw) {
+  let out = raw.replace(/^([ \t]*)(```|~~~)[\s\S]*?\n\1\2[ \t]*$/gm, '');
+  out = out.replace(/`[^`\n]*`/g, '');
+  return out;
+}
+
 async function checkInternalLinks() {
   const linkRe = /\[([^\]]+)\]\(([^)]+)\)/g;
   for await (const filePath of walkMd(REPO_ROOT)) {
@@ -174,8 +184,9 @@ async function checkInternalLinks() {
       continue;
     }
     const raw = await fs.readFile(filePath, 'utf8');
+    const scan = stripCode(raw);
     let m;
-    while ((m = linkRe.exec(raw)) !== null) {
+    while ((m = linkRe.exec(scan)) !== null) {
       const target = m[2].split('#')[0];
       if (!target) continue;
       if (/^(https?:|mailto:|tel:|\/)/.test(target)) continue;

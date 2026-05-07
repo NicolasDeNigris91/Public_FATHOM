@@ -597,6 +597,335 @@ Schedule (cron via Airflow/Dagster): compaction nightly; expiration weekly; orph
 
 **Cruza com:** [`02-09`](../02-plataforma/02-09-postgres-deep.md) (Postgres, source para CDC); [`02-12`](../02-plataforma/02-12-mongodb.md) (Mongo, alternative source); [`03-13`](../03-producao/03-13-time-series-analytical-dbs.md) (analytical DBs, query layer); [`04-02`](./04-02-messaging.md) (messaging, Kafka pra CDC); [`04-09`](./04-09-scaling.md) (scaling, lakehouse storage cost economics); [`03-05`](../03-producao/03-05-aws-core.md) (AWS, S3 Tables managed).
 
+### 2.19 Apache Flink stateful streaming deep — watermarks, savepoints, CEP, exactly-once
+
+**Status 2026.** Flink 1.20 (LTS, lançado 08/2024) consolidou-se como runtime padrão pra low-latency stateful streaming + CEP em workloads onde Kafka Streams não escala (cross-key state, complex joins) e Spark Structured Streaming sofre com micro-batch latency. Flink Kubernetes Operator 1.10+ entrega lifecycle declarativo (CRDs `FlinkDeployment`, `FlinkSessionJob`); savepoints automáticos antes de upgrade. Stack maduro: Flink 1.20 + Kafka 3.7+ + RocksDB state backend + S3 checkpoint storage.
+
+**Flink vs Kafka Streams vs Spark Structured Streaming.**
+
+| Dimensão | Flink 1.20 | Kafka Streams 3.7 | Spark Struct. Streaming 3.5 |
+|---|---|---|---|
+| **Modelo** | Dedicated streaming runtime | Library embedded em app JVM | Micro-batch sobre Spark engine |
+| **Latency** | Sub-100ms (sub-ms tunável) | 50-500ms | 100ms-2s (continuous mode experimental) |
+| **State** | ValueState/ListState/MapState; RocksDB; petabyte-scale | RocksDB local; bounded by app heap | Stateful ops via state store (HDFSBackedStateStore/RocksDB) |
+| **CEP** | Native CEP library | Manual (no library) | Manual |
+| **Languages** | Java/Scala/Python (PyFlink) | Java/Scala only | Polyglot (Scala/Java/Python/R/SQL) |
+| **Sources/sinks** | Kafka, Kinesis, Pulsar, JDBC, Iceberg, S3 | Kafka-only | Kafka, Kinesis, files, JDBC, Delta/Iceberg |
+| **Decision** | Low-latency + complex state + CEP | Kafka-only + simplicity (cobre [`04-02`](./04-02-messaging.md) §2.19) | Batch+stream unified + ML pipelines |
+
+**Flink core concepts 2026.** **DataStream API**: typed stream operators (Java/Scala/Python). **Table API + SQL**: declarative; planner converts em DataStream. **State**: ValueState (single value per key), ListState (append-only list), MapState (keyed map); todos keyed; backed by RocksDB. **Watermarks**: track event-time progress; trigger window closures. **Checkpoints**: periodic state snapshots to S3/HDFS; recovery on failure (interval típico 30-60s). **Savepoints**: manual checkpoints pra upgrades; preservam state across job versions.
+
+**Watermark fundamentals.** Event time = quando evento ocorreu (no device/source); processing time = quando sistema vê. Watermark `W(t)` = assertion "todos eventos com event_time < t já foram observados". Late events = chegam após watermark passar; dropped ou roteados pra side output. Allowed lateness: window permanece aberto após watermark por grace period. Logística: courier ping `event_time` from device; watermark = max(event_time) - 30s; tolera 30s de GPS lag em túneis/áreas sem cobertura.
+
+**Watermark generation:**
+
+```java
+DataStream<TrackingPing> pings = env.fromSource(
+  KafkaSource.<TrackingPing>builder()
+    .setBootstrapServers("kafka:9092")
+    .setTopics("tracking.pings")
+    .setGroupId("flink-tracking")
+    .setStartingOffsets(OffsetsInitializer.committedOffsets())
+    .setDeserializer(KafkaRecordDeserializationSchema.valueOnly(TrackingPingDeserializer.class))
+    .build(),
+  WatermarkStrategy.<TrackingPing>forBoundedOutOfOrderness(Duration.ofSeconds(30))
+    .withTimestampAssigner((ping, ts) -> ping.eventTimeMillis())
+    .withIdleness(Duration.ofMinutes(1)),
+  "Tracking Pings"
+);
+```
+
+`forBoundedOutOfOrderness`: most common; tolera late events até N segundos. `forMonotonousTimestamps`: assume strict ordering; faster mas error-prone em streams reais. `withIdleness`: marca partition idle quando sem dados, evita stalled watermark global.
+
+**Stateful operator com keyed state + event-time timer:**
+
+```java
+public class CourierIdleDetector extends KeyedProcessFunction<String, TrackingPing, IdleAlert> {
+  private transient ValueState<Long> lastPingTime;
+
+  @Override
+  public void open(Configuration parameters) {
+    lastPingTime = getRuntimeContext().getState(
+      new ValueStateDescriptor<>("lastPingTime", Long.class)
+    );
+  }
+
+  @Override
+  public void processElement(TrackingPing ping, Context ctx, Collector<IdleAlert> out) throws Exception {
+    lastPingTime.update(ping.eventTimeMillis());
+    ctx.timerService().registerEventTimeTimer(ping.eventTimeMillis() + 10 * 60 * 1000L);
+  }
+
+  @Override
+  public void onTimer(long timestamp, OnTimerContext ctx, Collector<IdleAlert> out) throws Exception {
+    Long last = lastPingTime.value();
+    if (last != null && timestamp - last >= 10 * 60 * 1000L) {
+      out.collect(new IdleAlert(ctx.getCurrentKey(), timestamp));
+    }
+  }
+}
+
+pings
+  .keyBy(p -> p.courierId)
+  .process(new CourierIdleDetector()).uid("courier-idle-detector")
+  .sinkTo(alertsSink);
+```
+
+**CEP (Complex Event Processing).** Use case: detectar sequências (fraud, multi-step user journey, anomalies). Logística — fraud detection: 3 cancellations dentro de 5min:
+
+```java
+Pattern<OrderEvent, ?> fraudPattern = Pattern.<OrderEvent>begin("first")
+  .where(SimpleCondition.of(e -> e.type.equals("OrderCancelled")))
+  .followedBy("second")
+  .where(SimpleCondition.of(e -> e.type.equals("OrderCancelled")))
+  .followedBy("third")
+  .where(SimpleCondition.of(e -> e.type.equals("OrderCancelled")))
+  .within(Time.minutes(5));
+
+PatternStream<OrderEvent> patternStream = CEP.pattern(
+  events.keyBy(e -> e.tenantId),
+  fraudPattern
+);
+
+DataStream<FraudAlert> alerts = patternStream.select(matches -> {
+  OrderEvent first = matches.get("first").get(0);
+  return new FraudAlert(first.tenantId, first.eventTime, "3 cancellations em 5 min");
+});
+```
+
+`keyBy` antes de `CEP.pattern` é mandatório; sem isso, matches cruzam tenants (alerts sem sentido).
+
+**Exactly-once (Flink + Kafka via 2PC).** Two-phase commit: Flink JobManager coordena com Kafka producer transacional. Pre-commit: producer escreve batch mas não commita. Commit: após checkpoint barrier completar, Flink chama producer commit. Recovery: from last checkpoint; uncommitted batch é replayed. Config crítico: `transaction.timeout.ms` no producer < `transaction.max.timeout.ms` no broker (default 15min); checkpoint interval < transaction timeout. Sink config:
+
+```java
+KafkaSink<AlertEvent> sink = KafkaSink.<AlertEvent>builder()
+  .setBootstrapServers("kafka:9092")
+  .setRecordSerializer(...)
+  .setDeliveryGuarantee(DeliveryGuarantee.EXACTLY_ONCE)
+  .setTransactionalIdPrefix("flink-alerts-")
+  .setProperty("transaction.timeout.ms", "600000")
+  .build();
+```
+
+**Savepoints — upgrade preservando state:**
+
+```bash
+# Trigger savepoint (job continua rodando)
+flink savepoint <jobId> s3://logistica-savepoints/sp-2026-05-06
+
+# Cancel job
+flink cancel <jobId>
+
+# Deploy nova versão, restore from savepoint
+flink run -s s3://logistica-savepoints/sp-2026-05-06 \
+  -c com.logistica.flink.OrdersJob \
+  orders-job-v2.jar
+```
+
+**Operator UID** é mandatório pra state migration: `myOperator.uid("courier-idle-detector")`. Sem UID, Flink gera hash from operator chain; qualquer mudança no DAG quebra restore. Schema evolution: ValueState com Avro/JSON Schema-typed state sobrevive schema add (defaults aplicados); rename/drop requer custom migration.
+
+**Logística applied stack.** Sources: Kafka topics (`orders.events`, `tracking.pings`, `payments.events`). Flink jobs: `CourierIdleDetector` (alert se courier offline > 10min); `FraudPatternDetector` (CEP 3-cancellation pattern); `OrderJoinEnrichment` (stream-stream join order + courier profile, windowed 1h); `RealtimeMetrics` (windowed counts → ClickHouse sink). State backend: RocksDB; checkpoints to S3 a cada 60s; savepoints nightly + antes de cada deploy. Cluster: 3-node TaskManager (4 vCPU, 16GB cada) ~$300/mês em K8s; Flink Kubernetes Operator 1.10+ gerencia lifecycle (HA via K8s ConfigMap, sem ZooKeeper).
+
+**Anti-patterns observados:**
+- Watermark `forMonotonousTimestamps` em real-world stream (bursts causam infinite waits; use `forBoundedOutOfOrderness`).
+- ValueState sem `.update(null)` cleanup quando key terminal (state cresce unbounded; use TTL ou explicit clear).
+- Savepoint sem operator UID em new operators (state migration falha em upgrade; sempre `.uid("nome-estavel")`).
+- Checkpoint interval < 30s em high-throughput job (overhead dominates; tune por throughput, não por intuição).
+- CEP `within` sem `keyBy` (matches cruzam keys; alerts nonsense).
+- Stream-stream join sem windowed join (unbounded state; OOM em horas).
+- Flink JobManager single instance em prod (SPOF; HA mode com K8s ConfigMap ou ZooKeeper).
+- `forBoundedOutOfOrderness(Duration.ofMinutes(5))` arbitrário (mede actual lateness P99 antes; tune accordingly).
+- Allowed lateness + watermark grace combinados em downstream com aggregation (double counting).
+- Operator parallelism > Kafka partitions (slots idle; rebalance até match).
+
+**Cruza com:** [`04-02`](./04-02-messaging.md) §2.19 (Kafka Streams alternative); §2.18 acima (lakehouse Iceberg sink); [`03-13`](../03-producao/03-13-time-series-analytical-dbs.md) (analytical DBs como sink, ClickHouse); [`04-09`](./04-09-scaling.md) (parallelism, Kafka partition alignment); [`04-04`](./04-04-resilience-patterns.md) (resilience, exactly-once via 2PC).
+
+---
+
+### 2.20 Apache Iceberg internals + REST catalogs 2026
+
+§2.18 cobriu o trade-off entre Iceberg, Delta e Hudi. Em 2024-2026 a disputa terminou: Iceberg ganhou tração como **table format** dominante (Snowflake adotou nativo, Databricks comprou Tabular por US$2B em 2024 e abriu Delta UniForm para Iceberg, AWS lançou Glue Iceberg REST endpoint em GA, Polaris graduou como TLP no Apache em early 2026). A fronteira agora é o **catalog layer** — quem federa namespaces, controla credenciais e expõe REST API padronizada. Format estável; engines (Spark, Trino, DuckDB, ClickHouse, Flink, StarRocks) consomem pelo mesmo spec; catalog é onde Polaris, Unity, Lakekeeper, Nessie e Glue brigam. Engineering de dados em 2026 é desenhar partition specs corretos, configurar compaction policy, entender hidden partitioning e escolher catalog sem lock-in.
+
+**Architecture (4 camadas):**
+
+```
+catalog (REST/Hive/Glue) → metadata.json (current snapshot pointer, schema, partition spec)
+                              ↓
+                          manifest list (snapshot manifest = lista de manifests)
+                              ↓
+                          manifest files (lista de data files + stats min/max por column)
+                              ↓
+                          data files (Parquet/ORC/Avro)
+```
+
+Cada commit é atomic swap do `metadata.json` no catalog. Manifest list aponta para snapshot atual; snapshots antigos retidos para time travel. Stats em manifest enable file pruning sem abrir Parquet (planning rápido em milhares de files).
+
+**Hidden partitioning + transforms:**
+
+Iceberg aplica partition transform na ingest, mas query não precisa conhecer a partition column. Diferente de Hive (onde `WHERE dt='2026-05-07'` é mandatório), Iceberg deduz da timestamp original.
+
+```sql
+CREATE TABLE prod.orders (
+  order_id BIGINT,
+  tenant_id STRING,
+  ts TIMESTAMP,
+  amount DECIMAL(18,2),
+  status STRING
+) USING iceberg
+PARTITIONED BY (days(ts), bucket(16, tenant_id))
+TBLPROPERTIES (
+  'write.target-file-size-bytes' = '536870912',
+  'write.parquet.compression-codec' = 'zstd',
+  'commit.retry.num-retries' = '4',
+  'history.expire.max-snapshot-age-ms' = '604800000'
+);
+
+-- Query usa ts diretamente; Iceberg aplica days(ts) e prune partitions
+SELECT SUM(amount) FROM prod.orders
+WHERE ts >= TIMESTAMP '2026-05-01' AND ts < TIMESTAMP '2026-05-07'
+  AND tenant_id = 'acme';
+```
+
+Transforms suportados: `identity`, `bucket(N, col)`, `truncate(W, col)`, `year`, `month`, `day`, `hour`, `void`. Mudança de partition spec é metadata-only — old data permanece na spec antiga, new data na nova; query planner lida com ambas.
+
+**Schema evolution (ID-based, safe):**
+
+Cada coluna tem field ID interno; nome é alias. ADD/DROP/RENAME/REORDER/PROMOTE (int → long, float → double, decimal precision up) são metadata-only. Nunca reescreve data.
+
+```sql
+ALTER TABLE prod.orders ADD COLUMN region STRING AFTER status;
+ALTER TABLE prod.orders RENAME COLUMN status TO order_status;  -- safe; field ID preservado
+ALTER TABLE prod.orders ALTER COLUMN amount TYPE DECIMAL(20,2);  -- promote OK
+-- DROP + ADD com mesmo nome cria field ID novo → data antigo invisível (data loss lógico).
+```
+
+**REST catalog ecosystem 2026:**
+
+| Catalog          | Stewardship             | Cred vending | Multi-engine | Federation | Notes 2026                                  |
+|------------------|-------------------------|--------------|--------------|------------|---------------------------------------------|
+| Polaris          | Apache TLP (Snowflake)  | Sim (vended) | Sim          | Roadmap    | Graduated TLP Q1 2026; spec-compliant       |
+| Unity Catalog    | Linux Found (Databricks)| Sim          | Sim (OSS GA 2024) | Sim   | Governance + lineage built-in; pesado       |
+| Lakekeeper       | OSS (Rust)              | Sim          | Sim          | Sim        | 0.5+ leve, alta perf; choice para self-host |
+| Nessie           | Dremio                  | Parcial      | Sim          | Sim        | 0.95+; branching nativo Git-like            |
+| Glue Iceberg REST| AWS                     | Sim (IAM)    | Sim          | Não        | GA 2024; lock-in AWS mas zero ops           |
+| HMS (legacy)     | Apache Hive             | Não          | Limited      | Não        | Evitar greenfield; migrar para REST         |
+
+Polaris config (Spark REST endpoint):
+
+```json
+{
+  "spark.sql.catalog.prod": "org.apache.iceberg.spark.SparkCatalog",
+  "spark.sql.catalog.prod.type": "rest",
+  "spark.sql.catalog.prod.uri": "https://polaris.internal.acme.com/api/catalog",
+  "spark.sql.catalog.prod.credential": "${POLARIS_CLIENT_ID}:${POLARIS_CLIENT_SECRET}",
+  "spark.sql.catalog.prod.warehouse": "s3://acme-lake/prod",
+  "spark.sql.catalog.prod.scope": "PRINCIPAL_ROLE:data_engineer",
+  "spark.sql.catalog.prod.header.X-Iceberg-Access-Delegation": "vended-credentials"
+}
+```
+
+Vended credentials: catalog gera STS temporary creds escopadas ao path da tabela; engine não tem acesso direto ao bucket. Padrão 2026 para zero-trust em data lake.
+
+**Branching + tagging (WAP — Write-Audit-Publish):**
+
+```sql
+CREATE BRANCH dev IN prod.orders;
+INSERT INTO prod.orders.branch_dev SELECT * FROM staging.orders_today;
+
+-- Audit em dev sem afetar consumers de main
+SELECT COUNT(*), SUM(amount) FROM prod.orders.branch_dev WHERE ts >= current_date;
+
+-- Validações passaram → fast-forward
+CALL system.fast_forward('prod.orders', 'main', 'dev');
+
+-- Tag imutável de release (compliance, rollback point)
+CREATE TAG release_2026_05_07 IN prod.orders RETAIN 365 DAYS;
+
+-- Rollback se algo quebrar downstream
+CALL system.set_current_snapshot(table => 'prod.orders', ref => 'release_2026_05_06');
+```
+
+CI for data: pipeline DBT/Spark roda em branch, executa testes (row count delta, null ratio, distribution shift), só faz fast-forward se passar. Equivalente a PR + CI para data.
+
+**Time travel:**
+
+```sql
+SELECT * FROM prod.orders TIMESTAMP AS OF '2026-05-06 14:00:00';
+SELECT * FROM prod.orders VERSION AS OF 8127364521;
+
+-- Diff entre snapshots (debugging "o que mudou?")
+SELECT * FROM prod.orders.changes
+  WHERE snapshot_id BETWEEN 8127364521 AND 8127364999;
+```
+
+Retenção controlada por `history.expire.max-snapshot-age-ms` e `min-snapshots-to-keep`. Sem expiração → metadata bloat (planning lento, listing custoso em S3).
+
+**Compaction strategies:**
+
+Streaming sinks (Flink, Spark Structured Streaming) escrevem files pequenos (10-50MB) por micro-batch. Sem compaction, query latency degrada 5-10x e S3 LIST é gargalo.
+
+```sql
+-- Rewrite data files: target 512MB, sort por columns frequentes em filter
+CALL system.rewrite_data_files(
+  table => 'prod.orders',
+  strategy => 'sort',
+  sort_order => 'ts ASC, tenant_id ASC',
+  options => map(
+    'target-file-size-bytes', '536870912',
+    'min-input-files', '5',
+    'max-concurrent-file-group-rewrites', '8',
+    'partial-progress.enabled', 'true'
+  )
+);
+
+-- Rewrite manifests (consolida manifest files após muitos commits)
+CALL system.rewrite_manifests('prod.orders');
+
+-- Expire snapshots antigos (libera storage)
+CALL system.expire_snapshots(
+  table => 'prod.orders',
+  older_than => TIMESTAMP '2026-04-30 00:00:00',
+  retain_last => 10
+);
+
+-- Remove orphan files (data files não referenciados por nenhum snapshot)
+CALL system.remove_orphan_files(
+  table => 'prod.orders',
+  older_than => TIMESTAMP '2026-04-23 00:00:00'  -- buffer 7d para in-flight commits
+);
+```
+
+Sort durante rewrite é equivalente funcional ao Z-order do Delta (data clustering por múltiplas columns; melhora pruning em queries multi-dimensionais). Schedule diário em jobs idempotentes; rodar fora de janela de write-heavy se possível.
+
+**v2 vs v3 spec preview:**
+
+v2 (stable): row-level deletes via position deletes (file + row offset) e equality deletes (predicate). MERGE/UPDATE/DELETE eficientes. v3 (em flight Q2 2026): variant types (semi-structured nativo, sem JSON cast), deletion vectors (bitmap por file, mais compacto que position deletes), default values em ADD COLUMN, geometry types. Adoção engine-side: Spark e Trino lideram; Flink e DuckDB seguindo.
+
+**Stack Logística:**
+
+- `s3://logistica-lake/prod/` warehouse, Polaris REST catalog em ECS Fargate (2 instâncias), Postgres metastore para Polaris.
+- Tabelas: `orders`, `events`, `shipments` partitioned by `days(ts), bucket(32, tenant_id)`. File size target 512MB, zstd.
+- Sink: Flink Streaming → Iceberg via `IcebergSink` exactly-once (cruza com §2.16); commit interval 60s (~10MB files, OK pré-compaction).
+- Compaction: Airflow daily 02:00 UTC roda `rewrite_data_files` com sort `(ts, tenant_id)` em tabelas hot, weekly em cold.
+- Retention: snapshots 7 dias (debug + rollback), tags mensais retidas 365 dias (compliance fiscal Receita).
+- Read: Trino + DuckDB (analytics ad-hoc), ClickHouse via iceberg engine (cruza com [`03-13`](../03-producao/03-13-time-series-analytical-dbs.md), dashboard ops). Vended creds; nenhum engine tem IAM direto ao bucket.
+- WAP em pipelines críticos (pricing, billing): branch `dev`, dbt tests, fast-forward gated por PR review.
+
+**10 anti-patterns:**
+
+1. Snapshot retention infinito → metadata.json bloat, planning lento (>500ms para listar manifests), S3 LIST cost explode. Sempre `expire_snapshots`.
+2. Compaction nunca rodada em streaming sink → small file problem; query latency 10x e ListObjects throttling. Diário no mínimo.
+3. `commit.retry.num-retries` baixo (default 4) em high-write tables → conflict failures cascateiam para pipelines. Subir para 8-12 + jitter.
+4. Hidden partitioning ignorada manualmente em queries (`WHERE day(ts) = '...'` em vez de `WHERE ts >= ...`) → Iceberg não consegue aplicar transform reverso, perde pruning.
+5. Schema evolve por DROP + ADD com mesmo nome em vez de RENAME → field ID novo, data antigo fica invisível (data loss lógico, nem aparece em query).
+6. HMS (Hive Metastore) em greenfield 2026 → zero credential vending, sem branching, lock-in. REST catalog ou nada.
+7. Partition spec com cardinalidade alta sem `bucket()` (ex: `PARTITIONED BY (user_id)` com milhões de users) → milhões de partitions, metadata explode. Use `bucket(N, user_id)`.
+8. `remove_orphan_files` sem buffer de tempo (`older_than` < retention de write in-flight) → apaga files de commits em progresso, corrupção. Buffer mínimo 3-7 dias.
+9. Múltiplos engines escrevendo na mesma tabela sem catalog comum (ex: Spark via Hive + Trino via REST apontando paths diferentes) → split brain, snapshots inconsistentes, data loss.
+10. Sort key de compaction desalinhado com queries reais (`sort_by ts` mas queries filtram por `tenant_id`) → pruning inefetivo, custo de rewrite sem benefício. Análise de query patterns antes.
+
+**Cruza com:** §2.18 acima (lakehouse intro, comparativo Iceberg/Delta/Hudi); §2.11 (lakehouse compare); §2.12 (CDC source para Iceberg sink); §2.16 (exactly-once em sinks streaming → Iceberg commit); [`03-13`](../03-producao/03-13-time-series-analytical-dbs.md) (analytical DBs ClickHouse/DuckDB lendo Iceberg direto); [`04-09`](./04-09-scaling.md) (partition design, bucket cardinality, parallelism em compaction); [`03-05`](../03-producao/03-05-aws-core.md) (S3 storage costs, lifecycle policies para snapshots expirados).
+
 ---
 
 ## 3. Threshold de Maestria

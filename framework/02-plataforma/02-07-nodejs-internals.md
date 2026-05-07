@@ -525,6 +525,370 @@ Cruza com **02-07 §2.4** (event loop foundation), **02-07 §2.10** (cluster bas
 
 ---
 
+### 2.19 Performance profiling deep — clinic.js, 0x flamegraphs, V8 deopts, heap snapshots
+
+Profiling sem método é teatro. Sem método, abre Chrome DevTools, screenshot do flame, e "otimiza" função que consumia 0.3% do tempo. §2.19 cobre stack 2026: **clinic.js 13+** (Doctor → categoriza problem antes de mergulhar), **0x 5+** (flamegraph standalone), **V8 deopt tracing** (perda silenciosa de JIT), **heap snapshots comparison** (leak detection real), **Pyroscope 0.21+** (continuous prod profiling). Node 22 LTS assumido.
+
+**Stack 2026 — escolha por sintoma**:
+
+- **clinic.js** (NearForm): suíte completa — Doctor (event loop + GC), Bubbleprof (async ops), Flame (CPU), Heap (memory). Uso em dev/staging.
+- **0x** (David Mark Clements): flamegraph único em CLI. Mais leve que clinic Flame.
+- **node --inspect** + chrome://inspect: profiler builtin (CPU, allocation timeline). Use pra debugging interativo, não pra prod.
+- **node --cpu-prof / --heap-prof**: profilers builtin desde Node 12. Output direto pra arquivo `.cpuprofile` / `.heapprofile`.
+- **Pyroscope / Parca**: continuous profiling em produção; flamegraphs sempre-ligados, agregados. Overhead 1-2% CPU.
+- **autocannon** (NearForm): HTTP benchmark pra reproduzir load enquanto profila.
+
+**clinic.js workflow — Doctor primeiro, sempre**:
+
+```bash
+# Step 1: Doctor categoriza problem (EventLoop / GC / IO / CPU)
+npx clinic doctor --on-port 'autocannon -d 30 -c 100 http://localhost:3000/orders' -- node server.js
+
+# Step 2 (se CPU-bound): Flame pra detalhe de CPU
+npx clinic flame --on-port 'autocannon -d 30 -c 100 http://localhost:3000/orders' -- node server.js
+
+# Step 3 (se async chain confuso): Bubbleprof
+npx clinic bubbleprof --on-port 'autocannon -d 30 -c 100 http://localhost:3000/orders' -- node server.js
+
+# Step 4 (se memory growth): Heap
+npx clinic heap --on-port 'autocannon -d 30 -c 100 http://localhost:3000/orders' -- node server.js
+```
+
+- Doctor emite recommendation explícita ("likely event loop blocking", "GC pressure detected"). Pular Doctor leva a investigar tool errado.
+
+**0x — flamegraph standalone**:
+
+```bash
+npx 0x -- node server.js
+# Em outro terminal: rode load (autocannon, k6, vegeta)
+# Ctrl+C no 0x; output HTML flamegraph abre em browser
+
+# Variant: profile já-rodando-em-background
+npx 0x -P 'autocannon -d 20 -c 50 http://localhost:3000' -- node server.js
+```
+
+- **Reading flamegraph**: largura ∝ tempo de CPU; altura = profundidade do stack; topo = leaves (onde tempo é gasto). Click pra zoom em subtree. Procure plateaus largos no topo — são leaves quentes.
+
+**V8 deoptimization — JIT silenciosamente desistindo**:
+
+V8 JIT-compila funções hot via TurboFan. Se assumption de tipo é violada, V8 **deopta** pra interpretador — mesma função, 10-100× mais lenta, sem warning.
+
+Causas comuns:
+
+- Polymorphic call site (mesma função chamada com shapes diferentes).
+- `try/catch` em hot loop (pre-Node 14; mitigado em Node 14+ mas ainda penaliza inlining).
+- `arguments` object usage (use rest `...args`).
+- `with`, `eval`, mutação de prototype em runtime.
+
+```bash
+# Trace deopts em runtime
+node --trace-deopt server.js 2>&1 | grep -i 'deopt'
+
+# Em flamegraph (clinic Flame, 0x): blocos vermelhos = deopted; amarelo = optimized eager; verde = not yet optimized.
+# Hot path com vermelho = perda significativa.
+```
+
+**Pattern Logística — fix polymorphic deopt no preço**:
+
+```ts
+// BAD — shapes variando entre chamadas
+function calculatePrice(item: any) {
+  return item.price * item.quantity;          // V8 deopta quando shapes divergem
+}
+calculatePrice({ price: 10, quantity: 2 });           // {price, quantity}
+calculatePrice({ price: 5, quantity: 1, tax: 0 });    // shape diferente
+calculatePrice({ price: 8, quantity: 3, discount: 1 }); // shape diferente de novo
+
+// GOOD — monomorphic, shape fixo
+interface PricedItem { price: number; quantity: number; tax: number; discount: number }
+
+function calculatePrice(item: PricedItem) {   // sempre mesmo shape; TurboFan inlina
+  return item.price * item.quantity * (1 + item.tax) - item.discount;
+}
+```
+
+- TypeScript não garante shape em runtime — só compile-time. Garanta inicialização consistente (default values em factory) pra V8 tratar como hidden class única.
+
+**Heap snapshots — leak detection real**:
+
+```ts
+// Snapshot programático
+import v8 from 'node:v8';
+
+v8.writeHeapSnapshot('./snapshot-' + Date.now() + '.heapsnapshot');
+```
+
+```bash
+# Auto-snapshot perto de OOM (Node 12+): captura 3 snapshots antes de crash
+node --heapsnapshot-near-heap-limit=3 server.js
+
+# Análise: Chrome DevTools → Memory → Load profile
+```
+
+- **Comparison view**: tire snapshot A, gere load, tire snapshot B 5min depois. DevTools "Comparison" filter mostra objects criados em B mas não freed — candidatos a leak.
+- **Retention path**: clique no objeto suspeito → "Retainers" mostra cadeia até GC root (qual closure/global segura). Sem path = sem leak.
+
+**Pyroscope — continuous profiling em produção**:
+
+```ts
+import Pyroscope from '@pyroscope/nodejs';   // SDK 2026, version 0.21+
+
+Pyroscope.init({
+  serverAddress: process.env.PYROSCOPE_URL!,
+  appName: 'orders-api',
+  tags: {
+    region: process.env.REGION!,
+    version: process.env.VERSION!,            // CRÍTICO pra diff entre deploys
+  },
+});
+Pyroscope.start();
+```
+
+- Always-on, ~1-2% CPU overhead. Flamegraphs agregados na UI.
+- **Diff over time**: compare flamegraph hoje vs último deploy → spot regressão antes de incident.
+- **Cardinality**: tags estáveis (`region`, `version`, `env`). NUNCA `user_id`, `tenant_id`, `request_id` — explosion de séries.
+- Alternativas: Datadog Continuous Profiler (managed), Parca (OSS), Polar Signals (managed).
+
+**Profiling em produção — sem matar latency**:
+
+- **Sampling profiling** (default V8, Pyroscope): captura stack a cada N ms; baixo overhead; perde funções breves.
+- **Tracing profiling** (`--cpu-prof`): cada call gravado; alto overhead; só windows curtos (segundos).
+- **Single instance + LB drain**: drene traffic de 1 pod, profile com tracing, retorne. Não profile todos os pods simultâneos (overhead × N).
+- Evite profilar dev com synthetic data — patterns de produção (cardinality real, payload sizes reais) divergem.
+
+**Logística — investigation real (deploy v3.4 → v3.5)**:
+
+- **Sintoma**: `/orders` p99 latency 100ms → 800ms após deploy v3.4. Sem alert óbvio em CPU/memory.
+- **Step 1**: clinic Doctor em staging com autocannon réplica do load → "likely event loop blocking".
+- **Step 2**: clinic Flame → `JSON.parse` consumindo 60% CPU em hot path; payload de 12KB+ por request.
+- **Step 3**: investigation no diff → nova feature serializa courier object completo com nested route history. Refactor pra selective fields (id, name, status, currentLat, currentLng).
+- **Resultado**: p99 volta pra 95ms; flamegraph re-rodado confirma `JSON.parse` < 5%.
+- **Pyroscope contínuo**: regressão equivalente em v3.5 detectada em 1h via diff vs v3.4 — antes de virar user-facing incident.
+
+**Anti-patterns observados**:
+
+- **Profiling em dev sem realistic load**: production patterns (cardinality, payload size, concurrency) divergem. Use autocannon com volume real.
+- **Skipping Doctor**: ir direto pro Flame sem categorizar problem. Doctor sinaliza qual tool é certa.
+- **V8 deopts ignorados em hot path**: `--trace-deopt` deveria ser 0 linhas em código quente. Cada deopt = JIT desistiu.
+- **Polymorphic em hot loop**: TypeScript não basta; runtime shape pode variar. Inicialize fields consistente.
+- **`try/catch` em hot inner loop pre-Node 14**: deopta. Refatore catch pro outer scope.
+- **Heap snapshot único pra leak**: leak precisa de **comparison** (2 snapshots minutos apart). Único só mostra estado.
+- **Production profiling em todas instâncias simultâneo**: overhead × N. Single instance + LB drain.
+- **`--inspect` permanente em prod**: porta de debugger exposta + overhead. Usar só ad-hoc com firewall.
+- **Pyroscope com tag cardinality alta** (`tenant_id`, `user_id`): explosion de séries no backend storage.
+- **Profilar só pós-incident**: continuous profiling pega regressão antes de virar p99 spike user-facing.
+
+Cruza com **02-07 §2.18** (event loop blocking + worker_threads — profiling localiza onde bloquear), **03-09** (frontend perf, mesmos princípios de flamegraph), **03-07** (observability stack, profiling como pilar adjacente a logs/metrics/traces), **03-10** (backend perf patterns broader), **04-09** (scaling, capacity planning profile-driven).
+
+---
+
+### 2.20 Node 24 features 2026 — Permission Model GA, native test runner, type stripping, node:sqlite, WebSocket, --watch, SEA
+
+Node passou por renaissance 2024-2026. Bun 1.2 (Q1 2026) e Deno 2.x (Q4 2024) pressionaram o ecossistema com batteries-included: test runner nativo, TS sem build, SQLite embedded, WebSocket client, watch mode. Node 22 LTS (Apr 2024) e **Node 24 LTS (Apr 2025)** responderam absorvendo essas features no core — Permission Model GA, node:test mature, --experimental-strip-types, node:sqlite, native WebSocket stable, --watch + --env-file. Resultado: razões pra adotar runtime alternativo encolheram. Bun ainda vence em startup + bundle (cold start ~3x mais rápido), Deno em security-by-default + URL imports. Node vence em compat + ecossistema + LTS previsível. Node 25 Current (Q4 2025) traz V8 13.x com Maglev mais maduro (já em Node 22 com V8 12.4, ~5-15% throughput em hot paths sintéticos).
+
+#### Permission Model GA (Node 24)
+
+Sandbox granular no runtime — sem container/SELinux. Defesa-em-profundidade contra supply-chain attack (lib maliciosa em node_modules tentando ler `~/.aws/credentials` ou abrir socket pra C2).
+
+```bash
+# Sem permission model: lib pode ler tudo, abrir socket pra qualquer host
+node app.js
+
+# Com permission model (Node 24 GA — sem --experimental)
+node --permission \
+  --allow-fs-read=./data,./config \
+  --allow-fs-write=./logs,./tmp \
+  --allow-net=api.stripe.com:443,postgres-internal:5432 \
+  --allow-child-process \
+  --allow-worker \
+  app.js
+```
+
+API runtime pra checar:
+
+```js
+import { permission } from 'node:process';
+
+if (!permission.has('fs.read', '/etc/passwd')) {
+  throw new Error('FS read denied — esperado');
+}
+```
+
+**Custo**: ~5-10% overhead em workload syscall-heavy (FS scan, muitas conexões). Worker threads herdam permissions do parent. Node addons nativos (`.node`) bloqueados por default — `--allow-addons` libera (cuidado: addon bypassa o modelo).
+
+**Production hardening**: rode workers Cloud Run / Kubernetes com `--permission --allow-fs-read=/app --allow-net=postgres-internal:5432,redis-internal:6379`. Postmortem-friendly: tentativa de ler `/etc/shadow` lança `ERR_ACCESS_DENIED` com stack trace, não silently succeeds.
+
+#### Native test runner mature (node:test, Node 22+)
+
+Zero-config, pure ESM, sem dep externa. API estilo Mocha/Jest familiar.
+
+```js
+// test/user.test.js
+import { describe, it, before, after, mock } from 'node:test';
+import assert from 'node:assert/strict';
+import { createUser } from '../src/user.js';
+
+describe('createUser', () => {
+  let db;
+
+  before(async () => { db = await openTestDb(); });
+  after(async () => { await db.close(); });
+
+  it('creates user with hashed password', async () => {
+    const user = await createUser(db, { email: 'a@b.com', password: 'p' });
+    assert.equal(user.email, 'a@b.com');
+    assert.notEqual(user.password, 'p'); // hashed
+  });
+
+  it('mocks external API', async (t) => {
+    const fetchMock = t.mock.method(global, 'fetch', async () => ({
+      ok: true, json: async () => ({ valid: true })
+    }));
+    await createUser(db, { email: 'x@y.com', password: 'p' });
+    assert.equal(fetchMock.mock.callCount(), 1);
+  });
+});
+```
+
+```bash
+node --test --test-reporter=spec test/
+node --test --experimental-test-coverage  # built-in coverage Node 22+
+node --test --watch                        # re-roda em mudança
+```
+
+**Quando usar node:test vs vitest**: node:test vence em projeto **pure ESM monorepo backend** sem Vite (zero-config, ~2x faster cold start em suites pequenas <50 testes, sem `vitest.config.ts` pra manter). Vitest vence em **frontend / fullstack com Vite** (HMR test, browser mode, jsdom integrado, snapshot mais maduro, plugin ecosystem). Não migre vitest funcional pra node:test só por modismo — custo de migração > benefício.
+
+#### Type stripping --experimental-strip-types (Node 22.6+)
+
+Roda `.ts` direto, sem `tsc` / `tsx` / `ts-node`. Apenas remove tipos — não transpila enum, namespace, parameter properties, decorators legacy.
+
+```bash
+node --experimental-strip-types src/server.ts
+
+# Com transform (suporta enum, namespace — Node 22.7+)
+node --experimental-transform-types src/server.ts
+```
+
+**Limitação crítica**: `enum Color { Red, Green }` em `--strip-types` puro = **silent miscompile** (vira nada, runtime error em uso). Use `--experimental-transform-types` ou prefira union literal `type Color = 'red' | 'green'`. Declaration merging, parameter properties (`constructor(private x: number)`), `import = require()` também não suportados em strip puro.
+
+**Quando usar**: scripts internos, CLIs, dev/test loop rápido. **Não use em prod com bundle complexo** — esbuild/swc são mais rápidos em suites grandes e suportam tudo. Útil pra eliminar `tsx` em `package.json` scripts simples.
+
+#### node:sqlite (Node 22+)
+
+SQLite embedded no core. Sem build native (`better-sqlite3` requer Python + node-gyp em CI). Synchronous API.
+
+```js
+import { DatabaseSync } from 'node:sqlite';
+
+const db = new DatabaseSync('cache.db');
+db.exec(`
+  CREATE TABLE IF NOT EXISTS sessions (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_expires ON sessions(expires_at);
+`);
+
+const insert = db.prepare('INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)');
+insert.run('sess_abc', 42, Date.now() + 3600_000);
+
+const get = db.prepare('SELECT * FROM sessions WHERE id = ? AND expires_at > ?');
+const session = get.get('sess_abc', Date.now());
+```
+
+**Use em**: cache local de CLI tool, embedded config DB, dev fixtures, test isolation. **Não use em**: banco compartilhado entre processos (single-process write lock — use Postgres), workload write-heavy concorrente (better-sqlite3 ainda ~10-20% mais rápido em micro-benchmarks).
+
+#### Built-in WebSocket client (Node 22+ stable)
+
+API Web standard — mesma do browser. Elimina `ws` lib pra cliente.
+
+```js
+const ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@trade');
+
+ws.addEventListener('open', () => console.log('connected'));
+ws.addEventListener('message', (ev) => {
+  const trade = JSON.parse(ev.data);
+  console.log(trade.p, trade.q);
+});
+ws.addEventListener('close', (ev) => console.log('closed', ev.code));
+ws.addEventListener('error', (err) => console.error(err));
+```
+
+**Limitação**: **sem auto-reconnect**, sem heartbeat/ping built-in, sem subprotocol negotiation avançada. Pra prod com reconexão exponential backoff + ping/pong, ainda precisa wrapper (ou `ws` lib pra server-side). Use built-in pra clients simples + scripts.
+
+#### Watch mode + env-file
+
+```bash
+node --watch --env-file=.env src/server.js
+node --watch-path=./src --watch-path=./config src/server.js
+```
+
+`--watch` substitui `nodemon`. `--env-file=.env` substitui `dotenv` (parser simples — `KEY=value`, sem expansion `${OTHER_VAR}` em `.env` por default; Node 22+ aceita `--env-file-if-exists`). **Não use --watch em prod** — filewatcher overhead + restart loop em log rotation.
+
+#### Single Executable Apps (SEA)
+
+Bundle JS + Node runtime em 1 binário. Distribui CLI sem requerir Node instalado.
+
+```json
+// sea-config.json
+{
+  "main": "dist/cli.js",
+  "output": "sea-prep.blob",
+  "disableExperimentalSEAWarning": true
+}
+```
+
+```bash
+node --experimental-sea-config sea-config.json
+cp $(command -v node) my-cli
+npx postject my-cli NODE_SEA_BLOB sea-prep.blob \
+  --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
+./my-cli  # standalone binary ~80MB
+```
+
+**Limitação**: addons nativos (`.node`) limitados (top-level require de `.node` não funciona em SEA stable). Use pra CLI puro JS. Alternativa: `pkg` (deprecated), `bun build --compile` (Bun ~6MB binary, vence Node ~80MB).
+
+#### npm 11 (2025+)
+
+Workspaces protocol (`"dep": "workspace:*"`), install perf melhorada, `npm audit signatures` por default. Pin no `package.json`:
+
+```json
+{
+  "engines": { "node": ">=22.0.0", "npm": ">=11.0.0" },
+  "packageManager": "npm@11.0.0"
+}
+```
+
+CI sem pin: usa npm bundled com Node version do runner — pode ser npm 8/9 e quebrar workspaces protocol.
+
+#### Stack Logística aplicada
+
+- Workers Cloud Run com `node --permission --allow-fs-read=/app --allow-net=postgres-internal:5432,redis-internal:6379 dist/worker.js` — supply-chain defense.
+- Unit tests em `node:test` (backend pure ESM monorepo) — eliminou vitest config, CI ~30% mais rápido em cold start. E2E continua Playwright.
+- `node:sqlite` em CLI interna de batch reprocess — embedded cache de mapeamentos, sem subir Postgres local.
+- `--watch --env-file=.env` em dev — eliminou `nodemon` + `dotenv`.
+- WebSocket built-in pra script de monitor de filas RabbitMQ Management (HTTP polling fallback) — sem `ws` dep.
+
+#### 10 anti-patterns
+
+1. `--permission` sem `--allow-fs-*` em workload com FS legítimo — `ERR_ACCESS_DENIED` em runtime, postmortem barulhento.
+2. `--experimental-strip-types` em código com `enum` — silent miscompile, NaN/undefined em runtime. Use `--experimental-transform-types` ou union literal.
+3. Migrar vitest funcional pra `node:test` em projeto frontend — perde browser mode, jsdom, HMR test. Custo > benefício.
+4. `node:sqlite` pra banco compartilhado entre múltiplos processos — single-writer lock, contention. Use Postgres.
+5. Built-in WebSocket client em prod sem wrapper de reconnect/heartbeat — desconexão silenciosa, mensagens perdidas.
+6. `--watch` em prod (Docker, systemd) — filewatcher overhead + restart loop em log rotation, port-already-in-use.
+7. SEA pra app com native modules (`sharp`, `better-sqlite3`, `bcrypt`) — `.node` addons não funcionam stable em SEA.
+8. `package.json` sem `engines.npm` em projeto com workspaces protocol — CI usa npm bundled (8/9), `workspace:*` quebra.
+9. `node --permission --allow-net=*` (wildcard amplo) — anula o modelo, vira teatro de segurança.
+10. Strip-types em prod sem bundler — sem tree-shaking, sem minify, sem source map mature. Use esbuild/swc/tsc pra build, strip-types pra dev/scripts.
+
+#### Cruza com
+
+**02-07 §2.7** (streams sob fetch nova — Web Streams API mainstreamed Node 22+), **§2.9** (worker_threads herdam permission model), **§2.14** (AsyncLocalStorage relevante a permission scoping por request), **§2.17** (Node vs Bun vs Deno — Node 24 fechou maioria dos gaps), **§2.18** (worker_threads + cluster), **03-01** (testing — node:test categoria backend pure), **03-08** (security — Permission Model é defense-in-depth contra supply-chain), **03-04** (CI/CD — `engines.npm` + Node version pinning em workflow), **03-02** (Docker — distroless + SEA como alternativa de distribuição).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

@@ -653,6 +653,207 @@ Cruza com [**04-06 §2.18**](../04-sistemas/04-06-domain-driven-design.md) (DDD 
 
 ---
 
+### 2.22 Edge runtimes deep 2026 — V8 isolates, Workers stack, Durable Objects, constraints reais
+
+§2.13 introduziu edge functions como conceito (deploy próximo do usuário, latência sub-50ms global). §2.22 desce no **mecanismo**: por que V8 isolates substituem containers, qual o custo real de cold start, o que cada runtime (Cloudflare Workers, Vercel Edge, Deno Deploy, Bun) entrega em 2026, e quando edge perde pra Lambda/container tradicional.
+
+**Edge ≠ serverless full**. Lambda roda Node/Python/Go inteiro em micro-VM (Firecracker) com cold start 100-1000ms, 10GB RAM, 15min execution, 250MB unzipped deps. Edge runtime roda **subset de Web Standards APIs** num isolate compartilhado com cold start ~5ms, 128MB RAM típico, 30s CPU max, 10MB script comprimido. Constraints diferentes ⇒ casos de uso diferentes.
+
+**V8 isolate model (Cloudflare Workers)**:
+
+Workers não usa container per-request. Um único processo V8 hospeda **milhares de isolates** simultâneos — cada isolate é um sandbox JS com heap próprio, mas compartilha o processo, evitando overhead de fork/exec. Segurança: SES (Secure ECMAScript), capability-based isolation, no shared memory entre isolates. Cold start ~5ms (apenas instanciar V8 isolate + carregar script JS). Lambda Node cold start: 200-1000ms (boot Firecracker microVM + Node runtime + carregar deps + init handler).
+
+```
+┌─────────────────────────────────────────────────┐
+│ V8 Process (1 worker node)                      │
+│  ├─ Isolate A (script tenant1)  heap: 8MB       │
+│  ├─ Isolate B (script tenant2)  heap: 12MB      │
+│  ├─ Isolate C (script tenant3)  heap: 4MB       │
+│  └─ ... (milhares simultâneos)                  │
+└─────────────────────────────────────────────────┘
+       ↑ shared V8 = startup ~5ms
+
+vs Lambda:
+┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+│ microVM 1    │ │ microVM 2    │ │ microVM 3    │
+│ Node + deps  │ │ Node + deps  │ │ Node + deps  │
+│ 200-1000ms   │ │ 200-1000ms   │ │ 200-1000ms   │
+└──────────────┘ └──────────────┘ └──────────────┘
+```
+
+**Cloudflare Workers stack 2026**:
+- **Workers**: V8 isolates, Web Standards (`fetch`, `Request`, `Response`, `crypto.subtle`, `WebSocket`). `nodejs_compat` flag habilita subset do Node API (`node:buffer`, `node:crypto`, `node:fs/promises` parcial). Paid plan: **30s CPU time** (era 50ms em 2023, mudou em 2024), 5min wallclock com `WAITUNTIL`, 128MB RAM. Free: 10ms CPU.
+- **Durable Objects**: classe JS com **single-instance global** (1 réplica por ID em todo o planeta) + storage transacional persistente. Pra chat rooms, cursores colaborativos, leader election, websocket coordination, rate-limit global.
+- **Workers KV**: eventually consistent (~60s replicação global), bom pra config/feature flags. Não use pra strong consistency.
+- **R2**: object storage S3-compatible, **zero egress fee** (vs S3 $0.09/GB).
+- **D1**: SQLite serverless replicado, queries SQL, ~10GB por database, GA 2024.
+- **Hyperdrive**: connection pooler + cache pra Postgres/MySQL externo, evita exhaust de pool quando 1000 isolates abrem connection simultânea.
+- **Workers AI**: inference GPU edge, Llama 3.3 70B GA 2025, embeddings, image gen. Latência ~200ms first token global.
+- **Service Bindings / RPC**: chama Worker B desde Worker A com **zero network hop** (mesma máquina, in-process). RPC stable desde 2024.
+
+**Cloudflare Worker com Hono + Durable Object + Hyperdrive**:
+
+```typescript
+// src/worker.ts
+import { Hono } from "hono";
+import postgres from "postgres";
+
+type Env = {
+  DB: Hyperdrive;          // binding pra Postgres central via Hyperdrive
+  COURIER_LOCATION: DurableObjectNamespace;  // single-instance state
+  KV: KVNamespace;
+  AI: Ai;                  // Workers AI
+};
+
+const app = new Hono<{ Bindings: Env }>();
+
+app.get("/courier/:id/location", async (c) => {
+  const id = c.req.param("id");
+  // Durable Object: 1 instance por courier, websocket subscribers conectam todos no mesmo lugar
+  const stub = c.env.COURIER_LOCATION.get(c.env.COURIER_LOCATION.idFromName(id));
+  return stub.fetch(c.req.raw);
+});
+
+app.get("/orders/:id", async (c) => {
+  const sql = postgres(c.env.DB.connectionString, { max: 5 });  // pooled via Hyperdrive
+  const [order] = await sql`SELECT * FROM orders WHERE id = ${c.req.param("id")} LIMIT 1`;
+  c.executionCtx.waitUntil(sql.end());  // não bloqueia response
+  return c.json(order);
+});
+
+export default app;
+
+// Durable Object: state global single-instance
+export class CourierLocation {
+  constructor(private state: DurableObjectState, private env: Env) {}
+
+  async fetch(req: Request): Promise<Response> {
+    if (req.headers.get("Upgrade") === "websocket") {
+      const [client, server] = Object.values(new WebSocketPair());
+      this.state.acceptWebSocket(server);  // hibernation API: WS sobrevive a DO restart
+      return new Response(null, { status: 101, webSocket: client });
+    }
+    const lastLoc = await this.state.storage.get<{ lat: number; lng: number }>("loc");
+    return Response.json(lastLoc ?? { lat: 0, lng: 0 });
+  }
+
+  async webSocketMessage(ws: WebSocket, msg: string) {
+    const loc = JSON.parse(msg);
+    await this.state.storage.put("loc", loc);  // transacional, persistente
+    for (const peer of this.state.getWebSockets()) peer.send(JSON.stringify(loc));
+  }
+}
+```
+
+```toml
+# wrangler.toml
+name = "logistica-edge"
+main = "src/worker.ts"
+compatibility_date = "2026-01-15"
+compatibility_flags = ["nodejs_compat"]
+
+[[hyperdrive]]
+binding = "DB"
+id = "abc123hyperdrive_id"
+
+[[durable_objects.bindings]]
+name = "COURIER_LOCATION"
+class_name = "CourierLocation"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["CourierLocation"]
+
+[ai]
+binding = "AI"
+```
+
+**Vercel Edge Functions**:
+
+Runtime baseado em V8 isolates (similar a Workers mas roda em PoP Vercel). Subset Web Standards, **sem Node APIs por default** (use `runtime: "nodejs"` se precisar). Limites: **25s wallclock + 15s CPU**, 4MB script, 128MB RAM. Edge Config (KV global ~100ms read), Edge Middleware (executa antes de qualquer route, pra auth/AB/geo).
+
+```typescript
+// app/api/geo/route.ts (Next.js 15+)
+export const runtime = "edge";  // V8 isolate
+export const preferredRegion = ["gru1", "iad1"];  // São Paulo + Virginia
+
+export async function GET(req: Request) {
+  const country = req.headers.get("x-vercel-ip-country") ?? "BR";
+  return Response.json({ country, region: process.env.VERCEL_REGION });
+}
+```
+
+**Deno Deploy**:
+
+Web Standards-first (Deno runtime nasceu com isso). 35 regiões globais 2026, V8 isolates, **TLA** (top-level await) suportado. Deno KV (FoundationDB-backed, strong consistency em região, eventual cross-region). Deno Subhosting pra multi-tenant (rodar código de cliente isoladamente).
+
+```typescript
+// main.ts (Deno Deploy)
+Deno.serve(async (req) => {
+  const kv = await Deno.openKv();
+  const { value } = await kv.get<number>(["counter"]);
+  await kv.set(["counter"], (value ?? 0) + 1);
+  return new Response(`count: ${value}`);
+});
+```
+
+**Bun em 2026**:
+
+Bun **não é edge runtime** — é JS runtime alternativo a Node, roda em container/VM tradicional. Bun 1.2 (Q1 2026) entrega Node compat ~95%, bundler nativo, test runner, package manager. Cold start em Lambda Bun: ~80ms (vs Node ~200ms), porque binário único Zig sem JIT warmup pesado. Use Bun pra: APIs Node-compat com cold start menor, build tooling rápido. Não é substituto pra Workers — quando precisa edge global use Workers/Vercel/Deno.
+
+**Constraints comparison 2026**:
+
+| Runtime | CPU max | Wallclock | RAM | Script size | Node compat | Cold start | Regiões |
+|---|---|---|---|---|---|---|---|
+| **Cloudflare Workers** (paid) | 30s | 5min (waitUntil) | 128MB | 10MB compressed | `nodejs_compat` flag | ~5ms | 330+ |
+| **Vercel Edge** | 15s | 25s | 128MB | 4MB | limitado | ~10ms | 18 PoP |
+| **Deno Deploy** | — | sem limite hard | 512MB | — | parcial via npm: | ~10ms | 35 |
+| **AWS Lambda Node** | 15min | 15min | 10GB | 250MB unzipped | full | 200-1000ms | 30+ regiões (não PoP) |
+| **AWS Lambda@Edge** | 30s | 30s | 10GB | 50MB | full | 100-300ms | CloudFront PoP |
+| **Bun runtime** (container) | host-limited | host-limited | host-limited | host-limited | ~95% | ~80ms (Lambda) | onde host roda |
+
+**Durable Objects pattern — quando vale**:
+
+DO é **single-instance global por ID**: 1 réplica fisica para o objeto `room:abc123` no planeta inteiro. Strong consistency trivial (sem distributed transaction), latência variável (cliente em SP acessa DO em IAD = 150ms RTT). Casos:
+- Chat room / Discord channel: todos os subscribers conectam websocket no mesmo DO.
+- Cursor colaborativo Figma-style: estado compartilhado, broadcast via WS.
+- Rate-limit global por API key: contador único, sem race conditions.
+- Leader election: 1 DO eleito = leader, replicas elsewhere stateless.
+
+**Não use DO** pra: armazenar 1 DO por usuário (use D1/Postgres), workload write-heavy single-object (1 DO ≠ infinite throughput, ~100-1000 ops/s por instance), dado que pode viver eventually consistent (use KV).
+
+**When edge wins**:
+- Auth check / token verify (latência 5-20ms global vs 200ms cross-region origin).
+- A/B routing, feature flags, geofencing (header-based).
+- Edge SSR pra páginas leves (HTML <500KB, dados via fetch a origem cached).
+- Streaming responses (Workers AI, LLM streaming via Server-Sent Events).
+- Image transform on-the-fly (R2 + Workers).
+
+**When edge perde**:
+- Heavy compute (>10s CPU, vai timeout ou custar absurdo).
+- Big deps (>10MB compressed → não cabe em Workers; vai pra Lambda 250MB).
+- Long-running batch / cron multi-minute (use Cloudflare Workflows, Lambda, ECS).
+- Conexões Postgres long-lived sem Hyperdrive (pool exhaustion com 1000 isolates).
+- Heavy file I/O / native binaries (Sharp, FFmpeg → use Lambda Node ou container).
+
+**Stack Logística aplicada**: courier location updates websocket via Durable Object (1 DO por courier, motoboy + dispatcher conectam mesmo objeto, broadcast lat/lng a cada 2s). Workers fetch handler resolve Hyperdrive → Postgres central pra orders/customers (read-heavy cached em KV 30s TTL). Edge middleware Vercel pra auth check JWT antes de qualquer route Next.js. Workers AI pra classificar incidentes (foto entrega → "danificado/ok") sem chamar OpenAI external. Lambda fora de edge pra batch noturno reconciliação financeira (rodada 30min, 8GB RAM, 10K orders).
+
+**10 anti-patterns**:
+1. **Heavy CPU em edge worker**: rodar OCR/ML pesado em Workers com 30s CPU → timeout + custo CPU-time alto. Mude pra Lambda ou Workers AI binding.
+2. **Node-only npm sem `nodejs_compat`**: `import sharp from "sharp"` em Workers sem flag → deploy fail (`unknown module: node:fs`). Habilite flag ou troque dep.
+3. **Durable Object como general DB**: 1 DO por order, 1M orders → 1M DOs idle, custo de CPU-time + memory. Use D1/Postgres; DO só pra estado coordenado real-time.
+4. **Workers KV pra strong consistency**: `await kv.put("balance", v); await kv.get("balance")` em outro PoP devolve valor antigo até ~60s. Use DO storage ou D1.
+5. **Hyperdrive sem connection sizing**: `postgres(url, { max: 100 })` em 1000 isolates simultâneos → connection storm no Postgres. Use `max: 3-5` por isolate; Hyperdrive multiplexa.
+6. **Edge SSR retornando 10MB JSON**: latência edge → cliente engole streaming, mas memory edge fica saturada. Pagine ou use streaming response.
+7. **`fetch` externo síncrono em handler**: bloqueia CPU time. Use `c.executionCtx.waitUntil()` pra fire-and-forget telemetria.
+8. **Misturar `runtime: "edge"` e `runtime: "nodejs"` sem critério em Next.js**: deploy fail por imports incompatíveis (Prisma full ORM em edge sem driver adapter).
+9. **WebSocket sem Hibernation API em DO**: DO restart desconecta todos os clients. Use `state.acceptWebSocket()` (hibernation) → sobrevive a evictions.
+10. **Cold start premature optimization**: investir 1 mês otimizando 200ms cold start Lambda Node quando p99 traffic fica warm 99% do tempo. Meça antes; Provisioned Concurrency ou edge migration só se cold start importa.
+
+Cruza com **04-08 §2.4** (serverless geral), **04-08 §2.13** (edge functions intro), **04-08 §2.20** (decisão arquitetura), [**03-12**](../03-producao/03-12-webassembly.md) (WebAssembly em edge), [**02-14 §2.15**](../02-plataforma/02-14-realtime.md) (WebSockets em edge runtime), [**03-09 §2.6.1**](../03-producao/03-09-frontend-performance.md) (edge rendering frontend perf), [**04-09**](./04-09-scaling.md) (multi-region scaling).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

@@ -314,6 +314,158 @@ const cached = storage.getString('jobs.today');
 
 ---
 
+### 2.19 RN New Architecture GA + Expo SDK 53 + Bridgeless mode 2026
+
+RN entrou em era estável entre 2024 e 2026. New Architecture deixou de ser opt-in experimental e virou default a partir de RN 0.74 (Q2 2024). Bridgeless mode — sem bridge JS↔Native serializando JSON — chegou a GA na mesma versão. RN 0.78 (Q3 2025) trouxe suporte oficial a React 19. Expo deixou de ser "alternativa hobby" e se tornou o DX path dominante: SDK 52 (Q4 2024, RN 0.76) consolidou Expo Router v4, e SDK 53 (Q1 2025, RN 0.78 + React 19) trouxe maturidade do EAS Build/Update como substituto Fastlane/Bitrise pra grande parte dos times. §2.5 cobriu o intro JSI/Fabric/TurboModules; §2.18 cobriu Hermes + Reanimated 3 + Skia; aqui é o stack de produção 2026.
+
+**New Architecture as default (RN 0.74+)**. Fabric (renderer C++ síncrono, shadow tree paralelo), TurboModules (módulos nativos com chamadas síncronas via JSI, lazy-loaded), Codegen (gera bindings TS↔C++↔Java/ObjC a partir de spec). Old Architecture continua suportada via interop layer: módulos legacy (não-TurboModule) são wrapped por uma camada que fala com Fabric/JSI. Migração não é all-or-nothing — você pode ter biblioteca antiga rodando junto. Mas cada lib não-migrada é débito: interop tem overhead, e algumas falham silently sob Bridgeless.
+
+**Bridgeless mode GA (RN 0.74+)**. Removeu a bridge clássica (queue assíncrono que serializava chamadas JS↔Native em JSON). Function calls cruzam thread direto via JSI. Ganho real: TTI (Time to Interactive) cai 20-40% em apps medianos, listas com 1000+ items renderizam sem stutter, animações nativas + JS sincronizam sem frame drop. Hermes (default desde RN 0.70) cold start em ~100ms vs JSC ~250ms. Bridgeless quebra módulos custom que ainda chamam `RCTBridge` direto — todos precisam migração TurboModule + Codegen spec.
+
+```json
+// app.json (Expo SDK 53)
+{
+  "expo": {
+    "name": "courier-app",
+    "slug": "courier-app",
+    "version": "1.4.0",
+    "newArchEnabled": true,
+    "ios": { "buildNumber": "142", "bundleIdentifier": "com.logistica.courier" },
+    "android": { "versionCode": 142, "package": "com.logistica.courier" },
+    "plugins": [
+      "expo-router",
+      "expo-updates",
+      ["expo-build-properties", { "ios": { "newArchEnabled": true }, "android": { "newArchEnabled": true } }]
+    ],
+    "updates": { "url": "https://u.expo.dev/PROJECT_ID", "channel": "production" },
+    "runtimeVersion": { "policy": "appVersion" }
+  }
+}
+```
+
+**React 19 on RN 0.78+**. `use` hook funciona (suspende em Promise, contexto condicional). `ref` como prop sem `forwardRef`. Asset preloads (`preload`, `preinit`) são no-op em RN — uso correto é `Asset.loadAsync` do `expo-asset`. Suspense boundaries renderizam fallback durante carregamento de dados/imagens. Actions (`useActionState`, `useFormStatus`) funcionam mas são menos relevantes em mobile (não tem `<form>` HTML).
+
+**Expo SDK 53 stack**. Expo Router v4 — file-system routing idêntico ao Next.js App Router, mas com `Stack`/`Tabs` ao invés de layouts HTML. Deep links automáticos pelo path. Layouts aninhados via `_layout.tsx`. Protected routes via redirect em layout.
+
+```
+app/
+├── _layout.tsx              # root Stack
+├── (auth)/
+│   ├── _layout.tsx          # Stack auth
+│   ├── login.tsx
+│   └── verify.tsx
+├── (courier)/
+│   ├── _layout.tsx          # Tabs courier
+│   ├── jobs.tsx             # /jobs
+│   ├── jobs/[id].tsx        # /jobs/123 dynamic
+│   ├── route.tsx
+│   └── profile.tsx
+└── +not-found.tsx
+```
+
+```tsx
+// app/(courier)/_layout.tsx
+import { Tabs, Redirect } from 'expo-router';
+import { useAuth } from '@/lib/auth';
+
+export default function CourierLayout() {
+  const { user, isLoading } = useAuth();
+  if (isLoading) return null;
+  if (!user || user.role !== 'courier') return <Redirect href="/login" />;
+
+  return (
+    <Tabs screenOptions={{ tabBarActiveTintColor: '#0a7' }}>
+      <Tabs.Screen name="jobs" options={{ title: 'Jobs' }} />
+      <Tabs.Screen name="route" options={{ title: 'Rota' }} />
+      <Tabs.Screen name="profile" options={{ title: 'Perfil' }} />
+    </Tabs>
+  );
+}
+```
+
+**EAS Build production patterns**. `eas.json` define profiles (development, preview, production). Secrets via `eas env:create` (não commitar). Simulator builds pra QA interno, internal distribution pra beta, EAS Submit publica direto na App Store / Play Console.
+
+```json
+// eas.json
+{
+  "cli": { "version": ">= 12.0.0", "appVersionSource": "remote" },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": { "simulator": true }
+    },
+    "preview": {
+      "distribution": "internal",
+      "channel": "preview",
+      "ios": { "simulator": false }
+    },
+    "production": {
+      "channel": "production",
+      "autoIncrement": true,
+      "env": { "API_URL": "https://api.logistica.com" }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": { "ascAppId": "1234567890", "appleTeamId": "TEAM123" },
+      "android": { "serviceAccountKeyPath": "./play-service-account.json", "track": "production" }
+    }
+  }
+}
+```
+
+**EAS Update (OTA) via channels/branches**. Channel = mapeamento estático no binário (`production`, `preview`). Branch = stream de updates publicados. `eas update --branch production-v1.4 --channel production` aponta channel pra branch específica. Rollback = repointar channel pra branch anterior. Disciplina: nunca apontar channel `production` pra branch `staging`. `runtimeVersion` previne update OTA com mismatch nativo.
+
+**Continuous Native Generation (CNG)**. `npx expo prebuild --clean` regenera `ios/` e `android/` a partir de `app.json` + config plugins. Elimina mistério "o que mudei no Xcode". Pastas nativas podem ficar fora do git (recomendado) — fonte da verdade é `app.json` + plugins. Plugin custom modifica AndroidManifest, Info.plist, Podfile.
+
+**Reanimated 4 (Q1 2025)**. CSS-like style props (`animatedStyle` direto em `<View style={[styles, transform: { rotate: angle.value }]}>` simplificado), worklets continuam (`'worklet'` directive), shared transitions API mais limpa, layout animations declarativas. Performance comparável à 3, API menos verbosa.
+
+```tsx
+// swipe-to-accept worklet
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+
+export function SwipeAccept({ onAccept }: { onAccept: () => void }) {
+  const tx = useSharedValue(0);
+
+  const pan = Gesture.Pan()
+    .onUpdate(e => { tx.value = Math.max(0, e.translationX); })
+    .onEnd(() => {
+      if (tx.value > 200) {
+        tx.value = withSpring(280);
+        runOnJS(onAccept)();
+      } else {
+        tx.value = withSpring(0);
+      }
+    });
+
+  const style = useAnimatedStyle(() => ({ transform: [{ translateX: tx.value }] }));
+  return <GestureDetector gesture={pan}><Animated.View style={style} /></GestureDetector>;
+}
+```
+
+**RN Skia 2.0 (Q4 2024)**. Canvas declarativo, animated drawings, photo manipulation com perf nativa. Polyline animada da rota, charts custom, filtros de imagem. Integração com Reanimated via `useDerivedValue` + `Skia.Path`.
+
+**Stack Logística aplicada**. Courier app: RN 0.78 + Expo SDK 53 + New Arch + Bridgeless. Expo Router v4 com `(auth)`/`(courier)`/`(dispatcher)` segmentando rotas por role via layout-level redirect. EAS Build profile `production` com `autoIncrement` (versionCode/buildNumber automático). EAS Update channel `production` + branch `production-v1.4`. Reanimated 4 anima swipe-to-accept; Skia 2.0 desenha polyline live da rota com `useDerivedValue` lendo GPS via shared value. FlashList 2.0 (Q1 2025) renderiza 500+ jobs com recycling. Hot reload (Fast Refresh) durante dev via `expo-dev-client` com módulos nativos custom.
+
+**10 anti-patterns**:
+
+1. Bridgeless mode habilitado sem auditar custom native modules legacy (módulo que chama `RCTBridge` direto quebra runtime; migração TurboModule + Codegen obrigatória).
+2. New Architecture com TurboModule sem `codegenConfig` em `package.json` (binding gen falha silently, app crasha no primeiro acesso ao módulo).
+3. Expo Router v4 com nested layouts mal configurados (deep link `/jobs/123` não resolve porque `_layout.tsx` do segmento intermediário não existe).
+4. EAS Build production sem `appVersionSource: "remote"` ou `autoIncrement` (versionCode/buildNumber duplicado, App Store/Play Console rejeitam upload).
+5. EAS Update sem disciplina de channel (publicar branch `staging` no channel `production` por engano em `--branch` com nome confuso; sempre nomear branch com sufixo de ambiente).
+6. Reanimated 4 worklet chamando `setState` React direto sem `runOnJS` (worklet roda na UI thread, setState exige JS thread; crash imediato).
+7. RN 0.78 com biblioteca não-compatível React 19 (peer dep mismatch, `useEffect`/refs quebram porque lib usa API removida).
+8. CNG (`prebuild`) com pastas `ios/`/`android/` versionadas no git e editadas manualmente em paralelo (drift entre app.json e nativo, próximo `prebuild --clean` apaga edits).
+9. `Asset.preload` ou `preinit` do React 19 esperado funcionar em RN (no-op silencioso; usar `expo-asset` `Asset.loadAsync`).
+10. `runtimeVersion` policy `appVersion` em update OTA com nova native dep adicionada (binário antigo recebe update incompatível, crash em produção; bumpar appVersion ou usar policy `nativeVersion`).
+
+**Cruza com**: `02-06` §2.5 (New Architecture intro JSI/Fabric/TurboModules), §2.6 (Hermes), §2.7 (Metro bundler), §2.8 (FlashList lists), §2.10 (gestures + animation), §2.13 (OTA updates intro), §2.18 (Hermes/JSI/Reanimated 3/Skia deep), `02-04` §2.15 (React 19.1 patterns — same `use` hook + ref as prop), `02-13` §2.20 (Passkeys WebAuthn — react-native-passkey), `02-17` (native mobile direct, quando RN não basta), `03-04` §2.21 (release-please pra versionamento RN), `03-08` (security mobile — secure storage + cert pinning).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

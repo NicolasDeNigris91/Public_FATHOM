@@ -434,6 +434,194 @@ P checker explora interleavings; spec machine `MutualExclusion` valida invariant
 
 ---
 
+### 2.19 Formal methods em produção 2026 — TLA+ + Apalache + Lean 4 + property testing como FM-lite
+
+**Contexto 2026.** Formal methods deixaram de ser tema de PhD e viraram ferramenta seletiva: AWS usa TLA+ para DynamoDB, S3 e EBS desde 2014; Microsoft especifica Azure Storage com P; FoundationDB e TigerBeetle constroem sistemas distribuídos sobre deterministic simulation testing; Lean 4 atravessa de prova matemática (Mathlib 4) para verificação de hardware em Intel/AMD. Mas continua sendo ROI-driven — escrever spec TLA+ para CRUD comum é teatro caro. O playbook 2026: classificar o subsistema por blast radius, aplicar lightweight FM (property tests + simulation) por padrão, e escalar para TLA+/Apalache/Lean apenas onde bug silencioso = perda irreversível (consenso, ledger financeiro, cripto, replicação).
+
+**TLA+ production deep — TLC (explicit-state).** TLA+ 1.8+ continua mantido por Lamport. TLC enumera estados explicitamente — rápido para state space pequeno, exausto em sistemas grandes. Caso de uso: protocolos distribuídos com state space limitado (Raft, Paxos, leader election, distributed lock). PlusCal traduz pseudocódigo imperativo para TLA+ — adoção mais fácil para devs vindos de imperativo.
+
+```tla
+---- MODULE DistributedLock ----
+EXTENDS Naturals, Sequences
+CONSTANTS Clients
+VARIABLES owner, queue
+
+Init == owner = NULL /\ queue = <<>>
+
+Acquire(c) ==
+  /\ owner = NULL
+  /\ owner' = c
+  /\ queue' = queue
+
+Enqueue(c) ==
+  /\ owner # NULL
+  /\ owner # c
+  /\ c \notin Range(queue)
+  /\ queue' = Append(queue, c)
+  /\ owner' = owner
+
+Release(c) ==
+  /\ owner = c
+  /\ IF queue = <<>>
+       THEN owner' = NULL /\ queue' = queue
+       ELSE owner' = Head(queue) /\ queue' = Tail(queue)
+
+Next == \E c \in Clients : Acquire(c) \/ Enqueue(c) \/ Release(c)
+
+\* Safety: cliente nunca aparece duas vezes na fila
+NoDuplicateInQueue == \A c \in Clients : Cardinality({i \in DOMAIN queue : queue[i] = c}) <= 1
+
+\* Liveness: todo cliente enfileirado eventualmente vira owner
+Fairness == \A c \in Clients : []<>(c \notin Range(queue) \/ owner = c)
+====
+```
+
+Config TLC (`DistributedLock.cfg`):
+
+```
+SPECIFICATION Spec
+INVARIANT NoDuplicateInQueue
+PROPERTY Fairness
+CONSTANTS Clients = {c1, c2, c3}
+```
+
+CI integration (GitHub Actions):
+
+```yaml
+- name: TLC model check
+  run: |
+    java -jar tla2tools.jar -workers auto -config DistributedLock.cfg DistributedLock.tla
+```
+
+Counterexample trace do TLC é o produto principal — ler o trace conta exatamente como invariante quebra, sequência de ações que leva ao erro. Spec sem CI apodrece em 6 meses.
+
+**Apalache symbolic checker.** Apalache 0.45+ (Q3 2024 — paralelismo + IRDL melhorado) substitui enumeração explícita por SMT solving (Z3/CVC5). Trade-off: Apalache lida com state space infinito (inteiros não-bounded, conjuntos arbitrários) que TLC não consegue, mas é mais lento em state spaces pequenos onde TLC explícito ganha. IRDL (Intermediate Representation for Data Layouts) é o subset de TLA+ que Apalache aceita — exige type annotations.
+
+```bash
+# Bounded model checking até depth 20
+apalache-mc check --length=20 --inv=NoDuplicateInQueue DistributedLock.tla
+
+# Symbolic execution com array encoding (escala melhor em sets grandes)
+apalache-mc check --length=50 --inv=NoDuplicateInQueue --smt-encoding=arrays DistributedLock.tla
+```
+
+Regra prática: começar com TLC, mover para Apalache quando state space explode (mensagens com IDs grandes, timestamps, contadores monotônicos).
+
+**Lean 4 modern.** Lean 4 (release estável 2023) com Mathlib 4 thriving — biblioteca matemática community-driven cobre álgebra, topologia, análise. Adoção em hardware verification (Intel formal verification team, AMD em partes do pipeline FP) e cripto (Lean para provas sobre primitivas criptográficas). Substitui Coq (rebrand para Rocq em 2025, versão 8.20 Q4 2024) gradualmente em projetos novos pela ergonomia superior. Isabelle 2024 (Q4 2024) continua dominante em verificação de SO (seL4) e provas educacionais.
+
+```lean
+-- Lean 4: prova de comutatividade da soma sobre Nat
+theorem add_comm_nat (a b : Nat) : a + b = b + a := by
+  induction a with
+  | zero => simp
+  | succ n ih => simp [Nat.add_succ, Nat.succ_add, ih]
+
+-- Refinement type via subtype: head total sobre lista não-vazia
+def head! {α : Type} : (xs : List α) → xs ≠ [] → α
+  | x :: _, _ => x
+```
+
+Lean para SW genérico = overkill. Reserve para cripto, safety-critical (avionics, medical), provas matemáticas que sustentam protocolo.
+
+**P language (Microsoft).** P estável, foco em event-driven state machines — modelo natural para mensageria assíncrona, atores, protocolos. Usado para Azure Storage spec. Diferente de TLA+ porque é executável (gera C/C# para deployment) e checa via systematic exploration de schedules.
+
+**Property-based testing — gateway drug para FM.** fast-check 3.x (TS) e Hypothesis 6.x (Python) geram entradas aleatoriamente + shrinking automático para counterexample mínimo. Custo entry-level baixo, ROI alto — força o dev a articular invariantes explicitamente.
+
+```ts
+// fast-check 3.x: ledger invariants
+import fc from 'fast-check';
+
+test('ledger sum is invariant under reordering', () => {
+  fc.assert(
+    fc.property(fc.array(fc.integer({ min: -1000, max: 1000 })), (entries) => {
+      const sum1 = entries.reduce((a, b) => a + b, 0);
+      const sum2 = [...entries].reverse().reduce((a, b) => a + b, 0);
+      return sum1 === sum2;
+    }),
+    { numRuns: 1000, seed: 42 }, // seed pinado para CI determinístico
+  );
+});
+
+test('saga step is idempotent', () => {
+  fc.assert(
+    fc.property(fc.uuid(), async (orderId) => {
+      const r1 = await applyCompensation(orderId);
+      const r2 = await applyCompensation(orderId);
+      return r1.state === r2.state;
+    }),
+    { numRuns: 200, seed: 1337 },
+  );
+});
+```
+
+Anti-pattern: `numRuns: 100` sem seed pinado em CI = flake. Pin seed + numRuns alto OU mover suite property para nightly.
+
+**Deterministic simulation testing (DST).** FoundationDB pioneirou (talk pública de 2014+); TigerBeetle (DB financeiro 2024) construiu produção em cima. Princípio: substituir relógio real, IO real e rede real por versões injetadas — toda execução é função pura de seed. Bug encontrado = replay 100% reproduzível. Roda 10⁶+ simulações com fault injection (network partition, disk corruption, clock skew) em CI nightly.
+
+```ts
+// padrão DST simplificado
+class SimulatedNode {
+  constructor(private clock: SimClock, private net: SimNet, private disk: SimDisk) {}
+}
+
+function runSimulation(seed: number, faultRate: number) {
+  const rng = mulberry32(seed);
+  const clock = new SimClock(rng);
+  const net = new SimNet(rng, faultRate);
+  const disk = new SimDisk(rng, faultRate);
+  const cluster = createCluster({ clock, net, disk });
+  for (let tick = 0; tick < 100_000; tick++) {
+    cluster.step();
+    assertInvariants(cluster); // ledger balanced, no duplicate writes, etc.
+  }
+}
+
+// CI: rodar 10000 seeds, falha = print seed + replay manual com mesmo seed
+for (const seed of generateSeeds(10_000)) runSimulation(seed, 0.01);
+```
+
+Anti-pattern crítico: dependência não-determinística (`Date.now()`, `Math.random()` sem seed, `crypto.randomUUID()` real, syscall) destrói determinismo — bug irrepetível é pior que bug conhecido.
+
+**Hyperproperty checking.** Propriedades sobre múltiplos traces (não single trace). Non-interference: low-security observer não distingue execução com input high-security A vs B — base formal de timing-side-channel resistance e isolamento multi-tenant. Ferramentas: HyperLTL, Apalache (com extensões). Reservado para sistemas com ameaça side-channel real (cripto, multi-tenant database). Anti-pattern: claim "we don't leak" sem checker é hyperproperty teatro.
+
+**Decision matrix 2026.**
+
+| Subsistema | Ferramenta | Justificativa |
+|---|---|---|
+| Consensus protocol (Raft/Paxos) | TLA+ + TLC | State space limitado; literatura existente; AWS-style |
+| Event-driven state machine | P language | Gera código + checa schedules |
+| State space infinito (counters, timestamps) | Apalache | SMT lida com unbounded |
+| Cripto / safety-critical math | Lean 4 / Coq | Refinement + dependent types |
+| Distributed DB (replicação, txn) | DST (FoundationDB/TigerBeetle pattern) | High-cardinality + replay |
+| Domain logic (ledger, saga) | Property-based (fast-check / Hypothesis) | Cheap entry, alto ROI |
+| Side-channel / multi-tenant isolation | Hyperproperty checker | Único método sound |
+| CRUD comum / UI | Nada formal — testes integração | ROI negativo |
+
+**Stack Logística aplicada.**
+
+- **TLA+:** spec do outbox idempotency + saga compensation correctness (consumer ack + retry under network partition). Subsistema crítico, blast radius = perda de evento financeiro. CI roda TLC weekly em nightly job.
+- **fast-check 3.x:** invariantes de domínio core — ledger sums balanced, saga steps idempotent, CPF/CNPJ round-trip serialize, pricing engine commutativity. Roda em CI a cada PR com seed pinado.
+- **DST (TigerBeetle-inspired):** algoritmo de courier matching (high-cardinality, race conditions reais). 1000 simulações nightly com fault injection (driver disconnect mid-match).
+- **Lean 4:** não usado — overkill para domínio logístico (sem cripto custom, sem hardware). Adoção seria FM theater.
+- **P language:** considerado para fleet state machine, descartado — fast-check + DST cobrem com ROI melhor.
+
+**10 anti-patterns 2026.**
+
+1. TLA+ spec sem CI integration — apodrece em 6 meses; spec vira folclore.
+2. Apalache assumido sempre mais rápido que TLC — depende workload; TLC ganha em state space pequeno, Apalache em infinito.
+3. Lean 4 adotado para SW genérico onde property tests bastam — custo massivo; reserve para cripto/safety-critical.
+4. fast-check `numRuns: 100` sem seed pinado em CI — flake garantido; pin seed + numRuns alto, OU mover para nightly.
+5. Deterministic simulation com dependências não-determinísticas (real clock, real network, `randomUUID()` real) — defeats determinismo, bug irrepetível.
+6. Hyperproperty assumida via claim ("não vazamos dados") sem checker — theater, falsa confiança.
+7. Counterexample do model checker explicado away ("must be impossible em prod") em vez de investigado — bug em prod 6 meses depois.
+8. Bus factor 1 — único expert sai, FM morre, spec apodrece, ninguém atualiza.
+9. FM theater — escrever spec para parecer rigoroso, nunca rodar checker, spec não reflete código.
+10. FM aplicado em layer de baixo impacto (UI, CRUD) com ROI negativo enquanto sistema crítico (consenso, ledger) fica sem proteção.
+
+**Cruza com:** [04-14 §2.2-§2.4](04-14-formal-methods.md) (TLA+/PlusCal/TLC foundation), [§2.5](04-14-formal-methods.md) (invariants), [§2.7](04-14-formal-methods.md) (P language), [§2.8](04-14-formal-methods.md) (Alloy), [§2.9](04-14-formal-methods.md) (Coq/Isabelle/Lean intro), [§2.16](04-14-formal-methods.md) (lightweight FM intro), [§2.18](04-14-formal-methods.md) (TLA+ vs Alloy vs P), [04-01 §2.11](04-01-distributed-systems-theory.md) (consensus Raft/Paxos), [§2.22](04-01-distributed-systems-theory.md) (consensus applied), [04-02 §2.18](04-02-messaging.md) (idempotent consumer — formal proof candidate), [04-03 §2.19](04-03-event-driven-patterns.md) (Outbox + Saga — TLA+ candidate), [03-01 §2.10](../03-producao/03-01-testing.md) (property-based testing intro), [§2.20](../03-producao/03-01-testing.md) (Vitest 3 + fast-check), [04-04 §2.30](04-04-resilience-patterns.md) (DR — formal proof of failover correctness).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

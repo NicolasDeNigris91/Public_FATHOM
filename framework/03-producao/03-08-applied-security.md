@@ -827,6 +827,191 @@ Cruza com **03-03** (K8s NetworkPolicies), **02-13** (auth user-side OAuth2 + JW
 
 ---
 
+### 2.23 Supply chain security 2026 deep — SLSA v1 L3/L4, sigstore keyless, npm provenance, dependency-track + VEX, GUAC
+
+O backdoor xz/liblzma (CVE-2024-3094, Mar/2024) deixou o custo de não ter supply chain security mensurável: maintainer comprometido, payload em release tarball, escapou de revisão por 2 anos. Resposta da indústria 2024-2026 consolidou stack: **SLSA v1.0** (framework de níveis de integridade de build), **sigstore** (assinatura keyless via OIDC + transparency log), **npm provenance** (default para trusted publishers), **dependency-track + VEX** (consumo de SBOM com supressão de falsos positivos), **GUAC** (graph DB para incident response). Esta seção cobre implementação production 2026 — não conceito.
+
+#### SLSA v1.0 levels (estado 2026)
+
+SLSA (Supply-chain Levels for Software Artifacts) v1.0 estável Q4/2023. L1-L3 framework completo; L4 ainda em draft (Track Build expandida com hermetic + reproducible).
+
+| Level | Requisito core | Verifica |
+|-------|---------------|----------|
+| L1    | Provenance existe (build documenta como foi feito) | Existe metadata |
+| L2    | Provenance assinada pelo build platform           | Não foi adulterada |
+| L3    | Hosted build platform + isolated runner + tamper-resistant | Build não pode ser influenciado por outros builds |
+| L4 (draft) | Hermetic + reproducible builds                | Bit-for-bit determinístico, sem network ad-hoc |
+
+**Em 2026 a baseline production é L3** — e GitHub Artifact Attestations (GA Q4/2024) entrega L3 turnkey via `actions/attest-build-provenance`. Claim L3 sem isolated builder = false claim auditável.
+
+#### Sigstore stack: Fulcio + Rekor + Cosign
+
+Stack CNCF graduated Q4/2023:
+
+- **Fulcio** — Certificate Authority efêmera. Emite cert X.509 com lifetime ~10min, vinculada a identidade OIDC (GitHub Actions token, Google, GitLab).
+- **Rekor** — Transparency log append-only (Merkle tree). Toda assinatura registrada publicamente; tampering detectável.
+- **Cosign** (2.4, Q3/2024) — CLI sign/verify. Suporta sign-blob (arquivos), sign (OCI images), attestations (in-toto).
+
+**Keyless = zero key management.** Identidade do signer é o OIDC issuer + workflow path. Verificação não checa "esta chave assinou" mas "este workflow neste repo assinou".
+
+#### Cosign keyless workflow em GitHub Actions
+
+```yaml
+# .github/workflows/release.yml
+name: release
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  id-token: write   # OIDC token para Fulcio
+  contents: read
+  attestations: write
+  packages: write
+
+jobs:
+  build-sign:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: sigstore/cosign-installer@v3.7.0
+        with:
+          cosign-release: 'v2.4.1'
+
+      - name: Build container
+        run: docker build -t ghcr.io/org/app:${{ github.sha }} .
+
+      - name: Push image
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker push ghcr.io/org/app:${{ github.sha }}
+
+      - name: Sign image keyless
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          cosign sign --yes ghcr.io/org/app:${{ github.sha }}
+
+      # Turnkey SLSA L3 build provenance (GA Q4/2024)
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/org/app
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+```
+
+Verificação consumer-side:
+
+```bash
+# Verifica assinatura + identidade do signer
+cosign verify ghcr.io/org/app@sha256:abc... \
+  --certificate-identity "https://github.com/org/repo/.github/workflows/release.yml@refs/tags/v1.2.3" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
+
+# Verifica build provenance (SLSA L3)
+gh attestation verify oci://ghcr.io/org/app@sha256:abc... \
+  --owner org \
+  --predicate-type https://slsa.dev/provenance/v1
+```
+
+Falha de verificação aborta deploy. K8s admission policy via `sigstore/policy-controller` faz isso no cluster.
+
+#### npm provenance (default Q3/2024 para trusted publishers)
+
+```bash
+# package.json: trusted publishing configurado em npmjs.com → GitHub Actions
+npm publish --provenance --access public
+```
+
+Workflow GitHub Actions com `id-token: write` gera attestation in-toto, registra em Rekor, npmjs.com exibe badge "Provenance" linkando ao workflow exato. Consumer verifica:
+
+```bash
+npm audit signatures   # verifica todas dependências assinadas
+```
+
+Em 2026, publicar pacote npm sem `--provenance` é signal negativo — consumers não conseguem auditar origem.
+
+#### Dependency-track 4.10+ com VEX consumption
+
+Pipeline de SBOM consumption production:
+
+```bash
+# CI: gera SBOM + envia para dependency-track
+syft ghcr.io/org/app:latest -o cyclonedx-json > sbom.json
+
+curl -X POST "$DT_URL/api/v1/bom" \
+  -H "X-Api-Key: $DT_API_KEY" \
+  -H "Content-Type: multipart/form-data" \
+  -F "project=$PROJECT_UUID" \
+  -F "bom=@sbom.json"
+```
+
+Dependency-track faz CVE matching contínuo (NVD + GitHub Advisory + OSS Index), license scanning, dependency graph, alerta quando nova CVE aparece em versão deployada.
+
+#### VEX consumption — supressão de falsos positivos
+
+OpenVEX 0.2.0 (Q1/2024) statement YAML — "esta CVE não se aplica ao meu build":
+
+```yaml
+# vex/CVE-2024-12345.openvex.yaml
+"@context": "https://openvex.dev/ns/v0.2.0"
+"@id": "https://example.com/vex/CVE-2024-12345"
+author: "security@org.com"
+timestamp: "2026-04-15T10:00:00Z"
+statements:
+  - vulnerability:
+      name: "CVE-2024-12345"
+    products:
+      - "@id": "pkg:oci/app@sha256:abc..."
+    status: "not_affected"
+    justification: "vulnerable_code_not_in_execute_path"
+    impact_statement: "Função vulnerável em libfoo/parse() não invocada; só usamos libfoo/encode()."
+```
+
+Trivy consome VEX:
+
+```bash
+trivy image --vex ./vex/ ghcr.io/org/app:latest
+```
+
+CSAF VEX vem de upstream vendors (Red Hat, SUSE) — consumir reduz alert fatigue. Sem VEX, dependency-track gera centenas de alerts/semana → time ignora todos → CVE real escapa.
+
+#### GUAC (Graph for Understanding Artifact Composition) 0.6
+
+Graph DB que liga artifacts ↔ source ↔ vulnerabilities ↔ deployments. Ingest contínuo de SBOMs + attestations + CVE feeds:
+
+```bash
+guacone collect files ./sboms/
+guacone collect files ./attestations/
+
+# Query incident response: "quais imagens em prod têm CVE-X?"
+guacone query vuln CVE-2024-3094
+# → lista images, deployments, namespaces afetados
+```
+
+Em incident response (xz-style), GUAC responde em segundos o que sem ele leva dias de spreadsheet manual.
+
+#### Stack Logística aplicada
+
+CI build: GitHub Actions com `id-token: write` → docker build → cosign sign keyless → `actions/attest-build-provenance` (SLSA L3) → npm publish --provenance para SDK packages. SBOM via Syft enviada a dependency-track self-hosted. VEX statements em `vex/` directory consumidos por Trivy + dependency-track. K8s admission via sigstore-policy-controller bloqueia images sem attestation com identidade esperada. GUAC instance ingere SBOMs + attestations diariamente para incident response queries. Resultado: cada container em prod tem cadeia auditável até commit + workflow + signer OIDC, e CVE alerts são acionáveis (VEX suprime ruído).
+
+#### 10 anti-patterns
+
+1. Sigstore signing sem verifying downstream — signing theater, não bloqueia nada.
+2. Cosign com long-lived keys em vez de keyless — anula propósito (key management volta).
+3. `npm publish` sem `--provenance` em 2026 — consumers não auditam, sinal negativo.
+4. Dependency-track sem VEX consumption — alert fatigue → time ignora todos → CVE real passa.
+5. Claim SLSA L3 sem isolated builder (self-hosted runner compartilhado) — false claim auditável.
+6. SBOM gerada em CI mas não armazenada — sem lookup histórico, incident response cego.
+7. Reproducible build claim com network calls em build (`curl`, `npm install` sem lockfile) — não-reproduzível, L4 falha.
+8. Attestation só em release tag, não em PR/main — regression escapa entre releases.
+9. Verificação cosign sem `--certificate-identity` (só checa "tem assinatura") — atacante assina com qualquer OIDC válido.
+10. GUAC/dependency-track exposto sem auth na intranet — SBOM completa = mapa de vulnerabilidades para atacante interno.
+
+Cruza com **03-08 §2.14** (supply chain intro), **§2.20** (SBOM lifecycle + VEX intro), **§2.21** (OWASP applied), **03-02 §2.22** (Wolfi + cosign + Trivy CI integration), **03-04** (CI/CD — Artifact Attestations as build gate), **03-03** (K8s admission validando attestations via sigstore-policy-controller), **04-15** (OSS maintainership — npm provenance impact em maintainers).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

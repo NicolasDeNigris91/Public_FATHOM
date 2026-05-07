@@ -444,7 +444,244 @@ Cruza com **02-08** (Fastify schema-first, Zod), **03-04** (CI/CD, `can-i-deploy
 
 ---
 
-### 2.20 Visual regression testing + Playwright advanced patterns + flake elimination
+### 2.20 Testing stack 2026 — Vitest 3 + Playwright 1.55 + Stryker 8 + fast-check 3 + MSW 2
+
+Stack de teste 2024-2026 consolidou. Vitest 3 (Q4 2024) ganhou greenfield TS — startup 5x mais rápido que Jest, ESM-first, browser mode stable. Playwright (1.48 Q4 2024 → 1.55 Q3 2025) virou default E2E e absorveu component testing maduro com `@playwright/experimental-ct-react`. Stryker 8 (Q1 2024) adicionou Vitest runner, viabilizando mutation testing em pipelines TS modernos. fast-check 3.x estabilizou property-based em produção desde 2022. MSW 2.0 (Q4 2023) reescreveu API com `http.get`/`http.post` e Service Worker + Node interceptor unificados, MSW 2.7 (Q4 2025) integrou OpenAPI codegen pra type-safe handlers.
+
+Estratégia 2026 não é "qual ferramenta", é **qual combinação**: Vitest pra unit + integration rápido, Vitest browser mode pra hooks que dependem de DOM real, Playwright pra E2E + visual regression, Stryker em módulos críticos (billing, auth), fast-check em libs matemáticas/parsers, MSW como única fonte de mock entre todas as camadas.
+
+**Vitest 3 com browser mode**:
+
+```ts
+// vitest.config.ts
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    browser: {
+      enabled: true,
+      provider: 'playwright', // ou 'webdriverio'
+      name: 'chromium',
+      headless: true,
+      providerOptions: {
+        launch: { devtools: false },
+      },
+    },
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'lcov'],
+      thresholds: { lines: 80, functions: 80, branches: 75, statements: 80 },
+    },
+  },
+});
+```
+
+Browser mode roda teste em browser real (Chromium/Firefox/WebKit via Playwright provider, sem JSDOM mock). Hooks que tocam `IntersectionObserver`, `ResizeObserver`, layout real, agora testáveis sem polyfill.
+
+**Vitest workspace** (mono-repo, multi-config):
+
+```ts
+// vitest.workspace.ts
+import { defineWorkspace } from 'vitest/config';
+
+export default defineWorkspace([
+  {
+    test: {
+      name: 'unit',
+      include: ['packages/**/*.unit.test.ts'],
+      environment: 'node',
+    },
+  },
+  {
+    test: {
+      name: 'integration',
+      include: ['packages/**/*.int.test.ts'],
+      environment: 'node',
+      pool: 'forks', // isolation pra DB tests
+      poolOptions: { forks: { singleFork: false } },
+    },
+  },
+  {
+    test: {
+      name: 'browser',
+      include: ['packages/web/**/*.browser.test.tsx'],
+      browser: { enabled: true, provider: 'playwright', name: 'chromium', headless: true },
+    },
+  },
+]);
+```
+
+Roda `vitest --project unit` ou `vitest --project browser`. CI separa concorrência: unit em paralelo agressivo, integration em forks isolados, browser sequencial por shard.
+
+**Playwright 1.55 component test + visual regression**:
+
+```ts
+// playwright-ct.config.ts
+import { defineConfig, devices } from '@playwright/experimental-ct-react';
+
+export default defineConfig({
+  testDir: './src',
+  testMatch: /.*\.ct\.test\.tsx/,
+  snapshotDir: './__snapshots__',
+  use: { ctPort: 3100 },
+  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+});
+
+// dashboard.ct.test.tsx
+import { test, expect } from '@playwright/experimental-ct-react';
+import { Dashboard } from './Dashboard';
+
+test('dashboard renderiza KPIs corretos', async ({ mount }) => {
+  const cmp = await mount(<Dashboard kpis={{ orders: 1240, revenue: 84500 }} />);
+  await expect(cmp.getByTestId('kpi-orders')).toHaveText('1.240');
+  await expect(cmp).toHaveScreenshot('dashboard-default.png', { maxDiffPixels: 50 });
+});
+```
+
+`toHaveScreenshot` compara contra baseline em `__snapshots__/`. Baseline vai pra Git LFS (PNGs binários poluem diff). Branch protection: snapshot só atualiza via PR explícito (`--update-snapshots` em label `update-snapshots`), nunca em merge automático.
+
+**Trace viewer**: `playwright show-trace trace.zip` abre timeline com network, console, DOM snapshot por step. Em CI, `trace: 'retain-on-failure'` salva trace só em falha — debug remoto sem reproduzir local.
+
+**Stryker 8 mutation com Vitest runner**:
+
+```json
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "packageManager": "pnpm",
+  "testRunner": "vitest",
+  "vitest": { "configFile": "vitest.config.ts" },
+  "coverageAnalysis": "perTest",
+  "mutate": ["src/billing/**/*.ts", "!src/billing/**/*.test.ts"],
+  "thresholds": { "high": 85, "low": 70, "break": 60 },
+  "reporters": ["html", "clear-text", "progress", "dashboard"],
+  "dashboard": { "project": "github.com/org/repo", "version": "main" }
+}
+```
+
+`break: 60` falha CI se mutation score < 60%. Score 60-80% é faixa saudável (testa comportamento, não implementação). >85% indica testes acoplados a detalhe — refactor quebra testes sem bug real. Stryker é caro (roda suite N vezes onde N = mutantes), reserva pra módulos críticos e roda **weekly** em main, não em todo PR.
+
+**fast-check 3 property-based**:
+
+```ts
+import fc from 'fast-check';
+import { describe, test } from 'vitest';
+import { sortByPriority, mergeOrders } from './orders';
+
+describe('sortByPriority', () => {
+  test('idempotência: sort(sort(x)) === sort(x)', () => {
+    fc.assert(
+      fc.property(fc.array(fc.record({ id: fc.string(), priority: fc.integer() })), (orders) => {
+        const once = sortByPriority(orders);
+        const twice = sortByPriority(once);
+        expect(twice).toEqual(once);
+      }),
+      { numRuns: 200, seed: 42 },
+    );
+  });
+
+  test('mergeOrders comutativo: merge(a,b) === merge(b,a)', () => {
+    fc.assert(
+      fc.property(fc.array(fc.string()), fc.array(fc.string()), (a, b) => {
+        expect([...mergeOrders(a, b)].sort()).toEqual([...mergeOrders(b, a)].sort());
+      }),
+      { numRuns: 100, seed: 1337 },
+    );
+  });
+});
+```
+
+`seed` fixo torna falha reprodutível. Shrinking automático reduz contra-exemplo (array de 1000 items → 3 items que ainda quebram). Property-based brilha em parsers, sort, merge, serialize/deserialize round-trip.
+
+**MSW 2 handler unificado** (Node + browser + E2E):
+
+```ts
+// mocks/handlers.ts
+import { http, HttpResponse } from 'msw';
+
+export const handlers = [
+  http.get('/api/orders/:id', ({ params }) => {
+    return HttpResponse.json({ id: params.id, status: 'PAID', amount: 12500 });
+  }),
+  http.post('/api/orders', async ({ request }) => {
+    const body = await request.json();
+    return HttpResponse.json({ id: 'ord_new', ...body }, { status: 201 });
+  }),
+];
+
+// mocks/node.ts (Vitest unit/integration)
+import { setupServer } from 'msw/node';
+import { handlers } from './handlers';
+export const server = setupServer(...handlers);
+
+// mocks/browser.ts (Vitest browser mode + Playwright ct)
+import { setupWorker } from 'msw/browser';
+import { handlers } from './handlers';
+export const worker = setupWorker(...handlers);
+```
+
+Mesmo `handlers.ts` alimenta Node interceptor (testes server-side) e Service Worker (testes client-side). Em E2E Playwright, intercepta via `page.route()` ou monta MSW worker no app de teste. MSW 2.7 + OpenAPI codegen gera handlers tipados a partir do spec — mock que diverge do contrato é erro de compile.
+
+**Test sharding 2026** (Playwright em GitHub Actions):
+
+```yaml
+e2e:
+  strategy:
+    fail-fast: false
+    matrix:
+      shard: [1/4, 2/4, 3/4, 4/4]
+  steps:
+    - run: pnpm playwright test --shard=${{ matrix.shard }} --reporter=blob
+    - uses: actions/upload-artifact@v4
+      with:
+        name: blob-report-${{ strategy.job-index }}
+        path: blob-report
+
+e2e-merge:
+  needs: e2e
+  if: always()
+  steps:
+    - uses: actions/download-artifact@v4
+      with: { path: all-blob-reports, pattern: blob-report-* }
+    - run: pnpm playwright merge-reports --reporter=html ./all-blob-reports
+```
+
+Sweet spot: 4-8 shards. Menos = latência alta; mais = overhead de spinup domina. `--reporter=blob` produz artifact mergeável (HTML único final). Vitest tem `--shard 1/4` análogo. Sharding reduz E2E de 30min sequencial pra 6-8min em 4 paralelos.
+
+**CI integration patterns 2026**:
+
+- **Fast lane PR**: Vitest unit + integration, < 3min, gate obrigatório.
+- **E2E lane PR**: Playwright sharded 4x, < 10min, gate em smoke tests críticos.
+- **Visual regression**: comparação contra baseline `main`, falha se diff > threshold; update via label.
+- **Nightly**: full E2E matrix (chromium + firefox + webkit), mutation testing Stryker, contract testing Pact.
+- **Weekly**: fast-check com `numRuns: 10000` em libs core (acha edge cases lentos sem flakar PR).
+
+**Stack Logística aplicada**:
+
+- Vitest 3 unit pra `pricing/`, `routing/`, `validation/` (Zod schemas).
+- Vitest browser mode pra hooks de mapa (`useMapViewport`, depende de `ResizeObserver` real).
+- Playwright 1.55 E2E flow `pedido → cotação → pagamento → tracking`, sharded 4x em PR.
+- Visual regression em dashboard de operações (KPIs, gráficos).
+- Stryker em `billing/` (cálculo de frete, comissão) — mutation score gate 70%.
+- fast-check em `routing/` (`shortestPath` idempotente, `mergeRoutes` comutativo).
+- MSW 2 handlers gerados via OpenAPI da API de transportadora — mock client = mock E2E = mock dev local.
+
+**10 anti-patterns**:
+
+1. **Jest + Vitest mix em mesmo repo**: config drift, coverage merge headache, dois reporters. Migra tudo ou nada.
+2. **Playwright component test + Vitest browser mode overlapping**: escolhe um. Vitest browser pra hooks/utils, Playwright ct só se já usa Playwright pra E2E e quer reuse de fixtures.
+3. **Visual regression sem branch protection em baseline**: PR random atualiza snapshot, main fica com baseline errado. Update só via label explícito.
+4. **Stryker rodando full suite em todo PR**: 30min+ CI, dev pula. Roda em main nightly + threshold gate; PR roda Stryker incremental só em files alterados.
+5. **fast-check com `numRuns: 100` default em CI**: edge case lento gera flaky. Pin `numRuns` baixo (50-200) + `seed` fixo no PR; rodada `numRuns: 10000` em weekly job.
+6. **MSW handler em ambiente errado**: importou `setupWorker` em teste Node = noop silent, requests passam pra rede real (ou falham timeout). Lint regra: `msw/browser` proibido em `*.test.ts` Node.
+7. **Test sharding sem `--reporter=blob`**: 4 reports HTML parciais sem merge, dev abre 4 abas. Sempre `blob` + `merge-reports`.
+8. **Mutation score como vanity metric**: time persegue 95% mutando getters/setters. Score 60-80% em código de domínio > 95% em tudo.
+9. **Property-based sem `seed`**: falha CI em PR random, próximo run passa, dev marca como flaky e ignora bug real. `seed` fixo + reproduzir local com mesmo seed.
+10. **Browser mode pra teste que não precisa de DOM real**: Vitest browser é 3-5x mais lento que JSDOM. Reserva pra hooks/components que dependem de layout/observer real.
+
+**Cruza com**: §2.7 (Playwright/Cypress intro), §2.9 (mutation intro), §2.10 (property-based intro), §2.11 (snapshots), §2.15 (contract testing), §2.18 (CI integration), §2.19 (Pact + fuzz), **02-04** (React testing patterns), **02-08** (backend test integration), **03-04** (CI sharding + matrix gates), **04-05 §2.27** (OpenAPI codegen feeds MSW handlers).
+
+---
+### 2.21 Visual regression testing + Playwright advanced patterns + flake elimination
 
 E2E funcional valida comportamento; CSS regression passa silenciosa (botão deslocado 4px, contraste quebrado, layout collapse em viewport intermediário). Visual regression captura snapshot e compara pixel-a-pixel. Custo: alta manutenção, falsos positivos em data-driven UI. Adote por componente (design system) e por página crítica (checkout, dashboard); nunca por página inteira em SaaS data-heavy.
 
@@ -607,7 +844,7 @@ POM por feature (não god-class); fixture injeta página pronta no teste, reduz 
 - Visual regression em data-driven UI sem `mask` (timestamps/IDs mudam; mask obrigatório).
 - Mock APIs em todo teste E2E (defeats purpose; use real backend via Testcontainers + selective stubs em edges).
 
-Cruza com `03-01` §2.6 (E2E basics, Playwright fundamentals), `03-01` §2.18 (CI integration), **03-04** (CI/CD, parallel sharding, container reuse), **02-04** (React + Storybook component dev), **03-09** (frontend perf, visual budget enforcement em CI).
+Cruza com `03-01` §2.6 (E2E basics, Playwright fundamentals), `03-01` §2.18 (CI integration), `03-01 §2.20` (testing stack 2026 — Playwright 1.55 + visual regression integrado), **03-04** (CI/CD, parallel sharding, container reuse), **02-04** (React + Storybook component dev), **03-09** (frontend perf, visual budget enforcement em CI).
 
 ---
 

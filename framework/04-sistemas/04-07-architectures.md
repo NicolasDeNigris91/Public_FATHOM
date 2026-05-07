@@ -511,6 +511,232 @@ Cruza com **04-06** (DDD, building blocks, Specification pattern), **04-08** (se
 
 ---
 
+### 2.20 Modular Monolith production patterns 2026 — Spring Modulith, .NET Aspire, Encore.ts, Helidon, monorepo TS, boundary enforcement
+
+Modular monolith virou default 2024-2026 para projetos médios (5-15 devs, 8-12 módulos). Microservices premature custa coordenação distribuída sem ganho organizacional. Framework support across ecosystems matured: Spring Modulith 1.3+ (Q4 2024, Spring Boot 3.4 compat), .NET Aspire 9.0+ (Nov 2024 GA), Encore.ts 1.x (Q4 2024, TS-native), Helidon 4.1+ (Oracle, virtual threads). Monorepo TS via Turborepo 2.x / Nx 20+ / Rush. Boundary enforcement automated via ESLint plugin-boundaries, dep-cruiser 16+, ts-arch. §2.15 introduziu modular monolith conceitual; §2.20 é o **2026 framework deep**.
+
+**Spring Modulith 1.3+**: extension oficial do Spring Boot. Module = package + sub-packages internos. Public API exposto via top-level package; internals em `internal/` package-private (Java compiler enforce).
+
+```java
+// orders/package-info.java
+@ApplicationModule(
+    displayName = "Orders",
+    allowedDependencies = { "shared", "payments::events" }  // só shared + events de payments
+)
+package com.logistica.orders;
+
+import org.springframework.modulith.ApplicationModule;
+
+// orders/internal/OrderRepository.java — package-private, invisível fora do módulo
+package com.logistica.orders.internal;
+
+class OrderRepository { /* ... */ }
+
+// orders/OrderService.java — public API
+package com.logistica.orders;
+
+@Service
+public class OrderService {
+    // expõe DTOs, esconde entities
+}
+
+// Boundary test (build-time)
+class ModularityTest {
+    @Test
+    void verifiesModularStructure() {
+        ApplicationModules.of(LogisticaApplication.class).verify();
+    }
+
+    @Test
+    void documentsModules() {
+        new Documenter(ApplicationModules.of(LogisticaApplication.class))
+            .writeDocumentation();  // gera C4 PlantUML por módulo
+    }
+}
+```
+
+Observability built-in (Micrometer per-module metrics, traces). Events via `ApplicationEventPublisher` — in-process, type-safe, `@ApplicationModuleListener` async + transactional.
+
+**.NET Aspire 9.0+ (Nov 2024 GA)**: distributed application orchestration. AppHost.cs declara serviços; orquestra SQL/Redis/RabbitMQ + microservices em dev. OTel out-of-the-box. Deploy targets Azure Container Apps, AWS ECS, K8s.
+
+```csharp
+// AppHost/Program.cs
+var builder = DistributedApplication.CreateBuilder(args);
+
+var postgres = builder.AddPostgres("pg")
+    .WithDataVolume()
+    .AddDatabase("logistica");
+
+var redis = builder.AddRedis("redis");
+var rabbit = builder.AddRabbitMQ("rabbit");
+
+var orders = builder.AddProject<Projects.Orders_Api>("orders")
+    .WithReference(postgres)
+    .WithReference(rabbit);
+
+builder.AddProject<Projects.Couriers_Api>("couriers")
+    .WithReference(postgres)
+    .WithReference(orders);  // service discovery automático
+
+builder.Build().Run();
+// Dashboard em localhost:18888 — traces + metrics + logs por serviço
+```
+
+Production secrets externalize via `builder.AddParameter("ConnectionString", secret: true)` + Azure Key Vault / AWS Secrets Manager — AppHost é dev orchestration, não production runtime.
+
+**Encore.ts 1.x**: TypeScript-native services framework. Service = pasta com `encore.service.ts`. RPC type-safe cross-service em mesmo monolith. Auto-OpenAPI. Cron + secrets + DB declarative. Deploy single binary OU split em microservices sem rewrite.
+
+```typescript
+// orders/encore.service.ts
+import { Service } from "encore.dev/service";
+export default new Service("orders");
+
+// orders/api.ts
+import { api } from "encore.dev/api";
+import { SQLDatabase } from "encore.dev/storage/sqldb";
+import { secret } from "encore.dev/config";
+
+const db = new SQLDatabase("orders", { migrations: "./migrations" });
+const stripeKey = secret("StripeSecretKey");
+
+export const create = api(
+  { method: "POST", path: "/orders", expose: true },
+  async (req: { items: Item[] }): Promise<{ id: string }> => {
+    const id = await db.queryRow<{ id: string }>`
+      INSERT INTO orders ... RETURNING id
+    `;
+    return { id: id.id };
+  }
+);
+
+// couriers/api.ts — cross-service call type-safe
+import { create as createOrder } from "~encore/clients/orders";
+const order = await createOrder({ items });  // compile-time typed, runtime RPC
+
+// orders/cron.ts
+import { CronJob } from "encore.dev/cron";
+export const cleanup = new CronJob("cleanup-stale", {
+  title: "Cleanup stale orders",
+  every: "1h",
+  endpoint: cleanupHandler,
+});
+```
+
+**Java Helidon 4.1+ (Oracle)**: MicroProfile-based. Helidon Nima — virtual threads (Loom) ready, sync programming model com escalabilidade async. Alternativa Quarkus / Micronaut quando Spring é overkill.
+
+**Monorepo TS modular**: Turborepo 2.x (Vercel — task pipelines + remote cache; turbo.json declara dependências entre packages); Nx 20+ (generators + module boundaries via tags + module federation improvements); Rush (Microsoft, monorepo at scale com phantom-dep prevention).
+
+```json
+// turbo.json
+{
+  "tasks": {
+    "build": { "dependsOn": ["^build"], "outputs": ["dist/**"] },
+    "test": { "dependsOn": ["build"] },
+    "lint": {}
+  }
+}
+
+// nx.json — boundaries via tags
+{
+  "targetDefaults": {
+    "build": { "dependsOn": ["^build"] }
+  },
+  "implicitDependencies": {}
+}
+
+// .eslintrc — Nx enforce tags
+{
+  "@nx/enforce-module-boundaries": ["error", {
+    "depConstraints": [
+      { "sourceTag": "scope:orders", "onlyDependOnLibsWithTags": ["scope:orders", "scope:shared"] },
+      { "sourceTag": "type:feature", "onlyDependOnLibsWithTags": ["type:ui", "type:data-access", "type:util"] }
+    ]
+  }]
+}
+```
+
+**Boundary enforcement automated** (CI gate, não advisory):
+
+```javascript
+// .eslintrc — eslint-plugin-boundaries
+module.exports = {
+  plugins: ["boundaries"],
+  settings: {
+    "boundaries/elements": [
+      { type: "feature", pattern: "src/features/*" },
+      { type: "shared", pattern: "src/shared/*" },
+      { type: "api", pattern: "src/features/*/api/*" },
+    ],
+  },
+  rules: {
+    "boundaries/element-types": ["error", {
+      default: "disallow",
+      rules: [
+        { from: "feature", allow: ["shared", "api"] },
+        { from: "shared", allow: ["shared"] },
+      ],
+    }],
+  },
+};
+
+// .dependency-cruiser.cjs
+module.exports = {
+  forbidden: [
+    { name: "no-domain-to-infra",
+      from: { path: "^src/domain" },
+      to: { path: "^src/infrastructure" } },
+    { name: "no-cross-feature",
+      from: { path: "^src/features/([^/]+)" },
+      to: { path: "^src/features/(?!$1)([^/]+)" } },  // regex back-ref
+  ],
+};
+```
+
+```typescript
+// arch.test.ts — ts-arch
+import { filesOfProject } from "tsarch";
+
+test("domain doesn't import infrastructure", async () => {
+  const violations = await filesOfProject()
+    .inFolder("src/domain")
+    .shouldNot()
+    .dependOnFiles()
+    .inFolder("src/infrastructure")
+    .check();
+  expect(violations).toEqual([]);
+});
+```
+
+**In-process events**: publish to internal event bus (Spring `ApplicationEventPublisher`, MediatR .NET, EventEmitter Node). Consumers same process — sub-ms latency vs Kafka. Mesma boundary enforcement: módulo só publica/consome eventos declarados em `events.ts` API. Para cross-process, outbox + Kafka (cruza com **04-03 §2.19**).
+
+**Decision matrix 2026**:
+
+| Stack | Default 2026 |
+|-------|--------------|
+| Java/Kotlin team | Spring Modulith 1.3+ (zero ceremony, observability built-in) |
+| C#/.NET team | .NET Aspire 9.0 (orchestration dev + production targets) |
+| Greenfield TS, future split possível | Encore.ts (single binary now, microservices later) |
+| Monorepo TS já existente | Turborepo + ESLint plugin-boundaries + dep-cruiser |
+| Polyglot ou heterogêneo | Raw modular monolith + boundary tests |
+
+**Stack Logística aplicada**: Encore.ts modular monolith — services orders / couriers / payments / notifications / auth. RPC cross-service type-safe. In-process events (`OrderCreated` publicado em orders, consumido por notifications + couriers). Outbox pattern + Kafka para cross-process com analytics service (separado por scaling profile diferente). Turborepo para shared packages (`@logistica/types`, `@logistica/utils`). ESLint plugin-boundaries em CI gate (PR fail se feature importa internal de outra feature). Threshold split: ao atingir 12 módulos / 15 devs, módulos `analytics` + `ml-pricing` saem para serviços dedicados (scaling + team boundary Conway).
+
+**10 anti-patterns**:
+1. Modular monolith **sem boundary enforcement automatizado** — compila, drift inevitável, microservices later impossível (cada módulo importa internals de outros).
+2. Spring Modulith **sem `@ApplicationModule` annotations** — zero benefit sobre plain Spring; verifica nada.
+3. .NET Aspire AppHost com **production secrets hardcoded** — AppHost é dev orchestration; externalize via Key Vault / Secrets Manager em deploy.
+4. Encore.ts services tratados como **microservices em greenfield** — deploy single binary primeiro; split quando scaling/team justificar (default deploy mode existe por razão).
+5. Turborepo **sem remote cache** configurado — CI cold every run, perde 80% do valor (Vercel Remote Cache ou self-hosted).
+6. Nx tags configurados mas **não enforced via CI** — `lint` rodando local advisory; PR merge ignora; instale gate em pipeline.
+7. **Cross-module direct DB access** — bypass modular boundary (módulo A faz SELECT em tabela do módulo B); use module public API ou eventos.
+8. In-process event consumer crash **derruba whole monolith** — sem error boundary + retry + DLQ; @TransactionalEventListener async + DLQ table mandatory.
+9. **Shared kernel module com 50% dos types** — vira coupling spine; mantenha tiny (só value objects universais e cross-cutting concerns como `Money`, `UserId`).
+10. Modular monolith escalado pra **30+ devs sem split** — coordination cost domina (deploy contention, code review bottleneck, single point of failure); split por team boundary (Conway, **04-12 §2.24**).
+
+Cruza com **04-07 §2.10** (vertical slices applied), **§2.15** (modular monolith concretizado intro), **§2.18** (architecture decision per stage), **§2.19** (hex vs clean vs onion), **04-06 §2.19** (DDD ACL/OHS/PL — boundary integration patterns), **04-06 §2.10** (modular monolith with BCs DDD), **04-08 §2.2** (modular monolith intro), **§2.7** (Strangler Fig from monolith), **04-03 §2.19** (Outbox + Saga production), **03-04** (CI/CD — boundary tests as PR gate), **04-12 §2.24** (Conway's Law — team topology drives module boundaries).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

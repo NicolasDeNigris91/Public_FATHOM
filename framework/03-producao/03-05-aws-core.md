@@ -719,6 +719,155 @@ Cruza com **03-05 §2.21** (cost optimization compute layer), **04-08 §2.22** (
 
 ---
 
+### 2.23 AWS modern stack 2026 — Bedrock GenAI, EventBridge Pipes, S3 Express One Zone, Graviton 4, Aurora Limitless, Step Functions Distributed Map
+
+Portfólio AWS reorganizou-se 2023-2026 em torno de cinco eixos: **GenAI gerenciada via Bedrock** (foundation models multi-vendor sem GPU ops), **event mesh serverless via EventBridge Pipes** (source→filter→enrichment→target substitui ~80% das glue Lambdas), **storage tier sub-ms via S3 Express One Zone** (single-AZ, latência consistente <10ms p99, hot data ML/cache), **economia ARM dominante via Graviton 4** (R8g GA Q4 2024, 40% melhor perf/$ vs x86), **sharding transacional via Aurora Limitless Database** (GA Q4 2024, single endpoint sobre múltiplos shards Postgres). Quem opera AWS legado (EC2 + RDS single-writer + glue Lambda + Python x86) perde 30-50% de custo e 5-10x latência vs stack 2026 equivalente. Não é refactor opcional — é a baseline competitiva.
+
+**Bedrock GenAI stack — foundation models como managed service.** Bedrock GA Q3 2023, Bedrock Agents + Knowledge Bases GA Q4 2023, Guardrails GA Q2 2024. Claude 3.7 Sonnet on Bedrock Q1 2025, Claude 4 family 2025. Quatro pilares:
+
+- **Foundation models multi-vendor**: Claude (Anthropic), Llama (Meta), Titan (AWS), Mistral, Cohere, Stability — sem provisionar GPU, billed por token.
+- **Knowledge Bases**: managed RAG. Source = S3 (PDFs, MD, JSON). Backend vector store = OpenSearch Serverless, Pinecone, Aurora pgvector. Chunking strategy configurável (fixed, semantic, hierarchical). API `retrieve_and_generate` retorna resposta + citations.
+- **Agents**: orchestration LLM com action groups (Lambda invocations), session memory, prompt templates. Antecede o padrão MCP (cf. **04-10 §2.23**) — same pattern, AWS-managed runtime.
+- **Guardrails**: content filters (hate, sexual, violence), PII redaction (SSN, CPF custom regex), denied topics, contextual grounding (detecta hallucination vs source).
+
+```python
+# Bedrock InvokeModel — Claude 3.7 Sonnet
+import boto3, json
+bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
+resp = bedrock.invoke_model(
+    modelId="anthropic.claude-3-7-sonnet-20250219-v1:0",
+    body=json.dumps({
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": 1024,
+        "messages": [{"role": "user", "content": "Resume o pedido #1234"}],
+    }),
+)
+print(json.loads(resp["body"].read())["content"][0]["text"])
+
+# Knowledge Base — RAG turnkey
+agent = boto3.client("bedrock-agent-runtime")
+out = agent.retrieve_and_generate(
+    input={"text": "Como cancelar entrega?"},
+    retrieveAndGenerateConfiguration={
+        "type": "KNOWLEDGE_BASE",
+        "knowledgeBaseConfiguration": {
+            "knowledgeBaseId": "KB-ABCD1234",
+            "modelArn": "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-7-sonnet-20250219-v1:0",
+        },
+    },
+)
+print(out["output"]["text"], out["citations"])
+```
+
+**EventBridge Pipes — service-to-service ETL low-code.** GA Q4 2022, agora maduro. Quatro estágios: **source** (SQS, Kinesis, DynamoDB Streams, MSK, MQ), **filter** (JMESPath/event pattern), **enrichment** (Lambda, Step Functions, API Destination), **target** (EventBridge bus, SQS, Lambda, SNS, Kinesis, Step Functions, ~25 targets). Substitui Lambda `SQS → enrich → publish` boilerplate. Cobra apenas eventos que passam o filter.
+
+```yaml
+# CDK / CloudFormation — SQS source + filter SEV1 + Lambda enrich + EventBridge target
+PipeCourierAssignment:
+  Type: AWS::Pipes::Pipe
+  Properties:
+    RoleArn: !GetAtt PipeRole.Arn
+    Source: !GetAtt CourierAssignmentQueue.Arn
+    SourceParameters:
+      FilterCriteria:
+        Filters:
+          - Pattern: '{"body": {"severity": ["SEV1", "SEV2"]}}'
+      SqsQueueParameters: { BatchSize: 10 }
+    Enrichment: !GetAtt EnrichCourierMetadataFn.Arn
+    Target: !GetAtt EventBus.Arn
+    TargetParameters:
+      EventBridgeEventBusParameters:
+        DetailType: courier.assigned
+        Source: logistics.dispatch
+```
+
+**S3 Express One Zone + Mountpoint.** S3 Express GA Q4 2023 — single-AZ, sub-ms latência consistente, 50% menor custo de request, **5x mais caro por GB-month** ($0.16 vs $0.023 S3 Standard). Use case: ML training shuffle, hot temp scratch, checkpoint frequente. **Não é durável cross-AZ** — perde dados em AZ outage. Mountpoint for S3 (GA Q3 2023) expõe bucket como filesystem POSIX read-optimized — read-heavy ML datasets sem sync manual.
+
+```bash
+# Bucket S3 Express (suffix --x-s3 obrigatório)
+aws s3api create-bucket \
+  --bucket logistics-hot-cache--use1-az4--x-s3 \
+  --create-bucket-configuration 'Location={Type=AvailabilityZone,Name=use1-az4},Bucket={Type=Directory,DataRedundancy=SingleAvailabilityZone}'
+
+# Mountpoint — bucket como filesystem
+mount-s3 logistics-training-data /mnt/data --read-only --cache /tmp/s3cache
+```
+
+**Graviton 4 (R8g) economics.** R8g GA Q4 2024 — 40% melhor perf/$ vs x86 (m7i) e 30% vs Graviton 3. Compatibilidade ARM resolvida 2023-2024 (Node, Python, Java, Go: zero-cost; binários nativos: rebuild multi-arch via Docker buildx). Lambda em Graviton 3+ economiza ~20% por invocação. **Managed services preço idêntico arch-agnostic** — só vale para EC2/EKS/Lambda. Stack típica logística: EKS node group `m8g.xlarge` substituiu `m7i.xlarge` → 30% menor bill compute.
+
+```dockerfile
+# Multi-arch Docker (Graviton + x86)
+# docker buildx build --platform linux/arm64,linux/amd64 -t app:latest --push .
+FROM --platform=$BUILDPLATFORM node:22-alpine AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev
+COPY . .
+CMD ["node", "server.js"]
+```
+
+**Aurora Limitless Database — sharded Postgres single-endpoint.** GA Q4 2024. Cluster com **shard group** (multiple writers) + **routers** (single endpoint, query routing). Distribution key define sharding (e.g., `tenant_id`). Cross-shard transactions via 2PC com overhead — design para single-shard ops como hot path. Target 100M+ TPS. Aurora I/O-Optimized (GA 2023) corta 40% custo em workloads I/O-pesados (>25% bill é I/O). Combine: Limitless + I/O-Optimized para multi-tenant SaaS scale-out.
+
+```sql
+-- Aurora Limitless: criar shard group + sharded table
+CALL rds_aurora.limitless_create_shard_group('logistics_shards', shard_count := 8);
+
+CREATE TABLE orders (
+  order_id UUID PRIMARY KEY,
+  tenant_id UUID NOT NULL,
+  payload JSONB
+) WITH (mode = 'sharded', distribution_key = 'tenant_id');
+
+CREATE TABLE tenants ( tenant_id UUID PRIMARY KEY, name TEXT )
+  WITH (mode = 'reference');  -- replicada em todos os shards
+```
+
+**Step Functions Distributed Map — paralelismo S3 escala Spark-like.** Itera sobre dataset S3 (CSV, JSONL, Manifest) com até **10000 execuções concorrentes**. Substitui Spark/EMR para batches moderados (GBs, não TBs). `ItemBatcher` agrupa N itens por execução (controla custo + downstream load). `MaximumConcurrency` limita pressão.
+
+```json
+{
+  "Type": "Map",
+  "ItemReader": {
+    "Resource": "arn:aws:states:::s3:getObject",
+    "ReaderConfig": { "InputType": "CSV", "CSVHeaderLocation": "FIRST_ROW" },
+    "Parameters": { "Bucket": "logistics-batch", "Key": "shipments-2026-05.csv" }
+  },
+  "ItemBatcher": { "MaxItemsPerBatch": 100 },
+  "MaxConcurrency": 500,
+  "ItemProcessor": {
+    "ProcessorConfig": { "Mode": "DISTRIBUTED", "ExecutionType": "EXPRESS" },
+    "StartAt": "ProcessShipmentBatch",
+    "States": {
+      "ProcessShipmentBatch": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::lambda:invoke",
+        "Parameters": { "FunctionName": "ProcessShipments", "Payload.$": "$" },
+        "End": true
+      }
+    }
+  }
+}
+```
+
+**Stack logística aplicada.** Bedrock Claude 3.7 Sonnet + Knowledge Base (S3 com 200 PDFs help docs, OpenSearch Serverless backend) para customer support agent — responde "como cancelar?" com citation à doc fonte; Guardrails redact CPF/cartão. EventBridge Pipes: SQS `courier_assignment` → filter `severity in [SEV1,SEV2]` → Lambda enrich (busca courier metadata DynamoDB) → EventBridge bus → 4 targets (Slack alert, Datadog metric, audit S3, dispatch retry). S3 Express bucket `--x-s3` para hot inventory cache (1ms p99 vs 30ms S3 Standard) — TTL 24h, fallback Standard. EKS migrado m7i → m8g (Graviton 4) → 30% menos compute bill, zero code change (Node + Java OpenJDK ARM-native). Step Functions Distributed Map noturno: itera CSV 5M shipments S3, ItemBatcher 200, MaxConcurrency 1000, gera relatório Athena.
+
+**10 anti-patterns**:
+
+1. **Bedrock sem Guardrails em customer-facing**: PII leak (CPF, cartão) + jailbreak amplificado por marca. Guardrail é compliance, não opcional.
+2. **Knowledge Base sem chunking strategy explícita**: default fixed 300 tokens quebra contexto semântico → retrieval ruim → hallucination. Use semantic ou hierarchical para docs longos.
+3. **EventBridge Pipes para source→target trivial sem filter/enrichment**: use Lambda destination ou SQS-Lambda direto — Pipes overkill (custo + latência).
+4. **S3 Express assumido durável cross-AZ**: single-AZ design — outage da AZ = perda total. Use só para data reconstruível (cache, scratch, training shuffle).
+5. **Mountpoint para workload write-heavy**: otimizado read — writes vão direto S3 sem cache, latência ruim. Use EFS ou FSx para write-heavy.
+6. **Graviton 4 sem container multi-arch**: deploy falha em ARM se build x86-only. `docker buildx --platform linux/arm64,linux/amd64` mandatório no CI.
+7. **Aurora Limitless em workload single-shard friendly**: overhead de routers + 2PC sem benefit — Aurora Serverless v2 é mais simples e barato para <50K TPS single-tenant.
+8. **Distributed Map sem ItemBatcher em datasets massivos**: 10000 execuções concorrentes saturam downstream (RDS connection pool, third-party API). ItemBatcher + MaxConcurrency mandatórios.
+9. **Bedrock multi-region failover sem cross-region inference quota**: request denied silent quando primary region throttla. Configure cross-region inference profile (Q1 2025) ou fallback explícito.
+10. **EventBridge Pipes enrichment Lambda síncrono lento (>1s p99)**: pipe stalls, SQS messages re-deliver, custo explode. Enrichment deve ser <200ms p99 — se não, mova para target Step Functions async.
+
+Cruza com **03-05 §2.5** (S3 foundation, Express é tier complementar), **§2.6** (RDS/Aurora foundation, Limitless evolui o pattern), **§2.8** (Lambda foundation, Pipes substitui glue Lambdas), **§2.11** (EventBridge/SQS/SNS, Pipes orchestra os três), **§2.21** (cost optimization, Graviton 4 + Aurora I/O-Optimized + S3 Express trade-offs), **§2.22** (Lambda runtime + EventBridge schemas, Pipes consome schemas), **04-10 §2.21** (RAG architectures — Bedrock Knowledge Bases como RAG turnkey vs build-your-own), **04-10 §2.23** (MCP — Bedrock Agents é predecessor managed do mesmo padrão), **03-06** (Terraform/CDK provisioning de tudo acima), **04-09 §2.22** (multi-region scaling — Bedrock cross-region inference Q1 2025 resolve quota single-region).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

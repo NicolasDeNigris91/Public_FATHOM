@@ -981,6 +981,157 @@ function OrdersList() {
 
 ---
 
+### 2.15 React 19.1 production patterns 2026 — `use` hook deep, View Transitions, ref as prop, Asset preloads, Document Metadata, useDeferredValue initialValue
+
+React 19.0 GA saiu Q4 2024 estabilizando o que estava em RC desde 2023. **19.1** (Q1 2025) entregou **owner stack tracking** + overhaul de hydration error messages (diff visual SSR↔client + click-to-source). **19.2** (Q3 2025) introduziu `<ViewTransition>` component experimental (wrapper sobre View Transitions API). Next.js 15+ exige React 19; React Native 0.78+ suporta. View Transitions API: Chrome 111+ (Mar 2023), Edge 111+, Safari 18+ (Q4 2024), Firefox flagged em 2026. As features deste bloco mudam o trabalho diário — não são opcionais nem experimentais: são o baseline 2026.
+
+**`use` hook deep**. Substitui o par `useEffect`+`useState` para promises e o `useContext` clássico. Diferenças cruciais: pode ser chamado **condicionalmente** (dentro de `if`, ternário, loop) — o único hook com essa permissão. Unwraps Promise (suspende o componente até resolve, integra com `<Suspense>` ancestral) ou Context (alternativa a `useContext` que funciona em fluxo condicional).
+
+```tsx
+import { use, Suspense } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
+
+// 1. Promise stable ref — criada FORA do render (server component, parent, ou cache)
+async function fetchOrders(tenantId: string) {
+  const res = await fetch(`/api/tenants/${tenantId}/orders`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`Orders fetch failed: ${res.status}`);
+  return res.json() as Promise<Order[]>;
+}
+
+// Server Component cria a promise e passa pra Client Component
+export default function OrdersPage({ tenantId }: { tenantId: string }) {
+  const ordersPromise = fetchOrders(tenantId); // executa no server, streamed
+  return (
+    <ErrorBoundary fallback={<OrdersError />}>
+      <Suspense fallback={<OrdersSkeleton />}>
+        <OrdersList ordersPromise={ordersPromise} />
+      </Suspense>
+    </ErrorBoundary>
+  );
+}
+
+'use client';
+function OrdersList({ ordersPromise }: { ordersPromise: Promise<Order[]> }) {
+  const orders = use(ordersPromise); // suspende; resolve dispara render
+  return <ul>{orders.map(o => <OrderRow key={o.id} order={o} />)}</ul>;
+}
+
+// 2. Conditional use — IMPOSSÍVEL com useContext clássico
+function ThemedRow({ order, useDarkContext }: { order: Order; useDarkContext: boolean }) {
+  const theme = useDarkContext ? use(DarkThemeContext) : use(LightThemeContext);
+  return <li style={{ color: theme.fg }}>{order.id}</li>;
+}
+```
+
+**View Transitions API integration**. `document.startViewTransition(() => stateUpdate())` snapshota o DOM antes/depois e anima o diff via CSS pseudo-elements (`::view-transition-old`, `::view-transition-new`). Combinado com `useTransition` do React, transições de rota/lista ficam nativas sem libs (Framer Motion etc.) para casos simples. React 19.2 trouxe `<ViewTransition>` component experimental que declara o boundary e gera automaticamente `view-transition-name` único.
+
+```tsx
+'use client';
+import { useTransition, unstable_ViewTransition as ViewTransition } from 'react';
+import { useRouter } from 'next/navigation';
+
+function OrderRow({ order }: { order: Order }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const prefersReducedMotion = typeof window !== 'undefined'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const navigate = () => {
+    const update = () => startTransition(() => router.push(`/orders/${order.id}`));
+    if (!document.startViewTransition || prefersReducedMotion) return update();
+    document.startViewTransition(update);
+  };
+
+  return (
+    <ViewTransition name={`order-${order.id}`}>
+      <li onClick={navigate} aria-busy={isPending}>{order.id} — {order.status}</li>
+    </ViewTransition>
+  );
+}
+```
+
+CSS opcional: `::view-transition-old(order-*) { animation: fade-out 200ms; }`.
+
+**ref as prop (no forwardRef)**. Em function components React 19, `ref` viaja como prop normal — `forwardRef` deprecated para componentes novos. Codemod oficial (`npx codemod react/19/replace-act-import` + `react/19/ref-as-prop`) migra automaticamente.
+
+```tsx
+// ANTES (React 18)
+const Input = forwardRef<HTMLInputElement, InputProps>((props, ref) =>
+  <input ref={ref} {...props} />
+);
+
+// DEPOIS (React 19) — ref é prop
+function Input({ ref, ...props }: InputProps & { ref?: Ref<HTMLInputElement> }) {
+  return <input ref={ref} {...props} />;
+}
+```
+
+**Asset preloads (`ReactDOM.preload` / `preinit` / `preconnect` / `prefetchDNS`)**. Chamáveis dentro do render OU fora (módulo top-level). React deduplica por URL e injeta resource hints **antes do paint**. Substitui `<link rel="preload">` manual.
+
+```tsx
+import ReactDOM from 'react-dom';
+
+function InvoiceViewer({ invoiceUrl }: { invoiceUrl: string }) {
+  ReactDOM.preload(invoiceUrl, { as: 'fetch', crossOrigin: 'anonymous' });
+  ReactDOM.preinit('https://cdn.example.com/pdf-viewer.js', { as: 'script' });
+  ReactDOM.preconnect('https://cdn.example.com');
+  ReactDOM.prefetchDNS('https://api.stripe.com');
+  return <PdfFrame url={invoiceUrl} />;
+}
+```
+
+`preinit` baixa **e executa**; `preload` apenas baixa. Use `preinit` para scripts/CSS que rodarão em seguida; `preload` para fetch/font/image.
+
+**Document Metadata em render tree**. `<title>`, `<meta>`, `<link>` declarados **em qualquer profundidade** são içados para `<head>` automaticamente. Aposenta `react-helmet`/`next/head` (em client components — Next.js app router tem `metadata` export para server side).
+
+```tsx
+function OrderDetail({ order }: { order: Order }) {
+  return (
+    <>
+      <title>{`Pedido ${order.id} — Fathom Logística`}</title>
+      <meta name="description" content={`Status: ${order.status}, valor R$${order.total}`} />
+      <link rel="canonical" href={`https://app.fathom.com.br/orders/${order.id}`} />
+      <OrderBody order={order} />
+    </>
+  );
+}
+```
+
+React **não** dedupe `<title>` — o último montado vence. Em apps com múltiplos componentes setando título, centralize.
+
+**`useDeferredValue` com `initialValue`**. Argumento novo em 19.0: durante o **primeiro render** retorna `initialValue` (skeleton-friendly), depois adota o valor real. Elimina flash de "loading" em SSR + hydration de filtros pesados.
+
+```tsx
+function OrdersFilter({ query }: { query: string }) {
+  const deferredQuery = useDeferredValue(query, ''); // initialValue '' → render rápido
+  const results = useMemo(() => filterOrders(deferredQuery), [deferredQuery]);
+  return <ResultsList results={results} stale={query !== deferredQuery} />;
+}
+```
+
+**Hydration error UX (19.1)**. Mismatch agora mostra **owner stack** (cadeia de componentes que renderizou o nó), diff colorido entre HTML SSR e árvore client, link click-to-source via React DevTools. Reduz triagem de "Hydration failed" de horas para minutos.
+
+**Compiler ergonomics**. Com React Compiler ativo (cf. §2.7, §2.14), idiomas antes proibidos passam: mutar array em event handler (`items.push(x); setItems([...items])` deixa de ser anti-pattern em handlers — RC trata escopo). Não vale dentro de render — render permanece puro. `useMemo`/`useCallback` manuais ficam redundantes na maioria dos casos.
+
+**Stack Logística aplicada**. Dashboard `/dashboard/orders`: Server Component cria `ordersPromise = fetchOrders(tenantId)`, passa para `<OrdersList>` Client Component que faz `use(ordersPromise)` envolto em `<Suspense fallback={<OrdersSkeleton />}>`. Click em ordem dispara `document.startViewTransition` + `router.push('/orders/:id')` — fade entre lista e detalhe. Página de detalhe `ReactDOM.preinit('/js/pdf-viewer.js')` no topo + `<title>Pedido #1234</title>` + `<meta>` no JSX. Filtro de status usa `useDeferredValue(query, '')` para skeleton instant. Hydration warnings caem 80% após upgrade 19.1 graças a owner stack.
+
+**10 anti-patterns**:
+
+1. `use(fetch('/api/x'))` — promise criada inline em render → re-fetch loop infinito. Promise deve vir de server component, parent stable, ou cache (`React.cache` / SWR).
+2. `document.startViewTransition` sem checar `prefers-reduced-motion` — viola WCAG 2.3.3 (a11y). Sempre fallback para update direto.
+3. Manter `forwardRef` em código novo após codemod — gera warning + impede inferência de tipo via `ref` prop.
+4. Misturar libs com `forwardRef` interno e callers passando `ref` como prop — alguns componentes recebem, outros não. Padronize via codemod completo, não parcial.
+5. `ReactDOM.preload(dynamicUrl)` com URL gerada por `Math.random()`/timestamp — quebra dedup, gera N requests. Key estável por recurso.
+6. Document Metadata em client component aninhada renderizando depois de server-set title (Next app router) — race condition; o último vence e nem sempre é o esperado.
+7. `useDeferredValue(value)` sem `initialValue` em SSR → primeira render usa `value` real (caro) → hydration mismatch quando client recalcula. Sempre forneça `initialValue` em SSR-rendered components.
+8. `ReactDOM.preinit(url, { as: 'script' })` para script que **não** roda na página atual — desperdício de banda + execução; use `preload` se for opcional.
+9. `<title>` em múltiplos componentes irmãos sem coordenação — ordem de mount decide; resultado não-determinístico em re-renders.
+10. `use(Context)` em loop assumindo que substitui `useReducer` — `use` lê valor atual do Context, não cria estado. Para state local + Context, ainda precisa `useReducer`/`useState`.
+
+**Cruza com**: `02-04` §2.6 (hooks foundation), §2.7 (React Compiler), §2.8 (Suspense + streaming), §2.9 (RSC), §2.13 (React 19 Forms + Actions), §2.14 (RC + state mgmt 2026), `02-05` §2.23 (Next 15 async APIs + `use` compat), `03-09` (frontend perf — View Transitions são INP-friendly), `02-19` (i18n + Document Metadata por locale).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

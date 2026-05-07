@@ -766,6 +766,157 @@ trainer.model.save_pretrained("./logistica-lora-v1")
 
 ---
 
+### 2.23 Model Context Protocol (MCP) deep + multi-agent patterns 2026
+
+Model Context Protocol (MCP) é o **USB-C para AI applications**: spec aberta da Anthropic (rev `2025-06-18`, stable) que padroniza como LLM hosts conectam a tools, resources e prompts externos. Antes do MCP, cada app (Claude Desktop, Cursor, Zed, Continue) reinventava sua camada de function calling — fragmentação total. Pós-MCP, escreve-se **um servidor** e qualquer host compatível consome. Em 2026, MCP é de facto o protocolo de interop entre LLM hosts e fontes de contexto/ferramentas; ignorar significa rebuildar wiring proprietário N vezes.
+
+**Architecture (host ↔ client ↔ server)**:
+- **Host**: aplicação que roda o LLM (Claude Desktop, Cursor, IDE plugin, agente custom).
+- **Client**: instância dentro do host, **1:1 com cada server connection** (host com 5 servers tem 5 clients).
+- **Server**: processo separado que expõe tools/resources/prompts. Local (subprocess via stdio) ou remoto (HTTP).
+- Protocolo wire: **JSON-RPC 2.0** (request/response/notification, `id`, `method`, `params`, `result`/`error`).
+
+```
+Claude Desktop (host)
+  ├── client_1 ──stdio──> mcp-server-filesystem (Node subprocess)
+  ├── client_2 ──stdio──> mcp-server-github (Node subprocess)
+  └── client_3 ──Streamable HTTP──> https://mcp.acme.com/orders (remote)
+```
+
+**Transports (escolha = local vs remoto)**:
+- **stdio transport**: server roda como subprocess, JSON-RPC sobre stdin/stdout. Padrão para tools locais (filesystem, sqlite, git). Zero overhead de rede, auth = filesystem ACL do processo pai.
+- **Streamable HTTP transport** (introduzido 2025-03, **default para remoto em 2026**): single endpoint HTTP POST + opcional SSE upgrade pra streaming server→client. Suporta resumability, session IDs, stateless mode.
+- **HTTP+SSE transport** (legacy, **deprecated** desde 2025-03): two-endpoint design (POST pra cliente→server, GET SSE pra server→cliente). Greenfield 2026 = anti-pattern, use Streamable HTTP.
+
+**Capability negotiation** (handshake obrigatório):
+```json
+// client → server: initialize request
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{
+  "protocolVersion":"2025-06-18",
+  "capabilities":{"roots":{"listChanged":true},"sampling":{}},
+  "clientInfo":{"name":"claude-desktop","version":"0.10.0"}
+}}
+// server → client: initialize result
+{"jsonrpc":"2.0","id":1,"result":{
+  "protocolVersion":"2025-06-18",
+  "capabilities":{"tools":{"listChanged":true},"resources":{"subscribe":true},"prompts":{}},
+  "serverInfo":{"name":"orders-mcp","version":"1.2.0"}
+}}
+// client → server: notification post-handshake
+{"jsonrpc":"2.0","method":"notifications/initialized"}
+```
+
+Capabilities declaram o que cada lado suporta: server expõe `tools`, `resources`, `prompts`, `logging`, `completion`; client expõe `roots` (filesystem boundaries), `sampling` (server pode pedir LLM completion via client — agentic).
+
+**Primitives (3 que importam)**:
+- **Tools** (LLM-callable, side-effecting): `tools/list` retorna schemas, `tools/call` executa. Equivalente a function calling, mas portável. Cada tool = `{name, description, inputSchema (JSON Schema)}`.
+- **Resources** (LLM-readable, contextual): URIs (`file://`, `postgres://`, `github://`) que client pode `resources/list`, `resources/read`, `resources/subscribe`. Read-only por design.
+- **Prompts** (user-triggered templates): `prompts/list` retorna templates parametrizáveis. UI do host expõe como slash-commands ou botões (Claude Desktop: `/prompt-name`).
+
+**Real MCP servers (2026 ecosystem)**:
+- **Oficiais Anthropic** (repo `modelcontextprotocol/servers`): `filesystem`, `github`, `gitlab`, `slack`, `postgres`, `sqlite`, `brave-search`, `puppeteer`, `fetch`, `memory`, `time`, `sequentialthinking`, `everything` (test server).
+- **Community**: Linear, Notion, Stripe, Sentry, Cloudflare, AWS, Kubernetes, Docker, Jira, Figma, Obsidian (lista oficial em `modelcontextprotocol.io/servers`).
+- **Claude Desktop config** (macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users/nicolas/projects"]
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_xxx"}
+    },
+    "orders": {
+      "url": "https://mcp.acme.com/orders",
+      "headers": {"Authorization": "Bearer ${ORDERS_TOKEN}"}
+    }
+  }
+}
+```
+
+**Building um MCP server (TypeScript SDK `@modelcontextprotocol/sdk` v1.x)**:
+```ts
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { z } from "zod";
+
+const server = new Server(
+  { name: "orders-mcp", version: "1.2.0" },
+  { capabilities: { tools: {} } },
+);
+
+const GetOrderSchema = z.object({ orderId: z.string().regex(/^ord_[a-z0-9]{12}$/) });
+
+server.setRequestHandler(ListToolsRequestSchema, async () => ({
+  tools: [{
+    name: "get_order",
+    description: "Fetch order by ID. Returns status, courier, ETA, items. Read-only.",
+    inputSchema: {
+      type: "object",
+      properties: { orderId: { type: "string", pattern: "^ord_[a-z0-9]{12}$" } },
+      required: ["orderId"],
+    },
+  }],
+}));
+
+server.setRequestHandler(CallToolRequestSchema, async (req) => {
+  if (req.params.name !== "get_order") throw new Error(`Unknown tool: ${req.params.name}`);
+  const { orderId } = GetOrderSchema.parse(req.params.arguments);
+  const order = await db.orders.findUnique({ where: { id: orderId } }); // read-only conn
+  if (!order) return { content: [{ type: "text", text: `Order ${orderId} not found` }], isError: true };
+  return { content: [{ type: "text", text: JSON.stringify(order, null, 2) }] };
+});
+
+const transport = new StdioServerTransport();
+await server.connect(transport);
+```
+
+Para Streamable HTTP remoto: troque `StdioServerTransport` por `StreamableHTTPServerTransport` + Express handler em `POST /mcp` com session IDs em header `Mcp-Session-Id`.
+
+**Multi-agent patterns 2026** (MCP fornece tools, frameworks orquestram agentes):
+
+- **Supervisor + workers** (LangGraph, mais comum 2026): supervisor LLM roteia request pra worker especializado (researcher, coder, writer). Worker chama tools via MCP, retorna pro supervisor que decide próximo passo ou termina. Cap obrigatório: `max_iterations` (15-25).
+- **Planner-Executor-Critic**: planner gera plano N-steps, executor roda step-by-step (com MCP tools), critic valida output cada step, replan se falha. Bom pra tasks long-horizon (refactor cross-repo).
+- **Swarm / handoff** (OpenAI Swarm, leve): agentes peers se passam controle via tool `transfer_to_<agent>`. Sem hierarquia. Útil pra customer support routing (triage → billing → technical).
+- **AutoGen / CrewAI**: AutoGen = conversational multi-agent (group chat); CrewAI = role-based crews com process sequencial/hierárquico. Ambos integram MCP servers como tool sources.
+
+```ts
+// Supervisor pattern (LangGraph esqueleto)
+const supervisor = new StateGraph(AgentState)
+  .addNode("supervisor", supervisorNode)  // LLM decide next agent
+  .addNode("researcher", researcherNode)  // usa MCP brave-search + fetch
+  .addNode("coder", coderNode)            // usa MCP filesystem + github
+  .addEdge("researcher", "supervisor")
+  .addEdge("coder", "supervisor")
+  .addConditionalEdges("supervisor", routeNext, { researcher: "researcher", coder: "coder", END: END })
+  .compile({ checkpointer, interruptBefore: ["coder"] });  // human-in-loop antes de write
+```
+
+**MCP wins quando**: precisa expor mesma tool pra múltiplos hosts (Claude Desktop + Cursor + agente custom), quer ecosystem de servers prontos (GitHub, Slack, Postgres), quer separar concerns (server team owns tool, agent team owns orchestration). **MCP overkill quando**: app único usa LLM via API direto sem host externo — function calling nativo do provider é mais simples (sem subprocess/HTTP overhead).
+
+**Stack Logística aplicada**: MCP server `logistics-mcp` expõe (a) tool `get_order_status(orderId)` read-only contra Postgres replica, (b) tool `find_courier_eta(orderId)` que chama API courier interna, (c) resource `order://recent` listando últimos 50 orders do tenant ativo, (d) prompt `triage_complaint` template pra agente de suporte. Claude Desktop dos atendentes consome via Streamable HTTP autenticado por mTLS + JWT por tenant. Agente de suporte roda em LangGraph (supervisor + worker `refund_handler` que requer human approval via `interruptBefore`).
+
+**10 anti-patterns**:
+1. MCP server expõe write/delete tools sem auth nem sandbox — RCE-equivalent quando LLM é prompt-injected.
+2. Tool descriptions vagas ("query the system") — LLM erra qual tool chamar; descrição = doc do agente, escreva como tal.
+3. `resources/list` retorna 10k items sem pagination/cursor — context window overflow + custo.
+4. Usar HTTP+SSE transport em greenfield 2026 — deprecated; use Streamable HTTP.
+5. Supervisor multi-agent sem `max_iterations`/`recursion_limit` — loop infinito, custo $$$, timeout do host.
+6. MCP server stateful sem session ID em Streamable HTTP — multi-cliente pisa em estado compartilhado.
+7. Expor secrets em tool inputSchema (ex.: `apiKey` como param) — LLM loga, vaza em tracing/replay.
+8. Não validar `inputSchema` server-side com Zod/Pydantic — confia que LLM seguiu schema; ele não seguiu.
+9. Misturar concerns: 1 MCP server com 40 tools de domínios distintos — split por bounded context (orders-mcp, billing-mcp).
+10. Sampling capability ativada sem rate limit — server pede LLM completion ao client em loop, custo explode.
+
+**Cruza com**: **04-10 §2.6** (function calling foundation — MCP é a versão portável), **04-10 §2.10** (agents intro, ReAct), **04-10 §2.20** (agentic patterns + eval de tool use), **04-10 §2.13** (LLM observability — tracing de MCP calls), **03-08** (security — tool auth, sandbox, prompt injection defense), **04-05** (API design — JSON-RPC 2.0 vs REST).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

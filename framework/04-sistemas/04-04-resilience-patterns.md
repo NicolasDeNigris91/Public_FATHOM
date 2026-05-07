@@ -875,6 +875,370 @@ Cached fallback aceitável em 90% leituras business; **NUNCA em writes** (read m
 
 ---
 
+### 2.29 Chaos engineering practices — Gamedays, ChaosMonkey/Toxiproxy, FIS, blast radius management
+
+§2.26 cobre principles. Aqui: tooling 2026, gameday playbook, blast radius discipline, achados típicos em produção.
+
+**1. Why chaos engineering**
+
+- **Hipótese**: sistema tem failure modes desconhecidos; só revelam sob stress.
+- **Approach**: injetar falhas deliberadamente em ambiente controlado; observar + corrigir.
+- **Origem**: Netflix Chaos Monkey 2010; Principles of Chaos Engineering manifesto 2014.
+- **Adoção 2026**: standard SRE practice; AWS FIS managed; Gremlin/Litmus enterprise; Chaos Mesh CNCF graduated.
+
+**2. Hierarchy of chaos sophistication**
+
+- **L0 — Manual disaster simulations**: tabletop exercises ("what if RDS primary dies?"). No injection real.
+- **L1 — Controlled gameday**: scheduled, em staging, observa team response. Mensal.
+- **L2 — Automated gamedays**: scheduled chaos em staging, semanal, runbook-driven.
+- **L3 — Continuous chaos staging**: automated injections contínuas em staging (Mon/Wed/Fri).
+- **L4 — Production chaos**: controlled injections em produção real (Netflix-tier; anos de investimento).
+
+**3. Tools 2026**
+
+- **Chaos Monkey** (Netflix, OSS): legacy; randomly terminates instances. Substituído internamente por Chaos Engine.
+- **AWS FIS** (Fault Injection Simulator, 2026 GA matured): managed; AWS-native; suporta EC2, ECS, EKS, RDS, Lambda, networking.
+- **Gremlin** (commercial 2026): UI polished; broad failure types; SaaS; enterprise-friendly.
+- **Litmus** (CNCF, OSS, 3+): K8s-native; chaos experiments via CRDs; ChaosHub catalog.
+- **Chaos Mesh** (CNCF, OSS, 2.7+): K8s-native alternative; origem ecossistema chinês; rich network chaos.
+- **Toxiproxy** (Shopify, OSS, 2+): network-layer chaos (latency, drops, slow_close); ideal integration tests.
+- **PowerfulSeal** (Bloomberg, OSS): K8s + cloud-aware; menos ativo 2026.
+
+**4. Toxiproxy pattern Logística (integration tests)**
+
+```ts
+import Toxiproxy from 'toxiproxy-node-client';
+const client = new Toxiproxy('http://toxiproxy:8474');
+
+beforeEach(async () => {
+  await client.populate([{
+    name: 'redis_proxy',
+    listen: '0.0.0.0:6380',
+    upstream: 'redis:6379',
+  }]);
+});
+
+test('order creation survives Redis 500ms latency', async () => {
+  const proxy = await client.get('redis_proxy');
+  const toxic = await proxy.addToxic({
+    type: 'latency',
+    attributes: { latency: 500, jitter: 50 },
+  });
+
+  const start = Date.now();
+  const res = await fetch('/orders', { method: 'POST', body: JSON.stringify(order) });
+  expect(res.status).toBe(201);
+  expect(Date.now() - start).toBeLessThan(2000);  // total budget §2.28
+
+  await proxy.removeToxic(toxic.name);
+});
+
+test('order creation falls back to memory cache if Redis down', async () => {
+  const proxy = await client.get('redis_proxy');
+  await proxy.disable();  // cuts connection
+
+  const res = await fetch('/orders', { method: 'POST', body: JSON.stringify(order) });
+  expect(res.status).toBe(201);  // graceful fallback ativo
+
+  await proxy.enable();
+});
+```
+
+**5. AWS FIS — production-grade fault injection**
+
+Experiment template (JSON): targets + actions + stop conditions. Pattern Logística — terminate 1 EC2 em `orders-api` ASG:
+
+```json
+{
+  "actions": {
+    "terminateInstance": {
+      "actionId": "aws:ec2:terminate-instances",
+      "parameters": { "instanceCount": "1" },
+      "targets": { "Instances": "ordersAsg" }
+    }
+  },
+  "targets": {
+    "ordersAsg": {
+      "resourceType": "aws:ec2:instance",
+      "selectionMode": "COUNT(1)",
+      "resourceTags": { "AutoScalingGroup": "orders-api" }
+    }
+  },
+  "stopConditions": [{
+    "source": "aws:cloudwatch:alarm",
+    "value": "arn:aws:cloudwatch:us-east-1:123:alarm:orders-api-error-rate-high"
+  }]
+}
+```
+
+- **Stop conditions**: CloudWatch alarm halt experiment se real damage detectado. NUNCA omitir.
+- Outras actions FIS 2026: `aws:rds:reboot-db-instances`, `aws:network:disrupt-connectivity`, `aws:eks:pod-cpu-stress`.
+
+**6. K8s chaos via Litmus**
+
+```yaml
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosEngine
+metadata:
+  name: orders-api-pod-delete
+  namespace: logistica
+spec:
+  appinfo:
+    appns: logistica
+    applabel: app=orders-api
+    appkind: deployment
+  chaosServiceAccount: litmus-admin
+  experiments:
+    - name: pod-delete
+      spec:
+        components:
+          env:
+            - name: TOTAL_CHAOS_DURATION
+              value: '60'
+            - name: CHAOS_INTERVAL
+              value: '10'
+            - name: PODS_AFFECTED_PERC
+              value: '20'
+```
+
+Chaos Mesh equivalente: `kind: PodChaos`, `action: pod-kill`, `selector.labelSelectors`. Litmus mais customizável; Chaos Mesh UI superior 2026.
+
+**7. Gameday playbook**
+
+- **Pre-gameday (1 semana antes)**:
+  - Definir hipótese ("Order endpoint mantém SLO durante DB primary failover").
+  - Definir blast radius (env: staging; serviços impactados; janela temporal).
+  - Definir stop criteria (error rate > 5% sustained 1min → halt; p99 > 3x baseline → halt).
+  - Notificar Ops + Customer Support (no surprises).
+  - Identificar observers: IC, Ops, Comms (cobre `03-15` §2.19).
+- **Day of gameday**:
+  - 30min preflight (verifica monitoring ativo, baseline metrics capturados).
+  - Inject single failure first (uma variável só).
+  - Observa 15-30min sob falha contínua.
+  - Halt imediato se stop criteria met.
+  - Roll back deliberadamente (não auto-recover; observa recovery time).
+- **Post-gameday**:
+  - Document findings (postmortem-style; cobre `03-15`).
+  - File action items (P0 imediato, P1 dentro do sprint).
+  - Re-run experiment após fixes; falha não corrigida = falha conhecida.
+
+**8. Blast radius management**
+
+- **Staging-first**: todo chaos começa em staging. Production só após staging clean por 3+ ciclos.
+- **Single dimension**: um failure type por experiment (não combinar latency + pod-kill).
+- **Smallest scope first**: 1 pod < 10% pods < 50% pods. Escalar gradualmente após cada green.
+- **Time-bounded**: todo experiment tem hard timeout; auto-rollback no FIS via `stopConditions`.
+- **Reversible preferred**: latency/drop reversíveis > delete destrutivo.
+- **Observed**: full monitoring + alerting active; abort se real impact em users.
+
+**9. Logística chaos engineering program**
+
+- **Q1**: integrar Toxiproxy em CI integration tests; ~30 cenários latency/disconnect cobrindo Redis, Postgres, payment gateway.
+- **Q2**: monthly staging gameday com runbook preparado; foco DB failover e dependency outage.
+- **Q3**: AWS FIS staging continuamente (Mon/Wed/Fri auto-injections; weekend off para reduzir alert fatigue).
+- **Q4**: first production gameday (1h, controlled, full IC team on-call, comms pre-notificado).
+- **Findings tracked** em postmortem-style docs no Notion; action items em Linear, owner + due date.
+
+**10. Common findings (chaos reveals)**
+
+- **Cascade failures**: 1 service slow → entire system slow (timeout/circuit breaker missing; cobre §2.28).
+- **Retry storms**: failure → all clients retry sync → upstream piora (jitter ausente).
+- **Connection pool starvation**: 1 slow query holds all DB conns (pool isolation/bulkhead missing).
+- **Timeout > caller timeout**: DB call 30s mas caller 5s = caller desiste, DB ainda processa (deadline propagation missing).
+- **Missing fallbacks**: cache fail → no degraded mode → 500s direto.
+- **Health check too strict**: transient failure → pod restarted → cascade reschedule storm.
+
+**11. Anti-patterns observados (10 itens)**
+
+1. Production chaos sem staging baseline first — real damage; users impactados.
+2. Chaos sem clear hypothesis ("let's see what happens") — no learning, só ruído.
+3. No stop criteria defined — experiment runs unbounded; vira outage real.
+4. Multi-failure injection first time — não isolável; cause unknown.
+5. Gameday sem comms team notified — customer support floods de tickets confusos.
+6. Tool chosen over hypothesis (FIS porque available, não porque needed).
+7. No post-gameday action items tracked — findings esquecidos; mesmo chaos result próximo gameday.
+8. Continuous production chaos sem maturity — Netflix-level needs years de investimento prior.
+9. Toxiproxy em unit tests em vez de integration — overkill; unit tests devem mockar.
+10. Chaos team isolado de product team — no shared learning; chaos vira "their job".
+
+**12. Cruza com**: `04-04` §2.26 (chaos principles foundation), `04-04` §2.28 (resilience tuning informa chaos targets — onde tunar timeout antes de injetar latency), `03-15` (incident response, IC roles em gameday), `03-04` (CI/CD, integration tests com Toxiproxy), `04-09` (scaling, blast radius cresce com scale).
+
+---
+
+### 2.30 Disaster Recovery deep — RPO/RTO modeling, runbooks, tabletop exercises, multi-region failover (2026)
+
+**1. DR ≠ HA**. HA é continuous — replica síncrona, load balancer tira instance ruim, usuário não percebe. DR é after-the-disaster — região AWS inteira foi (us-east-1 outage 2021/2023/2025), datacenter pegou fogo, ransomware criptografou prod. HA opera dentro do failure domain; DR cruza failure domains. Sistema com 99.99% HA e zero DR plan está uma região-outage de virar manchete. DR sem HA = downtime constante; HA sem DR = downtime catastrófico raro. Precisa dos dois, e tratar separado.
+
+**2. RPO/RTO definitions**. **RPO** (Recovery Point Objective): quanto dado pode perder, medido em tempo. RPO 5min = última cópia válida pode ter até 5min de write atrás do prod. **RTO** (Recovery Time Objective): quanto tempo até voltar a servir. RTO 1min = de "região caiu" a "tráfego servido" em 60s. RPO determina tipo de replication (async vs sync). RTO determina tipo de standby (cold/warm/hot/active). Custos crescem exponencialmente com RPO/RTO menores.
+
+| Tier | RPO | RTO | Padrão típico | Custo relativo | Caso de uso |
+|------|-----|-----|---------------|----------------|-------------|
+| 1 | 0 | < 1min | Multi-region active/active | 5-10x | Pagamentos, trading |
+| 2 | < 5s | < 5min | Hot standby + DNS failover | 3-5x | Orders, checkout |
+| 3 | < 1min | < 30min | Warm standby (Aurora Global) | 2-3x | Catálogo, user profile |
+| 4 | < 1h | < 4h | Pilot light (replica + infra dormant) | 1.3-1.8x | Analytics, reports |
+| 5 | < 24h | days | Backup restore (S3 cross-region snapshots) | 1.05-1.2x | Audit log, archive |
+
+Tier escolhido por dado, não por sistema. Orders DB tier 2; audit log tier 5; catalog tier 3.
+
+**3. Multi-region patterns** (cost vs RTO):
+
+| Pattern | Standby state | RTO | Cost overhead | Trade-off |
+|---------|---------------|-----|---------------|-----------|
+| Active/Active | Servindo tráfego | seconds | ~2x infra + traffic eng | Conflict resolution complexa (CRDT, last-write-wins) |
+| Hot standby | Replica ligada, idle | 1-5min | ~1.5x | Capacity planning — standby precisa aguentar 100% |
+| Warm standby | Replica ligada, undersized | 5-30min | ~1.2-1.5x | Scale up no failover (autoscaling lag) |
+| Pilot light | Só dados replicando, infra dormant | 30min-4h | ~1.1x | Terraform apply no DR — infra cold start |
+| Backup/Restore | S3 snapshots cross-region | 4h-days | ~1.05x | Restore time proporcional ao dataset size |
+
+Stack típico: tier 1 active/active (DynamoDB Global, Spanner), tier 2 hot standby (Aurora Global Database), tier 3-4 warm/pilot light, tier 5 backup.
+
+**4. Replication mechanics + lag math**. **AWS RDS cross-region read replica** (Postgres/MySQL): async, lag típico 1-5s em condições normais, pode subir 30s+ em write storms. **Aurora Global Database** (2026): physical replication via storage layer, RPO target < 1s, RTO < 1min em managed failover, até 5 secondary regions. **DynamoDB Global Tables**: multi-master active/active, last-write-wins por timestamp, replication lag tipicamente < 1s. **Cloud Spanner**: external consistency, multi-region synchronous via Paxos, RPO 0, RTO seconds. **S3 Cross-Region Replication**: SLA 15min para 99.99% dos objetos, mas typical < 1min.
+
+**RPO calculation example** (async replica):
+```
+write_rate = 500 writes/sec
+replication_lag_p99 = 3s
+RPO_p99 = write_rate * lag = 500 * 3 = 1500 writes potentially lost on hard failover
+```
+Não declarar RPO sem medir lag p99 sob carga real. CloudWatch metric `ReplicaLag` (RDS) ou `AuroraGlobalDBReplicationLag`.
+
+**5. Route53 failover record + health check**:
+```hcl
+resource "aws_route53_health_check" "primary" {
+  fqdn              = "api-primary.fathom.io"
+  port              = 443
+  type              = "HTTPS"
+  resource_path     = "/health/deep"
+  failure_threshold = 3
+  request_interval  = 10  # 10s (fast) ou 30s (standard, mais barato)
+  measure_latency   = true
+  regions           = ["us-east-1", "eu-west-1", "ap-southeast-1"]  # 3+ regions p/ evitar false positive
+}
+
+resource "aws_route53_record" "api_primary" {
+  zone_id = var.zone_id
+  name    = "api.fathom.io"
+  type    = "A"
+  ttl     = 60  # CRÍTICO: TTL baixo p/ failover rápido. NUNCA 3600
+  set_identifier = "primary"
+  failover_routing_policy { type = "PRIMARY" }
+  health_check_id = aws_route53_health_check.primary.id
+  records = [aws_eip.primary.public_ip]
+}
+
+resource "aws_route53_record" "api_secondary" {
+  zone_id = var.zone_id
+  name    = "api.fathom.io"
+  type    = "A"
+  ttl     = 60
+  set_identifier = "secondary"
+  failover_routing_policy { type = "SECONDARY" }
+  records = [aws_eip.secondary.public_ip]
+}
+```
+Health check 10s interval + 3 failures = ~30s detection. TTL 60s = ~30s propagation (caches respeitam). Total RTO DNS-bound ≈ 60-90s. Caches que ignoram TTL (browsers, alguns ISPs) podem manter old IP por minutos — daí GSLB com Anycast (Cloudflare Load Balancer, AWS Global Accelerator) é melhor que DNS failover puro.
+
+**6. Failover process** (sequência crítica):
+1. **Detect**: health check 3x fail (30s).
+2. **Decide**: automated p/ tier 1-2; humano p/ tier 3+ (false positive caro).
+3. **Fence old primary**: revoke IAM, security group block, kill replication slot. Sem fence → split-brain (dual writes em primary "morto" + new primary).
+4. **Promote replica**: `SELECT pg_promote()` (Postgres 14+) ou managed (Aurora `failover-global-cluster`).
+5. **DNS/GSLB cutover**: Route53 health check já flipou; force se manual.
+6. **Connection draining**: app pools precisam reconectar; PgBouncer pool reset, Lambda cold start.
+7. **Verify**: synthetic transaction end-to-end (`POST /order` → `GET /order/:id`).
+8. **Rollback plan**: se new primary falhar, rollback para original (se ainda alive) ou para tertiary.
+
+**Aurora Global DB managed failover** (RTO < 1min):
+```bash
+aws rds failover-global-cluster \
+  --global-cluster-identifier fathom-orders-global \
+  --target-db-cluster-identifier arn:aws:rds:eu-west-1:...:cluster:fathom-orders-eu \
+  --allow-data-loss  # accept RPO > 0; sem isso, espera replication catch up
+```
+
+**7. Runbook structure** (markdown template, vive em repo + impresso em war room):
+```markdown
+# Runbook: Failover orders DB primary us-east-1 → eu-west-1
+
+## Preconditions (verify ANTES de executar)
+- [ ] PagerDuty incident criado, IC nomeado
+- [ ] Replication lag eu-west-1 < 5s (CloudWatch `AuroraGlobalDBReplicationLag`)
+- [ ] No active migration running (`SELECT * FROM pg_stat_activity WHERE query LIKE '%ALTER%'`)
+- [ ] Backup snapshot < 1h old
+
+## Steps
+1. Announce em #incident-room: "Initiating failover orders-db at HH:MM UTC"
+2. Fence primary: aws ec2 revoke-security-group-ingress --group-id sg-prod-db --protocol tcp --port 5432 --cidr 10.0.0.0/8
+3. Promote eu-west-1: aws rds failover-global-cluster --global-cluster-identifier fathom-orders-global --target-db-cluster-identifier arn:aws:rds:eu-west-1:...
+4. Wait for promotion: aws rds describe-global-clusters --query 'GlobalClusters[0].Status' (target=available, ~45s)
+5. Update app config: kubectl set env deploy/orders-api DATABASE_URL=$EU_WEST_PRIMARY -n prod
+6. Force DNS: aws route53 change-resource-record-sets --hosted-zone-id ... (já automático via health check, mas force se TTL alto)
+
+## Verification
+- [ ] curl https://api.fathom.io/health/deep retorna 200 + db_region=eu-west-1
+- [ ] Synthetic: POST /orders + GET /orders/:id round-trip < 2s
+- [ ] Error rate em Datadog < baseline + 10% (15min window)
+
+## Rollback (se passos 3-5 falham)
+1. Re-allow security group primary us-east-1
+2. Revert DATABASE_URL deploy
+3. Promote us-east-1 back if eu-west-1 não está catching up
+
+## Postconditions
+- [ ] Update runbook with timestamps, who-did-what, surprises
+- [ ] Schedule post-mortem dentro de 48h
+```
+
+Runbook que nunca foi executado é ficção. Quarterly tabletop + anual real failover (gameday) ou está desatualizado.
+
+**8. Tabletop exercise** (90min, quarterly):
+```
+Scenario: us-east-1 RDS API endpoint returns 5xx for 8min, then full region degradation
+
+Roles: IC, comms, DB engineer, SRE, customer support lead
+
+Script (facilitator):
+T+0:   "Datadog alert: orders API error rate 60%. CloudWatch RDS APIs returning 5xx."
+T+2m:  "Replication lag eu-west-1 jumped to 45s, now stable at 12s."
+T+5m:  "Customer support: 200 tickets in 5min, Twitter trending #fathomdown."
+T+8m:  "AWS Health Dashboard: 'Increased Error Rates' us-east-1 RDS."
+
+Questions to answer LIVE (não retrospectiva):
+- Quem decide failover? (IC sozinho? precisa CTO sign-off?)
+- Aceitamos RPO 12s (lag atual) ou esperamos catch-up?
+- Como comunicamos status page? Quem aprova?
+- Se eu-west-1 também degrada em T+15m, qual o plano?
+
+Output: gaps documentados → ações com owner + deadline.
+```
+
+Tabletop NÃO é "send email asking what would you do". É síncrono, na sala (física ou call), com clock real, com IC tomando decisões. 90min, quarterly. Anti-pattern: "tabletop" virou async questionnaire que ninguém responde.
+
+**9. DR drills vs gamedays**. **Tabletop**: discussão, sem touch em prod, baixo custo. **DR drill**: failover real em staging mirror de prod, mensal. **Gameday**: failover real em prod, quarterly/biannual, janela anunciada, full team. Sem gameday real, runbook é fanfic. Netflix Chaos Monkey kills instances; DR gameday kills regions.
+
+**10. Stack Logística aplicada**:
+- **Orders DB** (Postgres): tier 2, Aurora Global Database us-east-1 → eu-west-1, RPO < 5s, RTO < 5min. Failover trigger: 3x health check fail OR manual call por IC.
+- **Courier locations** (Redis Geo + Kafka): tier 3, Redis Enterprise active-active CRDT, RPO < 1min, RTO 5-30min. Last known position OK perder até 1min.
+- **Audit log** (S3 + Glacier): tier 5, S3 CRR para us-west-2 + Glacier Deep Archive cross-region, RPO 15min (CRR SLA), RTO horas. Audit é write-once, restore lento aceitável.
+- **Catalog** (Postgres read-heavy): tier 3, RDS cross-region read replica + ElastiCache Redis. RTO 30min — promote replica, repopulate cache (cold cache aceitável breve).
+
+**11. 10 anti-patterns**:
+1. RPO declarado sem medir replication lag p99 sob load real (paper RPO ≠ measured RPO).
+2. Runbook escrito uma vez em 2023, nunca executado, comandos referem stack antigo.
+3. Tabletop = email/Slack thread "se região cair o que faríamos?" (zero pressure, zero learning).
+4. Failover sem fence do old primary → split-brain, dual writes em prod, data corruption.
+5. DNS TTL 3600s — RTO floor é 60min mesmo com promotion em 30s.
+6. Active/passive com passive dormant 6+ meses — config drift, security patches missing, capacity insuficiente quando precisa.
+7. Backup nunca foi restored — schrödinger's backup, pode estar corrupt.
+8. Cross-region replica em mesma região AWS (us-east-1a → us-east-1b) — não é DR, é HA. Disaster derruba região inteira.
+9. Runbook não tem rollback — se failover piora, time fica improvisando.
+10. RPO/RTO definido por engenharia sozinha, sem product/business — orders tier 5 "porque é mais barato", aí outage custa 100x o saving.
+
+**12. Cruza com**: `04-04` §2.25 (failover patterns base), `04-04` §2.26 (chaos principles, gameday é DR drill com escopo maior), `04-04` §2.27 (failure budget — DR test consome budget conscientemente), `03-15` (incident response, IC roles em gameday + tabletop), `03-05` (cloud, managed DR services Aurora Global / Spanner / DynamoDB Global), `04-09` (scaling, multi-region adiciona complexidade — replicação, conflict resolution), `02-09` §2.13 (Postgres replication base, streaming + logical), `04-01` §2.5 (CAP — DR é AP situation often, aceita stale read pra continuar disponível).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

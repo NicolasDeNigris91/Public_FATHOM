@@ -904,6 +904,329 @@ Cruza com **02-10** (ORMs, replicaUrl config); **03-05** (AWS RDS Postgres + Aur
 
 ---
 
+### 2.22 JSONB advanced patterns — jsonpath, GIN indexes, expression indexes, jsonb_path_query 2026
+
+PostgreSQL 16/17 entrega JSONB maduro: jsonpath estável desde 12, GIN `jsonb_path_ops` standard, `jsonb_path_query` em produção. Trate JSONB como tipo first-class, não escape hatch.
+
+**JSONB vs JSON vs schema relacional**:
+
+- **`JSON`** (text storage): preserva key order + whitespace; parse na cada leitura; lento. Use só se ordem importa (raríssimo).
+- **`JSONB`** (binary): parsed once on insert; indexável via GIN; lossy em whitespace; queries rápidas.
+- **Schema relacional** ganha quando: campos conhecidos + queries estruturadas + joins frequentes. Type system + foreign keys + estatísticas precisas no planner.
+- **JSONB ganha quando**: schema variável (multi-tenant config), event payloads (audit log), nested documents, schemaless API ingest.
+- **Híbrido (80% dos casos)**: colunas estruturadas pros campos quentes + coluna JSONB pra extras variáveis. Best of both.
+
+**Setup Logística (orders table)**:
+
+```sql
+CREATE TABLE orders (
+  id UUID PRIMARY KEY,
+  tenant_id UUID NOT NULL,
+  status TEXT NOT NULL,
+  total_cents BIGINT NOT NULL,
+  metadata JSONB NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO orders (id, tenant_id, status, total_cents, metadata) VALUES
+  ('ord-1', 'tenant-a', 'placed', 12500, '{"source": "web", "items": [{"sku": "BOX-A", "qty": 2}], "promo_code": "SAVE10"}'),
+  ('ord-2', 'tenant-a', 'placed', 8000, '{"source": "mobile", "items": [{"sku": "BOX-B", "qty": 1}], "courier_pref": "fast"}');
+```
+
+**Operadores JSONB (Postgres 16+ stable)**:
+
+- **`->`** retorna JSONB: `metadata->'source'` → `"web"` (com aspas).
+- **`->>`** retorna text: `metadata->>'source'` → `web`.
+- **`#>` / `#>>`** path nested: `metadata#>'{items,0,sku}'` retorna sku do primeiro item.
+- **`@>`** contains: `metadata @> '{"source": "web"}'` true se metadata contém aquele par.
+- **`<@`** contained-by: inverso.
+- **`?`** key exists: `metadata ? 'promo_code'`.
+- **`?|` / `?&`** any-of / all-of keys.
+
+**GIN indexes — `jsonb_ops` (default) vs `jsonb_path_ops`**:
+
+- **`jsonb_ops`** (default): suporta `?`, `?|`, `?&`, `@>`. Índice maior, mais flexível.
+- **`jsonb_path_ops`**: suporta apenas `@>`. Índice ~30% menor, queries mais rápidas.
+- **Decisão**: app só faz `@>` containment? Use `jsonb_path_ops`. Senão, default.
+
+```sql
+-- Default (jsonb_ops): suporta ?, ?|, ?&, @>
+CREATE INDEX idx_orders_metadata ON orders USING gin (metadata);
+
+-- Path-only (menor, mais rápido pra @>)
+CREATE INDEX idx_orders_metadata_path ON orders USING gin (metadata jsonb_path_ops);
+```
+
+**Expression indexes — index path específico**:
+
+```sql
+-- Query frequente por source? Index só ele.
+CREATE INDEX idx_orders_source ON orders ((metadata->>'source'));
+-- WHERE metadata->>'source' = 'mobile' agora usa index.
+
+-- Path nested
+CREATE INDEX idx_orders_first_item_sku ON orders ((metadata#>>'{items,0,sku}'));
+```
+
+Cada expression index aumenta custo de write; escolha queries top, não cada path.
+
+**`jsonb_path_query` (Postgres 12+; mature em 2026)** — SQL/JSON path language, sintaxe Postgres-specific:
+
+- **`@?`** path exists: `metadata @? '$.items[*] ? (@.qty > 1)'`.
+- **`@@`** path predicate: retorna boolean.
+
+Pattern Logística — orders com pelo menos 1 item de quantidade > 1:
+
+```sql
+SELECT id, tenant_id
+FROM orders
+WHERE metadata @? '$.items[*] ? (@.qty > 1)';
+
+-- Extrair elementos que match
+SELECT id, jsonb_path_query(metadata, '$.items[*] ? (@.qty > 1)')
+FROM orders;
+
+-- Primeiro match apenas
+SELECT id, jsonb_path_query_first(metadata, '$.items[*] ? (@.qty > 1)')
+FROM orders;
+```
+
+**JSONB updates — partial paths**:
+
+```sql
+-- Set nested key
+UPDATE orders SET metadata = jsonb_set(metadata, '{courier_pref}', '"premium"') WHERE id = 'ord-1';
+
+-- Append em array (concat)
+UPDATE orders SET metadata = jsonb_set(
+  metadata,
+  '{items}',
+  metadata->'items' || '{"sku": "BOX-C", "qty": 3}'::jsonb
+) WHERE id = 'ord-1';
+
+-- Remove key
+UPDATE orders SET metadata = metadata - 'promo_code' WHERE id = 'ord-1';
+
+-- Remove nested (primeiro item do array)
+UPDATE orders SET metadata = metadata #- '{items,0}' WHERE id = 'ord-1';
+```
+
+`jsonb_set` é atômica per-statement; updates concorrentes fazem read-modify-write race. Use `SELECT ... FOR UPDATE` ou optimistic locking via versão.
+
+**Performance**:
+
+- **TOAST** (The Oversized-Attribute Storage Technique): JSONB > 2KB armazenado out-of-line; UPDATE em JSONB grande reescreve tudo (caro).
+- **Cap size**: alvo < 2KB por linha em hot tables; passou disso, normalize.
+- **GIN write overhead**: 5-30% slowdown em INSERT/UPDATE; pesa em high-write tables.
+- **Números reais**: `@>` em tabela de 10M linhas com GIN ~1-5ms; sem index ~1-10s sequential scan.
+
+**Validação parcial via CHECK**:
+
+```sql
+ALTER TABLE orders ADD CONSTRAINT metadata_valid_source
+  CHECK (metadata ? 'source' AND metadata->>'source' IN ('web', 'mobile', 'api'));
+```
+
+Enforça schema parcial; mais barato que coluna separada quando o campo é semi-opcional.
+
+**Stack Logística aplicada**:
+
+- `orders.metadata` JSONB: source + items + promo_code + courier_pref + custom tenant fields.
+- GIN `jsonb_path_ops`: maioria das queries são `@>` (containment); índice menor.
+- Expression index em `(metadata->>'source')`: filtro frequente por canal.
+- `jsonb_path_query` em analytics: "orders com items > $50/unidade nos últimos 30 dias".
+- CHECK constraint valida `source` em enum permitido.
+- `audit_log` table com `details JSONB` único (variável por event type).
+
+**Anti-patterns observados**:
+
+- JSONB pra dados sempre estruturados (use colunas; perde tipo + index efficiency).
+- GIN `jsonb_ops` quando só faz `@>` queries (use `jsonb_path_ops`; ~30% menor).
+- Expression index em todo path (cada um adiciona write cost; pick top queries).
+- Tipo `JSON` text em vez de `JSONB` (parse lento toda leitura; só se ordem importa).
+- JSONB > 100KB por linha (TOAST overhead massivo no UPDATE; normalize pra tabela separada).
+- `jsonb_path_query` em hot path (lento vs expression index pré-computado).
+- Update JSONB sem `FOR UPDATE` lock (race condition; writes concorrentes perdidos).
+- Sem CHECK constraint em JSONB com schema parcial conhecido (garbage acumula).
+- GIN index em coluna raramente queried (write overhead sem benefit; drop).
+- Multi-tenant com `tenant_id` dentro do JSONB em vez de coluna (sem WHERE eficiente; refatore pra coluna + FK).
+
+Cruza com **02-09 §2.15** (intro JSON em Postgres); **02-09 §2.16** (schema design + híbrido relacional/JSONB); **02-09 §2.21** (partitioning + JSONB columns particionadas); **02-12** (Mongo como alternativa quando schema é majoritariamente variável); **04-13** (CDC capturando JSONB columns pra lakehouse).
+
+---
+
+### 2.23 TimescaleDB deep — hypertables, continuous aggregates, compression, retention policies 2026
+
+Postgres puro empaca em workloads time-series acima de ~100M rows/mês: índices B-Tree em `timestamp` viram bloat, `VACUUM` não acompanha o churn, `GROUP BY time_bucket` faz seq scan, e tabelas de telemetry de frota crescem sem teto. TimescaleDB 2.17+ (release de fevereiro 2026, runtime sobre Postgres 14-17) resolve via hypertables (particionamento automático por tempo + space), continuous aggregates (materialized views incrementais), columnar compression (8-20x typical) e retention policies (drop_chunks por idade). É extension nativa, instalada com `CREATE EXTENSION timescaledb;` — sem fork, sem proxy. Fonte: [docs.timescale.com/getting-started](https://docs.timescale.com/getting-started/latest/).
+
+**Hypertables — chunks + space partitioning**.
+
+Hypertable é uma tabela virtual que o Timescale parte automaticamente em **chunks** (child tables Postgres regulares) por intervalo de tempo. Default `chunk_time_interval` é 7 dias — mude conforme volume: regra prática é chunk caber em 25% do `shared_buffers` (chunks ativos quentes em RAM).
+
+```sql
+CREATE EXTENSION IF NOT EXISTS timescaledb;
+
+CREATE TABLE gps_pings (
+  time         TIMESTAMPTZ      NOT NULL,
+  vehicle_id   BIGINT           NOT NULL,
+  lat          DOUBLE PRECISION NOT NULL,
+  lon          DOUBLE PRECISION NOT NULL,
+  speed_kmh    REAL,
+  battery_pct  REAL,
+  driver_id    BIGINT
+);
+
+-- 1 dia por chunk: ~5M rows/dia em frota de 5k veículos a 1 ping/min
+SELECT create_hypertable(
+  'gps_pings',
+  by_range('time', INTERVAL '1 day')
+);
+
+-- space partitioning: distribui por vehicle_id pra paralelizar query por frota
+SELECT add_dimension('gps_pings', by_hash('vehicle_id', 4));
+
+CREATE INDEX ON gps_pings (vehicle_id, time DESC);
+```
+
+`partitioning_column` precisa estar no PRIMARY KEY / UNIQUE constraint se existir — Postgres exige. Em `gps_pings` evite PK; use `(vehicle_id, time)` como composite index e identifique unicidade no app. Fonte: [docs.timescale.com/use-timescale/latest/hypertables](https://docs.timescale.com/use-timescale/latest/hypertables/).
+
+**Continuous aggregates — materialized views incrementais**.
+
+Continuous aggregate (cagg) materializa `time_bucket` agregations e refresha incrementalmente — só recomputa chunks novos, não a tabela toda. Default Timescale 2.13+ é **real-time aggregation**: query une dados materializados (histórico) com agregação on-the-fly de bucket atual, garantindo consistência.
+
+```sql
+CREATE MATERIALIZED VIEW fleet_speed_5min
+WITH (timescaledb.continuous) AS
+SELECT
+  time_bucket('5 minutes', time) AS bucket,
+  vehicle_id,
+  AVG(speed_kmh)  AS avg_speed,
+  MAX(speed_kmh)  AS max_speed,
+  COUNT(*)        AS ping_count,
+  last(battery_pct, time) AS last_battery
+FROM gps_pings
+GROUP BY bucket, vehicle_id
+WITH NO DATA;
+
+-- refresh policy: a cada 1min materializa janela [now-2h, now-5min]
+SELECT add_continuous_aggregate_policy('fleet_speed_5min',
+  start_offset       => INTERVAL '2 hours',
+  end_offset         => INTERVAL '5 minutes',
+  schedule_interval  => INTERVAL '1 minute'
+);
+```
+
+`end_offset` evita refresh do bucket corrente (que ainda recebe writes) — sem isso, race condition entre INSERT e materialize. `start_offset` define janela retroativa que policy reprocessa (pra captar late-arriving data de courier offline que sincroniza GPS depois). Fonte: [docs.timescale.com/use-timescale/latest/continuous-aggregates](https://docs.timescale.com/use-timescale/latest/continuous-aggregates/).
+
+Caggs hierárquicos: empilhe agregação 1h sobre cagg de 5min — Timescale 2.10+ suporta nativamente.
+
+```sql
+CREATE MATERIALIZED VIEW fleet_speed_hourly
+WITH (timescaledb.continuous) AS
+SELECT
+  time_bucket('1 hour', bucket) AS hour_bucket,
+  vehicle_id,
+  AVG(avg_speed) AS avg_speed,
+  MAX(max_speed) AS max_speed
+FROM fleet_speed_5min
+GROUP BY hour_bucket, vehicle_id
+WITH NO DATA;
+```
+
+**Compression — columnar storage por chunk**.
+
+Compression converte chunk row-oriented em columnar. Ratios típicos 8-20x em telemetry (valores repetidos, séries numéricas). `segmentby` agrupa rows do mesmo grupo lógico (ex.: `vehicle_id`); `orderby` define ordem dentro do segmento (sempre `time DESC` pra time-series).
+
+```sql
+ALTER TABLE gps_pings SET (
+  timescaledb.compress,
+  timescaledb.compress_segmentby = 'vehicle_id',
+  timescaledb.compress_orderby   = 'time DESC'
+);
+
+-- comprime chunks com mais de 7 dias automaticamente
+SELECT add_compression_policy('gps_pings', INTERVAL '7 days');
+```
+
+Chunks comprimidos viram **read-mostly**: INSERT funciona (Timescale 2.11+ permite via decompression on-the-fly), mas UPDATE/DELETE em row comprimido força descompressão do chunk — caro. Estrategia: comprima só chunks fechados (depois de window de correção de dados). Fonte: [docs.timescale.com/use-timescale/latest/compression](https://docs.timescale.com/use-timescale/latest/compression/).
+
+**Retention policies — drop_chunks**.
+
+Retention deleta chunks inteiros (DROP TABLE no chunk filho) — instantâneo, sem `DELETE FROM` row-by-row, sem bloat, sem trigger autovacuum.
+
+```sql
+SELECT add_retention_policy('gps_pings', INTERVAL '90 days');
+SELECT add_retention_policy('fleet_speed_5min', INTERVAL '1 year');
+SELECT add_retention_policy('fleet_speed_hourly', INTERVAL '5 years');
+```
+
+Padrão: retenção **maior em caggs do que na hypertable raw** — você apaga raw após 90 dias, mas mantém agregados de 1h por 5 anos pra histórico de SLA. Compliance LGPD: drop_chunks em PII garante deletion comprovada (não há row residual).
+
+**Query patterns úteis**.
+
+```sql
+-- velocidade média por veículo nas últimas 6h, buckets de 5min
+SELECT bucket, vehicle_id, avg_speed
+FROM fleet_speed_5min
+WHERE bucket >= NOW() - INTERVAL '6 hours'
+  AND vehicle_id = 4271
+ORDER BY bucket;
+
+-- p95 de delivery latency por região, gap-fill com LOCF
+SELECT
+  time_bucket_gapfill('15 minutes', time) AS bucket,
+  region,
+  approx_percentile(0.95, percentile_agg(latency_ms)) AS p95_latency,
+  locf(last(courier_count, time))                    AS active_couriers
+FROM order_events
+WHERE time >= NOW() - INTERVAL '24 hours'
+GROUP BY bucket, region;
+
+-- primeira e última posição GPS de cada courier session
+SELECT
+  courier_id,
+  first(lat, time) AS start_lat,
+  first(lon, time) AS start_lon,
+  last(lat, time)  AS end_lat,
+  last(lon, time)  AS end_lon
+FROM gps_pings
+WHERE time >= NOW() - INTERVAL '8 hours'
+GROUP BY courier_id;
+```
+
+`time_bucket_gapfill` + `locf` (last observation carried forward) preenche buckets vazios — essencial pra dashboards Grafana sem gaps quando courier perde sinal. `first()`/`last()` são funções Timescale, mais baratas que `DISTINCT ON` em hypertable grande.
+
+**Stack Logística aplicada**.
+
+| Tabela              | Hypertable? | chunk_time_interval | Compression após | Retention |
+|---------------------|-------------|---------------------|------------------|-----------|
+| `gps_pings`         | sim         | 1 dia               | 7 dias           | 90 dias   |
+| `order_events`      | sim         | 1 dia               | 14 dias          | 2 anos    |
+| `sensor_readings`   | sim         | 6 horas             | 3 dias           | 30 dias   |
+| `courier_sessions`  | sim         | 7 dias              | 30 dias          | 1 ano     |
+| `delivery_outcomes` | não         | -                   | -                | -         |
+
+`delivery_outcomes` fica em Postgres regular: low cardinality temporal, queried por `order_id` (relacional), não por janela de tempo. Não force hypertable em tudo.
+
+Caggs operacionais úteis pro capstone: `fleet_speed_5min` (dashboard real-time), `delivery_p95_15min` (alarme de SLA), `couriers_active_hourly` (capacity planning), `orders_per_region_5min` (pricing dinâmico). Cruze com **03-07** (observability time-series + Grafana) — Timescale é backend natural pra metrics próprias da aplicação fora do Prometheus.
+
+**Anti-patterns observados**:
+
+- Hypertable em tabela < 1M rows (overhead de chunk routing sem benefit; use Postgres regular).
+- `chunk_time_interval` default sem ajustar (chunks de 7 dias com 50M rows não cabem em RAM; query degrada).
+- Continuous aggregate sem `end_offset` (race condition: bucket atual materializado antes de receber INSERTs tardios).
+- INSERT em chunk comprimido em hot path (decompression on-the-fly é cara; comprima só após janela de write fechada).
+- UPDATE/DELETE frequente em chunks comprimidos (descomprime chunk inteiro; refatore pra append-only + tombstone).
+- `segmentby` com cardinality muito alta (1 segmento por row anula compression; use coluna de grupo lógico).
+- Retention policy sem cagg correspondente (você dropa raw e perde histórico agregado; sempre cagg antes de drop).
+- `DELETE FROM hypertable WHERE time < ...` em vez de `drop_chunks` (DELETE faz row-by-row + bloat + autovacuum; drop_chunks é instantâneo).
+- Cagg refresh policy a cada 5 segundos (background worker satura; mínimo prático é 30-60s).
+- Query sem filtro temporal em hypertable (chunk exclusion não dispara; full scan em todos os chunks; sempre WHERE em `time`).
+
+Cruza com **02-09 §2.13** (replication — Timescale herda streaming/logical do Postgres); **02-09 §2.20** (tuning — `shared_buffers` deve caber chunks ativos); **02-09 §2.21** (partitioning nativo Postgres como alternativa quando não precisa de caggs); **03-07** (observability time-series e Grafana sobre Timescale); **04-09** (scaling — sharding via multi-node Timescale ou Citus); **04-13** (data engineering — CDC de hypertable pra lakehouse com chunk-aware replication).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

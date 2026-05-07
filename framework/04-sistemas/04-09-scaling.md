@@ -833,6 +833,145 @@ Cruza com **02-09 §2.x** (Postgres deep, partitioning como precursor de shardin
 
 ---
 
+### 2.22 Multi-region production deep 2026 — geo-routing, residency, consistency cross-region
+
+Multi-region não é "deploy em 2 regions atrás de DNS round-robin". Multi-region production é **três decisões ortogonais empilhadas**: (1) **routing layer** — como tráfego chega na region certa (latency-based DNS, GeoDNS, Anycast); (2) **data residency** — onde o byte do usuário pode legalmente repousar (GDPR, LGPD, DPDPA); (3) **consistency model cross-region** — o que acontece quando duas regions escrevem ao mesmo tempo (single-leader, multi-leader, CRDTs). Errar qualquer uma das três custa: latency surprise (write cross-region 80-150ms), multa regulatória (GDPR Article 83 — até 4% revenue global), ou silent data corruption (LWW destruindo conta bancária). §2.8 introduziu geo-distribution, §2.21 cobriu sharding intra-region. §2.22 é o **playbook production** das três decisões.
+
+**Geo-routing layer 2026.** Quatro mecanismos, não intercambiáveis:
+
+1. **Latency-based DNS (Route53 latency policy, NS1 Filter Chain).** Cliente resolve `api.app.com` — DNS responde com IP da region de menor RTT medido (Route53 mantém latency map global atualizado a cada hora). Funciona pra HTTP stateless. Falha quando: client cacheia DNS além do TTL (mobile networks com TTL ignore — sticky a region morta); RTT medido != RTT real (cliente atrás de VPN corporativo).
+2. **GeoDNS (Route53 geolocation policy, Cloudflare GeoSteering).** Resolve por **país/continente do client IP**, não por latência. Uso real: data residency hard pin — usuário BR vai pra `sa-east-1`, sempre, mesmo se `us-east-1` estiver mais perto via backbone. Cuidado: GeoIP database tem 1-3% de erro (VPNs, corporate proxies, satellite ISPs).
+3. **Anycast (Cloudflare, Fastly, CloudFront, Google Cloud).** Mesmo IP anunciado via BGP de N PoPs globais — roteador BGP do ISP escolhe o PoP "mais próximo" (em hops AS, não latência). Latency p50 < 20ms global. **Limitação crítica**: Anycast pra TCP de longa duração (WebSocket, gRPC streaming) quebra quando BGP converge mid-session — sessão muda de PoP, TCP state perdido. Use Anycast só pra HTTP curto ou UDP (QUIC).
+4. **AWS Global Accelerator / Cloudflare Argo Smart Routing.** Anycast no edge + roteamento WAN privado até a region origin. Cliente conecta no PoP edge mais próximo (Anycast), e o tráfego viaja pela backbone privada (não internet pública) até `us-east-1`. Reduz p99 jitter em 30-50% vs internet routing. AWS Global Accelerator cobra $0.025/hora por accelerator + $0.015/GB transfer — caro, vale pra tráfego latency-sensitive.
+
+```yaml
+# Route53 latency-based + failover record set (Terraform)
+resource "aws_route53_record" "api_useast" {
+  zone_id        = var.zone_id
+  name           = "api.app.com"
+  type           = "A"
+  set_identifier = "us-east-1"
+  latency_routing_policy { region = "us-east-1" }
+  health_check_id = aws_route53_health_check.useast.id  # se region down, Route53 não retorna este RR
+  alias { name = aws_lb.useast.dns_name; zone_id = aws_lb.useast.zone_id; evaluate_target_health = true }
+}
+resource "aws_route53_record" "api_saeast" {
+  zone_id        = var.zone_id
+  name           = "api.app.com"
+  type           = "A"
+  set_identifier = "sa-east-1"
+  latency_routing_policy { region = "sa-east-1" }
+  health_check_id = aws_route53_health_check.saeast.id
+  alias { name = aws_lb.saeast.dns_name; zone_id = aws_lb.saeast.zone_id; evaluate_target_health = true }
+}
+```
+
+**Data residency 2026 — o terreno regulatório.** Não é opcional, não é "boa prática" — é multa. Mapa atual:
+
+- **GDPR (EU, 2018+).** Article 44-50 — transfer de dados pessoais EU pra fora do EEA exige base legal: adequacy decision (UK, Suíça, Japão, Canadá, Brasil — adequacy provisional desde 2024), Standard Contractual Clauses (SCCs), ou Binding Corporate Rules. **Schrems II (2020)** invalidou Privacy Shield US-EU; o **EU-US Data Privacy Framework (Jul 2023)** restaurou transfer pra empresas certificadas, mas em 2026 ainda enfrenta challenges legais. Multa: até €20M ou 4% revenue global (Article 83).
+- **LGPD (Brasil, 2020+).** Article 33 — transferência internacional exige adequacy ou garantias específicas. ANPD ainda não publicou lista definitiva de adequacy em 2026. Multa: até R$50M por infração (Article 52).
+- **India DPDPA (Aug 2023, em força 2024-2025).** Permite transfer exceto pra "negative list" de países (a definir pelo governo). RBI separadamente exige **payments data localization** desde 2018 — payments data de cidadãos indianos só em servidores na Índia.
+- **China PIPL (2021).** Cross-border transfer exige security assessment do CAC (Cyberspace Administration) acima de thresholds. Estrangeiros operando na China: data localization de fato.
+- **Russia 152-FZ, Indonesia PDP Law, Saudi PDPL** — region-pinning hard.
+
+**Tenant-routing por residency** (pseudocode, edge worker):
+
+```javascript
+// Cloudflare Worker — residency-aware tenant router
+export default {
+  async fetch(req, env) {
+    const tenantId = req.headers.get('x-tenant-id');
+    const tenant = await env.TENANT_KV.get(tenantId, 'json');  // { residency: 'EU' | 'US' | 'BR' | 'IN' }
+    const regionMap = {
+      EU: 'https://api-eu-west-1.app.com',
+      US: 'https://api-us-east-1.app.com',
+      BR: 'https://api-sa-east-1.app.com',
+      IN: 'https://api-ap-south-1.app.com',
+    };
+    const target = regionMap[tenant.residency];
+    if (!target) return new Response('residency unknown', { status: 403 });
+    return fetch(target + new URL(req.url).pathname, { method: req.method, headers: req.headers, body: req.body });
+  }
+};
+```
+
+Decisão de residency é **per-tenant**, gravada no signup e imutável (mudar residency = data migration projeto). `tenant_id → region` cacheado em edge KV (Cloudflare KV, DynamoDB Global Tables) — read p99 < 10ms.
+
+**Consistency cross-region — o trade-off real.** Quatro padrões production:
+
+1. **Single-leader cross-region (Aurora Global Database, Postgres logical replication).** Um primário em uma region (ex: `us-east-1`), read replicas nas outras. Writes vão pro primário — usuário em `sa-east-1` paga 120-150ms p99 por write. Reads locais e rápidos. RPO Aurora Global < 1s, RTO promote < 1min (Q1 2025: managed failover). Simples, predictable, mas write latency cross-region é o custo. Use quando: write-volume moderado, read-heavy, residency permite cross-region.
+2. **Multi-leader (active-active — DynamoDB Global Tables, Cosmos DB multi-region writes, Cassandra multi-DC).** Cada region escreve local. Conflitos resolvidos via **LWW (Last-Write-Wins)** baseado em timestamp/vector clock, ou via **CRDT** (counter, set). DynamoDB Global Tables Q1 2025 adicionou strong consistency regional opt-in (paga 2× write capacity). Cosmos DB oferece 5 níveis (strong, bounded staleness, session, consistent prefix, eventual). LWW silenciosamente perde writes — nunca use pra: counters, inventory, financial balance, semantic merges.
+3. **External consistency global (Cloud Spanner, CockroachDB multi-region, YugabyteDB).** Spanner usa TrueTime (GPS + atomic clocks) pra ordenação global linearizável — qualquer query lê estado globalmente consistente, latency 100-500ms p99 cross-region. CockroachDB 24.x: table localities `REGIONAL BY ROW` (cada row pinada a uma region — write local), `REGIONAL BY TABLE` (table inteira em uma region), `GLOBAL` (read everywhere local, writes consensus global — caro).
+4. **Read replicas + follower reads (CockroachDB AS OF SYSTEM TIME, Spanner stale reads, Postgres read replica).** Lê de réplica local com bounded staleness (ex: "dados ≤ 5s atrás"). Latency local, consistency degradada explicitamente.
+
+```sql
+-- CockroachDB 24.x — REGIONAL BY ROW (cada row escolhe region pelo crdb_region column)
+ALTER DATABASE app PRIMARY REGION "us-east1";
+ALTER DATABASE app ADD REGION "europe-west1";
+ALTER DATABASE app ADD REGION "southamerica-east1";
+
+CREATE TABLE users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email STRING NOT NULL,
+  region crdb_internal_region NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+) LOCALITY REGIONAL BY ROW AS region;
+
+-- Insert pinado em region — write local, latency < 10ms
+INSERT INTO users (email, region) VALUES ('user@x.com', 'southamerica-east1');
+
+-- Follower read (stale por até 4.8s, lê de réplica local)
+SELECT * FROM users AS OF SYSTEM TIME follower_read_timestamp() WHERE id = $1;
+```
+
+```sql
+-- Cloud Spanner — external consistency (read snapshot global linearizável)
+SELECT account_id, balance FROM accounts WHERE account_id = @id;
+-- p99 latency cross-region: 100-500ms (TrueTime wait + Paxos quorum)
+```
+
+**Real DB matrix 2026** (write-cross-region, RPO, RTO, strong consistency):
+
+| DB | Write model | RPO | RTO | Strong cross-region | Custo relativo |
+|---|---|---|---|---|---|
+| Aurora Global Postgres | single-leader | < 1s | < 1min (managed) | não (read replicas eventual) | médio |
+| DynamoDB Global Tables | multi-leader LWW | seconds | < 1min | sim (opt-in regional Q1/2025, 2× WCU) | alto |
+| Cloud Spanner | Paxos global | 0 (synchronous) | seconds | sim (TrueTime) | muito alto |
+| CockroachDB 24.x | Raft per range, regional locality | 0 (sync) | seconds | sim (configurable) | alto |
+| Cosmos DB multi-region | multi-leader, 5 levels | configurable | seconds | bounded staleness opt-in | alto |
+| YugabyteDB 2.20 | Raft, geo-partitioning | 0 | seconds | sim | médio |
+| Vitess 21+ | sharded MySQL, multi-region | seconds | minutes | não nativo | médio |
+
+**Stateful services multi-region.** Redis: cross-region replication via Redis Enterprise Active-Active (CRDB — CRDT-based) ou ElastiCache Global Datastore (single-leader). Kafka: **MirrorMaker 2** ou **Confluent Cluster Linking** (active-active com offset translation). pgvector: replicação igual Postgres logical, mas embeddings updates frequentes geram bloat — vacuum agressivo. Stateful TCP (WebSocket, gRPC streaming): **não use Anycast** — use latency DNS + sticky session via region-affinity cookie.
+
+**Failover patterns.** **Zone failover** (intra-region, AZ down): managed automaticamente (Aurora Multi-AZ, ElastiCache, MSK). RTO < 1min, RPO 0. **Region failover** (region inteira down — eventos raros mas reais: AWS us-east-1 Dec 2021, GCP us-central1 Jun 2022): **manual em 95% dos casos production**. Auto-failover cross-region é split-brain risk — quorum loss + latency partition pode causar promotion errada. Playbook: documentado em runbook (04-04 §2.30), promote command testado mensalmente, traffic switch via Route53 weighted record (gradual 10%→50%→100%).
+
+```bash
+# Aurora Global Database — promote secondary region (manual, runbook step)
+aws rds failover-global-cluster \
+  --global-cluster-identifier app-global \
+  --target-db-cluster-identifier arn:aws:rds:eu-west-1:...:cluster:app-eu \
+  --allow-data-loss  # RPO < 1s window
+```
+
+**Stack Logística aplicada.** `orders` DB Aurora Global Postgres single primary `us-east-1` + read replicas `sa-east-1` e `eu-west-1` (write cross-region tolerated, 80-150ms p99 — orders volume baixo). `couriers_location` (high-write, 1Hz GPS por courier) em **Cloudflare Workers KV cross-region** (eventual, LWW — perda de 1 ponto GPS irrelevante). `payments` LGPD-pinned single region `sa-east-1` (Brazil residency hard) — sem cross-region replica. `user_data` multi-tenant: residency router em Cloudflare Worker (tenant `BR` → `sa-east-1` Postgres, `EU` → `eu-west-1`, `US` → `us-east-1`). `events_log` (audit) em DynamoDB Global Tables com strong consistency regional opt-in. Failover region manual via runbook 04-04 §2.30.
+
+**Anti-patterns 2026.**
+1. Multi-region "for redundancy" sem RTO/RPO definido — paga 2-3× infra cost sem ter testado promote (cruza com 04-04 §2.30).
+2. Writing to read replica (app code aponta pra reader endpoint pensando ser primary) — silent data loss até alguém perceber.
+3. **LWW em domain com semantic conflicts** — counter, inventory, balance: LWW destrói writes concorrentes. Use CRDT (G-Counter, OR-Set) ou single-leader.
+4. **Tenant data crossing residency boundary** — usuário EU acaba em `us-east-1` por bug no router → GDPR violation → multa €€€.
+5. **Aurora Global write to non-primary region** — desenvolvedor não sabia, app escreve em `sa-east-1` reader → erro `cannot execute INSERT in a read-only transaction` em produção.
+6. **Anycast pra stateful TCP** (WebSocket, gRPC long-lived) — BGP convergence quebra session no meio.
+7. **Spanner pra OLTP simples regional** — paga 5-10× vs Postgres regional sem precisar de external consistency global.
+8. **Auto-failover cross-region habilitado** — split-brain em network partition, dois primários escrevendo, conflito irrecuperável.
+9. **GeoIP confiável em 100%** — VPN corporate de funcionário EU em viagem aos US é roteado pra `us-east-1` violando residency. Sempre validar residency no app layer também.
+10. **DynamoDB Global Tables sem strong consistency opt-in** em domain crítico — assume eventual mas código lê imediatamente após write esperando ver — race condition cross-region 100-500ms.
+
+Cruza com **04-09 §2.8** (geo-distribution intro), **§2.17** (eventual consistency em scale), **§2.21** (sharding strategies — residency é sharding por region), **04-01 §2.5** (CAP — multi-region é o teatro do CAP), **§2.6** (PACELC — latency cross-region é o L), **§2.7** (consistency models cross-region), **§2.10** (quorum cross-region), **§2.18** (CRDT formal), **§2.21** (logical clocks pra LWW), **04-04 §2.30** (DR multi-region runbook), **03-05 §2.x** (AWS managed multi-region — Aurora Global, DynamoDB Global, Global Accelerator), **02-09 §2.13** (Postgres logical replication base), **04-13 §2.x** (CDC cross-region pipelines + lakehouse residency).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:
