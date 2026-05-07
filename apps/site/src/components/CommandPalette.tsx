@@ -83,6 +83,10 @@ export function CommandPalette({ entries }: Props) {
               className="flex-1 bg-transparent outline-none border-none
                          font-sans text-body text-pearl placeholder:text-mist
                          focus:ring-0"
+              // Command palette is opened on demand (Cmd/Ctrl+K); the
+              // user explicitly asks for the search input, so autoFocus
+              // is the expected behavior, not a surprise focus change.
+              // eslint-disable-next-line jsx-a11y/no-autofocus
               autoFocus
             />
             <kbd className="font-mono text-caption text-mist tracking-wide border border-mist/60 px-2 py-0.5">

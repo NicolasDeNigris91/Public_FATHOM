@@ -56,7 +56,7 @@ const components: Components = {
         </Link>
       );
     }
-    const isExternal = !!rewritten && /^https?:/.test(rewritten);
+    const isExternal = typeof rewritten === 'string' && /^https?:/.test(rewritten);
     return (
       <a
         href={rewritten}

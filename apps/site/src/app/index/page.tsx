@@ -38,7 +38,7 @@ export default async function IndexPage() {
           <Stat
             label="Total"
             value={`${all.length}`}
-            sub={`incl. capstones`}
+            sub="incl. capstones"
           />
         </div>
 
