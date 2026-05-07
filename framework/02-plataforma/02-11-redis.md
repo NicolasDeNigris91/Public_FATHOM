@@ -511,6 +511,163 @@ Hashtag `{shard0}` força slot determinístico. Consumer group por shard, worker
 
 ---
 
+### 2.21 Lua scripting advanced + Redis Functions 7+ + atomic compound operations
+
+§2.12 cobriu Redlock; §2.13 rate limit básico; §2.14 idempotency. Aqui o substrato comum: scripts atomic server-side. Redis 7+ (Functions stable); Valkey 8+ (Redis fork, mesma API).
+
+**Por que Lua dentro do Redis.** Redis é single-threaded; script Lua roda em contexto único, sem interleave de outros comandos. Ganhos:
+
+- **Atomicity**: read-then-write sem race; substitui `WATCH/MULTI/EXEC` (que aborta em conflito) por execução serializada garantida.
+- **Latência**: 1 round-trip vs N (50μs RTT × N comandos vira 50μs + tempo de execução server-side).
+- **Use cases**: distributed locks, rate limiters (token bucket, sliding window), atomic counters com cap, idempotency com response cache, compound state moves (zone reassignment, inventory transfer).
+
+**EVAL vs EVALSHA.** `EVAL script numkeys key1... arg1...` envia o script inteiro a cada call (bandwidth waste em hot path). `EVALSHA sha1 numkeys...` envia só o hash; Redis lookup do script pré-cacheado. Pattern: `SCRIPT LOAD` no boot retorna SHA1; chame EVALSHA; se `NOSCRIPT` (cache evicted, restart, replica novo), faz fallback EVAL e re-cache. `ioredis` e `redis-py` abstraem via `defineCommand` / `register_script` — chame `redis.rateLimit(keys, args)` direto.
+
+**Atomic counter com cap (rate limit fixed window).**
+
+```lua
+-- KEYS[1] = "rl:user:123:60s"
+-- ARGV[1] = limit (100)
+-- ARGV[2] = TTL seconds (60)
+-- Returns: { allowed (1|0), current, ttl }
+local current = redis.call('INCR', KEYS[1])
+if current == 1 then
+  redis.call('EXPIRE', KEYS[1], ARGV[2])
+end
+if current > tonumber(ARGV[1]) then
+  return { 0, current, redis.call('TTL', KEYS[1]) }
+end
+return { 1, current, redis.call('TTL', KEYS[1]) }
+```
+
+```typescript
+redis.defineCommand('rateLimit', { numberOfKeys: 1, lua: RATE_LIMIT_SCRIPT });
+const [allowed, current, ttl] = await redis.rateLimit(`rl:user:${userId}:60s`, 100, 60) as [number, number, number];
+if (!allowed) throw new TooManyRequests(ttl);
+```
+
+**Sliding window (mais preciso que fixed; sem boundary burst).**
+
+```lua
+-- KEYS[1] = sorted set; ARGV[1] = now ms; ARGV[2] = window ms; ARGV[3] = max; ARGV[4] = unique req id
+local now = tonumber(ARGV[1])
+local clear_before = now - tonumber(ARGV[2])
+redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', clear_before)
+local count = redis.call('ZCARD', KEYS[1])
+if count >= tonumber(ARGV[3]) then
+  return { 0, count }
+end
+redis.call('ZADD', KEYS[1], now, ARGV[4])
+redis.call('EXPIRE', KEYS[1], math.ceil(tonumber(ARGV[2]) / 1000))
+return { 1, count + 1 }
+```
+
+**Distributed lock (acquire + release token-aware).** Single-instance abaixo; Redlock multi-instance em §2.12.
+
+```lua
+-- acquire — KEYS[1] = lock key; ARGV[1] = token (UUID); ARGV[2] = TTL ms
+if redis.call('GET', KEYS[1]) == false then
+  redis.call('SET', KEYS[1], ARGV[1], 'PX', ARGV[2])
+  return 1
+end
+return 0
+```
+
+```lua
+-- release — só deleta se token bate (previne release acidental de lock de outro owner)
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+  return redis.call('DEL', KEYS[1])
+end
+return 0
+```
+
+**Idempotency key com response cache.** Hash de `idempotency-key` header + body; primeira request grava response, retries retornam mesma response sem re-executar handler.
+
+```lua
+-- KEYS[1] = idempotency key; ARGV[1] = response payload; ARGV[2] = TTL seconds
+local existing = redis.call('GET', KEYS[1])
+if existing then return existing end
+redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[2])
+return 'NEW'
+```
+
+**Compound atomic — multi-step state transition.** Mover courier entre zonas, garantindo que sai de uma e entra na outra sem janela onde está em ambas ou nenhuma:
+
+```lua
+-- KEYS[1] = zone:from set; KEYS[2] = zone:to set; ARGV[1] = courier_id
+if redis.call('SISMEMBER', KEYS[1], ARGV[1]) == 1 then
+  redis.call('SREM', KEYS[1], ARGV[1])
+  redis.call('SADD', KEYS[2], ARGV[1])
+  return 1
+end
+return 0
+```
+
+**Redis Functions 7+ (substitui scripts persistidos via SCRIPT LOAD).** Script via `SCRIPT LOAD` é volátil — Redis restart limpa o cache, todo client precisa re-load. Functions são uma library nomeada, persistida em RDB/AOF, replicada para replicas, sobrevive restart. `FUNCTION LOAD` registra; `FCALL <name> numkeys keys args` invoca. Redis 7 usa Lua sob o capô; futuro pode adicionar JS.
+
+```lua
+#!lua name=logistica
+
+redis.register_function('rate_limit', function(keys, args)
+  local current = redis.call('INCR', keys[1])
+  if current == 1 then
+    redis.call('EXPIRE', keys[1], args[2])
+  end
+  if current > tonumber(args[1]) then
+    return { 0, current }
+  end
+  return { 1, current }
+end)
+
+redis.register_function('idempotency_check', function(keys, args)
+  local existing = redis.call('GET', keys[1])
+  if existing then return existing end
+  redis.call('SET', keys[1], args[1], 'EX', args[2])
+  return 'NEW'
+end)
+```
+
+```bash
+redis-cli -x FUNCTION LOAD REPLACE < logistica.lua
+redis-cli FCALL rate_limit 1 "rl:user:123" 100 60
+redis-cli FUNCTION LIST
+redis-cli FUNCTION DUMP > logistica.rdb     # backup binário
+```
+
+**Pegadinhas críticas.**
+
+- `SCRIPT KILL` só mata script read-only; script que já escreveu não pode ser killado (Redis bloqueia até terminar ou crash + AOF replay). Limite execução; nunca loop ilimitado.
+- Redis single-threaded: script de 100ms bloqueia *todos* os clients por 100ms. Mantenha < 1ms; benchmark com `DEBUG SLEEP` em staging.
+- `redis.call` aborta script em erro; `redis.pcall` retorna error como valor, permitindo handle. Use `pcall` quando há fallback path.
+- Sem `RANDOMKEY`, `os.time()`, `math.random` sem seed: scripts devem ser determinísticos pra replication consistente. Passe entropy via ARGV (timestamp, UUID gerado no client).
+- Cluster mode: todas as KEYS devem hashar pro mesmo slot. Use hash tag `{tenant}:foo` e `{tenant}:bar` pra forçar co-location; senão `CROSSSLOT` error.
+
+**Stack Logística aplicada.**
+
+- **Rate limit**: sliding window por `(ip + user_id)` via Function `rate_limit`; ~5μs/call em Redis modesto.
+- **Idempotency**: todo POST `/orders` chama Function `idempotency_check` antes do handler; TTL 24h.
+- **Distributed lock**: schedule recalculation (CPU-heavy, 1 worker basta) usa lock script com token UUID + TTL 30s; release token-aware previne race se lock expirou mid-job.
+- **Zone reassignment**: courier muda zona via compound script; nunca em ambas, nunca em nenhuma.
+- **Library deploy**: `logistica.lua` em CI; `FUNCTION LOAD REPLACE` no boot do primeiro pod; replicas auto-receive.
+- **Custo real**: ~10k FCALL/sec sustentado em Redis Railway $50/mo.
+
+**Anti-patterns.**
+
+- EVAL em hot path em vez de EVALSHA (10× bandwidth + ~50μs RTT por call extra).
+- Script com loop 1000× SADD bloqueia event loop; quebra em microbatch app-side.
+- Persistir lógica via `SCRIPT LOAD` em todos os clients no boot — Redis restart perde cache, race em cold start; use Functions.
+- Tentar HTTP/IO de dentro do Lua (impossível; redesign para emit event + worker externo).
+- KEYS em slots diferentes em Cluster sem hashtag → `CROSSSLOT`.
+- `os.time()` ou random sem seed → replica diverge do master.
+- `redis.call` em path com erro recuperável → script aborta, side effects parciais.
+- Idempotency key sem TTL → memory leak permanente.
+- Script com 200+ linhas → bug magnet; orquestre multi-step app-side, mantenha cada script < 30 linhas.
+- Scripts sem versionamento → deploy novo client com script v2 enquanto Redis ainda tem v1 cached → divergência silenciosa. Versione no nome (`rate_limit_v2`) ou no SHA.
+
+**Cruza com:** `02-11` §2.12 (Redlock multi-instance; script acquire/release acima é bloco base), `02-11` §2.13 (rate limit basics; aqui está o atomic backbone), `02-11` §2.14 (idempotency keys; Function `idempotency_check`), `02-11 §2.20` (Valkey/Redis 8/Dragonfly — engine que executa estes scripts; Dragonfly Lua parcial, Functions limitadas), `04-04` (resilience; atomic ops como building block de circuit breaker state), `04-09` (scaling; Redis Functions como global state replicado).
+
+---
+
 ### 2.20 Redis 8 + Valkey + Dragonfly 2026 — landscape pós-fork (BSL/SSPL → Valkey Apache 2.0)
 
 Março 2024 foi inflection point: Redis Inc trocou Apache 2.0 por dual BSL (Business Source License) + SSPL (Server Side Public License) — fim de Redis OSS como projeto Apache. Resposta veio em dias: Linux Foundation hospedou **Valkey** como fork de Redis 7.2.4 (último release Apache), com governance via TSC e backing AWS + Google + Oracle + Ericsson + Snap. Q4 2024: Valkey 8.0 GA, AWS ElastiCache for Valkey lançou (cheaper que ElastiCache for Redis OSS — preço pivot estratégico), Redis Inc respondeu com **Redis 8.0** consolidando Redis Stack inteiro no core (JSON + Search + TimeSeries + Bloom + Vector built-in, sem módulo separado). **Dragonfly** (lançado 2022, multi-threaded shared-nothing) ganhou tração como alternativa vertical scale. **KeyDB** (Snap-led, multi-threaded) foi sunset Q4 2024 — último release maintenance only, time migrou pra Valkey contributors. **Memcached 1.6.x** segue relevante pra cache puro sem persistence/structures. Landscape 2026: fragmentado mas clarificado por caso de uso.
@@ -683,7 +840,7 @@ ACL LIST
 9. RESP3 assumido por default em client lib que faz silent fallback RESP2 — push notifications, maps degradam. Pin protocol explicit no client config.
 10. Migration Redis Cluster → Dragonfly sem replanejar Cluster slot logic — Dragonfly Cluster mode é emulated/gap-y; redesenhe pra single-shard com replica HA, ou mantém Valkey/Redis Cluster pra horizontal real.
 
-**Cruza com:** `02-11 §2.6` (replication + cluster — base que Valkey/Redis 8 herdam idênticos), `§2.8` (Lua + Functions — Valkey/Redis 8 mesmo comportamento; Dragonfly Lua parcial), `§2.10` (Streams — Valkey 100% compat, Dragonfly testar XAUTOCLAIM em load), `§2.16` (memory tunning — Valkey 8 dict resize incremental ajuda RSS), `§2.17` (operação — runbooks idênticos Valkey/Redis 7.2), `§2.18` (alternatives intro — esta seção é deep follow-up), `§2.19` (Streams + consumer groups production), `02-15 §2.20` (vector search — Redis 8 vector sets vs pgvector vs Qdrant; trade-off operacional), `04-10 §2.23` (MCP — LangCache feeds MCP server response cache; invalidation contract), `03-05` (AWS ElastiCache for Valkey GA Q4 2024 — cost pivot ~33% e migration path managed).
+**Cruza com:** `02-11 §2.6` (replication + cluster — base que Valkey/Redis 8 herdam idênticos), `§2.8` (Lua + Functions — Valkey/Redis 8 mesmo comportamento; Dragonfly Lua parcial), `§2.10` (Streams — Valkey 100% compat, Dragonfly testar XAUTOCLAIM em load), `§2.16` (memory tunning — Valkey 8 dict resize incremental ajuda RSS), `§2.17` (operação — runbooks idênticos Valkey/Redis 7.2), `§2.18` (alternatives intro — esta seção é deep follow-up), `§2.19` (Streams + consumer groups production), `§2.21` (Lua + Functions atomic primitives — engine escolhida aqui executa scripts daquela seção), `02-15 §2.20` (vector search — Redis 8 vector sets vs pgvector vs Qdrant; trade-off operacional), `04-10 §2.23` (MCP — LangCache feeds MCP server response cache; invalidation contract), `03-05` (AWS ElastiCache for Valkey GA Q4 2024 — cost pivot ~33% e migration path managed).
 
 ---
 

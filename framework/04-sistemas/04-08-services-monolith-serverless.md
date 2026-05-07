@@ -480,6 +480,177 @@ export async function placeOrderWorkflow(input: PlaceOrderInput): Promise<PlaceO
 
 Cruza com **04-08 §2.14** (event-driven escolha), [**04-02 §2.18**](../04-sistemas/04-02-messaging.md) (idempotent consumer é fundação), [**04-03 §2.8**](../04-sistemas/04-03-event-driven-patterns.md) (outbox pattern alimenta choreography), [**04-04**](../04-sistemas/04-04-resilience-patterns.md) (resilience patterns aplicam a saga steps), [**03-15**](../03-producao/03-15-incident-response.md) (incident response em saga stuck).
 
+### 2.22 Strangler Fig migration deep — extracting services from monolith without downtime
+
+**Strangler Fig pattern** (Martin Fowler, 2004). Nome vem do Strangler Fig vine — cipó que cresce ao redor da árvore hospedeira até substituí-la. Novo serviço roda lado a lado com legacy; funcionalidade migra gradualmente; legacy é retirado no final. Big-bang rewrites falham (~70% taxa de fracasso citada por Joel Spolsky em "Things You Should Never Do"); migração incremental é a única opção segura. Use cases: monolith → microservices, legacy stack → modern, vendor migration (Heroku → Railway, on-prem → cloud).
+
+**Anatomia das 5 fases**
+
+1. **Façade** — routing layer entre client e legacy (proxy / API Gateway).
+2. **Extract** — build new service; subset de tráfego via façade.
+3. **Verify** — shadow traffic / canary; diff outputs legacy vs new.
+4. **Cutover** — 100% no new service; legacy dormante.
+5. **Retire** — delete legacy code/resources após wait period.
+
+**Phase 1 — Façade pattern**
+
+Routing-only, zero business logic. Tools 2026: nginx, Caddy, AWS API Gateway, Cloudflare Workers, Envoy.
+
+```nginx
+# nginx façade routing
+upstream legacy_monolith { server legacy.internal:8080; }
+upstream orders_service  { server orders.internal:3000; }
+
+server {
+  listen 80;
+  # New service handles /orders/* (subset)
+  location /api/orders/ { proxy_pass http://orders_service; }
+  # Legacy still handles everything else
+  location /api/        { proxy_pass http://legacy_monolith; }
+}
+```
+
+Legacy não sofre alteração nenhuma — façade é puro roteamento. Permite rollback instantâneo (flip route back).
+
+**Phase 2 — Extract com dual-write**
+
+Legacy escreve no próprio DB E publica evento / chama new service. Eventual consistency (lag pequeno legacy ↔ new) é aceitável. Better: outbox pattern (cruza com [**04-02 §2.18**](../04-sistemas/04-02-messaging.md)) pra dual-write confiável.
+
+```ts
+// In legacy monolith — naive dual-write
+async function createOrderLegacy(data: OrderData) {
+  const tx = await db.transaction();
+  try {
+    const order = await tx.orders.insert(data);
+    // Dual-write to new service (substituir por outbox em prod)
+    await fetch('http://orders.internal/orders', {
+      method: 'POST',
+      body: JSON.stringify(order),
+    });
+    await tx.commit();
+    return order;
+  } catch (e) {
+    await tx.rollback();
+    throw e;
+  }
+}
+```
+
+**Phase 3 — Verify (shadow + canary + diff)**
+
+Shadow traffic: copia request pro new service, ignora response. Canary: 1-5% de tráfego real, monitora errors + latency. Diff testing: compara responses legacy vs new pro mesmo input.
+
+```ts
+// Shadow request middleware (fire-and-forget)
+app.use(async (req, res, next) => {
+  newOrdersService
+    .fetch(req.url, req.method, req.body)
+    .catch((e) => log.warn('shadow failed', e));
+  next();
+});
+```
+
+Tool: **GitHub Scientist** (Ruby; ports Node `node-scientist`) codifica "old vs new" diff testing — executa ambos, retorna old, loga divergências.
+
+**Phase 4 — Cutover**
+
+Option A — Big bang: flip façade pra 100% new service, rollback pronto. Option B — Gradual: 10% → 25% → 50% → 100% via traffic split. Argo Rollouts (cobre [**03-04 §2.20**](../03-producao/03-04-cicd.md)) pra K8s gradual cutover. Validar: error rate, p95/p99 latency, business metrics (orders/min unchanged).
+
+**Phase 5 — Retire**
+
+Wait period 2-4 semanas após cutover antes de deletar legacy code (rollback safety). Code archaeology: identificar todos entry points, deletar tests, remover do build. Database: legacy tables read-only primeiro; deprecation notice; eventually drop. Erro comum: deixar legacy rodando "just in case" pra sempre — dead weight + security risk.
+
+**Anti-corruption Layer (ACL)** (cruza com [**04-06 §2.18**](../04-sistemas/04-06-domain-driven-design.md))
+
+New service não deve herdar legacy schema warts. ACL traduz entre legacy data model e new domain model. Logística — legacy `tbl_pedido` (Portuguese, snake_case, denormalized) → new `Order` aggregate:
+
+```ts
+// ACL — adapter pattern
+class LegacyOrderAdapter {
+  static fromLegacy(row: TblPedidoRow): Order {
+    return new Order({
+      id: row.cod_pedido,
+      customerId: row.cod_cliente,
+      items: this.parseItems(row.itens_json),
+      status: this.mapStatus(row.status_str),
+      createdAt: new Date(row.dt_criacao),
+    });
+  }
+
+  static toLegacy(order: Order): TblPedidoRow {
+    return {
+      cod_pedido: order.id,
+      cod_cliente: order.customerId,
+      itens_json: JSON.stringify(order.items),
+      status_str: this.unmapStatus(order.status),
+      dt_criacao: order.createdAt.toISOString(),
+    };
+  }
+
+  private static mapStatus(s: string): OrderStatus {
+    const map: Record<string, OrderStatus> = {
+      PEND: 'placed',
+      EM_TRANS: 'in_transit',
+      ENT: 'delivered',
+      CANC: 'cancelled',
+    };
+    return map[s] ?? 'unknown';
+  }
+
+  private static unmapStatus(s: OrderStatus): string {
+    const inv: Record<OrderStatus, string> = {
+      placed: 'PEND',
+      in_transit: 'EM_TRANS',
+      delivered: 'ENT',
+      cancelled: 'CANC',
+      unknown: 'PEND',
+    };
+    return inv[s];
+  }
+}
+```
+
+ACL bidirecional (fromLegacy + toLegacy) é obrigatório quando dual-write está ativo.
+
+**Database migration patterns**
+
+- **Same database, separate schemas**: legacy + new services compartilham Postgres com schemas isolados. Cheap, mas coupling de migrations.
+- **Database per service**: full isolation; dual-write necessário; cleaner long-term.
+- **CDC sync**: Debezium → CDC stream → new service consome → builds materialized view própria (cobre [**04-13 §2.18**](../04-sistemas/04-13-streaming-batch-processing.md)).
+- **Logical replication subset**: Postgres native; só tables relevantes (cobre [**02-09 §2.21**](../02-plataforma/02-09-postgres-deep.md)).
+
+**Logística applied — extracting `orders` from monolith**
+
+- **Phase 1 (Week 1-2)**: nginx façade roteia `/api/orders/*` (read-only) pra new service mock.
+- **Phase 2 (Week 3-6)**: build new orders service; legacy dual-writes via outbox.
+- **Phase 3 (Week 7-10)**: shadow traffic; diff testing pega 5 schema mismatches; ACL corrige.
+- **Phase 4 (Week 11-14)**: canary 5% → 25% → 100% over 3 weeks; metrics monitoradas.
+- **Phase 5 (Week 15-18)**: 4-week wait; remove legacy `OrdersController` do monolith.
+- **Total: 4-5 meses**; team 2-3 engineers; zero downtime.
+
+**Anti-patterns observados**
+
+- Big-bang rewrite "vai dar 3 meses" (70% fail rate; Joel Spolsky, "Things You Should Never Do, Part I", 2000).
+- Phase 2 sem ACL → new service herda legacy schema warts (status strings PT-BR, snake_case, denormalização).
+- Phase 3 skipped → no verification; cutover surpreende em prod.
+- Dual-write sem outbox / transaction guarantee → orphan writes; data inconsistency.
+- Façade com business logic → defeats purpose; deve ser routing-only.
+- Phase 5 nunca executado → legacy persiste anos; dead code + security debt + cognitive load.
+- Cutover sem rollback plan → one-way door; new service falha = prod down.
+- Database compartilhado legacy + new → coupling; legacy schema migration quebra new service.
+- ACL one-way (new → legacy missing) → dual-write incompleto; corrupção em writes do legacy.
+- Migration team isolado de operations → stakeholders surpresos; comms críticos.
+
+**Tooling 2026**
+
+- **Façade**: nginx, Caddy, AWS API Gateway, Cloudflare Workers, Envoy.
+- **Diff testing**: GitHub Scientist (Ruby), `node-scientist`, `scientist-py`.
+- **Canary / traffic split**: Argo Rollouts, Flagger, AWS App Mesh, Istio VirtualService.
+- **CDC**: Debezium, AWS DMS, Postgres logical replication.
+- **Outbox**: Debezium outbox SMT, custom workers consuming `outbox_events`.
+
+Cruza com [**04-06 §2.18**](../04-sistemas/04-06-domain-driven-design.md) (DDD ACL), [**04-07**](../04-sistemas/04-07-architectures.md) (architectures), [**04-02 §2.18**](../04-sistemas/04-02-messaging.md) (outbox pattern), [**04-13 §2.18**](../04-sistemas/04-13-streaming-batch-processing.md) (CDC sync), [**03-04 §2.20**](../03-producao/03-04-cicd.md) (CI/CD canary), [**02-09 §2.21**](../02-plataforma/02-09-postgres-deep.md) (Postgres logical replication).
+
 ---
 
 ### 2.22 Edge runtimes deep 2026 — V8 isolates, Workers stack, Durable Objects, constraints reais

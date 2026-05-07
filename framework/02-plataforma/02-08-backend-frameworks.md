@@ -469,6 +469,180 @@ export async function POST(req: Request) {
 
 Cruza com **02-08 §2.10** (OpenAPI auto-gen é feature comum), **02-08 §2.17** (reverse proxy serve qualquer framework), **02-07 §2.17** (Node vs Bun vs Deno runtime decision), **02-05 §2.21** (Next.js cache layers se for Route Handlers), **04-08 §2.21** (Saga orchestration via Temporal — agnostic ao framework HTTP).
 
+### 2.19 Plugin authoring deep — Fastify encapsulation, Hono middleware composition, type-safe DI patterns
+
+**Por que plugin systems importam**: código modular exige encapsulation, reuse entre serviços e boundaries claros. Sem plugin pattern, surge "god `app.ts`" com 500 routes + middleware globais misturados — mudança em auth quebra orders, swap Postgres → SQLite (testes) requer rewrite. Plugin system entrega: swap implementations por env, conditional features (admin-only routes), multi-tenant module boundaries.
+
+**Fastify encapsulation model (Fastify 5+)**: cada plugin roda em **own context** — hooks, decorators, schemas registrados não vazam pro parent scope. **`fastify-plugin` 5+** (`fp(fn, opts)`) wrappa o plugin pulando encapsulation; decorators ficam visíveis ao parent. **Hooks lifecycle**: `onRequest` → `preParsing` → `preValidation` → `preHandler` → `preSerialization` → `onSend` → `onResponse` (+ `onError`).
+
+**Plugin Logística — `db.plugin.ts`**:
+```ts
+import fp from 'fastify-plugin';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
+import { FastifyPluginAsync } from 'fastify';
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    db: ReturnType<typeof drizzle>;
+  }
+}
+
+const dbPlugin: FastifyPluginAsync<{ url: string }> = async (fastify, opts) => {
+  const sql = postgres(opts.url, { max: 20 });
+  const db = drizzle(sql);
+  fastify.decorate('db', db);
+  fastify.addHook('onClose', async () => { await sql.end(); });
+};
+
+export default fp(dbPlugin, { name: 'db', dependencies: [] });
+```
+Module augmentation (`declare module 'fastify'`) entrega tipagem `fastify.db.select()...` em todo lugar. `onClose` hook fecha pool no graceful shutdown.
+
+**Plugin com dependencies (auth depende de db)**:
+```ts
+const authPlugin: FastifyPluginAsync = async (fastify) => {
+  fastify.decorateRequest('user', null);
+  fastify.addHook('preHandler', async (req) => {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) return;
+    const user = await fastify.db.query.users.findFirst({
+      where: eq(users.token, token),
+    });
+    (req as any).user = user;
+  });
+};
+
+export default fp(authPlugin, { name: 'auth', dependencies: ['db'] });
+```
+`dependencies: ['db']` garante load order; runtime error se db não foi registrado antes.
+
+**Encapsulated routes (sub-app pattern)**:
+```ts
+// routes/orders.ts
+const orderRoutes: FastifyPluginAsync = async (fastify) => {
+  fastify.get('/', async () => fastify.db.select().from(orders));
+  fastify.post('/', { schema: createOrderSchema }, async (req) => { /* ... */ });
+};
+
+// app.ts
+await app.register(orderRoutes, { prefix: '/orders' });
+await app.register(adminRoutes, { prefix: '/admin' }); // auth hook só aqui
+```
+Cada prefix registrado fica encapsulated — auth hook em `adminRoutes` não atinge `/orders`.
+
+**Typed schemas com Zod (alternativa TypeBox) — `fastify-zod` 1+**:
+```ts
+import { z } from 'zod';
+
+const orderSchema = {
+  body: z.object({ items: z.array(z.string()).min(1) }),
+  response: { 200: z.object({ id: z.string() }) },
+};
+
+fastify.post('/orders', { schema: orderSchema }, async (req) => {
+  // req.body fully typed
+  return { id: 'order-123' };
+});
+```
+Compile-time + runtime validation + auto OpenAPI via `@fastify/swagger`.
+
+**Hono middleware composition (Hono 4+)**:
+```ts
+import { Hono } from 'hono';
+import { logger } from 'hono/logger';
+import { cors } from 'hono/cors';
+import { jwt } from 'hono/jwt';
+
+const app = new Hono<{ Variables: { user: User } }>();
+
+app.use('*', logger());
+app.use('/api/*', cors({ origin: 'https://logistica.example.com' }));
+
+const adminApp = new Hono<{ Variables: { user: User } }>();
+adminApp.use('*', jwt({ secret: process.env.JWT_SECRET! }));
+adminApp.use('*', async (c, next) => {
+  const user = c.get('user');
+  if (!user.isAdmin) return c.json({ error: 'Forbidden' }, 403);
+  await next();
+});
+adminApp.get('/users', async (c) => c.json(await db.select().from(users)));
+
+app.route('/admin', adminApp);
+```
+**Type-safe Variables**: `c.set('user', user)` + `c.get('user')` tipados via generic na construção.
+
+**Hono custom middleware authoring**:
+```ts
+import { createMiddleware } from 'hono/factory';
+
+export const tenantMiddleware = createMiddleware<{ Variables: { tenantId: string } }>(
+  async (c, next) => {
+    const subdomain = c.req.header('host')?.split('.')[0];
+    if (!subdomain) return c.json({ error: 'Tenant required' }, 400);
+    c.set('tenantId', subdomain);
+    await next();
+  },
+);
+
+app.use('/api/*', tenantMiddleware);
+```
+
+**Type-safe DI alternativas 2026**:
+- **Awilix**: vanilla JS DI, registration explícita, runtime resolution, sem decorators.
+- **tsyringe** (Microsoft): TypeScript decorators + reflect-metadata.
+- **NestJS**: full framework batteries-included (DI + lifecycle + modules); opinionated.
+- **Fastify decorators + Hono Variables**: framework-native, minimal, sem DI library.
+
+Decisão: framework-native vence até ~50 routes; Awilix em scale; NestJS apenas quando time prefere framework-driven (custo: 1k+ linhas extra de boilerplate).
+
+**Plugin testing (vitest + `app.inject()`)**:
+```ts
+import { describe, expect, it, beforeEach, afterEach } from 'vitest';
+import Fastify, { FastifyInstance } from 'fastify';
+import dbPlugin from '../src/plugins/db';
+import orderRoutes from '../src/routes/orders';
+
+describe('orders routes', () => {
+  let app: FastifyInstance;
+  beforeEach(async () => {
+    app = Fastify({ logger: false });
+    await app.register(dbPlugin, { url: process.env.TEST_DB_URL! });
+    await app.register(orderRoutes, { prefix: '/orders' });
+    await app.ready();
+  });
+  afterEach(async () => { await app.close(); });
+
+  it('GET /orders returns list', async () => {
+    const res = await app.inject({ method: 'GET', url: '/orders' });
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body)).toEqual([]);
+  });
+});
+```
+`app.inject()` faz request in-process sem HTTP overhead; `afterEach` com `app.close()` evita state leak entre tests.
+
+**Logística applied stack**:
+- **Fastify plugins**: `db`, `auth`, `tenant`, `audit`, `metrics`, `errorHandler`.
+- **Encapsulated routes**: `/orders`, `/couriers`, `/admin`, `/webhooks`.
+- **Hono alternative** (edge functions): `tenantMiddleware` + JWT verify + Drizzle direct.
+- **Tests**: `app.inject()` para routes; Testcontainers Postgres para db plugin integration.
+- **OpenAPI**: auto-gerado de Zod schemas via `@fastify/swagger` + `@fastify/swagger-ui`.
+
+**Anti-patterns observados**:
+- Plugin sem `fastify-plugin` wrapper quando precisa expor decorators (encapsulation esconde; "decorator not found" em runtime).
+- `fastify-plugin` em route plugins (defeats encapsulation; routes vazam pro escopo global).
+- Decorate sem `declare module` augmentation (sem types; runtime funciona, dev experience péssimo).
+- Hook `onRequest` em hot path com sync DB call (bloqueia event loop; use async + cache).
+- Hono `c.set('user', x)` sem typed Variables generic (runtime ok; tipos perdidos).
+- Plugin sem `dependencies: [...]` declarado (race condition; depende da registration order).
+- DI container instanciando per-request em hot endpoint (overhead; use singleton ou app-scoped).
+- NestJS overhead em microservice simples (1k+ linhas de boilerplate; Fastify resolve direto).
+- `app.inject()` em integration tests sem cleanup (tests subsequentes herdam state; `afterEach(app.close())`).
+- Custom middleware com `await next()` esquecido (request hangs; ESLint rule `hono/no-missing-next`).
+
+Cruza com **02-09 §2.x** (Postgres + Drizzle integration via plugin), **02-13 §2.x** (auth plugins JWT/session), **03-01 §2.x** (testing strategy via `app.inject()`), **02-19 §2.x** (i18n middleware composition), **03-07 §2.x** (observability hooks `onRequest`/`onResponse`).
+
 ---
 
 ## 3. Threshold de Maestria
