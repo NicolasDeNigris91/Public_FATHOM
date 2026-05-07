@@ -462,6 +462,8 @@ Self-hosted threshold: < 50k → Soketi single-node. > 50k → Centrifugo cluste
 - WS atrás de L7 ALB sem `idle_timeout` aumentado (default 60s mata connections).
 - HLC ignorado, `Date.now()` raw cross-region (clock skew + replay out-of-order).
 - Soketi self-hosted > 100k concurrent sem cluster (single-node bottleneck).
+- Presence channel sem debounce em rapid join/leave (refresh page = leave+join 200ms; broadcast spam pra todo mundo). Debounce 1-2s antes de emitir presence delta.
+- WebSocket payload sem compression (`permessage-deflate` extension) em mensagens > 1KB; bandwidth 3-5x maior, latência mobile pior. Habilite extension no server + cliente; trade-off CPU compression por bytes economizados.
 
 #### Cruza com
 

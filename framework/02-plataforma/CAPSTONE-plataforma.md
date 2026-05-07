@@ -2,7 +2,7 @@
 capstone: apprentice
 title: Logística v1, Full-Stack Monolith
 stage: plataforma
-prereqs: [02-01, 02-02, 02-03, 02-04, 02-05, 02-06, 02-07, 02-08, 02-09, 02-10, 02-11, 02-12, 02-13, 02-14]
+prereqs: [02-01, 02-02, 02-03, 02-04, 02-05, 02-06, 02-07, 02-08, 02-09, 02-10, 02-11, 02-12, 02-13, 02-14, 02-15, 02-16, 02-17, 02-18, 02-19]
 status: locked
 gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
@@ -23,6 +23,11 @@ Isso força você a integrar:
 - **02-12**: opcional, Mongo pra eventos heterogêneos. Documente decisão de incluir ou não.
 - **02-13**: auth completa, MFA, RBAC, multi-tenant.
 - **02-14**: tracking real-time courier ↔ lojista ↔ cliente.
+- **02-15**: search engine pra orders/couriers — Postgres FTS no v1, plant pra Meilisearch/Typesense em v2 se justificar.
+- **02-16**: opcional v1; modelagem de "couriers ↔ regions ↔ orders" em property graph se aparecer query "find couriers within 3 hops of dispatch hub" (Postgres recursive CTE como first attempt).
+- **02-17**: app courier pode ser RN (02-06) OU nativo iOS/Android (02-17) — decisão documentada com trade-offs (custo time, performance GPS realtime, ARKit indoor warehouse).
+- **02-18**: cobrança lojista (Stripe Connect Standard ou Mercado Pago) com tax docs Brasil (NFS-e por município).
+- **02-19**: PT-BR primary, EN-US plant pra v3; usar ICU MessageFormat desde início (não string concat).
 
 Não é demo. É um sistema com fluxos reais, persistência durável, e operação manualmente correta.
 

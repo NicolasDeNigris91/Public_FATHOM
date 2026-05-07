@@ -246,9 +246,9 @@ Leitura prévia obrigatória: [STUDY-PROTOCOL.md](STUDY-PROTOCOL.md).
 |---------|-----------|----------|
 | 1. Fundamentos | [framework/01-fundamentos/](framework/01-fundamentos/README.md) | 15 módulos + capstone |
 | 2. Plataforma | [framework/02-plataforma/](framework/02-plataforma/README.md) | 19 módulos + capstone |
-| 3. Professional | [framework/03-producao/](framework/03-producao/README.md) | 18 módulos + capstone |
-| 4. Senior | [framework/04-sistemas/](framework/04-sistemas/README.md) | 16 módulos + capstone |
-| 5. Staff/Principal | [framework/05-amplitude/](framework/05-amplitude/README.md) | 10 módulos (4 opcionais) + capstone |
+| 3. Produção | [framework/03-producao/](framework/03-producao/README.md) | 18 módulos + capstone |
+| 4. Sistemas | [framework/04-sistemas/](framework/04-sistemas/README.md) | 16 módulos + capstone |
+| 5. Amplitude | [framework/05-amplitude/](framework/05-amplitude/README.md) | 10 módulos (4 opcionais) + capstone |
 
 Mapa global em [framework/00-meta/INDEX.md](framework/00-meta/INDEX.md). Marco v1.0 em [framework/00-meta/RELEASE-NOTES.md](framework/00-meta/RELEASE-NOTES.md). Demais metas listadas em INDEX.md.
 

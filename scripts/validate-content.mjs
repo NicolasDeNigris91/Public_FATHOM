@@ -116,7 +116,7 @@ const MODULE_ID_RE = /^\d{2}-\d{2}$/;
 
 async function checkModule(filePath, fileName, knownIds) {
   const raw = await fs.readFile(filePath, 'utf8');
-  const { fm } = parseFrontmatter(raw);
+  const { fm, body } = parseFrontmatter(raw);
   const idMatch = fileName.match(/^(\d{2}-\d{2}|CAPSTONE-[a-z]+)/);
   const id = idMatch ? idMatch[1] : fileName;
   const isCapstone = id.startsWith('CAPSTONE');
@@ -142,6 +142,52 @@ async function checkModule(filePath, fileName, knownIds) {
   const lineCount = raw.split(/\r?\n/).length;
   if (lineCount < 100 && !fileName.startsWith('README')) {
     recordWarn(rel, `very short module (${lineCount} lines)`);
+  }
+
+  // CHECK 1 — Threshold de Maestria obrigatório (modules only).
+  if (!isCapstone && /^\d{2}-\d{2}-/.test(fileName)) {
+    if (!/^## 3\. Threshold de Maestria\b/m.test(body)) {
+      recordError(rel, 'missing required section: ## 3. Threshold de Maestria');
+    }
+  }
+
+  // CHECK 2 — Code fences balanced.
+  const fenceCount = (body.match(/^```/gm) ?? []).length;
+  if (fenceCount % 2 !== 0) {
+    recordError(rel, `unbalanced code fences (count: ${fenceCount})`);
+  }
+
+  // CHECK 4 — Anti-patterns block must have >= 10 entries.
+  // Find headings or strong-bullets that mark an Anti-patterns section.
+  const lines = body.split(/\r?\n/);
+  const antiStarts = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    // Heading like "### Anti-patterns" or "#### Anti-patterns observados".
+    const isHeading = /^#{3,4}\s.*[Aa]nti[- ]?pattern/.test(line);
+    // Strong-bullet section marker like "- **Anti-patterns observados**:" — must
+    // end with colon and have nothing else on the line, otherwise it is just an
+    // inline bullet item using "**Anti-pattern**:" as label (false positive).
+    const isStrongMarker = /^\s*-\s+\*\*Anti-patterns?\b[^*]*\*\*\s*:?\s*$/.test(
+      line,
+    );
+    if (isHeading || isStrongMarker) {
+      antiStarts.push(i);
+    }
+  }
+  for (const start of antiStarts) {
+    let count = 0;
+    for (let j = start + 1; j < lines.length; j++) {
+      const ln = lines[j];
+      // Stop at next section heading (any level) or hr separator.
+      if (/^#{2,4}\s/.test(ln) || /^---\s*$/.test(ln)) break;
+      // Stop at next strong-bullet section header (e.g. **Validation toolkit**:)
+      if (/^\*\*[A-Z][^*]+\*\*\s*[:.]?\s*$/.test(ln)) break;
+      if (/^\d+\.\s/.test(ln) || /^- /.test(ln)) count++;
+    }
+    if (count > 0 && count < 10) {
+      recordWarn(rel, `anti-patterns block has ${count} entries (expected >=10)`);
+    }
   }
 }
 
@@ -195,6 +241,84 @@ async function checkInternalLinks() {
         await fs.access(resolved);
       } catch {
         recordWarn(rel, `broken link → ${target}`);
+      }
+    }
+  }
+}
+
+// CHECK 3 — Cross-refs §X.Y resolve to a `### X.Y ` heading in target file.
+async function checkCrossRefs() {
+  // Cache: id -> Set of section numbers found as `### X.Y ` headings.
+  /** @type {Map<string, Set<string>|null>} */
+  const headingCache = new Map();
+
+  async function loadHeadings(targetId) {
+    if (headingCache.has(targetId)) return headingCache.get(targetId);
+    let found = null;
+    for (const stage of STAGES) {
+      const dir = path.join(FRAMEWORK, stage.dir);
+      let entries;
+      try {
+        entries = await fs.readdir(dir);
+      } catch {
+        continue;
+      }
+      const match = entries.find(
+        (f) => f.endsWith('.md') && f.startsWith(`${targetId}-`),
+      );
+      if (match) {
+        const raw = await fs.readFile(path.join(dir, match), 'utf8');
+        const { body } = parseFrontmatter(raw);
+        const set = new Set();
+        const headRe = /^###\s+(\d+\.\d+)\s/gm;
+        let hm;
+        while ((hm = headRe.exec(body)) !== null) {
+          set.add(hm[1]);
+        }
+        found = set;
+        break;
+      }
+    }
+    headingCache.set(targetId, found);
+    return found;
+  }
+
+  const xrefRe = /\b(\d{2}-\d{2})\b[^.\n]{0,30}?§(\d+\.\d+)/g;
+
+  for (const stage of STAGES) {
+    const dir = path.join(FRAMEWORK, stage.dir);
+    let entries;
+    try {
+      entries = await fs.readdir(dir);
+    } catch {
+      continue;
+    }
+    for (const f of entries) {
+      if (!f.endsWith('.md')) continue;
+      if (f === 'README.md') continue;
+      const filePath = path.join(dir, f);
+      const rel = path.relative(REPO_ROOT, filePath).replaceAll('\\', '/');
+      const raw = await fs.readFile(filePath, 'utf8');
+      const { body } = parseFrontmatter(raw);
+      const scan = stripCode(body);
+      let m;
+      while ((m = xrefRe.exec(scan)) !== null) {
+        const targetId = m[1];
+        const secNum = m[2];
+        const headings = await loadHeadings(targetId);
+        if (!headings) {
+          recordWarn(
+            rel,
+            `cross-ref §${secNum} not found in target file: ${targetId}`,
+          );
+          continue;
+        }
+        if (!headings.has(secNum)) {
+          recordWarn(
+            rel,
+            `cross-ref §${secNum} not found in target file: ${targetId}`,
+          );
+        }
       }
     }
   }
@@ -304,6 +428,7 @@ async function main() {
   }
 
   await checkInternalLinks();
+  await checkCrossRefs();
 
   const ok = report();
   process.exit(ok ? 0 : 1);

@@ -290,8 +290,8 @@ Acessibilidade não é só compliance:
 
 Senior+ é dono de pipeline a11y multi-layer. Tooling pega o detectável; manual SR + keyboard cobrem o resto. Quem só roda Lighthouse passa 100 com produto inacessível.
 
-**Cobertura real automated vs manual** (Deque + WebAIM Million 2024-2025):
-- axe-core 4.10+ + Lighthouse 12+ pegam ~30-57% de WCAG 2.2 issues — varia por estudo, página estática vs SPA stateful.
+**Cobertura real automated vs manual** (Deque benchmarks + WebAIM Million 2024-2025):
+- axe-core 4.10+ + Lighthouse 12+ pegam ~30-57% de WCAG 2.2 issues (Deque benchmarks; varia por estudo, página estática vs SPA stateful). WebAIM Million 2024: 95.9% das homepages têm pelo menos 1 WCAG failure detectable, média 56.8 errors per page.
 - Manual SR + keyboard pegam o resto: focus management cross-state, semantic correctness (heading hierarchy lógica, não só presente), cognitive coherence, announce timing.
 - **Estratégia**: automate o catchable em CI; manual gate em critical journeys; user testing PWD pra real validation (cruza com §2.15).
 
@@ -468,7 +468,7 @@ Não-normativo ainda. **Não usar para compliance** em 2026, mas designs maduros
 
 Rules-config: best-practice rules (`region`, `landmark-one-main`) ficam OFF em CI por default; opt-in com `runOnly: ['wcag2a', 'wcag2aa', 'wcag22aa', 'best-practice']`. Custom rules via `axe.configure({checks: [...], rules: [...]})`. Color-contrast-enhanced rule cobre WCAG AAA 1.4.6.
 
-**WebAIM Million Report 2024** (análise top-1M homepages): axe-core detecta automaticamente ~57% das WCAG issues automatable; **manual SR + keyboard restantes 43%** (focus order semântico, alt text quality, ARIA misuse contextual, dynamic announcements). **Tooling-only é insuficiente.** WebAIM 2024: 95.9% das homepages têm pelo menos 1 WCAG failure detectable, média 56.8 errors per page.
+**Cobertura tooling vs manual** (Deque benchmarks): axe-core detecta automaticamente ~57% das WCAG issues automatable; **manual SR + keyboard restantes 43%** (focus order semântico, alt text quality, ARIA misuse contextual, dynamic announcements). **Tooling-only é insuficiente.** Cross-cite: WebAIM Million 2024 (análise top-1M homepages): 95.9% das homepages têm pelo menos 1 WCAG failure detectable, média 56.8 errors per page — escala do problema, não cobertura de ferramenta.
 
 **Playwright a11y testing 1.45+** (Jul 2025) tem fixture native + cross-browser:
 
@@ -549,7 +549,42 @@ Test matrix: cada release Q tem 1-2h manual SR session por critical flow. Record
 - Pa11y weekly crawl em prod URLs.
 - Reporting: Datadog/Sentry tags `a11y.violation.severity:critical`, `a11y.wcag.sc:2.4.11`, dashboard de drift por route.
 
-**Legal landscape 2026**: ADA Title III lawsuits US continuam pico, **>4000 federal filings em 2024** (Seyfarth ADA Title III tracker), ~75% e-commerce. Section 508 Refresh 2017 obriga federal contractors a WCAG 2.0 AA (em 2026 já desatualizado vs 2.1). EU EAA enforced 28-Jun-2025. UK Equality Act 2010 + Public Sector Bodies Accessibility Regs 2018. Casos referenciais: **Domino's vs Robles** (SCOTUS 2019, app/site precisa ser acessível), **Target $6M settlement** (NFB class action 2008), **Beyoncé/Parkwood** (2019 NY filing). Risk pricing: failure = lawsuit + remediation + brand. Insurance carriers (AIG, Chubb) já oferecem cyber/a11y rider.
+**Legal landscape 2026**: ADA Title III: **8.800 federal filings em 2024 (+7% YoY)** e **8.667 em 2025 (-2%)** (Seyfarth ADA Title III blog tracker); web accessibility lawsuits especificamente **2.452 em 2024 → 3.117 em 2025 (+27%)** (Seyfarth 2025 mid-year report; AudioEye 2025 review). DOJ final rule (24 Abr 2024) adopta WCAG 2.1 AA como standard pra government Title II web/mobile. Section 508 Refresh 2017 obriga federal contractors a WCAG 2.0 AA. EU EAA enforced 28-Jun-2025. UK Equality Act 2010 + Public Sector Bodies Accessibility Regs 2018. Casos referenciais: **Domino's vs Robles** (SCOTUS 2019, app/site precisa ser acessível), **Target $6M settlement** (NFB class action 2008). Risk pricing: failure = lawsuit + remediation + brand. Insurance carriers (AIG, Chubb) oferecem cyber/a11y rider.
+
+**Mobile a11y deep 2026 — VoiceOver/TalkBack + Voice Control + user preferences detection**: mobile a11y é território distinto de web a11y. **iOS:** VoiceOver (rotor + custom actions), Voice Control (numbers/grid/labels), Switch Control, Guided Access, Reduce Motion, Increase Contrast, Bold Text, Larger Text Type. **Android:** TalkBack (linear vs explore-by-touch), Switch Access, Voice Access (Google Assistant integrado), Live Caption, font scaling, color inversion, Select to Speak.
+
+**Detecção user preferences em runtime**:
+
+- iOS Swift: `UIAccessibility.isVoiceOverRunning`, `UIAccessibility.isReduceMotionEnabled`, `UIAccessibility.preferredContentSizeCategory` — adapt UI quando AT ativo (e.g., simplificar animations, expandir hit-targets).
+- Android Compose: `LocalAccessibilityManager.current.isEnabled`, `LocalDensity` + Dynamic Type, `Settings.Global.ANIMATOR_DURATION_SCALE = 0` indica reduce motion.
+- React Native: `AccessibilityInfo.isScreenReaderEnabled()`, `AccessibilityInfo.isReduceMotionEnabled()`.
+- CSS web (mobile browsers): `@media (prefers-reduced-motion)`, `@media (prefers-contrast)`, `@media (forced-colors: active)`.
+
+**Compose semantics modifier patterns**:
+
+```kotlin
+Modifier.semantics {
+    contentDescription = "Avatar do courier João"
+    role = Role.Image
+    customActions = listOf(
+        CustomAccessibilityAction("Ligar pro courier") { call(courier); true }
+    )
+}
+```
+
+**SwiftUI accessibility traits + custom rotor**:
+
+```swift
+Image("courier_avatar")
+    .accessibilityLabel("Avatar do courier João")
+    .accessibilityAddTraits(.isImage)
+    .accessibilityCustomContent("Avaliação", "4.8 estrelas")
+    .accessibilityAction(named: "Ligar") { callCourier() }
+```
+
+**Manual mobile SR test protocol**: TalkBack swipe right (next), Tap (activate), Three-finger swipe up (read all from top), Two-finger swipe right (next via local context); VoiceOver swipe right (next), Double-tap (activate), Two-finger flick down (read all), rotor (twist two fingers) para navigation modes (headings, links, form controls).
+
+**Real impact 2026**: WCAG 2.2 Target Size (24×24 CSS px min, AA) é peculiarmente difícil em densidade mobile alta — testar em device real, não simulator. EAA (28-Jun-2025) cobre apps mobile B2C explicitly. ADA Title III tendência 2024-2025 (Seyfarth tracker): web/app accessibility filings +27% YoY 2025; pro se plaintiffs +40% (uso de AI tools como ChatGPT/Copilot pra draft complaints).
 
 Logística aplicada: courier dashboard `/admin` testa axe-playwright em todas rotas autenticadas (orders, drivers, dispatch, settings) via fixture com `storageState` pré-auth, gate em PR. Storybook a11y panel obrigatório passar para merge em qualquer componente do design system interno. Manual NVDA + VoiceOver run por release no flow "criar order" (create → assign driver → mark delivered). WCAG 2.2 SC 2.5.8 target-size aplicado em map markers (Leaflet/Mapbox custom icons 44x44 CSS px), em swipe-actions de lista de orders aplicar SC 2.5.7 com alternative button "Assign".
 
@@ -563,7 +598,7 @@ Cruza com **03-17 §2.4** (axe basics, agora específico 2.2 rules), **03-17 §2
 4. Target-size 24x24 ignorado em mobile map markers / swipe carousels, SC 2.5.8 violation, finger tap miss rate sobe.
 5. Focus indicator removido com `outline: none` sem replacement, viola SC 2.4.7 + 2.4.13; sempre pair com `:focus-visible` custom style.
 6. axe-core rodando só em homepage, 95% das violations vivem em forms/dashboards autenticados; cobrir authenticated routes é mandatory.
-7. Confiar 100% em axe (~57% coverage), pular manual SR, focus order semântico e ARIA misuse contextual passam batido.
+7. Confiar 100% em axe (~57% coverage por Deque benchmarks), pular manual SR, focus order semântico e ARIA misuse contextual passam batido.
 8. Guidepup VoiceOver tests rodando em toda PR, custo macOS runner 10x estoura budget; reservar para release-candidate ou nightly.
 9. WCAG 3.0 draft tratado como compliance target, ainda não-normativo, auditor recusa; usar como design north star, não legal baseline.
 10. Accessibility statement / VPAT desatualizado vs build atual, lawsuit discovery usa como evidência de bad faith; regenerar a cada major release com axe + manual report anexos.

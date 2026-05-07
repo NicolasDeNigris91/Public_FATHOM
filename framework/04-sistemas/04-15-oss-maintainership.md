@@ -361,7 +361,7 @@ Walking away é decisão sã. Ficar resentido é o anti-padrão pior — gera th
 - **Trust ladder pragmático**: aceitar 1 external committer após 5 PRs mergeados em 3 meses + 1 review substantivo de PR alheio. Documentar critério em `MAINTAINERS.md`.
 - **Sustainability path**: GitHub Sponsors + Tidelift listing + corporate adoption (cruza com §2.12).
 
-#### Anti-patterns (8)
+#### Anti-patterns (10)
 
 1. PR gigante (>1k LOC) sem RFC prévio — irrevisável; reject quase certo.
 2. "Drive-by" PR fixing typo + adicionando feature unrelated — split em 2 PRs.
@@ -371,6 +371,8 @@ Walking away é decisão sã. Ficar resentido é o anti-padrão pior — gera th
 6. Pinging maintainers `@user` em issue sem ação clara — rude, fica em log permanente do GitHub.
 7. Aceitar maintainer role sem capacity real — vira bus factor problem novo.
 8. Negociar trust ladder publicamente ("you should make me committer") — trust é earned, não pleitado.
+9. License change em projeto OSS estabelecido (Redis BSD→SSPL 2024, Elastic AGPL→SSPL 2021, MongoDB AGPL→SSPL 2018) sem community consultation prévia — perde goodwill irreversível, fork credível (Valkey, OpenSearch) emerge em semanas e captura share enterprise.
+10. Maintainer inativo > 6 meses em repo crítico sem handoff explícito — community se dispersa, issues acumulam sem triage, vira attack vector pra hostile takeover via "helpful contributor" social engineering (XZ playbook). Anuncie hiatus + delegue commit access ou archive o repo.
 
 Cruza com **04-12** (tech leadership: ADR/RFC discipline transfere pra OSS), **03-04** (CI/CD: contribuições passam por mesma rigor), **04-16** (product/business: OSS contribution as career capital), `superpowers:receiving-code-review` (skill aplicável diretamente), **§2.10** (building contributors interno espelha), **§2.12** (sustainability/funding após maturity).
 
@@ -516,7 +518,7 @@ Cruza com **03-08** §2.20 (SBOM lifecycle deep), **03-08** §2.14 (supply chain
 
 ### 2.20 OSS sustainability 2026 post-XZ — funding, burnout, multi-maintainer, npm provenance
 
-**Post-XZ landscape (Mar 2024 → 2026).** CVE-2024-3094: Andres Freund (Microsoft engineer) descobriu backdoor em `xz-utils` 5.6.0/5.6.1 enquanto investigava 500ms de latência em SSH (Andres Freund email Mar 29 2024, oss-security list). Backdoor injetado via build tarball por persona "Jia Tan", após social-engineering campaign de ~2 anos contra Lasse Collin (sole maintainer queimado). Lessons: (1) **bus factor 1 = vulnerability**, não inconveniência; (2) **maintainer burnout é attack vector** — pressão coordenada por "fake helpful contributors" empurrou Lasse a delegar commit access; (3) "be nice to maintainers" não é defesa, é higiene mínima. Follow-up 2024-2026: OpenSSF Alpha-Omega scaling funding pra critical infra (Linux Foundation), Sovereign Tech Fund (DE) escalou €23.5M em 2024, German BSI funded 100+ projetos OSS via FOSSA program.
+**Post-XZ landscape (Mar 2024 → 2026).** CVE-2024-3094: Andres Freund (Microsoft engineer) descobriu backdoor em `xz-utils` 5.6.0/5.6.1 enquanto investigava 500ms de latência em SSH (Andres Freund email Mar 29 2024, oss-security list). Backdoor injetado via build tarball por persona "Jia Tan", após social-engineering campaign de ~2 anos contra Lasse Collin (sole maintainer queimado). Lessons: (1) **bus factor 1 = vulnerability**, não inconveniência; (2) **maintainer burnout é attack vector** — pressão coordenada por "fake helpful contributors" empurrou Lasse a delegar commit access; (3) "be nice to maintainers" não é defesa, é higiene mínima. Follow-up 2024-2026: OpenSSF Alpha-Omega scaling funding pra critical infra (Linux Foundation), Sovereign Tech Fund (DE) com €17M budget anual 2024 (~€23.5M cumulative em 60+ projetos), German BSI funded 100+ projetos OSS via FOSSA program.
 
 **Maintainer burnout taxonomy 2026.** Tragedy of the commons em deps críticas: `is-promise` (npm, ~10M weekly downloads, 1 maintainer histórico), `core-js` (Denis Pushkarev solo, fund crisis pública 2020+ ainda relevante), `colors.js` / `faker.js` (Marak rage-quit Jan 2022 sabotou próprio projeto). Vetores:
 
@@ -533,22 +535,22 @@ Mitigations 2026: hard "no" defaults em scope; GitHub Sponsors visible no top do
 |---|---|---|---|
 | GitHub Sponsors | 0% (GitHub absorve) | $5-50/mo individual | Visible se promovido; P50 income = $0 |
 | Open Collective | ~10% (fiscal host) | $50-500/mo corp | Bom pra transparência; corps preferem |
-| Tidelift | Subscription B2B | $5-50/maintainer/mês/projeto | ~$20M ARR 2024; B2B compliance-driven |
+| Tidelift | Subscription B2B | $5-50/maintainer/mês/projeto | $73.5M total funding pré-aquisição; adquirida por Sonar 17 Dez 2024 |
 | Polar.sh | Issue-bounty | Variável | Crowdsource de issues específicas |
 | "Fair Source" (Sentry FSL, BSL-style) | License-based | Revenue-tied | Não OSI-approved, mas funda devs |
 
 Tidelift maintainer report 2024: **median income from sponsorship = $0**; apenas top 10% > $1k/ano. OSS maintainership ≠ income unless top 1%. Plan accordingly.
 
-**Sovereign Tech Fund (DE 2022+, scaled 2024-2026).** €23.5M budget 2024 (Sovereign Tech Fund 2024 report). Funded: curl, OpenJDK, OpenSSL, GnuPG, Sequoia PGP, Bundler, Log4j, OpenBGPd. **Direct payments to maintainers**, no equity, no IP grab. Replicável: Netherlands (NL-funding), UK considerando 2026, EU Commission piloting Open Source Programme Office (OSPO) funding 2026.
+**Sovereign Tech Fund (DE 2022+, scaled 2024-2026).** Budget anual €17M em 2024 (BMWK funding); ~€23.5M cumulative invested em 60+ projetos até final 2024 (Sovereign Tech Fund 2024 report). Funded: curl, GnuPG, Sequoia PGP, Bundler, Log4j, OpenBGPd, FFmpeg, OpenSSH (lista parcial — STF publica beneficiários). **Direct payments to maintainers**, no equity, no IP grab. Replicável: Netherlands (NL-funding), UK considerando 2026, EU Commission piloting Open Source Programme Office (OSPO) funding 2026.
 
-**EU CRA (Cyber Resilience Act, força ~2027).** Final text Dec 2023 (EU CRA final text Dec 2023). "Open-source software steward" amendment isenta non-commercial OSS — Eclipse Foundation, Apache, Linux Foundation lobbied successfully. **Commercial integrators carregam compliance**: SBOM obrigatório, vulnerability handling SLA, CVE coordination, security disclosure docs. 2026 readiness checklist:
+**EU CRA (Cyber Resilience Act).** Trilogue political agreement 30 Nov 2023; published Official Journal 20 Nov 2024; in force 10 Dez 2024; reporting obrigations apply 11 Set 2026; main obligations apply 11 Dez 2027. "Open-source software steward" amendment isenta non-commercial OSS — Eclipse Foundation, Apache, Linux Foundation lobbied successfully. **Commercial integrators carregam compliance**: SBOM obrigatório, vulnerability handling SLA, CVE coordination, security disclosure docs. 2026 readiness checklist:
 
 - `SECURITY.md` com disclosure path
 - SBOM gerada em release (CycloneDX ou SPDX)
 - CVE assignment process (GitHub Security Advisories ou MITRE direto)
 - Vulnerability handling SLA pública (mesmo que "best effort")
 
-**npm provenance impact (2025+).** npm provenance attestations GA Abr 2023, default workflow em GitHub Actions OIDC. Adoption 2026: ~15% top-1k npm packages publicam com provenance (npm registry stats 2026). Sigstore-backed (Rekor transparency log + Fulcio CA). Validação consumer-side:
+**npm provenance impact (2025+).** npm provenance attestations public beta 19 Abr 2023, GA 26 Set 2023, default workflow em GitHub Actions OIDC. Adoption 2026: ~15% top-1k npm packages publicam com provenance (npm registry stats 2026). Sigstore-backed (Rekor transparency log + Fulcio CA). Validação consumer-side:
 
 ```bash
 npm audit signatures
@@ -635,6 +637,34 @@ Report vulnerabilities via GitHub Security Advisories (private) or
 security@example.com. Initial response < 72h, fix SLA best-effort 30d
 for critical. Embargo coordination per CERT/CC norms.
 ```
+
+**OSS career playbook 2026 + OSS-to-startup paths.** Maintainership como career capital exige trust ladder concreto e reconhecimento de trajetórias possíveis (e seus custos).
+
+Trust ladder real (~24-36 meses sustained contribution):
+
+1. **Mês 0-3 — Bug reports de qualidade.** Issue com repro mínimo, version + env, expected vs actual; proposta de fix se possível. Ratio: 5-10 issues qualificadas antes de 1ª PR.
+2. **Mês 3-9 — PRs pequenos cobrindo gaps óbvios.** Tipos, docs typos, edge cases, test coverage missing. Volume importa: 10-20 PRs merged. Padrão de commit + tom respondendo a review feedback é evaluation invisível.
+3. **Mês 9-18 — Feature PRs scoped.** RFC primeiro pra features > 200 LOC; implementação após approval. Demonstra "scope discipline" — não ship algo que ninguém pediu.
+4. **Mês 18+ — Triage trust.** Maintainer dá `triage` permission GitHub: você labela issues, fecha duplicatas, gerencia milestones. Sem write access ainda.
+5. **Mês 24+ — Commit access.** Após sustained triage + 3-5 features merged + presença em discussions/Discord/RFC review. Subset de repos: code review primary, merge limited a `docs/` ou `tests/`.
+6. **Mês 36+ — Co-maintainer.** Bus factor mitigation explícito; release manager rotation; security disclosure recipient. Path raro, ~1% dos contributors.
+
+Contribution metrics que IMPORTAM (vs vanity):
+
+- PRs merged que mudam código de produção (não apenas comments).
+- Issues triaged + closed com diagnostic.
+- Reviews de PRs alheias (revela maturidade técnica).
+- RFC participation em design discussions.
+- NÃO contam: GitHub stars (vanity); forks count; profile views; "contributed to N repos" (pode ser typo fixes).
+
+OSS-to-startup paths 2026 reais:
+
+- **"OSS-as-marketing"** (Vercel/Next.js, Supabase, Resend, Linear): build OSS framework primeiro, monetiza managed cloud + premium support. ARR multiplier vs pure SaaS competitor (~3-5x). Prereq: produto crítico-infra, não nice-to-have.
+- **"COSS" (Commercial Open Source)** (Sentry, MongoDB, Elastic, Redis): core OSS, premium features comercial. Tension permanente com community over license changes (Elastic SSPL 2021, MongoDB SSPL 2018, Redis dual 2024 — todos perderam goodwill).
+- **"Foundation-then-fund"** (Linux Foundation Projects, Apache, CNCF): projeto matures sob foundation; founders mantém credentials sem owning entity; consulting revenue.
+- **"Solo maintainer + GitHub Sponsors only"** (Sindre Sorhus, Daniel Stenberg curl): feasibility real só pra top 0.1%; 99% não chega a $50k/yr.
+
+Anti-pattern crítico: **"founder-as-maintainer-as-CEO".** Mesma pessoa escreve código + gerencia community + faz sales calls + raise round. Burnout 18-24 meses. Solution: hire DevRel + dedicated maintainer cedo (Series A latest). Vercel made this transition em 2021; Supabase em 2022.
 
 **Logística applied.** Se Logística open-sources scheduling library (`@logistica/dispatch-core`): Apache 2.0 (patent grant explícito) + ≥3 maintainers internos + GitHub Actions OIDC publishing + npm provenance attestation + `SECURITY.md` com disclosure path + `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1) + `LICENSE` claro + funding link no README (mesmo que só GitHub Sponsors da empresa). Sem isso: lib morre em silêncio quando o engenheiro responsável sai, ou pior — vira vetor de attack se ganhar tração e ninguém mantém.
 

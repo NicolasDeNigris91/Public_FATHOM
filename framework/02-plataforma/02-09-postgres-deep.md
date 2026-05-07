@@ -327,6 +327,12 @@ Execution Time: 0.421 ms
 - **Otimizar pelo `cost`**: cost é heuristic; `actual time` é verdade. Compare actual vs actual entre planos.
 - **Adicionar índice sem `CONCURRENTLY` em prod**: lock exclusive em escrita por minutos. Use `CREATE INDEX CONCURRENTLY` sempre em produção (mais lento, mas não bloqueia DML).
 - **Index "pra todo filter"**: índice tem custo (write amplification, vacuum, espaço). Audit `pg_stat_user_indexes` mensal; remova `idx_scan = 0` há 30+ dias.
+- **`SET` global em conexão de pool**: `SET enable_seqscan = off` "só pra essa query" persiste na conn pool e contamina queries seguintes. Use `SET LOCAL` dentro de transação (auto-revert no COMMIT) ou `pg_hint_plan` extension pra hint scoped.
+- **Sem `statement_timeout` configurado no pool app**: query lenta segura conn por minutos, esgota pool, cascading errors em endpoints sem relação. Defina `statement_timeout = 30s` (ou menor) no role da app + `idle_in_transaction_session_timeout = 60s` pra liberar conns presas.
+- **`VALUES` literal grande em `WHERE x IN (...)` com 10k+ items**: planner pune com OOM no parsing ou plan cost catastrófico. Use `WHERE x = ANY($1::int[])` com array bind, ou `JOIN` contra temp table indexada.
+- **`LIMIT` sem `ORDER BY` determinístico em pagination**: row order não-estável entre execuções (cluster, autovacuum reorganiza heap); usuário vê duplicates/gaps em scroll. Sempre `ORDER BY (created_at, id)` com tiebreak na PK.
+- **`COUNT(*)` em tabela grande pra UI**: full scan ou index scan completo, lento mesmo cached. Use `pg_class.reltuples` aproximado pra "X+ items", `EXPLAIN` count parsing pra estimate, ou keyset pagination sem total.
+- **`pg_partman` setup sem `pre_part` job**: partitions futuras não criadas, INSERT em data fora de range explode com `no partition for relation`. Sempre cron `run_maintenance_proc()` + alerta em `partman.maintenance_progress`.
 
 #### Ferramentas pra acelerar análise
 
@@ -738,6 +744,9 @@ log_autovacuum_min_duration = 1000
 - **`checkpoint_timeout = 30min` sem `max_wal_size` aumentado**: WAL enche disco, DB para de aceitar writes.
 - **Sem `log_min_duration_statement`**: slow query investigation cega.
 - **Tunar via blog post genérico sem medir**: aplica config do "PG tuning calculator" que assume workload OLTP, mas você tem analytical mixed.
+- **`vacuum_cost_delay = 20ms`+ em dataset hot com churn alto**: autovacuum sleep agressivo nunca alcança o ritmo de DEAD tuples; bloat compõe semana a semana, plans degradam, e quando você nota só `VACUUM FULL` resolve. Em workload write-heavy, baixe pra `2ms` e suba `vacuum_cost_limit` (1000+) — autovacuum acompanha em troca de I/O extra controlado.
+- **`pg_dump --clean` direto em prod sem testar restore em staging**: `--clean` emite `DROP TABLE` antes do `CREATE`/data; restore parcial (network drop, disk full no meio) deixa schema misto inválido com tabelas faltando e FKs órfãs. Sempre `pg_restore --single-transaction` + dry-run em staging idêntico; pra prod use `pg_basebackup`/PITR, não dump lógico.
+- **`huge_pages = off` em servidor com 32GB+ shared_buffers**: TLB miss explode em workloads com working set grande; Linux gasta 5-10% CPU em page table walks. Configure `huge_pages = try` (ou `on` em hosts dedicados) + reservar via `vm.nr_hugepages`; ganho típico 3-7% throughput OLTP.
 
 **Validation toolkit**:
 

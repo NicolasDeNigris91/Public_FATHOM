@@ -568,6 +568,9 @@ ADR-0042: Adopt Iceberg as table format
 - **ADR como design doc gigante**: ADR é DECISÃO + contexto necessário pra entender. Design doc completo vai em outro lugar (Notion, RFC); ADR linka pra ele.
 - **Sem template enforced**: cada ADR vira formato livre; tooling/parsing impossível.
 - **ADR sem reviewer**: aprovação só do autor — perde signal de "outros entendem e aceitam consequências".
+- **Feedback "sandwich" (negative entre dois positives)**: dilui o sinal — IC ouve "fui bem" e ignora a crítica; se o sandwich é regra, IC desconfia até dos elogios genuínos. Entregue critique direto + concreto, separe sessões pra reconhecimento e correção.
+- **Promotion packet escrito só pelo IC**: manager precisa co-author — IC subestima impacto, omite glue-work, esquece artifacts cross-team que só manager observa em calibration. Co-write em pair: IC traz evidência, manager traz framing pro committee.
+- **Roadmap quarterly sem buffer ≥20% pra interrupts**: P0 incidents, dependency slip, hire delay consomem capacity real; commit a 100% = miss garantido + burnout. Reserve 20-30% como "unplanned" no plan, comunique trade-off explícito ao stakeholder antes do quarter começar.
 
 #### Métricas de programa de ADR (seniority signal)
 

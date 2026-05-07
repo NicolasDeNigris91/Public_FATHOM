@@ -604,6 +604,7 @@ spec:
 - **`maxUnavailable: 25%` em deployment de 4 replicas**: 1 pod evictable, mas se PDB diz `minAvailable: 3`, drain trava.
 - **Sem `terminationGracePeriodSeconds`**: SIGTERM + 30s default; long-running requests truncated. Set baseado em request p99 latency.
 - **Sem startupProbe**: liveness mata pod durante boot lento.
+- **Deploy ≥2 replicas sem PodDisruptionBudget**: rolling update concorrente com node drain (cluster-autoscaler, upgrade) evicta todas réplicas simultâneas; downtime certo. Defina PDB com `minAvailable: 1` (ou `maxUnavailable: 50%`) pra cada deploy multi-replica.
 
 #### Validation toolkit
 

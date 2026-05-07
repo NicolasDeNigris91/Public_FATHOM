@@ -430,6 +430,10 @@ POST _ltr/_featureset/logistica_features
 - **Embedding search sem rerank**: top-100 vector hits incluem semantically similar mas exatamente errado (query "iphone 15" trazendo "iphone 14" no top-3). Cross-encoder rerank fix.
 - **Esquecer query understanding**: "celular barato" → boost por low price. "celular pra fotografia" → boost por camera spec. Intent detection (LLM zero-shot ou classificador) muda boost dinamicamente.
 - **NDCG melhora offline mas degrada online**: dataset enviesado pra queries comuns; longtail piora. Sempre stratificar eval por query frequency bucket.
+- **Reindex full em prod sem alias swap**: `_reindex` em índice ativo cria janela de search vazia 10+ min em corpus grande; usuário vê zero-result storm. Sempre criar `orders_v2`, popular, atomic alias swap.
+- **BM25 default em domínio onde semantic vence**: catálogo com títulos imprecisos, multi-língua, queries conceituais — usuário reclama de "search ruim" que é tuning gap, não bug. Hybrid + rerank é mínimo, não opcional.
+- **Synonyms file estático sem manutenção**: vocabulário user evolui (gírias, marcas novas, abreviações regionais); arquivo congelado em 2023 vira drift de meses. Pipeline de auto-mining via query log + click-through é obrigatório acima de 10k queries/dia.
+- **Meilisearch/Typesense em RAM limitada**: index não carrega em peak ou após restart; fallback `LIKE` no Postgres engine-agnóstico cai porque é sequencial scan em milhões de rows. Provisione 2x dataset size e alerta em 70% RAM.
 
 Cruza com **02-15 §2.7** (hybrid search foundation), **02-15 §2.13** (relevance tuning intro), **04-10 §2.8** (vector DBs como recall layer), **04-10 §2.11** (evals pattern aplicável a search ranking).
 

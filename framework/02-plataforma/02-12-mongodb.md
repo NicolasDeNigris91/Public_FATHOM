@@ -484,6 +484,7 @@ try {
 - **Transactions pra single-collection update**: overhead inútil. Use single-doc atomic.
 - **Snapshot fields sem TTL/refresh strategy**: courier name muda; orders antigas mostram nome antigo OK; mas profile pic url quebra após 6 meses (CDN delete). Document refresh policy.
 - **`db.collection.find().sort()` sem index compound**: scan + in-memory sort. Compound index `{ filter: 1, sort: -1 }`.
+- **`$lookup` em hot path como substituto de JOIN relacional**: cada request paga pipeline + collection scan no foreign side; latência cresce N×M e nunca aproveita planner como Postgres. Mongo não foi feito pra joins — se virou padrão no fluxo crítico, a modelagem está errada (denormalize via embed/snapshot) ou o storage está errado (mude pra Postgres).
 
 Cruza com **02-12 §2.10** (replica sets — w='majority' pra durability), **02-12 §2.11** (sharding afeta transaction scope), **02-12 §2.16** (anti-patterns gerais), **02-09** (comparação Postgres pra mesmas decisions), **04-13 §2.12** (CDC de Mongo via change streams).
 

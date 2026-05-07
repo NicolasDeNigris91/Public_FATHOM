@@ -418,6 +418,8 @@ Em scale: NÃO escreva direto Postgres. Use Cloudflare Workers Analytics Engine,
 - **`reportAllChanges: true` em produção**: 10x volume + custo desnecessário.
 - **RUM sem device/connection metadata**: dashboard mistura iPhone 15 Pro com Android Go; mediana enganosa.
 - **CLS sem attribution.loadState**: confunde initial render shift (esperado, accept) com mid-session shift (real bug).
+- **Animação via `top`/`left` em vez de `transform`**: dispara layout + paint a cada frame; janky em mobile. `transform: translate3d(...)` fica em compositor (GPU), main thread livre, INP estável.
+- **`position: sticky` em ancestor que muda durante scroll**: cada update do containing block força re-layout em cascata; LoAF picos > 200ms em pages longas. Promova sticky pra container estável + use `contain: layout` pra isolar.
 
 #### Performance budget enforcement no CI
 
@@ -671,6 +673,36 @@ export async function GET(
 **Image CDN comparison 2026.** Cloudflare Images $5/100k images stored + $1/100k delivered (cheap, integrado com Workers/Pages). Cloudinary mais features (AI crop, video, transformations complexas), mais caro ($89+/mo). imgix integrado bem com S3, pricing por volume. ROI: image CDN paga-se em LCP improvement em e-commerce (Web.dev case studies: 1s LCP improvement = +7-10% conversion). Self-hosted alternativa: `sharp` + Next.js Image Optimization API on-demand (free, mas requer compute + cache).
 
 **Image accessibility.** `alt` attribute obrigatório em todas images. Decorative images: `alt=""` explicit (vazio) é melhor que omit — screen reader pula explicitamente vs anuncia filename. `aria-hidden="true"` em decorative quando combinado com texto adjacente equivalente. `<figure>` + `<figcaption>` para semantic grouping (image + caption ligados programaticamente). Nunca use texto em imagem como único veículo de informação (i18n + a11y break).
+
+**Image decode budget + INP-aware loading 2026.** Imagem grande não bloqueia só network — bloqueia decode na main thread. `decoding="async"` mitiga mas Chrome ainda pode promover decode síncrono em layout-critical paints. **Strategy 2026:**
+
+1. **Decode budget per-route** — orçamento de ~200ms total decode pra rota crítica. Acima disso, escalonar via `<img loading="lazy" decoding="async">` para below-fold + `content-visibility: auto` em containers grandes (CSS skip render off-viewport).
+2. **`fetchpriority` + Speculation Rules combo** — pré-carrega LCP image enquanto pre-renders próxima rota com Speculation Rules API (cruza com §2.20 Speculation Rules). LCP image preload + speculation prerender = navegação instant.
+3. **Partytown pra third-party scripts** — analytics (GTM, Segment) bloqueia main thread durante hidratação. Partytown 0.10+ move pra Web Worker; libera main thread pra image decode + INP. Trade-off: alguns SDKs detectam non-main-thread e quebram (Mixpanel histórico).
+4. **`requestIdleCallback` para non-critical decoding** — `Image()` pré-carregadas em idle callback (e.g., heroes secundários, próxima foto carousel). Browser decode em idle, no contention com user input.
+
+```html
+<!-- Hero LCP, decode síncrono priority -->
+<img src="/hero.avif" alt="..." fetchpriority="high" decoding="sync"
+     width="1200" height="630">
+
+<!-- Below fold, decode off-main, layout reserved -->
+<div style="content-visibility: auto; contain-intrinsic-size: 600px 400px;">
+  <img src="/below.avif" alt="..." loading="lazy" decoding="async"
+       width="1200" height="800">
+</div>
+```
+
+```ts
+// Idle prefetch de próxima imagem em carousel
+function prefetchNext(url: string) {
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(() => { const i = new Image(); i.src = url; });
+  } else { setTimeout(() => { const i = new Image(); i.src = url; }, 200); }
+}
+```
+
+Real impact 2026: stack (hero AVIF + `content-visibility: auto` + Partytown pra third-party scripts) consistentemente reportada em case studies Web.dev como caminho pra INP p75 < 200ms (target "Good"). Shopify Hydrogen Cookbook documenta Partytown recipe pra GTM/Segment offload (`hydrogen.shopify.dev/cookbook`). Magnitude do ganho varia por baseline — projete 30-50% INP redução sobre baseline com main-thread bloqueada por 3rd-party scripts.
 
 **Logística applied.** /tracking page tem hero map screenshot 1200x630 servida via Cloudflare Images como AVIF (primary) + WebP (fallback) + JPEG (legacy), `fetchpriority="high"` + `<link rel="preload">` no `<head>` server-rendered. Map screenshot do trajeto courier→destino tem blurhash placeholder (gerado em build a partir do dominant route color) enquanto tile real carrega. OG image dinâmica em `app/og/[orderId]/route.tsx` com courier ETA, distância restante e nome da loja — compartilhamento em WhatsApp/Twitter mostra preview rico, +30% click-through em testes A/B.
 

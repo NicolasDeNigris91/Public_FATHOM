@@ -297,6 +297,8 @@ App
 - **Substituir Postgres por Neo4j**: Neo4j ACID single-cluster; replication mais frágil que Postgres + Patroni.
 - **Sem batch pra inserts massivos**: 1 INSERT por API call = throughput < 100/s; use `UNWIND` + batched arrays.
 - **`OPTIONAL MATCH` em loop sem WITH**: pode explodir cartesian.
+- **`MATCH (n)-[*]->(m)` sem upper bound em depth**: combinatorial explosion em grafos densos, query nunca termina, lock + OOM. Sempre `[*1..5]` ou similar com cap explícito por workload.
+- **`DETACH DELETE` em produção sem WHERE específico**: Neo4j/Memgraph não tem confirm interativo; `MATCH (n) DETACH DELETE n` dropa o grafo inteiro silent. Use transaction com `LIMIT` + dry-run `RETURN count(*)` antes; backup snapshot obrigatório.
 
 Cruza com **02-16 §2.10** (Postgres híbrido — pattern recomendado), **02-16 §2.12** (casos de uso reais), **04-13 §2.12** (CDC alimenta Neo4j projection), **04-10 §2.x** (GNN consome subgraph extraction), **02-09 §2.7.1** (JSONB indexing pra grafos pequenos no Postgres).
 
@@ -462,8 +464,8 @@ Cruza com **02-16 §2.16** (Cypher patterns base), **02-09** (Postgres recursive
 Mercado consolidado em poucas opções viáveis. Decisão por workload, não por hype.
 
 - **Neo4j 5** (LTS 5.x active 2024-2026, default em enterprise). Property graph native, Cypher, graph algorithms via GDS library, cluster via Causal Cluster, federated query via Fabric. Community edition limitada a 4 cores; Enterprise paywall pra produção séria.
-- **Memgraph 2.x** (in-memory, C++, Cypher-compatible). Streaming-first via Kafka/Pulsar nativo, MAGE algorithms library (PageRank, Louvain, betweenness). Real-time graph analytics sub-100ms em 1B+ edges in-RAM.
-- **Apache AGE 1.5** (Postgres extension, GA Q4 2023). Hybrid graph + relational, openCypher subset sobre Postgres. JOIN entre graph e tabela relacional na mesma transaction. Trade-off: query planner fraco vs Neo4j; sem PageRank built-in.
+- **Memgraph 3.x** (in-memory, C++, Cypher-compatible; current GA 3.8 Fev 2026). Streaming-first via Kafka/Pulsar nativo, MAGE algorithms library (PageRank, Louvain, betweenness). Real-time graph analytics sub-100ms em 1B+ edges in-RAM.
+- **Apache AGE 1.5** (Postgres extension, Q1 2024 com PG16 support; 1.6 atual em 2026). Hybrid graph + relational, openCypher subset sobre Postgres. JOIN entre graph e tabela relacional na mesma transaction. Trade-off: query planner fraco vs Neo4j; sem PageRank built-in.
 - **TigerGraph 4** (distributed, GSQL próprio). Petabyte-scale, parallel processing nativo. Curva de aprendizado de GSQL afasta times sem dedicação.
 - **Amazon Neptune** (managed AWS, suporta Property Graph + RDF). Lock-in AWS forte; útil pra times AWS-native sem capacity de operar Neo4j cluster.
 - **JanusGraph** (open-source, distribuído sobre Cassandra/HBase/BerkeleyDB). Flexibilidade de storage backend, mas ops pesada.
@@ -473,7 +475,7 @@ Decision matrix:
 | Workload | Escolha |
 |----------|---------|
 | OLTP graph (recommendations, fraud, social) | Neo4j 5 |
-| Streaming + real-time analytics | Memgraph 2.x |
+| Streaming + real-time analytics | Memgraph 3.x |
 | "Graph features sem novo DB" (Postgres já existe) | Apache AGE |
 | AWS-native managed | Neptune |
 | Petabyte-scale, time dedicado | TigerGraph |
@@ -533,7 +535,7 @@ JOIN orders o ON o.id = (g.order_id::text)::int;
 
 Pros: connection Postgres existing, transaction unified, ops sem novo DB. Cons: planner não otimizado pra deep traversal, graph algorithms ausentes, agtype casting verbose. Adopters reais: Bitnine (criador), uso interno em telecom + finance.
 
-#### Memgraph 2.x
+#### Memgraph 3.x
 
 In-memory native, C++, Cypher + MAGE library (PageRank, community detection Louvain, betweenness, similarity). Streaming integration nativa: stream Kafka topic vira evento graph sem ETL.
 
@@ -561,7 +563,7 @@ Use case canônico: real-time fraud detection (sub-100ms graph query em 1B+ edge
 
 #### GraphRAG patterns 2026
 
-Microsoft GraphRAG (research blog Jul 2024, 70% improvement em "global questions" vs vector RAG puro):
+Microsoft GraphRAG (paper arXiv 2404.16130, Abr 2024) reporta substantial improvements em comprehensiveness e diversity sobre vector RAG puro pra "global questions":
 
 1. LLM extrai entities + relationships de chunks de documento.
 2. Constrói property graph; aplica community detection (Leiden algorithm).
@@ -594,6 +596,44 @@ Não migrar preventively. Graph DB é overhead operacional real (cluster, backup
 - **GraphFrames** (Spark): batch analytics em billion-edge graphs (PageRank distribuído).
 - **NetworkX** (Python): in-memory pra graphs <1M edges, prototyping e research.
 
+#### Graph visualization + multi-tenant graph isolation 2026
+
+**Visualization stack 2026:**
+
+- **Neo4j Bloom 2.x** — visual exploration pra business users (não-devs), não-código, salvar perspectives. Bundle Enterprise; standalone $$ ($16k/yr min Enterprise).
+- **Memgraph Lab 3.x** — gratuito, open source, SR-friendly, integração nativa Memgraph + MAGE algorithms.
+- **AGE Viewer** (Apache, gratuito) — Postgres extension AGE; query Cypher via web UI, render graph result inline.
+- **Cytoscape.js 3.30+** — biblioteca JS production-ready embeddable em SPA, force-directed layouts (cola + fcose + euler engines), max usable ~10-20k nodes em browser sem WebGL.
+- **Sigma.js v3** — WebGL-based, escala pra 50k+ nodes em browser sem janks, chained com Graphology library pra data manipulation.
+- **vis-network** — DEPRECATED em 2026 (último release 2023, sem maintenance); migrar pra Cytoscape ou Sigma.
+- **GraphML / GEXF / JSON Graph Format** — interchange formats pra import/export Gephi (desktop visualization para datasets > 1M edges).
+
+**Multi-tenant isolation patterns em graph DB:**
+
+Neo4j single-DB multi-tenant é arriscado (cross-tenant leak via Cypher injection ou query mal escrita). **Patterns 2026:**
+
+1. **DB-per-tenant** (Neo4j 4.x+ Multi-Database) — total isolation, mas overhead operacional alto em > 1k tenants; cada DB tem own page cache.
+2. **Label-based isolation** — todo node tem label `:Tenant_<id>`; queries forçam `MATCH (n:Tenant_acme) ...`; risco de query developer esquecer label.
+3. **Property-based + Cypher rewriting** — middleware de query parse Cypher AST e injeta `WHERE n.tenantId = $tid` em todo MATCH (analog a row-level security em SQL). Open-source: `cypher-rewriter` (community).
+4. **Apache AGE + Postgres RLS** — AGE roda em Postgres, então Postgres Row-Level Security policies aplicam. **Vantagem ENORME pra multi-tenancy** sobre Neo4j standalone.
+5. **Memgraph multi-database** (Enterprise) — similar a Neo4j; gratuito Community não tem.
+
+```cypher
+// Anti-pattern: missing tenant filter (cross-tenant leak risk)
+MATCH (u:User)-[:ORDERED]->(o:Order) RETURN u, o;
+
+// Correct: tenant-scoped
+MATCH (u:User {tenantId: $tid})-[:ORDERED]->(o:Order {tenantId: $tid}) RETURN u, o;
+```
+
+```sql
+-- AGE + Postgres RLS combo
+CREATE POLICY tenant_isolation ON ag_label.user
+  USING ((properties->>'tenantId')::uuid = current_setting('app.tenant_id')::uuid);
+```
+
+**Real impact:** SaaS B2B com graph dataset por tenant deveria escolher AGE + RLS antes de Neo4j multi-DB; ROI operacional brutal em > 100 tenants.
+
 #### Logística applied
 
 Rotas multi-stop com restrições (vehicle capacity, time windows): **Memgraph in-memory** pra pathfinding + replay de eventos via Kafka stream. Knowledge graph "couriers ↔ regions ↔ orders" em **Apache AGE** (mantém Postgres já existente, JOIN direto com tabela `orders` sem ETL). GraphRAG sobre tickets de suporte ("by similar issue") via **Neo4j 5 + LangChain** com vector index nativo.
@@ -615,7 +655,7 @@ Rotas multi-stop com restrições (vehicle capacity, time windows): **Memgraph i
 9. **Mistura Cypher dialects sem awareness** — Neo4j Cypher tem features (`CALL { ... }` subqueries, `EXISTS` patterns) que Memgraph/AGE não suportam. Portabilidade quebra silenciosamente.
 10. **Migrar Postgres → Neo4j sem benchmark** — hops rasos (1-2) com índice certo Postgres compete. Migrar "porque grafo" sem profiling vira regret operacional em 6 meses.
 
-Fontes inline: ISO/IEC 39075:2024 (GQL standard, Abril 2024); Microsoft GraphRAG paper (research blog Jul 2024); Neo4j docs 5.x; Apache AGE docs 1.5; Memgraph docs 2.x; openCypher spec.
+Fontes inline: ISO/IEC 39075:2024 (GQL standard, 12 Abr 2024); Microsoft GraphRAG paper (arXiv 2404.16130, Abr 2024); Neo4j docs 5.x; Apache AGE docs 1.5/1.6; Memgraph docs 3.x; openCypher spec.
 
 ---
 

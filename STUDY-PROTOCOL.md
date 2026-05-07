@@ -221,7 +221,7 @@ Spaced re-test transforma o framework de **certificado pontual** em **manutenç�
 
 **Cadence:** 1 paper / semana ou 1 / 2 semanas, slot fixo.
 
-**Quando começar:** opcional no Plataforma; recomendado a partir do Professional; obrigatório no Senior+.
+**Quando começar:** opcional no Plataforma; recomendado a partir do Produção; obrigatório do Sistemas em diante.
 
 **Reading list:** comece em `framework/00-meta/reading-list.md` + `elite-references.md`. Expanda no 05-04 se chegar lá.
 
@@ -232,7 +232,7 @@ Spaced re-test transforma o framework de **certificado pontual** em **manutenç�
 **Princípio:** projeto privado é prática; projeto público é investigação. Audiência (mesmo pequena) força clarity, gera feedback inesperado, e cria histórico verificável.
 
 **Procedimento:**
-- Cada Capstone (Fundamentos/Plataforma/Professional/Senior/Staff) **deve** ter pelo menos:
+- Cada Capstone (Fundamentos/Plataforma/Produção/Sistemas/Amplitude) **deve** ter pelo menos:
   - Repo público no GitHub.
   - README claro: goals, non-goals, demo, run-locally.
   - Decisões documentadas (ADRs ou decision log).

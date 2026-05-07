@@ -1,7 +1,7 @@
 # PROGRESS: Fathom
 
 **Estágio ativo:** Fundamentos
-**Módulo ativo:**: (nenhum iniciado ainda)
+**Módulo ativo:** (nenhum iniciado ainda)
 **Próximo módulo:** 01-01, Computation Model
 **Atualizado em:** 2026-04-28
 

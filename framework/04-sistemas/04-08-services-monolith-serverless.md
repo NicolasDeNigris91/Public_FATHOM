@@ -222,10 +222,16 @@ Em 2026, projetos pequenos NÃO devem fazer microservices.
 
 ### 2.18 Anti-patterns
 
-- **Distributed monolith**: serviços que compartilham DB e devem deployar juntos. Pior dos dois mundos.
-- **Chatty services**: 1 user request → 50 inter-service calls → latency e fragility.
-- **Magic glue**: API Gateway com mil rules orchestrating microservices que deveriam orchestrar via events.
-- **Service that doesn't own data**: read-only "service" que faz pass-through pro DB de outro. Vira API gateway zumbi.
+1. **Distributed monolith**: serviços que compartilham DB e devem deployar juntos. Pior dos dois mundos.
+2. **Chatty services**: 1 user request → 50 inter-service calls → latency e fragility.
+3. **Magic glue**: API Gateway com mil rules orchestrating microservices que deveriam orchestrar via events.
+4. **Service that doesn't own data**: read-only "service" que faz pass-through pro DB de outro. Vira API gateway zumbi.
+5. **Microservices extraction prematura**: dividir antes de bounded contexts estabilizarem. Fronteiras erradas viram coupling cross-service permanente — pior que monolith.
+6. **Database-per-service dogmatic**: forçar isolation total quando shared schema simplifica brutalmente (ex: 2 services que sempre fazem JOIN em `orders` + `users`). Consistency via API replaying = teatro.
+7. **Cold start ignorado em latency-sensitive endpoints**: auth, checkout, payment em Lambda Node sem provisioned concurrency → p99 1s+ no first request, conversão cai. Meça antes de servir.
+8. **Lambda chain síncrono**: Lambda A invoca Lambda B invoca Lambda C com `RequestResponse`. Cascading timeouts, custo dobrado/triplicado (cobra invocação + tempo do callee bloqueando caller), debug horrível. Use Step Functions ou EventBridge.
+9. **K8s pra startup com 5 deploys/dia**: control plane + observability stack + platform team custa $5k+/mo só pra existir. ECS/Fargate, Railway, Fly.io entregam 95% do valor com 10% do overhead nesse estágio.
+10. **Service mesh "porque é best practice"**: instalar Istio/Linkerd sem mTLS requirement real ou observability gap específica → sidecar overhead, debugging extra layer, upgrade hell. Mesh é solução pra problemas de escala (50+ services), não default arquitetural.
 
 ### 2.19 Multi-tenancy: o eixo silencioso de Logística
 

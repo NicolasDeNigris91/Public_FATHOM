@@ -207,11 +207,16 @@ Engineering blog post detalhado é proxy mais barato. Stripe, Cloudflare, Netfli
 
 ### 2.12 Anti-patterns
 
-- **Reading queue de 200 papers**: nunca ataca. Limite a 10 priorizados.
-- **Pass 3 em tudo**: queima. Maioria pass 1-2.
-- **Solo isolado**: paper club acelera 5x.
-- **Sem aplicação**: read-only, esquece. Implement ou citar em design.
-- **Trendy chasing**: novo > clássico. Foundations frequently mais válidos que latest.
+1. **Reading queue de 200 papers**: nunca ataca. Limite a 10 priorizados.
+2. **Pass 3 em tudo**: queima. Maioria pass 1-2.
+3. **Solo isolado**: paper club acelera 5x.
+4. **Sem aplicação**: read-only, esquece. Implement ou citar em design.
+5. **Trendy chasing**: novo > clássico. Foundations frequently mais válidos que latest.
+6. **Abstract + conclusion only**: pular methodology e evaluation → replica claims sem entender assumptions, dataset, hardware ou metric escolhida. Abstract vende; methodology é onde mora a verdade.
+7. **Citar pre-print não-peer-reviewed em decisão de produção sem caveats**: arXiv paper de 2 semanas com benchmark cherry-picked vira justificativa de migration. Espere replication independente ou marque explicitamente "pre-print, unverified" no ADR.
+8. **Paper reading sem reproducer no codebase**: notas em markdown decaem em 2 semanas; entendimento sem código rodando é ilusão. Implemente o cerne (Bloom filter, Raft leader election, HLL counter) — 50 LOC bastam pra fixar.
+9. **Acumular "paper backlog" indefinidamente**: 80 papers no Zotero "pra ler depois" é sinal de over-aspirational schedule, não diligence. Drop a fila, mantenha 5 ativos, archive o resto.
+10. **Confiar em paper de 1990s pra workload 2026 sem verificar assumptions**: hardware (HDD vs NVMe, single-core vs 128-core, 16GB vs 1TB RAM), scale (mil registros vs bilhões), dataset (synthetic vs real). B-tree analysis de 1979 ainda vale; cache-oblivious claims de 2003 podem não bater em CPU moderno.
 
 ### 2.13 Foundational papers que não deve faltar
 

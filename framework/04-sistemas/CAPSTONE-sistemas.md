@@ -2,7 +2,7 @@
 capstone: senior
 title: Logística v3, Distributed, Scalable, AI-Augmented
 stage: sistemas
-prereqs: [04-01, 04-02, 04-03, 04-04, 04-05, 04-06, 04-07, 04-08, 04-09, 04-10, 04-11, 04-12]
+prereqs: [04-01, 04-02, 04-03, 04-04, 04-05, 04-06, 04-07, 04-08, 04-09, 04-10, 04-11, 04-12, 04-13, 04-14, 04-15, 04-16]
 status: locked
 gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
@@ -24,6 +24,10 @@ Não é "v2 com mais features". É v2 reescrita em pontos críticos com:
 - **AI assistant** integrado de forma production-quality (04-10).
 - **Blockchain settlement** opcional, com decision document (04-11).
 - **Leadership artifacts** completos (04-12).
+- **Streaming + batch** processing real — métricas de courier/dispatch em Kafka + jobs noturnos de billing/payout (04-13).
+- **Formal methods** opcional em core invariants — TLA+ pra verificar protocol "courier-pickup-dispatch" sob race conditions (04-14).
+- **OSS maintainership** se você abrir parte do stack — `@logistica/dispatch-core` como lib pública com Apache 2.0, 3 maintainers, GitHub Actions OIDC publish + provenance attestations (04-15).
+- **Product + business + economics** internalizados — você justifica priorização de features com unit economics, não apenas "tech debt vs ship" (04-16).
 
 v3 é o sistema que você apresentaria a um VP de engineering como evidência de senioridade.
 

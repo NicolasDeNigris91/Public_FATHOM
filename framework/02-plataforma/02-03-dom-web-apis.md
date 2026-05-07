@@ -441,6 +441,8 @@ Vs IndexedDB: OPFS é byte-stream/file-handle (mmap-friendly, melhor pra SQLite 
 - OPFS `createSyncAccessHandle` fora de Worker, throws.
 - `popover="auto"` em modal de confirm de pagamento, click-outside descarta sem feedback.
 - View Transitions cross-document em domínios diferentes, spec só cobre same-origin.
+- `IntersectionObserver` em hero LCP com `rootMargin: '0px'` e `threshold: 1`, callback dispara depois do paint, perde a janela de pre-fetch e degrada LCP em vez de melhorar.
+- `MutationObserver` em `document.body` com `{ childList: true, subtree: true, attributes: true }` sem debounce em SPA grande, callback dispara milhares de vezes por segundo durante hydration; restrinja `subtree: false` ou observe nó específico + `requestIdleCallback` pra batchar.
 
 Cruza com **02-01** (CSS, `view-transition-name` + container queries), **02-02** (a11y, `prefers-reduced-motion` + popover focus management nativo), **02-04** (React 19 `useTransition` + View Transitions integration via `flushSync`), **02-05** (Next.js cross-document VT em App Router com `unstable_ViewTransition`), **03-09** (View Transitions roda no compositor, evitam relayout custom em JS).
 

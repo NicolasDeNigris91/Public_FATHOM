@@ -2,7 +2,7 @@
 capstone: professional
 title: Logística v2, Production-Ready
 stage: producao
-prereqs: [03-01, 03-02, 03-03, 03-04, 03-05, 03-06, 03-07, 03-08, 03-09, 03-10, 03-11, 03-12]
+prereqs: [03-01, 03-02, 03-03, 03-04, 03-05, 03-06, 03-07, 03-08, 03-09, 03-10, 03-11, 03-12, 03-13, 03-14, 03-15, 03-16, 03-17, 03-18]
 status: locked
 gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
@@ -23,6 +23,12 @@ Isso força você a integrar:
 - **03-08**: hardening AppSec aplicado, threat model, scanning.
 - **03-09-03-10**: perf otimizado em frente e backend, sob método.
 - **03-11-03-12**: serviços auxiliares Go/Rust quando vencem; Wasm onde encaixa.
+- **03-13**: time-series DB (TimescaleDB ou ClickHouse) pra métricas de courier/order — alvo v2 quando query analytics começar a doer em Postgres OLTP.
+- **03-14**: opcional v2; codecs e graphics não são core mas: courier app envia foto de comprovante de entrega (compress + AVIF antes upload).
+- **03-15**: incident response real — runbooks pra "courier offline", "Redis lag", "DB out", "auth provider down". Postmortem de 1 incidente sintético com 5 whys.
+- **03-16**: estimation/planning aplicado a próximas features v2 — story points calibrados, capacity planning, risco arquitetural documentado.
+- **03-17**: a11y testing automatizado (axe-playwright) em PR check + manual SR run por release; dashboard a11y violations por route.
+- **03-18**: cognitive a11y aplicada em UX courier (alta carga cognitiva por design — simplifica fluxos tap-heavy).
 
 v2 não é "v1 com mais features". É v1 com **operability**.
 
