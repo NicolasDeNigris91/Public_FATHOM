@@ -564,6 +564,252 @@ Cruza com **02-18 §2.19** (webhook security + reconciliation patterns), **04-16
 
 ---
 
+### 2.21 Payment ledger production 2026 — double-entry deep, reconciliation idempotente, dispute automation, BNPL
+
+§2.6 mostrou double-entry ledger intro, §2.8 disputes basics, §2.9 3DS/SCA basics, §2.15 reconciliation basics, §2.20 PIX deep + Stripe Connect marketplace. §2.21 é o **production patterns deep**: ledger consistency em escala (journal entries imutáveis com debit=credit invariant), reconciliation **idempotente** com settlement file diário do PSP, dispute automation 2026 (Stripe Radar ML + Chargeflow/Justt managed services, win rate 30-50% vs 10-15% manual), 3DS2/PSD2 SCA exemption flags, e BNPL integration (Klarna, Affirm, Afterpay, Pix Parcelado BR Q3 2024).
+
+**Princípio fundamental**: ledger é **source of truth do dinheiro**. PSP (Stripe, Adyen, Pagar.me) é só o **rail**. Ledger interno reconcilia com PSP **diariamente**. Discrepância > 0.1% do volume = pager. Dispute manual em scale = lose by default — automação é diferencial 2026.
+
+**Double-entry ledger production**:
+
+```sql
+-- Accounts: chart of accounts hierarchy (asset/liability/revenue/expense)
+CREATE TABLE accounts (
+  id           BIGSERIAL PRIMARY KEY,
+  code         TEXT UNIQUE NOT NULL,         -- '1100-cash-stripe', '2100-merchant-payable'
+  name         TEXT NOT NULL,
+  kind         TEXT NOT NULL CHECK (kind IN ('asset','liability','revenue','expense','equity')),
+  currency     CHAR(3) NOT NULL,             -- 'USD', 'BRL', 'EUR'
+  parent_id    BIGINT REFERENCES accounts(id),
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Journals: container for N entries that must balance (sum debits = sum credits)
+CREATE TABLE journals (
+  id           BIGSERIAL PRIMARY KEY,
+  external_id  TEXT UNIQUE NOT NULL,         -- 'stripe:pi_xxx' or 'pix:e2e_xxx', idempotency anchor
+  description  TEXT NOT NULL,
+  occurred_at  TIMESTAMPTZ NOT NULL,
+  posted_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Entries: imutáveis, append-only, em centavos (BIGINT) ou DECIMAL(19,4)
+CREATE TABLE entries (
+  id           BIGSERIAL PRIMARY KEY,
+  journal_id   BIGINT NOT NULL REFERENCES journals(id),
+  account_id   BIGINT NOT NULL REFERENCES accounts(id),
+  debit_cents  BIGINT NOT NULL DEFAULT 0,
+  credit_cents BIGINT NOT NULL DEFAULT 0,
+  currency     CHAR(3) NOT NULL,
+  CHECK (debit_cents >= 0 AND credit_cents >= 0),
+  CHECK ((debit_cents > 0) <> (credit_cents > 0))  -- exactly one of debit/credit > 0
+);
+
+CREATE INDEX idx_entries_account ON entries(account_id);
+CREATE INDEX idx_entries_journal ON entries(journal_id);
+
+-- Trigger: enforce debit total = credit total per journal (after insert all entries)
+CREATE OR REPLACE FUNCTION enforce_balanced_journal() RETURNS TRIGGER AS $$
+DECLARE
+  total_debit BIGINT;
+  total_credit BIGINT;
+BEGIN
+  SELECT COALESCE(SUM(debit_cents),0), COALESCE(SUM(credit_cents),0)
+    INTO total_debit, total_credit
+    FROM entries WHERE journal_id = NEW.journal_id;
+  IF total_debit <> total_credit THEN
+    RAISE EXCEPTION 'unbalanced journal %: debit=% credit=%', NEW.journal_id, total_debit, total_credit;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+-- Note: enforce via DEFERRED constraint trigger ou via aplicação (commit transaction-level)
+
+-- Materialized view: account balance (refresh on schedule ou via event-driven CDC)
+CREATE MATERIALIZED VIEW account_balances AS
+  SELECT account_id, currency,
+         SUM(debit_cents) - SUM(credit_cents) AS balance_cents
+    FROM entries
+   GROUP BY account_id, currency;
+```
+
+**Exemplo de cobrança Stripe ($100 venda, fee $3, net $97)**:
+
+```sql
+-- Journal externa_id = 'stripe:pi_3OabcXYZ' (idempotency)
+INSERT INTO journals(external_id, description, occurred_at)
+  VALUES ('stripe:pi_3OabcXYZ', 'Sale order #1234', '2026-05-07 10:00:00Z')
+  RETURNING id;  -- assume id=42
+
+-- 4 entries balanced: $100 = $100
+-- Debit Cash-Stripe (asset+) $97, Debit Stripe-Fee (expense+) $3, Credit Revenue $100
+INSERT INTO entries(journal_id, account_id, debit_cents, credit_cents, currency) VALUES
+  (42, /*1100-cash-stripe*/, 9700, 0, 'USD'),
+  (42, /*5100-stripe-fee*/,   300, 0, 'USD'),
+  (42, /*4100-revenue*/,        0, 10000, 'USD');
+-- Total debit = 10000, total credit = 10000. Balanced.
+```
+
+**Idempotent reconciliation algorithm** (cron diário 06:00 UTC):
+
+```typescript
+// 1. Fetch settlement file from PSP (Stripe payouts API, NACHA ACH file, PIX RECP)
+const payouts = await stripe.payouts.list({ created: { gte: yesterday } });
+
+for (const payout of payouts.data) {
+  const balanceTxns = await stripe.balanceTransactions.list({ payout: payout.id });
+
+  for (const btxn of balanceTxns.data) {
+    // 2. SELECT matching ledger journal by external_id (idempotent)
+    const externalId = `stripe:${btxn.source}`;  // pi_xxx, ch_xxx, re_xxx
+    const journal = await db.query(
+      'SELECT id FROM journals WHERE external_id = $1', [externalId]
+    );
+
+    if (!journal.rows.length) {
+      mismatchReport.push({ kind: 'missing_in_ledger', externalId, amount: btxn.amount });
+      continue;
+    }
+
+    // 3. Verify amounts match (PSP says $97 net, ledger says $97 net?)
+    const ledgerNet = await db.query(
+      `SELECT SUM(debit_cents) FROM entries
+        WHERE journal_id = $1 AND account_id = (SELECT id FROM accounts WHERE code='1100-cash-stripe')`,
+      [journal.rows[0].id]
+    );
+    if (ledgerNet.rows[0].sum !== btxn.net) {
+      mismatchReport.push({ kind: 'amount_drift', externalId, psp: btxn.net, ledger: ledgerNet.rows[0].sum });
+    }
+  }
+}
+
+// 4. Alert if mismatch > $X absolute or > 0.1% of volume
+const totalVolume = payouts.data.reduce((s, p) => s + p.amount, 0);
+const mismatchValue = mismatchReport.reduce((s, m) => s + Math.abs(m.amount ?? 0), 0);
+if (mismatchValue > 10000_00 || mismatchValue / totalVolume > 0.001) {
+  await pagerDuty.trigger({ severity: 'high', summary: 'Stripe reconciliation drift', report: mismatchReport });
+}
+```
+
+**3DS2/PSD2 SCA com exemption flags** — mandatory EU desde Sep 2019; chargeback liability shifta pro issuer se 3DS2 challenged:
+
+```typescript
+// PaymentIntent off_session com setup_future_usage (mandate stored)
+const intent = await stripe.paymentIntents.create({
+  amount: 2999,                           // €29.99
+  currency: 'eur',
+  customer: 'cus_xxx',
+  payment_method: 'pm_xxx',
+  off_session: true,                      // recurring/MIT — exemption candidate
+  confirm: true,
+  setup_future_usage: 'off_session',      // store mandate for future MIT
+  payment_method_options: {
+    card: {
+      request_three_d_secure: 'automatic',  // Stripe decides 3DS2 ou exemption
+      // Stripe automaticamente requesta exemption se aplicável:
+      // - low_value (<€30 single, <€100 cumulative 24h)
+      // - trusted_beneficiary (whitelisted by issuer)
+      // - recurring (subscription MIT, mandate previously authenticated)
+      // - secure_corporate_payment (B2B virtual cards)
+    },
+  },
+});
+// Se issuer rejeita exemption → step-up challenge automático.
+// Se aceita → frictionless, customer não vê nada.
+```
+
+**Dispute automation (Stripe Radar + Chargeflow/Justt)** — chargeback win rate sem automação 10-15%; com Radar+Chargeflow 30-50%:
+
+```typescript
+// Webhook: charge.dispute.created
+app.post('/webhooks/stripe', async (req, res) => {
+  const event = stripe.webhooks.constructEvent(req.body, req.headers['stripe-signature']!, WHSEC);
+
+  if (event.type === 'charge.dispute.created') {
+    const dispute = event.data.object as Stripe.Dispute;
+
+    // Opção 1: Chargeflow/Justt managed (auto-fight, 30-50% win rate, % do recovered)
+    await chargeflow.disputes.submit({
+      dispute_id: dispute.id,
+      stripe_charge_id: dispute.charge as string,
+      // Chargeflow puxa automaticamente: shipping tracking, customer comm logs,
+      // device fingerprint, AVS/CVV match, Radar score, refund policy, etc.
+    });
+
+    // Opção 2: Auto-fight DIY (worse win rate, mas zero fee)
+    // await stripe.disputes.update(dispute.id, {
+    //   evidence: {
+    //     receipt: receiptUrl,
+    //     shipping_tracking_number: trackingNum,
+    //     shipping_carrier: 'USPS',
+    //     customer_signature: signatureFile,
+    //     uncategorized_text: 'Customer received product on 2026-05-01, signed on delivery.',
+    //   },
+    //   submit: true,
+    // });
+  }
+
+  res.sendStatus(200);
+});
+```
+
+**B2B high-value (>$10k)** vale white-glove manual; B2C volume → Chargeflow/Justt.
+
+**BNPL integration (Klarna, Affirm, Afterpay/Clearpay)** — redirect flow + webhook callback:
+
+```typescript
+// 1. Create PaymentIntent com payment_method_types=['klarna']
+const intent = await stripe.paymentIntents.create({
+  amount: 25000, currency: 'usd',
+  payment_method_types: ['klarna'],
+  payment_method_data: { type: 'klarna', billing_details: { email, address } },
+  return_url: 'https://logistica.example/checkout/return',
+  confirm: true,
+});
+// intent.next_action.redirect_to_url.url → redirect customer pra Klarna
+// Customer aprova installments na Klarna → return ao return_url
+// Webhook: payment_intent.succeeded chega quando Klarna confirma
+
+// 2. Webhook handler com idempotency check
+app.post('/webhooks/stripe', async (req, res) => {
+  const event = stripe.webhooks.constructEvent(req.body, req.headers['stripe-signature']!, WHSEC);
+  if (event.type === 'payment_intent.succeeded') {
+    const pi = event.data.object as Stripe.PaymentIntent;
+    // Idempotency: external_id = pi.id, INSERT ... ON CONFLICT DO NOTHING
+    await ledger.recordSale({ externalId: pi.id, amount: pi.amount, currency: pi.currency });
+  }
+  res.sendStatus(200);
+});
+```
+
+**Pix Parcelado** (BR, Q3 2024) — installments via PIX, settlement aggregated by acquirer; no Brasil, Pagar.me/Stripe BR/Mercado Pago suportam. Ledger registra valor total na venda + entries de receivable diferido.
+
+**FX/multi-currency settlement** — PSP settles na sua account currency (FX margin embutida 1-2% sobre mid-market). Alternativa: maintain multi-currency Stripe accounts (USD, EUR, BRL) → settlement nativo, sem FX roundtrip. Ledger separa contas por currency (`accounts.currency`) e P&L de FX em conta dedicada (`5200-fx-loss`).
+
+**Stack Logística aplicada**:
+- Postgres ledger com `journals.external_id` UNIQUE = idempotency anchor (Stripe `pi_xxx`, PIX `e2e_id`, Pagar.me `tran_xxx`).
+- PSP webhook → outbox event → consumer worker insere journal+entries em transação (debit=credit enforced via app + DEFERRED constraint).
+- Cron diário 06:00 UTC: reconciliation Stripe payout vs sum de entries em `1100-cash-stripe`. Discrepância > 0.1% volume → PagerDuty.
+- Marketplace dispute via Chargeflow integration (split de evidence: lojista aporta proof, plataforma submete via API).
+- Pix Parcelado para tickets > R$500 (entregas premium, equipment rental).
+- Multi-currency: USD para Stripe US, BRL para Pagar.me/Pix. FX P&L em conta separada, reconciliado mensalmente com câmbio do dia.
+
+**10 anti-patterns**:
+1. Ledger em FLOAT/DOUBLE (precisão perdida; use `BIGINT cents` ou `DECIMAL(19,4)`).
+2. Single-entry ledger (sem audit trail; sem invariant debit=credit; balance verifica nada).
+3. Reconciliation manual via Excel (drift permanente; humano não acha 0.05% de discrepância em 50k linhas).
+4. Dispute response manual em volume B2C (lose by default; window de 7-21 dias; sem automação = win rate 10-15%).
+5. 3DS2 desabilitado em transação EU (PSD2 violation; chargeback liability fica com você, não com issuer).
+6. BNPL webhook sem idempotency check (`payment_intent.succeeded` chega 2x → double-credit no ledger).
+7. SCA exemption requested para high-value (>€30 declinada automaticamente; só `low_value` <€30, `trusted_beneficiary`, `recurring` MIT, `corporate`).
+8. PSP webhook handler sem replay window check + signature verification (replay attack credita 2x; Stripe header `Stripe-Signature` com timestamp ±5min).
+9. FX margin não-tracked em ledger (P&L de câmbio invisible; reconciliation drift cresce silenciosamente).
+10. BNPL pagamento parcial não-handled (gateway retorna `partially_paid` ou `partial_capture` — ledger inconsistente se assume binário paid/unpaid).
+
+**Cruza com**: 02-18 §2.4 (webhooks foundation), §2.6 (double-entry ledger intro), §2.7 (refunds), §2.8 (disputes basics), §2.9 (3DS/SCA basics), §2.13 (marketplaces split payments), §2.15 (reconciliation basics), §2.19 (webhook security + reconciliation), §2.20 (PIX integration + Stripe Connect), 02-09 §2.13 (logical replication for ledger CDC), 04-03 §2.19 (Outbox pattern from PSP webhook to ledger), 04-04 §2.30 (DR for payment systems), 03-08 §2.23 (security supply chain — PSP SDK), 04-16 §2.21 (SaaS pricing — ledger drives revenue recognition).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:
