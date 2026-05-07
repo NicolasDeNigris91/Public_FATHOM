@@ -562,6 +562,251 @@ Cruza com **04-10 §2.21** (RAG architectures, embedding pipelines, RAGAS), **02
 
 ---
 
+### 2.20 Vector search production deep 2026 — pgvector 0.8, Qdrant 1.12, Pinecone serverless, hybrid RRF, rerankers, MMR, Matryoshka
+
+Vector-only search é demo. Production em 2026 é **stack composto**: dense retrieval (HNSW) + sparse retrieval (BM25) fundido via RRF, rerank cross-encoder no top-50-100, MMR pra diversidade, embedding versionado com migration A/B, dimensão truncada via Matryoshka pra cortar custo. §2.5/§2.6/§2.7 cobriram fundação; aqui é o nível operacional: tuning de índice, latência p99, custo por 1M queries, drift de modelo.
+
+#### Index types — comparison real 2026
+
+| Tipo       | Recall@10 | Latency p99 (10M vec) | Memory     | Build time | Update    | Quando usar                          |
+|------------|-----------|------------------------|------------|------------|-----------|--------------------------------------|
+| Flat exact | 1.00      | 200-2000ms             | 4×N×D bytes| instant    | instant   | <100k vectors, exact required        |
+| IVFFlat    | 0.85-0.92 | 20-80ms                | ~1.0× flat | minutos    | rápido    | corpus estático médio (1-10M)        |
+| IVFPQ      | 0.75-0.88 | 10-30ms                | 0.05-0.2×  | minutos    | rápido    | budget-constrained, recall tolerante |
+| **HNSW**   | 0.95-0.99 | 5-20ms                 | 1.5-2× flat| horas      | médio     | **default produção 2026**            |
+| ScaNN      | 0.93-0.98 | 3-15ms                 | 0.3-0.5×   | horas      | lento     | Google scale, read-heavy             |
+
+HNSW vence em 90% dos casos: recall alto, latência baixa, update online. Custo: memória + build time.
+
+#### HNSW tuning — knobs que importam
+
+Três parâmetros, três trade-offs:
+
+- **`M`** (graph degree, conexões por nó): 8-64. Default seguro: **16-32**. M=4 é toy; M=64 explode memória sem ganho de recall em datasets <100M.
+- **`ef_construction`** (candidatos durante build): 64-512. Default: **200**. Maior = build mais lento, recall melhor permanente. One-time cost.
+- **`ef_search`** (candidatos durante query): 40-500. **Knob runtime** que troca latência por recall. Comece em 100; ajuste pra hit recall@10 ≥ 0.95.
+
+```sql
+-- pgvector 0.8 (Q1 2026): HNSW + halfvec (16-bit float, 50% memory) + sparsevec
+CREATE EXTENSION IF NOT EXISTS vector;
+
+ALTER TABLE products ADD COLUMN embedding halfvec(1024);  -- voyage-3 truncado via MRL
+
+CREATE INDEX products_embedding_hnsw
+  ON products
+  USING hnsw (embedding halfvec_cosine_ops)
+  WITH (m = 32, ef_construction = 200);
+
+-- query time: ajusta ef_search por sessão
+SET LOCAL hnsw.ef_search = 100;
+
+SELECT id, name, 1 - (embedding <=> $1::halfvec) AS score
+FROM products
+WHERE tenant_id = $2 AND active = true
+ORDER BY embedding <=> $1::halfvec
+LIMIT 50;
+```
+
+```python
+# Qdrant 1.12 — collection com HNSW config explícito
+from qdrant_client import QdrantClient
+from qdrant_client.models import VectorParams, Distance, HnswConfigDiff
+
+client = QdrantClient(url="https://qdrant.internal", api_key=os.environ["QDRANT_KEY"])
+
+client.create_collection(
+    collection_name="orders_semantic",
+    vectors_config=VectorParams(
+        size=1024,
+        distance=Distance.COSINE,
+        on_disk=True,  # offload pra reduzir RAM
+    ),
+    hnsw_config=HnswConfigDiff(m=32, ef_construct=200, full_scan_threshold=10_000),
+)
+```
+
+```python
+# Pinecone serverless (GA 2024) — pay-per-query, sem ops
+from pinecone import Pinecone, ServerlessSpec
+
+pc = Pinecone(api_key=os.environ["PINECONE_KEY"])
+pc.create_index(
+    name="orders-semantic",
+    dimension=1024,
+    metric="cosine",
+    spec=ServerlessSpec(cloud="aws", region="us-east-1"),
+)
+# custo: $0.33/M write units + $0.55/M read units; sem cluster pra gerenciar
+```
+
+#### Hybrid search — RRF (Reciprocal Rank Fusion)
+
+Dense (semantic) e sparse (BM25) cobrem buracos diferentes: dense pega sinônimo/intent, sparse pega termo raro/SKU/ERROR_CODE. Fusão via **RRF** é o padrão 2026 — sem normalização de score, robusto a escalas distintas:
+
+```
+RRF(d) = Σ 1 / (k + rank_i(d))
+```
+
+`k=60` é o default empírico (paper Cormack 2009). k baixo (k=1) vira top-rank winner-takes-all; k alto suaviza demais.
+
+```sql
+-- pgvector + tsvector fundidos via RRF (k=60)
+WITH dense AS (
+  SELECT id, ROW_NUMBER() OVER (ORDER BY embedding <=> $1::halfvec) AS rank
+  FROM products
+  WHERE tenant_id = $2
+  ORDER BY embedding <=> $1::halfvec
+  LIMIT 100
+),
+sparse AS (
+  SELECT id, ROW_NUMBER() OVER (ORDER BY ts_rank_cd(search_vec, query) DESC) AS rank
+  FROM products, plainto_tsquery('portuguese', $3) query
+  WHERE tenant_id = $2 AND search_vec @@ query
+  ORDER BY ts_rank_cd(search_vec, query) DESC
+  LIMIT 100
+)
+SELECT
+  COALESCE(d.id, s.id) AS id,
+  COALESCE(1.0 / (60 + d.rank), 0) + COALESCE(1.0 / (60 + s.rank), 0) AS rrf_score
+FROM dense d
+FULL OUTER JOIN sparse s USING (id)
+ORDER BY rrf_score DESC
+LIMIT 50;
+```
+
+#### Rerankers 2026 — quando cada um
+
+Bi-encoder (embedding) é rápido mas grosseiro; **cross-encoder reranker** olha (query, doc) juntos e dá score calibrado. Aplique **só no top-50-100** — rerank em top-1000 é latency suicide (cada chamada ~50-200ms pra 50 docs).
+
+| Reranker            | Latência (50 docs) | Custo / 1k searches | Quando                            |
+|---------------------|--------------------|----------------------|-----------------------------------|
+| Cohere Rerank 3.5   | 80-150ms           | ~$2.00              | default produção, multilíngue PT  |
+| Voyage rerank-2     | 60-120ms           | ~$0.50              | budget, qualidade similar         |
+| Jina reranker v2    | 70-130ms           | self-host           | data residency strict             |
+| BGE-reranker-v2-m3  | 100-300ms (GPU)    | self-host GPU       | volume alto, control total        |
+
+```python
+# Cohere Rerank 3.5
+import cohere
+co = cohere.Client(os.environ["COHERE_KEY"])
+
+result = co.rerank(
+    model="rerank-3.5",
+    query=user_query,
+    documents=[d.text for d in candidates[:50]],
+    top_n=10,
+)
+reranked = [candidates[r.index] for r in result.results]
+```
+
+```python
+# Voyage rerank-2
+import voyageai
+vo = voyageai.Client(api_key=os.environ["VOYAGE_KEY"])
+
+result = vo.rerank(
+    query=user_query,
+    documents=[d.text for d in candidates[:50]],
+    model="rerank-2",
+    top_k=10,
+)
+```
+
+#### MMR (Maximal Marginal Relevance) — diversidade contra near-duplicates
+
+Top-10 com 8 variantes do mesmo produto é UX ruim. MMR reordena pra balancear relevância vs diversidade:
+
+```
+MMR = argmax_d∈R [ λ · sim(d, q) − (1−λ) · max_{d'∈S} sim(d, d') ]
+```
+
+`λ=0.7` típico (70% relevância, 30% diversidade). Quando usar: catálogos com muitas variantes (cor/tamanho), notícias (mesma matéria de fontes diferentes), evitar echo chamber em recommendation.
+
+```python
+def mmr(query_vec, doc_vecs, docs, top_k=10, lambda_=0.7):
+    selected, selected_idx = [], set()
+    while len(selected) < top_k and len(selected) < len(docs):
+        best_score, best_i = -1e9, -1
+        for i, dv in enumerate(doc_vecs):
+            if i in selected_idx:
+                continue
+            relevance = cosine(query_vec, dv)
+            redundancy = max((cosine(dv, doc_vecs[j]) for j in selected_idx), default=0)
+            score = lambda_ * relevance - (1 - lambda_) * redundancy
+            if score > best_score:
+                best_score, best_i = score, i
+        selected.append(docs[best_i]); selected_idx.add(best_i)
+    return selected
+```
+
+#### Embedding drift — model migration sem outage
+
+Trocar `text-embedding-3-small` por `voyage-3` invalida 100% do índice (vetores não são comparáveis entre modelos, dimensões e geometrias diferentes). Estratégia produção:
+
+1. **Versionar coluna**: `embedding_v1 vector(1536)`, `embedding_v2 halfvec(1024)`. Mantenha ambas durante migração.
+2. **Backfill assíncrono**: worker re-embeda corpus inteiro com modelo novo; throttle pra não saturar API.
+3. **A/B index**: 5% do tráfego consulta v2, mede recall@10, NDCG@10, click-through. 24-72h shadow.
+4. **Cutover atômico**: feature flag por tenant; rollback em <60s se métrica degrada.
+5. **Drop coluna velha** só após 14 dias de baseline estável.
+
+Nunca faça swap in-place sem reindex — pgvector/Qdrant aceitam dimensões erradas silently se schema permite, recall colapsa pra ~0.
+
+#### Matryoshka MRL — truncate dim sem perder recall
+
+**Matryoshka Representation Learning**: o modelo é treinado pra que os primeiros N dims já carreguem a maior parte da informação. OpenAI `text-embedding-3-large` (3072 dims), Voyage `voyage-3` (1024), Nomic `nomic-embed-v1.5` suportam. Truncate 3072 → 256 mantém **~95% do recall** com **12x menos memória** e ~2x mais throughput de query.
+
+```python
+import numpy as np
+
+def truncate_mrl(embedding: np.ndarray, target_dim: int = 256) -> np.ndarray:
+    truncated = embedding[:target_dim]
+    return truncated / np.linalg.norm(truncated)  # re-normalize obrigatório
+```
+
+Combine com `halfvec` (16-bit) no pgvector: 3072 fp32 (12 KB) → 256 fp16 (512 bytes) = **24x reduction**. Em catálogo de 50M produtos: 600 GB → 25 GB, RAM-friendly.
+
+#### Decision matrix — pgvector vs Qdrant vs Pinecone
+
+| Critério            | pgvector 0.8                     | Qdrant 1.12                      | Pinecone serverless              |
+|---------------------|----------------------------------|----------------------------------|----------------------------------|
+| Custo (10M vec)     | $0 extra (Postgres existente)    | $200-500/mês (cluster)           | $50-300/mês (pay-per-query)      |
+| Ops                 | mesmo Postgres (zero novo)       | cluster próprio ou Qdrant Cloud  | zero (managed)                   |
+| Filtros relacionais | nativos (JOIN, WHERE)            | payload filters (limitado)       | metadata filters (limitado)      |
+| Scale ceiling       | 10-50M vectors confortável       | 100M-1B+                         | ilimitado                        |
+| Multi-tenant        | RLS + partial index              | collections por tenant           | namespaces                       |
+| Hybrid native       | sim (tsvector + RRF SQL)         | sim (sparse + dense BM25)        | sim (hybrid endpoint)            |
+| Quando              | <50M vec, Postgres já em prod    | scale + control, on-prem         | spike-y workload, sem time DBA   |
+
+Default 2026 pra Logística-scale (10-50M orders): **pgvector**. Cresce pra 100M+ ou exige sub-10ms p99 global: **Qdrant** ou **Pinecone**.
+
+#### Logística applied stack — semantic order search
+
+- **Corpus**: 30M orders, embedding `voyage-3` truncado MRL → 512 dims, halfvec.
+- **Index**: pgvector HNSW (M=32, ef_construction=200), partial index por `tenant_id`.
+- **Retrieval**: dense top-100 + tsvector BM25 top-100 → RRF k=60 → top-50.
+- **Rerank**: Cohere Rerank 3.5 no top-50 → top-10.
+- **MMR**: λ=0.6 pra evitar 5 orders do mesmo cliente dominando topo.
+- **Latência total p99**: ~180ms (HNSW 15ms + tsvector 20ms + RRF 5ms + rerank 130ms + MMR 10ms).
+- **Custo**: 100k searches/dia × $0.002 rerank × 0.4 cache miss ≈ $80/dia ≈ $2.4k/mês; cache hit 70% → efetivo ~$700/mês.
+- **Drift watch**: NDCG@10 em golden set (500 queries) rodado nightly; alerta se cai >3%.
+
+#### Anti-patterns observados
+
+- **HNSW M=4 default em 100M+ vectors** — recall <0.85; M=16-32 é mínimo viável.
+- **`ef_search` baixo em prod** (ex: 40) — recall <0.90 silencioso; ajuste pra hit recall@10 ≥ 0.95 em golden set.
+- **Rerank em top-1000** — latency explode (rerank é O(n) cross-encoder); cap em **top-25-100**.
+- **Cosine vs dot product mismatch** sem normalize — vetores não-normalizados em índice cosine: scores corretos, ranking errado silencioso.
+- **Embedding model swap sem reindex completo** — vetores incomparáveis, recall colapsa pra ~0; sempre A/B com index paralelo.
+- **Ignorando MRL em 2026** — `text-embedding-3-large` 3072 dims full em catálogo grande = 3-12x storage waste evitável.
+- **RRF k=1 ou k=∞** — k=1 vira top-rank winner-takes-all; k>500 achata fusion. Default k=60.
+- **BM25 ausente em "hybrid"** — só dense perde recall em SKU/ERROR_CODE/nomes próprios; rare-term holes.
+- **Sem golden dataset versionado** — toda mudança (modelo, ef_search, rerank) precisa NDCG@10 / recall@10 antes/depois; sem isso, voar cego.
+- **Reranker no hot path sem timeout/fallback** — Cohere fora do ar = search inteira morre; cap 250ms, fallback pra ranking RRF puro.
+
+Cruza com **§2.5 / §2.6 / §2.7** (vector embeddings, ANN, hybrid intro), **§2.19** (LLM-augmented search, query understanding), **02-09 §2.18** (pgvector como Postgres extension, partial indexes), **04-10 §2.8 / §2.21** (RAG retrieval foundation, RAG architectures + RAGAS), **03-07** (search observability, ranker A/B, NDCG tracking), **04-09** (scaling embedding pipeline, batch backfill cost).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

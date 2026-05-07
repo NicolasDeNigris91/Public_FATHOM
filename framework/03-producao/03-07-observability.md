@@ -424,6 +424,252 @@ Cruza com **02-07** (Node, ordem de `--require` importa pra patches), **02-08** 
 
 ---
 
+### 2.21 OpenTelemetry 1.40 production deep — semconv estável, Collector pipelines, profiling correlation
+
+OpenTelemetry virou de fato o padrão de instrumentação multi-vendor. Spec 1.40 (Q1 2026) consolida o que ficou anos em "experimental": HTTP semantic conventions estáveis (`http.request.method`, `http.response.status_code`, `url.full`), messaging semconv estável (Kafka/RabbitMQ/SQS attributes padronizados), e Collector contrib v0.110+ com processors maduros pra tail sampling, k8s enrichment, transform. Backends (Tempo, Jaeger 2.x, Datadog, Honeycomb, New Relic) consomem OTLP nativo. Vendor lock-in de instrumentação morreu — a SDK fica, o backend troca.
+
+Esta seção é production deep: como montar Collector em pipeline robusto (receivers → processors → exporters), tail sampling sério (não "amostra 1%", mas "guarda 100% dos erros + P99 lentos + 1% do resto"), exemplars ligando metric spike a trace exato, continuous profiling 2026 (Pyroscope/Parca/Grafana Profiles) correlacionado a span_id via eBPF stack collection.
+
+#### Semantic conventions estáveis (semconv v1.30, 2026)
+
+Antes da 1.40 cada vendor mapeava do jeito dele. Agora HTTP server/client têm attributes congelados:
+
+```
+http.request.method         = "GET" | "POST" | ...
+http.response.status_code   = 200 | 500 | ...
+url.full                    = "https://api.x.com/v2/orders?status=paid"
+url.path                    = "/v2/orders"
+url.scheme                  = "https"
+server.address              = "api.x.com"
+server.port                 = 443
+network.protocol.version    = "1.1" | "2" | "3"
+http.route                  = "/v2/orders/:id"   # template, não path raw (cardinality)
+```
+
+`http.route` é o killer pra metrics — usar `url.path` raw em label de Prometheus = explosão de cardinalidade (`/users/1`, `/users/2`, ... = N séries). Sempre coletar `http.route` (template) pra metrics, `url.full` só em traces (alta card aceitável lá).
+
+Messaging semconv estável: `messaging.system` (`kafka`, `rabbitmq`, `aws_sqs`), `messaging.destination.name` (topic/queue), `messaging.operation.type` (`publish`, `receive`, `process`), `messaging.kafka.consumer.group`. Span links ligam o producer span ao consumer span através de OTel context propagation no header `traceparent`.
+
+#### Collector pipeline anatomy
+
+Collector é proxy + ETL pra telemetria. Roda como sidecar, agent (DaemonSet) ou gateway (Deployment com HA). Pipeline = receivers → processors → exporters, declarado em YAML. Config production-ready pra fleet Node em K8s:
+
+```yaml
+# otel-collector-contrib v0.110+ (2026)
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+        max_recv_msg_size_mib: 16
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # 1. Detecta resource (cloud, host, k8s)
+  resourcedetection:
+    detectors: [env, system, ec2, eks]
+    timeout: 2s
+    override: false
+
+  # 2. Enrich com k8s metadata (pod, namespace, deployment)
+  k8sattributes:
+    auth_type: serviceAccount
+    passthrough: false
+    extract:
+      metadata:
+        - k8s.namespace.name
+        - k8s.pod.name
+        - k8s.deployment.name
+        - k8s.node.name
+      labels:
+        - tag_name: app.version
+          key: version
+          from: pod
+
+  # 3. Filtra noise (health checks)
+  filter/healthchecks:
+    error_mode: ignore
+    traces:
+      span:
+        - 'attributes["http.route"] == "/healthz"'
+        - 'attributes["http.route"] == "/readyz"'
+
+  # 4. Tail sampling — decisão APÓS trace completo
+  tail_sampling:
+    decision_wait: 30s          # buffer 30s pra trace montar
+    num_traces: 100000          # max in-memory traces (OOM guard)
+    expected_new_traces_per_sec: 5000
+    policies:
+      - name: errors-always
+        type: status_code
+        status_code: { status_codes: [ERROR] }
+      - name: slow-traces
+        type: latency
+        latency: { threshold_ms: 1000 }
+      - name: critical-tenants
+        type: string_attribute
+        string_attribute:
+          key: tenant.tier
+          values: [enterprise, premium]
+      - name: probabilistic-rest
+        type: probabilistic
+        probabilistic: { sampling_percentage: 1.0 }
+
+  # 5. Span metrics — gera RED metrics (rate/errors/duration) DOS traces
+  spanmetrics:
+    metrics_exporter: prometheusremotewrite
+    dimensions:
+      - name: http.route
+      - name: http.response.status_code
+      - name: service.name
+    histogram:
+      explicit:
+        buckets: [10ms, 50ms, 100ms, 250ms, 500ms, 1s, 2s, 5s]
+
+  # 6. Batch (sempre por último antes do export)
+  batch:
+    timeout: 5s
+    send_batch_size: 10000
+    send_batch_max_size: 11000
+
+exporters:
+  otlphttp/tempo:
+    endpoint: https://tempo.obs.svc:4318
+    compression: gzip
+    sending_queue:
+      enabled: true
+      num_consumers: 10
+      queue_size: 5000
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 5m
+
+  prometheusremotewrite:
+    endpoint: https://prometheus.obs.svc/api/v1/write
+    resource_to_telemetry_conversion: { enabled: true }
+
+service:
+  extensions: [health_check, pprof]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [resourcedetection, k8sattributes, filter/healthchecks, tail_sampling, spanmetrics, batch]
+      exporters: [otlphttp/tempo]
+    metrics:
+      receivers: [otlp]
+      processors: [resourcedetection, k8sattributes, batch]
+      exporters: [prometheusremotewrite]
+  telemetry:
+    metrics:
+      level: detailed
+      address: 0.0.0.0:8888
+```
+
+Ordem dos processors importa. `k8sattributes` antes do `tail_sampling` (precisa do attribute pra policy decidir). `batch` SEMPRE por último (agrupa pré-export, reduz round-trips). `spanmetrics` ANTES de `batch` (gera metrics derivadas dos spans pré-export).
+
+#### Tail sampling deep
+
+Head sampling (decisão no client antes do span existir) é cego — perde 99% das traces antes de saber se deu erro. Tail sampling (decisão no Collector após trace completo) é caro mas inteligente. Trade-off:
+
+- **decision_wait** (30s típico): tempo que Collector espera pra ter "todos" os spans do trace. Trace mais longo que isso = decisão incompleta. Aumentar custa memória.
+- **num_traces** (100k): max traces em buffer in-memory. OOM guard. Em traffic spike (100k traces/s × 30s = 3M traces se não capar) o Collector morre sem isso.
+- **expected_new_traces_per_sec**: hint pra pré-alocar hashmap. Errar pra menos = realloc constante.
+
+Policies compõem (OR lógico): se QUALQUER policy diz "keep", o trace fica. Padrão saudável: `errors-always` + `latency > P99` + `1% probabilistic baseline`. Em multi-tenant, adicionar policy por tier (enterprise = 100%, free = 0.1%).
+
+Custo: tail sampling Collector dimensionado pra ~50k spans/s por instance com 8GB RAM. Acima disso, sharding por trace_id (load balancer com `routing_key=traceID` no `loadbalancing` exporter, garante todos spans de um trace caem na mesma instance).
+
+#### Exemplars — ligando metric a trace
+
+Exemplar é attribute opcional num metric point apontando trace_id+span_id de UMA execução exemplar daquele bucket. Histogram `http.server.duration` no bucket `[1s, 2.5s]` carrega exemplar `trace_id=abc123` — clica no spike P99 do Grafana, abre o trace exato no Tempo. Um clique entre "métrica está ruim" e "este request específico foi ruim por isso".
+
+Emit em Node com `@opentelemetry/sdk-metrics`:
+
+```ts
+import { metrics, trace } from '@opentelemetry/api'
+const histogram = metrics.getMeter('http').createHistogram('http.server.duration', {
+  unit: 'ms',
+  advice: { explicitBucketBoundaries: [10, 50, 100, 250, 500, 1000, 2500, 5000] },
+})
+
+// No middleware HTTP:
+const start = performance.now()
+res.on('finish', () => {
+  const ctx = trace.getActiveSpan()?.spanContext()
+  histogram.record(performance.now() - start, {
+    'http.route': req.route?.path ?? 'unknown',
+    'http.response.status_code': res.statusCode,
+    // exemplar é injetado AUTOMATICAMENTE se há span ativo no contexto
+  })
+})
+```
+
+Backend storage: Prometheus 3.x suporta exemplars nativamente (`--enable-feature=exemplar-storage`, ring buffer separado, default 100k exemplars). Grafana renderiza diamond marks no histogram panel ligando ao Tempo data source.
+
+Cuidado: exemplars em metrics de altíssima cardinalidade (label `user_id`) explodem custo. Manter em metrics agregadas (route + status), não em metrics dimensionadas por entidade.
+
+#### Continuous profiling 2026
+
+Profiling era ferramenta de "pegar momentaneamente quando há problema". Continuous profiling = sempre on, sample rate baixo (~100Hz), eBPF coleta stack traces sem instrumentação no app. Ferramentas mainstream:
+
+- **Pyroscope** (Grafana): backend OSS, agent eBPF (`pyroscope ebpf`) ou SDK push. Storage flame graphs queryáveis por label.
+- **Parca**: backend OSS focado em eBPF, integra com Polar Signals Cloud.
+- **Grafana Profiles**: SaaS managed Pyroscope, integra Grafana Cloud stack (logs/metrics/traces/profiles).
+
+Trace-to-profile correlation 2026: span injeta `pyroscope.profile_id` baggage; Pyroscope agent captura stack traces durante execução do span e linka via span_id. Grafana Tempo panel mostra "View profile for this span" — flame graph do tempo CPU gasto entre span start e end.
+
+Setup Node SDK push:
+
+```ts
+import Pyroscope from '@pyroscope/nodejs'
+
+Pyroscope.init({
+  serverAddress: 'http://pyroscope.obs.svc:4040',
+  appName: 'orders-api',
+  tags: {
+    env: process.env.NODE_ENV,
+    version: process.env.APP_VERSION,
+  },
+  sampleRate: 100,        // Hz; padrão = 100, overhead ~1-2% CPU
+  wall: { collectCpuTime: true },
+})
+Pyroscope.start()
+```
+
+Overhead real: SDK profiling ~1-2% CPU @ 100Hz. eBPF profiling (kernel-level, perf_event) ~0.5% sem precisar tocar no app — vantagem clara em fleet poliglota. Custo storage: ~1KB/s por process em flame graphs comprimidos delta-encoded.
+
+#### Resource detection e propagação
+
+`resourcedetectionprocessor` enriquece spans com cloud/host/k8s metadata sem o app saber. Em EKS: detecta `cloud.provider=aws`, `cloud.region=us-east-1`, `host.id`, `k8s.cluster.name`. Combinado com `k8sattributesprocessor` (precisa de RBAC pra ler API server), adiciona `k8s.pod.name`, `k8s.deployment.name`, `k8s.namespace.name`. Resultado: query Tempo "show traces from deployment=orders-api in namespace=prod" funciona sem o app ter logado nada disso.
+
+#### OTLP/HTTP vs gRPC
+
+Default historicamente foi gRPC (4317). 2026 trend é OTLP/HTTP (4318) por: load balancers L7 entendem (gRPC precisa L7 com HTTP/2 awareness), proxies/CDNs corporate friendly, debug com curl. Performance: gRPC ~15-20% menor overhead em fleet grande (binary framing, multiplexing). HTTP é fine pra <10k spans/s por client. Acima disso, gRPC.
+
+#### Stack Logística aplicada
+
+Fleet de ~40 services Node em EKS. Antes: Datadog APM SDK em todos, vendor lock, custo $18k/mês. Migração 2026: OTel SDK em todos, Collector DaemonSet (agent) + Deployment (gateway com tail sampling), Tempo pra traces, Mimir pra metrics, Loki pra logs, Pyroscope pra profiling. Tail sampling: 100% errors + P99>1s + 2% baseline. Exemplars on em todos histograms HTTP/DB. Span-to-profile via Pyroscope eBPF DaemonSet. Custo final: ~$3k/mês (S3 backend Tempo + EBS Mimir). MTTR p50 caiu 60% — clique no spike → trace → profile, sem `kubectl exec` em produção.
+
+#### 10 anti-patterns
+
+1. **Collector single instance sem HA** — SPOF na ingestion. Telemetria some em deploy/restart. Sempre 2+ replicas, headless service, loadbalancing exporter pra trace_id stickiness.
+2. **`tail_sampling` sem `num_traces` cap** — OOM em traffic spike. Sem cap, buffer cresce sem limite, pod morre, telemetria zerada.
+3. **Exemplars em metric high-cardinality** (`user_id` label) — cost explosion no Prometheus exemplar storage. Manter em metrics agregadas.
+4. **Continuous profiling sem sample rate config** — assumir default vendor é seguro. Validar overhead em staging com load real (>2% CPU = problema).
+5. **Semantic conventions custom sem prefix** — definir `request.method` colide com `http.request.method` upstream. Sempre `app.<dominio>.<attr>` (ex: `app.orders.tenant_tier`).
+6. **`batch` processor primeiro no pipeline** — agrupa antes de filtrar/sampling = trabalho desperdiçado. Batch SEMPRE último.
+7. **`k8sattributes` sem RBAC adequado** — Collector sem permission lê API server retorna spans sem enrichment, debug vira pesadelo. Aplicar ClusterRole `pods, namespaces` get/list/watch.
+8. **OTLP/gRPC atrás de ALB sem HTTP/2** — gRPC quebra silenciosamente, spans somem. ALB precisa target group HTTP/2 ou usar OTLP/HTTP.
+9. **Tail sampling `decision_wait` muito curto** (5s) em fleet com long-running traces (background jobs) — decisão tomada antes do trace completar, perde spans tardios. Calibrar com P99 trace duration real.
+10. **`spanmetrics` sem dimension cap** — incluir `url.full` como dimension explode séries Prometheus. Whitelist dimensions: `service.name`, `http.route`, `http.response.status_code`. Nunca path raw.
+
+Cruza com **§2.5** (traces foundation, span/context propagation), **§2.13** (profiling intro, motivação), **§2.16** (eBPF, base do continuous profiling kernel-side), **§2.18** (cost — tail sampling é alavanca #1 de redução), **§2.19** (LLM observability — OTel GenAI semconv 2026 estável), **02-07** (Node `--require` order pra `@opentelemetry/auto-instrumentations-node`), **03-15** (MTTR via traces correlacionados a profiles), **04-09** (scaling — Collector horizontal sharding por trace_id).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:
