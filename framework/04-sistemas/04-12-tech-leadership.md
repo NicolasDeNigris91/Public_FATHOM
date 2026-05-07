@@ -671,6 +671,129 @@ Cruza com **04-12 §2.21** (Senior → Staff promotion process), **04-15** (OSS,
 
 ---
 
+### 2.24 Engineering org design 2026 — ladder, calibration, hiring loop, perf review, comp bands
+
+Org design = product design com humans. **Ladder rubric é a spec** (define o que cada nível faz), **calibration session é o test** (verifica que ratings batem com a spec entre EMs), **hiring loop + perf review são o runtime** (executam a spec contra candidates e employees). Sem ladder explícita: promoções viram negociação política. Sem calibration: cada EM rating em escala diferente (manager A "Exceeds" = manager B "Meets"). Sem hiring loop estruturado: leveling at offer baseado em negotiation strength (perpetua bias). Sem perf review cycle: feedback gap de 11 meses, surpresas em review annual.
+
+**Engineering ladder design — axes behavior-anchored.** Rubric com 5 axes universais (Engineering Levels Framework, engineering-management.com, referência pública mais usada 2024-2026): **scope** (team / multi-team / org / company / industry), **complexity** (well-defined / ambiguous / novel), **autonomy** (guided / independent / sets direction), **impact** (feature / product / business / market), **leadership** (self / peer / team / org). Cada axis 5 levels. Per-level expectation **behavior-anchored** ("ships projects spanning 3+ teams over 6+ months without manager intervention") não skills-checklist ("knows distributed systems"). Skills checklist é trivial para gaming; behavior anchor força evidência observável. Intercom + Square publicam ladders públicas (referência); copiar e adaptar > inventar do zero.
+
+Rubric YAML copy-paste-ready (excerpt, axis = scope; full rubric tem 5 axes × 5 levels = 25 cells):
+
+```yaml
+# engineering-ladder.yaml — scope axis
+levels:
+  IC4_senior:
+    scope:
+      definition: "Owns complete features within team. Coordinates with 1-2 adjacent teams."
+      behavior_anchors:
+        - "Led 2+ projects delivered on-time spanning 4-8 weeks each"
+        - "Wrote design docs reviewed by team without major rework"
+        - "Mentored 1+ junior IC through onboarding"
+      counter_examples:
+        - "Required senior IC to unblock weekly"
+        - "Project scope creep caused 50%+ overrun (twice in 12mo)"
+  IC5_staff:
+    scope:
+      definition: "Owns initiatives spanning 3+ teams. 6+ month horizon. Influences org-level technical direction."
+      behavior_anchors:
+        - "Led cross-team migration affecting 20+ engineers"
+        - "Authored RFC adopted as org standard"
+        - "Resolved technical disagreement between 2+ EMs via written analysis"
+      counter_examples:
+        - "Scope limited to single-team work past 12mo"
+        - "Influence requires manager escalation"
+  IC6_senior_staff:
+    scope:
+      definition: "Owns multi-quarter org bets. Sets technical direction for engineering function (platform, infra, ML). Visible to VP+."
+      behavior_anchors:
+        - "Defined 18-month tech strategy adopted by 50+ eng org"
+        - "Coached 2+ Staff ICs to next level"
+```
+
+**Dual-track (IC + EM) — comp parity mandatory.** IC4 = EM (Senior + first-line EM); IC5 = Senior EM; IC6 = Director-equivalent IC; IC7 = VP-equivalent (Distinguished). Comp parity (base + equity + bonus) **at every level**. Sem parity: ICs com leadership talent forçados ao EM track = bottleneck (org perde Staff+ ICs, ganha mediocre EMs). Big Tech 2026 (Google L7+, Meta E7+, Stripe L5+) public sobre dual-track; startups frequentemente fail nisto (CTO promove favorito ao "VP Eng" ao invés de criar Distinguished IC slot).
+
+**Archetype mapping** (Will Larson, *Staff Engineer*, 2021, ainda canônico 2026): **Solver** (deep technical problems, low coordination — performance, security), **Tech Lead** (drives team execution, mid coordination), **Architect** (owns system design across teams, high coordination), **Researcher** (explores novel tech, low immediate impact). Manager = quinto archetype (people-first). Rubric mesmo, ênfase per-archetype diferente — Solver alta complexity baixa leadership; Architect alta scope alta leadership.
+
+**Calibration session deep — 4-hour quarterly.** Agenda fixed (Stripe + Square public): pre-read 48h antes (cada EM submete ratings + 1-paragraph justification per IC); session 4h síncrona, 6 EMs, 30 ICs reviewed; round-robin por IC (EM apresenta rating + evidence em 90s, peer EMs challenge); **level-strict distribution checked** (rating distribution per level esperada — IC4 "Meets" mediano ~60%, "Exceeds" ~25%, "Below" ~10%, "Significantly Exceeds" ~5%; deviation > 15% questionada); **anti-recency bias prompts** explícitos ("considerou os primeiros 6 meses do ciclo, não só último mês?"); **peer-comparison forçada** ("rank esses 5 IC4s em impact — quem teve maior?" — força EMs a justificarem ratings relativos, não absolutos).
+
+```markdown
+# Calibration session agenda (4h, 6 EMs, 30 ICs)
+00:00-00:15 — Recap rubric + distribution targets
+00:15-01:30 — Round 1: IC4 cohort (12 ICs × 5min each)
+              Per IC: EM apresenta (90s) → 2 peer EMs challenge (60s × 2) → consensus rating (90s)
+01:30-01:45 — Break
+01:45-02:45 — Round 2: IC5 cohort (10 ICs)
+02:45-03:30 — Round 3: IC6+ cohort (8 ICs, deeper debate)
+03:30-03:50 — Distribution review (deviation > 15% per level questioned)
+03:50-04:00 — Action items (ICs precisando explicit feedback this cycle)
+
+# Anti-recency prompts (mandatory):
+- "What did this IC ship in Q1? Q2?" (force full-year recall)
+- "If you forgot last 30 days, what's the rating?"
+- "Compared to <named peer at same level>, who had more impact?"
+```
+
+**Hiring loop structure — 3-stage minimal vs 5-stage extended.** Senior IC (IC4): **3-stage** (recruiter phone screen 30min → tech screen 60min coding → onsite 4h: system design + 2× coding + 1× behavioral). Total ciclo 2-3 semanas. Staff+ IC (IC5+): **5-stage** (recruiter → hiring manager 45min → tech screen → onsite extended 5-6h: system design senior-level + 2× tech deep-dive + leadership/scope behavioral + values/culture; **bar raiser** cross-team interviewer com veto power). Total 3-4 semanas. **Loop length > 5 semanas perde 60%+ top candidates** (Levels.fyi 2025 survey) — competição com FAANG, top candidates aceitam offer dentro de 3 semanas.
+
+```yaml
+# hiring-loop-staff.yaml
+candidate_level: IC5_staff
+stages:
+  - name: recruiter_screen
+    duration: 30min
+    interviewer: recruiter
+    signal: comp expectations, motivation, basic fit
+  - name: hiring_manager
+    duration: 45min
+    interviewer: hiring_manager
+    signal: scope of past work, leadership examples
+  - name: tech_screen
+    duration: 75min
+    interviewer: senior_ic_peer
+    signal: coding fluency (mid-difficulty problem)
+  - name: onsite
+    duration: 5h
+    panels:
+      - system_design: 75min  # staff-level: design + tradeoffs + multi-team
+      - tech_deep_dive_1: 60min  # debugging + code review
+      - tech_deep_dive_2: 60min  # architecture critique
+      - leadership_behavioral: 60min  # influence without authority, conflict
+      - bar_raiser: 45min  # cross-team interviewer, veto power
+debrief:
+  format: structured matrix
+  scoring: 4-point (Strong No / No / Yes / Strong Yes) per panel
+  decision: hire requires >= 4 Yes/Strong Yes AND zero Strong No AND bar_raiser approval
+total_calendar_time: 3-4 weeks max
+```
+
+Debrief = **structured decision matrix** (não "vibe check"); cada interviewer scoring 4-point antes de ouvir outros (anti-anchoring); hire/no-hire decisão por matrix, não por seniority do hiring manager. Bar raiser veto absoluto sobre "yes" weak.
+
+**Perf review cycle 2026 — continuous + bi-annual formal.** Annual-only review = feedback gap 11 meses (anti-pattern 2026, ainda comum em startups < 50 eng). State-of-art: **continuous lightweight feedback** (weekly 1:1 notes em Notion/Lattice/15Five, kudos channel Slack) + **bi-annual formal cycle** (H1 mid-year jun, H2 year-end dec; H1 lighter — feedback only; H2 heavier — feedback + rating + comp + promotion). 360 estruturado em H2 (self + manager + 3-5 peers chosen by IC + 1-2 stakeholders chosen by manager). Rating scale **5-point** (Below / Meets Most / Meets / Exceeds / Significantly Exceeds) ou **4-point** (drop "Meets Most" para forçar binary "performing or not"). **Forced ranking distribution per team** = anti-pattern (small teams biased — 5-person team com todos high performers ainda forçada a marcar 1 "Below"); calibrar **at org level** (50+ ICs minimum por bucket de calibração).
+
+**Promotion process — 12-month delta evidence.** Promotion packet template: **12-month delta evidence** (o que mudou desde último level — não recap geral); **3 staff projects** (multi-team, 6+ month, evidence de scope/complexity/autonomy/impact/leadership axes); **2 peer attestations** (Staff+ peers ou EMs cross-team que viram o trabalho — não amigos, não reports); **manager recommendation** (1-2 pages, evidence-backed). **Promotion committee** = 3+ EMs at-or-above target level (promo to IC5 reviewed por painel de Senior EMs + 1 IC6+; veto power debate, não single-VP rubber stamp). Velocity benchmarks 2026: IC4→IC5 typical 18-24mo (top 25% em 12mo, bottom 25% em 36mo+ ou cap), IC5→IC6 24-36mo, IC6→IC7 36-60mo (sometimes never — Distinguished é raro).
+
+**Comp bands — broad bands, equity refresh.** Comp band per level = range largo (Senior banda ex.: $180k-$240k base USD US tier-1 city 2026; Staff $250k-$340k; Senior Staff $340k-$450k). **Compression problem 2024-2026**: Senior + Staff bandas overlap 15-25% (top of Senior > bottom of Staff) — efeito de hot market 2021-2022 + correção lenta. **Target rate by location** (cost-of-living tiers — SF/NYC tier 1, Seattle/LA/Boston tier 2, remote US tier 3, remote LATAM tier 4 ~50-70% US); **equity refresh annual** 25-50% of new hire grant (sem refresh: comp cliff em ano 4 quando initial grant termina, attrition spike). Levels.fyi e Comparably são fontes públicas para benchmark; calibrar bands trimestralmente vs market.
+
+**Headcount planning — T-shirt sized teams.** Team sizing 2026 (benchmarks Google + Stripe + Shopify): **small team** 4-6 ICs + 1 EM; **mid team** 7-9 ICs + 1 EM + 1 TLM (tech lead manager); **large team** 10-12 ICs + 1 EM + 1-2 TLMs (split em sub-teams). Ratios: **1 EM per 6-8 ICs** (Google standard) ou **1 EM per 10-12 ICs** (Stripe leaner); **1 Skip-level Director per 4-6 EMs**. Above 12 ICs per EM = quality of management drops (can't 1:1 weekly + strategic + hiring + reviews). Headcount planning = T-shirt size por role (S = 1 IC, M = 2-3 ICs + 1 EM, L = 8 ICs + 1 EM + 1 TLM, XL = 20+ ICs + Director); plan annual com quarterly adjustments.
+
+**Stack Logística aplicada** (12 engs, growth target 24 ICs 18mo): **flat ladder** Senior + Staff + Principal only (sem IC1-IC3 — early-stage não atrai juniors com mentorship limitado); **1 EM** + **11 ICs** (1 Principal + 3 Staff + 7 Senior); ratio 1:11 sustentável só porque Principal age como TLM informal. Calibration session **trimestral** (small org — formal anual só insuficiente, mensal overkill); 4 EMs ainda não existem (1 EM + 3 Staff atuam como calibration committee). Hiring **4-stage** (recruiter + tech + system design + onsite values/leadership 3h); offer accept rate target 70%+ (atualmente 55% — bands abaixo de market, fix antes de scaling). Perf review **6-month formal** + continuous via Lattice (weekly 1:1 notes, quarterly check-in, bi-annual formal). Comp bands **published internally** (radical transparency — Buffer-style, reduz negotiation bias). Promotion committee = EM + Principal + 1 external Staff (peer company contact, monthly swap) — evita echo chamber single-VP veto. Headcount plan: hire 12 ICs próximos 18mo (T-shirt: 6 Senior, 4 Staff, 2 Principal-track from Senior promotions), split em 2 teams quando atingir 16 ICs (hire 2nd EM at 16, não at 24 — antecipar).
+
+**10 anti-patterns**:
+1. **Forced ranking distribution per team** — small teams biased; calibrar at org level (50+ ICs min).
+2. **Ladder rubric vague** — "makes good decisions" indefinível; behavior-anchored examples mandatory.
+3. **Promotion committee = single VP veto** — process theater; 3+ EMs com veto compartilhado obrigatório.
+4. **Hiring loop > 6 weeks** — top candidates accept elsewhere; max 4 semanas calendário.
+5. **Offer accept rate 40%** — comp uncompetitive; fix bands não "candidate quality".
+6. **Leveling at offer based on negotiation strength** — perpetua bias (women + minorities negotiate less aggressive); level-strict via rubric, comp negotiável dentro da band do nível.
+7. **Perf review annual only** — feedback gap 11 meses; bi-annual formal + continuous mandatory.
+8. **Calibration session "rubber stamp"** — sem real debate, EMs concordam superficialmente; force peer-comparison ranking + distribution challenge.
+9. **IC track sem comp parity to EM** — drives all ambitious ICs ao EM = bottleneck; parity at every level desde IC4/EM1.
+10. **Annual comp adjustment only sem equity refresh** — cliff em ano 4; refresh anual 25-50% new hire grant ou attrition spike.
+
+Cruza com **04-12 §2.1** (IC vs lead vs manager intro), **§2.7** (1:1 com IC, perf review continuous é stack de 1:1s), **§2.15** (feedback técnico, base do continuous feedback), **§2.18** (política, promotion committee é jogo político estruturado), **§2.20** (carreira pessoal, ladder design é input para career plan), **§2.21** (Senior → Staff promotion deep, complementar — §2.21 é IC view, §2.24 é org view), **§2.23** (EM vs IC dual-track Staff+, §2.24 estende dual-track para IC4-IC7), **04-15** (OSS — Principal-level promotion frequentemente requer OSS presence), **03-15** (incident response — Staff+ rotation incident commander é evidence em promo packet), **04-16** (product/business alignment — Staff+ scope inclui business outcomes, peer attestation de PM frequentemente em packet).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

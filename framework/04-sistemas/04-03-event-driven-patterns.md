@@ -352,6 +352,262 @@ Cruza com: `04-02` (outbox + idempotent consumer), `04-01` (logical clocks, orde
 
 ---
 
+### 2.19 Outbox + Inbox + Saga production deep 2026
+
+Atomic write to DB e publish to broker é o problema distribuído canônico. Sem 2PC (lento, frágil, indisponível em maioria dos brokers modernos), a única resposta production-grade é **transactional outbox**: business write e event row na mesma transação Postgres; relay process separado publica para o broker. Saga estende: processo multi-step sem 2PC, cada step com **compensating action** explícita. 2026 trouxe maturidade: Debezium 2.7+ estável para CDC outbox, Temporal 1.25+ TS SDK production, Restate 1.x como alternativa Rust mais leve, Inngest 3.x para times serverless-first.
+
+#### Outbox implementation deep
+
+Schema mínimo:
+
+```sql
+CREATE TABLE outbox (
+  id           BIGSERIAL PRIMARY KEY,
+  aggregate_id TEXT      NOT NULL,
+  event_type   TEXT      NOT NULL,
+  payload      JSONB     NOT NULL,
+  headers      JSONB     NOT NULL DEFAULT '{}'::jsonb,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  published_at TIMESTAMPTZ
+);
+CREATE INDEX outbox_unpublished_idx ON outbox (id) WHERE published_at IS NULL;
+CREATE INDEX outbox_partition_idx   ON outbox (aggregate_id, id);
+```
+
+Business write + outbox no mesmo BEGIN:
+
+```sql
+BEGIN;
+  UPDATE orders SET status = 'paid' WHERE id = $1;
+  INSERT INTO outbox (aggregate_id, event_type, payload, headers)
+  VALUES ($1, 'OrderPaid',
+          jsonb_build_object('orderId', $1, 'amount', $2, 'paidAt', now()),
+          jsonb_build_object('message_id', gen_random_uuid()::text,
+                             'trace_id', $3));
+COMMIT;
+```
+
+Atomicity garantida: se transação rollback, evento não existe; se commit, evento existe e será publicado. **Nunca** insira outbox em conexão/transação separada da business write — anula a invariante.
+
+#### CDC outbox (Debezium / pgrecvlogical)
+
+Debezium connector lê WAL via logical replication slot, transforma cada INSERT em outbox em evento Kafka. Latência ~100ms p99. Config (Debezium 2.7+):
+
+```json
+{
+  "name": "logistica-outbox",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "plugin.name": "pgoutput",
+    "slot.name": "logistica_outbox_slot",
+    "publication.name": "logistica_outbox_pub",
+    "table.include.list": "public.outbox",
+    "transforms": "outbox",
+    "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
+    "transforms.outbox.route.by.field": "event_type",
+    "transforms.outbox.table.field.event.key": "aggregate_id",
+    "transforms.outbox.table.field.event.payload": "payload",
+    "transforms.outbox.table.fields.additional.placement": "headers:header"
+  }
+}
+```
+
+Trade-offs CDC: latência baixa, sem worker para operar; **mas** replication slot precisa monitoring (`pg_replication_slots.confirmed_flush_lsn` lag); slot abandonado retém WAL → disco enche → DB trava. Set `wal_keep_size = 1GB` mínimo (5-10GB para resiliência), alerte em slot lag > 500MB.
+
+#### Polling outbox
+
+Worker simples, latência 500ms-5s, scale horizontal por partition:
+
+```sql
+-- Worker loop
+BEGIN;
+  SELECT id, aggregate_id, event_type, payload, headers
+  FROM outbox
+  WHERE published_at IS NULL
+  ORDER BY id
+  LIMIT 100
+  FOR UPDATE SKIP LOCKED;
+  -- publish each row to Kafka with key = aggregate_id (preserves ordering per aggregate)
+  UPDATE outbox SET published_at = now() WHERE id = ANY($1::bigint[]);
+COMMIT;
+```
+
+`SKIP LOCKED` permite N workers sem contenção. `LISTEN/NOTIFY` no commit reduz latência: worker bloqueia em `LISTEN outbox_new`, trigger after insert faz `NOTIFY outbox_new`. Sem LISTEN/NOTIFY, polling interval 200-500ms. Polling vence CDC quando: time não tem capacidade ops Debezium/Connect, throughput < 1k events/s, ou DB não pode habilitar logical replication.
+
+#### Inbox pattern (consumer dedup)
+
+Broker entrega at-least-once. Consumer precisa dedup. Tabela inbox no consumer:
+
+```sql
+CREATE TABLE inbox (
+  message_id  TEXT PRIMARY KEY,
+  topic       TEXT NOT NULL,
+  processed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- TTL via partition drop ou vacuum job
+CREATE INDEX inbox_processed_at_idx ON inbox (processed_at);
+```
+
+Handler:
+
+```typescript
+async function handle(msg: KafkaMessage) {
+  const messageId = msg.headers.message_id;
+  await pg.transaction(async (tx) => {
+    const ins = await tx.query(
+      `INSERT INTO inbox (message_id, topic) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING message_id`,
+      [messageId, msg.topic]
+    );
+    if (ins.rowCount === 0) return; // already processed
+    await applyBusinessEffect(tx, msg.payload);
+  });
+}
+```
+
+UNIQUE constraint em `message_id` é a invariante. TTL: 24-72h cobre janela de retry típica; jobs de vacuum diário evitam crescimento infinito.
+
+#### Saga orchestrators 2026 — matriz
+
+| Orchestrator | Stack / Maturidade | Forte em | Fraco em |
+|---|---|---|---|
+| **Temporal 1.25+** | Java/Go core, TS/Python/.NET SDKs, self-host ou Cloud | Workflows complexos longos (dias-meses), signals + queries, history replay | Setup pesado (Cassandra/Postgres + frontend + worker), curva |
+| **Restate 1.x** | Rust core, JS/TS/Java/Kotlin SDKs (Q4 2024 estável) | RPC-style durable handlers, ops simples, latência baixa, virtual objects | Ecosistema novo, menos battle-tested em > 1M execuções/dia |
+| **Inngest 3.x** | Hosted-first (self-host Q4 2024), JS/TS/Python/Go | DX altíssimo, step functions, flow control + concurrency limits, retries declarativos | Hosted = vendor; debug de step graph complexo |
+| **AWS Step Functions** | JSON ASL, Standard + Express | Serverless puro, integração nativa AWS, observability | AWS lock-in, cost explosion em high-frequency (use Express, < 5min) |
+| **Camunda 8 / Zeebe 8.7** | BPMN visual, Java-first | Workflows com stakeholder não-dev, auditoria regulatória | Heavy ops, BPMN learning curve |
+
+#### Temporal — saga compensation
+
+```typescript
+// activities.ts
+export async function chargePayment(orderId: string, amount: number): Promise<string> { /* ... */ }
+export async function refundPayment(chargeId: string): Promise<void> { /* idempotent */ }
+export async function reserveCourier(orderId: string): Promise<string> { /* ... */ }
+export async function releaseCourier(reservationId: string): Promise<void> { /* idempotent */ }
+export async function notifyCustomer(orderId: string, status: string): Promise<void> { /* ... */ }
+
+// workflow.ts
+import { proxyActivities, ActivityFailure } from '@temporalio/workflow';
+const acts = proxyActivities<typeof activities>({
+  startToCloseTimeout: '30s',
+  retry: { initialInterval: '1s', backoffCoefficient: 2, maximumAttempts: 5 },
+});
+
+export async function fulfillOrderWorkflow(orderId: string, amount: number) {
+  const compensations: Array<() => Promise<void>> = [];
+  try {
+    const chargeId = await acts.chargePayment(orderId, amount);
+    compensations.unshift(() => acts.refundPayment(chargeId));
+
+    const reservationId = await acts.reserveCourier(orderId);
+    compensations.unshift(() => acts.releaseCourier(reservationId));
+
+    await acts.notifyCustomer(orderId, 'fulfilled');
+  } catch (err) {
+    for (const comp of compensations) {
+      await comp().catch((e) => { /* log; comp idempotente reentra */ });
+    }
+    await acts.notifyCustomer(orderId, 'failed');
+    throw err;
+  }
+}
+```
+
+Workflow start latency Temporal ~50-100ms p99. **Crítico**: side effects (HTTP, DB write) só dentro de activity — workflow code é replayed deterministicamente; activity tem at-least-once semantics, então toda activity deve ser idempotente.
+
+#### Restate — durable handler
+
+```typescript
+import { service, handlers } from '@restatedev/restate-sdk';
+
+export const fulfillment = service({
+  name: 'fulfillment',
+  handlers: {
+    fulfill: async (ctx, req: { orderId: string; amount: number }) => {
+      const chargeId = await ctx.run('charge', () => chargePayment(req.orderId, req.amount));
+      try {
+        const resId = await ctx.run('reserve', () => reserveCourier(req.orderId));
+        await ctx.run('notify', () => notifyCustomer(req.orderId, 'fulfilled'));
+        return { chargeId, resId };
+      } catch (e) {
+        await ctx.run('refund', () => refundPayment(chargeId));
+        await ctx.run('notify-fail', () => notifyCustomer(req.orderId, 'failed'));
+        throw e;
+      }
+    },
+  },
+});
+```
+
+`ctx.run` persiste resultado; replay pula side effects já executados. Modelo mais próximo de "código normal + durabilidade", menos cerimônia que Temporal, mas ecosistema 2026 ainda maturando.
+
+#### Inngest — flow control declarativo
+
+```typescript
+import { Inngest } from 'inngest';
+const inngest = new Inngest({ id: 'logistica' });
+
+export const fulfillOrder = inngest.createFunction(
+  {
+    id: 'fulfill-order',
+    retries: 5,
+    concurrency: { limit: 50, key: 'event.data.region' },
+    rateLimit: { limit: 100, period: '1m' },
+  },
+  { event: 'order/paid' },
+  async ({ event, step }) => {
+    const charge = await step.run('charge', () => chargePayment(event.data.orderId, event.data.amount));
+    try {
+      const res = await step.run('reserve', () => reserveCourier(event.data.orderId));
+      await step.sendEvent('notify', { name: 'order/fulfilled', data: { orderId: event.data.orderId } });
+      return { charge, res };
+    } catch (e) {
+      await step.run('refund', () => refundPayment(charge));
+      throw e;
+    }
+  },
+);
+```
+
+#### Choreography vs Orchestration
+
+- **Choreography**: cada serviço reage a eventos e emite eventos. Sem coordenador. Bom para 2-3 serviços; > 5-6 vira investigação forense (qual evento causou qual? onde travou?).
+- **Orchestration**: state machine central (Temporal/Restate/Inngest/Step Functions) chama cada step e gerencia compensation. Debug e monitoring centralizados. Vence acima de 4 serviços ou quando regulatório exige rastreabilidade.
+
+Regra: começou com choreography e tem 5+ serviços envolvidos no mesmo processo de negócio? Migre para orchestration.
+
+#### Compensation patterns
+
+- Toda step de saga tem compensation **idempotente** (chamada N vezes = mesmo efeito que 1).
+- Compensation pode falhar; retry indefinido com backoff + alerta SRE em N tentativas.
+- Mapear cenários de falha parcial: `[charge OK, reserve OK, notify FAIL]` → retry notify; `[charge OK, reserve FAIL]` → refund charge + notify failure.
+- Compensation **não** desfaz mundo real (email enviado, courier despachado fisicamente); compensa via ação inversa (email de cancelamento, recall).
+
+#### Stack Logística aplicada
+
+- Postgres `outbox` table no `orders-service`; INSERT na mesma transação do `UPDATE orders SET status='paid'`.
+- Debezium 2.7+ connector lê outbox via slot `logistica_outbox_slot`; publica em Kafka topic `orders.events`. Latência commit → Kafka ~150ms p99.
+- `fulfillment-service` consome `orders.events`; inbox dedup table com TTL 24h via partition drop diário.
+- Temporal workflow `fulfillOrderWorkflow`: activities `chargePayment` → `reserveCourier` → `notifyCustomer`; compensations `refundPayment`, `releaseCourier`, `notifyFailure`. Cada activity verifica idempotency_key na business table antes de side effect externo.
+- DLQ: poison pill após 5 retries vai para topic `orders.events.dlq`; alerta SRE; manual replay via tool interno.
+
+#### 10 anti-patterns
+
+1. **Outbox INSERT em transação separada do business write** — perde atomicidade; surge orphan event ou business write sem evento.
+2. **Polling sem `FOR UPDATE SKIP LOCKED`** — workers contendem na mesma row; throughput colapsa.
+3. **CDC sem monitoring de replication slot** — slot retém WAL; disco enche; Postgres trava em writes.
+4. **Side effect em workflow Temporal fora de activity** — workflow é replayed; HTTP call duplica a cada replay.
+5. **Saga choreography com 8+ serviços** — debug impossível; orchestrate ou refatore o domínio.
+6. **Compensation não-idempotente** — retry double-refunds, double-releases; cliente vê estorno duplicado.
+7. **Inbox dedup table sem TTL/vacuum** — cresce infinitamente; lookups degradam; disco esgota.
+8. **AWS Step Functions Standard para workflow < 1min, > 100/s** — billing por state transition explode (use Express).
+9. **Restate em workload massive (1M+ exec/dia) sem benchmark próprio** — ecosistema novo, edge cases ainda emergindo.
+10. **`message_id` gerado no consumer em vez de no producer** — dedup vira no-op (cada consumer gera id distinto para mesma mensagem reentregue).
+
+Cruza com: `04-03` §2.4 (event sourcing), §2.7 (saga intro), §2.8 (outbox revisited), §2.13 (anti-corruption layer), §2.15 (outbox + idempotency consumer), §2.16 (saga design), §2.18 (event sourcing operacional), `04-02` §2.18 (idempotent consumer + dedup), §2.20 (Kafka 4.0 + share groups), `02-09` §2.13 (Postgres logical replication), `04-08` §2.21 (saga patterns deep — Temporal/Cadence), `04-13` §2.12 (CDC), `04-04` §2.30 (compensations + DR), `04-01` §2.21 (logical clocks for ordering).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:
