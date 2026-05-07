@@ -621,6 +621,149 @@ Use case que NÃO é RAG: "Quantas entregas atrasadas no mês passado?" — stru
 
 **Cruza com**: **02-15** (search engines, BM25 + relevance tuning), **02-09** (Postgres, pgvector + tsvector), **03-07 §2.19** (LLM observability + eval pipeline), **04-04** (resilience, fallback quando LLM down → degrade pra hybrid sem LLM), **04-09** (scaling, embedding pipeline + eval pipeline como batch jobs).
 
+### 2.22 LLM evaluation deep + fine-tuning decision tree (LoRA, PEFT, RLHF) — when each wins 2026
+
+Eval e fine-tuning são as duas alavancas que separam LLM-toy de LLM-em-produção. Sem eval, não há critério para decidir prompt change, model swap, ou fine-tune ROI. Sem fine-tuning bem indicado, custos disparam ou latência mata UX. Decisão correta exige hierarquia clara.
+
+**Eval hierarchy (L0 → L5)**:
+- **L0 — Eyeball test**: dev review subjetivo de 10-20 exemplos. Necessário; insuficiente pra produção.
+- **L1 — Golden dataset**: 100-500 (input, expected_output) curados. Roda a cada prompt/model change; threshold delta % bloqueia regressão.
+- **L2 — LLM-as-judge**: LLM mais forte score outputs (0-10 helpfulness + 0-10 accuracy + binary harmful). Bias-prone mas escala.
+- **L3 — Online eval**: 1-5% prod traffic sampled; LLM-as-judge async; detecta drift.
+- **L4 — Human review panel**: weekly random sample reviewed por domain expert. Pega blind spots que LLM-judge perde.
+- **L5 — A/B test em real users**: business metrics (conversion, retention, ticket deflection) por variante.
+
+**Eval frameworks 2026**:
+- **RAGAS 0.2+** (Python): faithfulness, answer-relevance, context-precision (cobre §2.21).
+- **DeepEval**: pytest-style unit-test API pra LLM outputs.
+- **Promptfoo 0.85+** (CLI): YAML test cases + parallel runs + matrix de providers.
+- **OpenAI Evals**: registry open-source de evals + harness.
+- **LangSmith**: tracing + eval integrado ao LangChain.
+- **Phoenix** (Arize, OSS): RAG eval + drift detection.
+
+**Promptfoo example — Logística intent classifier**:
+```yaml
+# promptfooconfig.yaml
+prompts:
+  - "Classifique a intenção: {{query}}"
+providers:
+  - openai:gpt-4o-mini
+  - anthropic:claude-haiku-4-5
+tests:
+  - vars: { query: "Quero cancelar o pedido 123" }
+    assert:
+      - type: equals
+        value: "cancel_order"
+  - vars: { query: "Onde está minha entrega?" }
+    assert:
+      - type: equals
+        value: "track_order"
+  - vars: { query: "Como faço para criar conta?" }
+    assert:
+      - type: equals
+        value: "signup_help"
+      - type: latency
+        threshold: 1000  # ms
+```
+```bash
+npx promptfoo eval
+npx promptfoo view  # web UI mostrando resultados, side-by-side por provider
+```
+
+**Fine-tuning decision tree 2026**:
+
+NÃO fine-tune se:
+- Não tem 1000+ high-quality examples curados.
+- Prompt engineering não foi exausto (few-shot, chain-of-thought, structured output).
+- Use case genérico (chat, Q&A) — RAG resolve.
+- Domain knowledge muda frequentemente (re-fine-tune cost recorrente).
+
+Fine-tune SE:
+- Output format específico (JSON schema custom, DSL) consistente entre calls.
+- Domain language/jargon que prompts não capturam economicamente.
+- Latency-critical (smaller fine-tuned model bate large general model).
+- Cost-critical (smaller model 5-10x cheaper por call em volume alto).
+
+**Fine-tuning techniques**:
+- **Full fine-tuning**: retreina todos os params. Caro ($1k-100k por run); raro em 2026.
+- **LoRA** (Low-Rank Adaptation): adapter matrices em layers selecionadas; ~1% params trained. ~$10-100 por run.
+- **QLoRA**: LoRA + 4-bit base model; roda em consumer GPU.
+- **PEFT** (Hugging Face 0.12+): umbrella library; LoRA, prefix-tuning, IA3.
+- **DPO** (Direct Preference Optimization): RLHF sem reward model; mais simples.
+- **RLHF**: full alignment training; complexo; raramente necessário em app code.
+
+**OpenAI fine-tuning (gpt-4o-mini, Jul 2024+)**:
+```bash
+openai api fine_tuning.jobs.create \
+  -t file-abc123 \
+  -m "gpt-4o-mini-2024-07-18"
+```
+```jsonl
+# training data — JSONL chat format
+{"messages": [{"role": "system", "content": "Classifique intenção em português."}, {"role": "user", "content": "Quero cancelar"}, {"role": "assistant", "content": "cancel_order"}]}
+{"messages": [{"role": "system", "content": "Classifique intenção em português."}, {"role": "user", "content": "Cadê meu pedido"}, {"role": "assistant", "content": "track_order"}]}
+```
+- **Cost OpenAI 2026**: gpt-4o-mini fine-tune ~$3/1M training tokens; inference ~2x base price.
+- **Anthropic**: fine-tuning Claude disponível em AWS Bedrock + via API request 2025+.
+
+**Self-hosted LoRA (Llama 3.3 70B + PEFT 0.12+)**:
+```python
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import LoraConfig, get_peft_model, TaskType
+from trl import SFTTrainer
+
+model = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-3.3-70B-Instruct")
+tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.3-70B-Instruct")
+
+lora_config = LoraConfig(
+    task_type=TaskType.CAUSAL_LM,
+    r=16,                # rank — controls capacity vs cost
+    lora_alpha=32,
+    lora_dropout=0.05,
+    target_modules=["q_proj", "v_proj"],
+)
+model = get_peft_model(model, lora_config)
+
+trainer = SFTTrainer(
+    model=model,
+    train_dataset=train_dataset,
+    tokenizer=tokenizer,
+    dataset_text_field="text",
+    max_seq_length=2048,
+)
+trainer.train()
+trainer.model.save_pretrained("./logistica-lora-v1")
+```
+- **Hardware 2026**: 70B LoRA cabe em 1x H100 80GB; 4-bit QLoRA cabe em 1x A100 40GB.
+- **Cost**: ~$5-50 por run dependendo de compute (RunPod/Modal/Vast spot).
+
+**Decisão Prompt eng vs RAG vs Fine-tuning**:
+- **Prompt eng**: tenta primeiro; cheapest; resolve 80% dos casos.
+- **RAG**: knowledge precisa ser current/specific (cobre §2.21).
+- **Fine-tune**: structured output, domain language, cost/latency optimization.
+- **Hybrid**: RAG + fine-tune (fine-tuned classifier roteia → RAG retrieval por categoria).
+
+**Logística aplicado — eval program**:
+- **Golden dataset**: 300 (query, expected_intent, expected_filters) curados pelo time de support.
+- **CI gate**: cada prompt PR roda Promptfoo contra golden; regressão > 2% bloqueia merge.
+- **Online eval**: 5% queries de prod scored async via gpt-4o-mini-as-judge; weekly review de low-score samples pelo product.
+- **Fine-tuning use case**: intent classifier (50 intents) fine-tuned gpt-4o-mini em 5k labeled examples → cost reduction 5x vs Claude Sonnet 4.6 baseline; latency 200ms vs 800ms p50.
+- **Stack**: Promptfoo + RAGAS no CI; LangSmith pra production tracing + eval; Helicone pra cost analytics por endpoint/customer.
+
+**Anti-patterns (10 itens)**:
+- Fine-tune sem golden dataset eval: não dá pra saber se melhorou ou regrediu.
+- Fine-tune general chat: general models são melhores; fine-tune é pra specific tasks.
+- Eval golden dataset overlapping com training set: data leakage; eval inflado, prod quebra.
+- LLM-as-judge sem human spot-check: judge bias amplificado em loop.
+- Full fine-tune em vez de LoRA/QLoRA: 10-100x cost desnecessário.
+- Prompt engineering "exhausted" sem few-shot examples + chain-of-thought + structured output tentados primeiro.
+- Fine-tune deployed sem monitoring: drift undetected até customer complaint.
+- Eval só happy-path: adversarial inputs pegam real failures; inclua 20% edge cases (typos, jailbreak attempts, ambiguous queries).
+- "Vibe check" eval em prod: subjetivo; documenta criteria → automatiza.
+- RLHF tentado sem RL infrastructure: complexo; usa DPO se alignment é necessário.
+
+**Cruza com**: **04-10 §2.21** (RAG architectures + RAGAS eval), **04-10 §2.15** (fine-tuning vs prompt intro, decisão básica), **04-10 §2.20** (agentic patterns, eval de tool use), **03-07 §2.19** (LLM observability + tracing), **02-15** (search engines, eval framework shared com IR).
+
 ---
 
 ## 3. Threshold de Maestria

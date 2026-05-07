@@ -300,6 +300,159 @@ App
 
 Cruza com **02-16 §2.10** (Postgres híbrido — pattern recomendado), **02-16 §2.12** (casos de uso reais), **04-13 §2.12** (CDC alimenta Neo4j projection), **04-10 §2.x** (GNN consome subgraph extraction), **02-09 §2.7.1** (JSONB indexing pra grafos pequenos no Postgres).
 
+### 2.17 Graph algorithms applied (PageRank, community detection, shortest path, fraud rings)
+
+Cypher pattern matching resolve traversal e subgrafo. Mas problemas reais — "quem é influente?", "quais clusters existem?", "qual rota alternativa?", "tem fraud ring?" — exigem algoritmos clássicos rodando em escala. SQL com recursive CTE bate na parede em ~3 hops ou ~100k nodes. Graph algorithms (Neo4j GDS, Memgraph MAGE) escalam a milhões de nodes com implementações otimizadas. Esta seção entrega: stack 2026, 6 famílias de algoritmos com Cypher production-ready, pattern Logística end-to-end, GraphRAG (LLM + graph), anti-patterns.
+
+#### 2.17.1 Tooling 2026
+
+| Tool | Modelo | Forte | Limita |
+|---|---|---|---|
+| **Neo4j GDS 2.10+** | 60+ algoritmos embedded em Neo4j 5.x | Maturity, named graph projections, ecossistema | Enterprise paga pra cluster mode |
+| **Memgraph MAGE 2024+** | Open-source GDS alternative | Performance competitiva, in-memory streaming | Ecosystem menor que Neo4j |
+| **Apache AGE** (Postgres) | Cypher dialect + algoritmos básicos | Stack única (Postgres) | Imaturo; faltam Louvain, GDS-grade |
+| **NetworkX** (Python) | In-memory; análise/research | Rápido pra prototipagem | < 100k nodes; não-distribuído |
+| **GraphFrames** (Spark) | Distributed batch | Bilhões de nodes; PageRank/CC at scale | Latência de batch; não OLTP |
+| **TigerGraph** | GSQL; massive parallel | 10B+ edges; enterprise | Custo; curva GSQL |
+
+Default Logística: **Neo4j 5.x + GDS 2.10+** (managed Aura ou self-host).
+
+#### 2.17.2 PageRank — node importance
+
+Iterativo: importância de um node = soma da importância de inbound neighbors / out-degree. Damping factor 0.85 default (random restart probability 0.15). Use cases: link analysis, identificar lojistas/couriers influentes, recommendation seeds.
+
+```cypher
+// Projetar named graph (uma vez; reuse em multiple algoritmos)
+CALL gds.graph.project(
+  'lojista-graph',
+  'Lojista',
+  { REFERRED: { orientation: 'NATURAL' } }
+);
+
+CALL gds.pageRank.stream('lojista-graph', {
+  maxIterations: 20,
+  dampingFactor: 0.85
+})
+YIELD nodeId, score
+RETURN gds.util.asNode(nodeId).name AS lojista, score
+ORDER BY score DESC
+LIMIT 10;
+```
+
+**Variants**: Personalized PageRank (start de seed nodes específicos — ideal pra "similar a este customer"); Article Rank (variant pra grafos esparsos onde PageRank original distorce).
+
+#### 2.17.3 Community detection — clusters
+
+- **Louvain**: hierarchical, modularity-based; default popular.
+- **Label Propagation**: mais rápido; qualidade inferior.
+- **Leiden**: melhoria sobre Louvain; melhor qualidade, ligeiramente mais lento.
+
+Use cases: customer segmentation, fraud rings (clusters densos suspeitos), social groups.
+
+```cypher
+CALL gds.louvain.stream('courier-collab-graph', {
+  relationshipWeightProperty: 'shared_routes_count'
+})
+YIELD nodeId, communityId
+RETURN communityId, COUNT(*) AS size, COLLECT(gds.util.asNode(nodeId).name) AS members
+ORDER BY size DESC;
+```
+
+Pré-validate: se o grafo tem modularidade fraca (sem clusters claros), Louvain devolve lixo. Eyeball amostra antes de confiar.
+
+#### 2.17.4 Shortest path — Dijkstra + Yen's k-shortest
+
+Dijkstra: weighted shortest path, single source → single target. Yen's k: top-K rotas alternativas (route planning, fallback).
+
+```cypher
+MATCH (start:Address {id: 'pickup-123'}), (end:Address {id: 'dropoff-456'})
+CALL gds.shortestPath.yens.stream('road-network', {
+  sourceNode: start,
+  targetNode: end,
+  k: 3,
+  relationshipWeightProperty: 'distance_km'
+})
+YIELD path, totalCost
+RETURN path, totalCost
+ORDER BY totalCost
+LIMIT 3;
+```
+
+BFS (unweighted) devolve hops, não km — só use quando distance não importa.
+
+#### 2.17.5 Fraud detection — cycle finding
+
+Closed cycles em payment/referral networks indicam kickback ou fraud rings. Algoritmo: BFS com depth limit ou graph pattern matching direto.
+
+```cypher
+// 3-cycle de referrals (lojista A -> B -> C -> A)
+MATCH (a:Lojista)-[:REFERRED]->(b:Lojista)-[:REFERRED]->(c:Lojista)-[:REFERRED]->(a)
+WHERE a.id < b.id AND b.id < c.id  // dedup permutações
+RETURN a.name, b.name, c.name;
+```
+
+Avançado: combine com payment flow + time-window (`duration.between(...).hours < 24`) e amount thresholds → "money laundering" patterns. Sempre cap `maxDepth`; cycle detection sem limite explode combinatorialmente.
+
+#### 2.17.6 Centrality measures
+
+- **Betweenness centrality**: nodes em muitos shortest paths (bridges; remoção quebra a network).
+- **Closeness centrality**: distância média curta a todos os outros (hubs).
+- **Eigenvector centrality**: importância em função da importância dos vizinhos (precursor do PageRank).
+
+Logística: betweenness identifica couriers/hubs críticos — remoção colapsa entregas. Output alimenta capacity planning e SLA risk scoring.
+
+#### 2.17.7 Link prediction — recommendation
+
+- **Common Neighbors**: dois nodes com vizinhos compartilhados tendem a conectar.
+- **Adamic-Adar**: ponderado por inverso do log do degree (vizinhos raros pesam mais).
+
+```cypher
+// Sugerir colaborações entre couriers que cobrem áreas em comum mas nunca trabalharam juntos
+MATCH (c1:Courier)-[:COMPLETED_DELIVERY]->(area:Area)<-[:COMPLETED_DELIVERY]-(c2:Courier)
+WHERE c1 <> c2 AND NOT EXISTS((c1)-[:COLLABORATED_WITH]-(c2))
+WITH c1, c2, COUNT(DISTINCT area) AS commonAreas
+WHERE commonAreas >= 5
+RETURN c1.name, c2.name, commonAreas
+ORDER BY commonAreas DESC
+LIMIT 20;
+```
+
+Sempre eval com ground-truth (held-out edges); sem isso, não há como saber se as recomendações servem.
+
+#### 2.17.8 GraphRAG — graph-augmented LLM retrieval (2024+)
+
+Pattern: extrair entidades + relações do corpus → graph; em query time, extrair entidades da pergunta → traverse graph → enriquecer contexto pro LLM. Microsoft GraphRAG (open-source 2024) é referência.
+
+Use case Logística: KB queries que precisam de relacionamentos entre entidades — "Quais couriers trabalharam em orders do tenant X com valor > $1k no último mês e tiveram complaint?". Vector search puro perde estrutura; GraphRAG traz a sub-rede relevante.
+
+Watchout: entity disambiguation. Múltiplos "João Silva" colapsados em um node = respostas incorretas. Resolva com deterministic IDs + embedding similarity threshold.
+
+#### 2.17.9 Logística applied stack
+
+- **Neo4j 5.x + GDS 2.10+**.
+- **Recommendation engine**: PageRank (top lojistas) + Common Neighbors (courier suggestions).
+- **Fraud detection**: nightly cron → cycle detection (3-6 hop) + Louvain communities; flag clusters densos pra review humano.
+- **Route optimization**: Yen's k-shortest paths pra rotas alternativas em real-time fallback.
+- **GraphRAG** (experimental 2026): KB enriquecida com entity graph; A/B vs vector-only.
+- **Cost real**: Neo4j Aura ~$200/mês (8GB RAM, 100GB storage); self-host Railway ~$100/mês (16GB Postgres-class node).
+
+Algoritmos pesados (PageRank full graph, Louvain) rodam em batch noturno; resultados materializados em property dos nodes (`:Lojista {pagerank: 0.0042}`) consumidos em hot path com index lookup.
+
+#### 2.17.10 Anti-patterns observados
+
+- Recursive CTE em Postgres pra > 4 hops + 1M+ nodes (lento; migrar pra graph DB).
+- PageRank sem tuning de damping factor (0.85 default; ajuste por domínio).
+- Louvain em grafo com modularidade fraca (sem clusters claros; output é lixo).
+- Shortest path unweighted quando distance importa (BFS dá nodes, não km).
+- Cycle detection sem depth limit (combinatorial explosion; cap `maxDepth`).
+- GDS algorithm em produção sem named graph projection (re-projeta a cada call; caro).
+- Centrality em grafo com 1B+ nodes em-memory (use distributed: GraphFrames Spark).
+- Link prediction sem ground-truth eval (impossível medir qualidade).
+- GraphRAG sem entity disambiguation ("João Silva" colapsado em um node).
+- Real-time graph algorithms em hot path (cache results; refresh em cron noturno).
+
+Cruza com **02-16 §2.16** (Cypher patterns base), **02-09** (Postgres recursive CTE alternative), **04-10** (GraphRAG + LLM context), **04-13** (graph como data source pra ML / GNN), **04-09** (scaling pra billion-node distributed).
+
 ---
 
 ## 3. Threshold de Maestria
