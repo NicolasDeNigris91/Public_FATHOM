@@ -781,6 +781,250 @@ Cruza com **03-03** (K8s, image registry + imagePullPolicy), **03-04** (CI/CD, b
 
 ---
 
+### 2.22 Container ecosystem 2026 — OCI 1.1, Wolfi/Chainguard, SBOM-embedded, Bake, Podman 5
+
+O ecossistema de containers fragmentou pós-layoffs Docker Inc 2023-2024 e re-consolidou em torno do **OCI** como standard de fato. Três specs convergiram em 2024: **OCI image-spec 1.1** (julho 2024 — adiciona `artifactType` no manifest e campo `subject` pra referrers), **OCI distribution-spec 1.1** (Referrers API), **OCI runtime-spec 1.2**. Isso destravou o caso de uso central da supply chain moderna: SBOM + assinatura + provenance vivem como **OCI artifacts** linkados à imagem via `subject`, no mesmo registry, sem out-of-band storage.
+
+Em paralelo, **Wolfi** (undistro Linux do time Chainguard, apk-based, glibc-compatível) emergiu como evolução de distroless. Distroless (Google) ainda é válido pra Java/Go statically-linked, mas perde quando precisa de glibc + native deps (Node native modules, Python wheels com C extensions) — Wolfi resolve. **Chainguard Images** = vendor-curated Wolfi com SLA de zero-CVE-known + variants FIPS. Tamanhos comparados (Node 20 runtime): Wolfi ~80MB, distroless ~140MB, Alpine ~150MB, Ubuntu slim ~400MB.
+
+#### OCI 1.1 — artifact manifest + subject (referrers graph)
+
+OCI 1.1 introduziu `artifactType` no image manifest (descreve payload não-imagem: SBOM, signature, attestation) e `subject` (aponta pra outro manifest). O Referrers API (`GET /v2/<repo>/referrers/<digest>`) retorna todos manifests que apontam pra um digest. Resultado: SBOM + cosign signature + SLSA provenance ficam linkados à imagem como grafo navegável, sem tags paralelas tipo `sha256-abc.sig` (que era o workaround pré-1.1).
+
+```json
+{
+  "schemaVersion": 2,
+  "mediaType": "application/vnd.oci.image.manifest.v1+json",
+  "artifactType": "application/spdx+json",
+  "config": { "mediaType": "application/vnd.oci.empty.v1+json", "size": 2, "digest": "sha256:44136fa..." },
+  "layers": [{ "mediaType": "application/spdx+json", "digest": "sha256:<sbom-blob>", "size": 12345 }],
+  "subject": {
+    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+    "digest": "sha256:<image-digest>"
+  }
+}
+```
+
+#### Wolfi-based Dockerfile (Chainguard)
+
+```dockerfile
+# build stage — Wolfi com toolchain
+FROM cgr.dev/chainguard/node:latest-dev@sha256:<digest> AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --omit=dev
+COPY . .
+RUN npm run build
+
+# runtime — Wolfi minimal, sem shell, non-root por default
+FROM cgr.dev/chainguard/node:latest@sha256:<digest>
+WORKDIR /app
+COPY --from=build --chown=nonroot:nonroot /app/dist ./dist
+COPY --from=build --chown=nonroot:nonroot /app/node_modules ./node_modules
+COPY --from=build --chown=nonroot:nonroot /app/package.json ./
+USER nonroot
+EXPOSE 3000
+ENTRYPOINT ["node", "dist/server.js"]
+```
+
+Pin por digest (`@sha256:...`) é obrigatório em prod — `:latest` viola reproducibility. Wolfi rebuilda diariamente, então o digest muda; trate como dependency e renove via Renovate/Dependabot.
+
+#### apko + melange — declarative image build (sem Dockerfile)
+
+`apko` builda OCI images de YAML declarativo, reproducible (mesmo input → mesmo digest binário), sem Dockerfile imperativo. `melange` builda APKs do source de forma equivalente. Combinação: `melange build` gera o pacote, `apko build` monta a imagem.
+
+```yaml
+# apko.yaml — image declarativo
+contents:
+  repositories:
+    - https://packages.wolfi.dev/os
+  keyring:
+    - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+  packages:
+    - ca-certificates-bundle
+    - nodejs-20
+    - npm
+    - tini
+
+accounts:
+  groups:
+    - groupname: nonroot
+      gid: 65532
+  users:
+    - username: nonroot
+      uid: 65532
+      gid: 65532
+  run-as: 65532
+
+entrypoint:
+  command: /usr/bin/tini -- /usr/bin/node /app/dist/server.js
+
+archs:
+  - x86_64
+  - aarch64
+```
+
+`apko build apko.yaml app:latest app.tar` → imagem reproducible, OCI-compliant, multi-arch, com SBOM SPDX embedado por default.
+
+#### SBOM-embedded + cosign attest + verify
+
+Pipeline canônico: build → Syft gera SBOM → cosign sign image (keyless OIDC) → cosign attest SBOM (linka como referrer OCI 1.1).
+
+```bash
+# build + push com provenance + SBOM nativos
+docker buildx build --platform linux/amd64,linux/arm64 \
+  --provenance=true --sbom=true \
+  -t ghcr.io/org/app:${SHA} --push .
+
+# Syft fora do build (ou usa o SBOM auto-embedado pelo BuildKit)
+syft ghcr.io/org/app:${SHA} -o spdx-json > sbom.spdx.json
+
+# cosign sign (keyless via Fulcio + GitHub OIDC; sem key management)
+COSIGN_EXPERIMENTAL=1 cosign sign ghcr.io/org/app:${SHA}
+
+# attest SBOM (vira referrer OCI 1.1, navegável via Referrers API)
+COSIGN_EXPERIMENTAL=1 cosign attest --predicate sbom.spdx.json \
+  --type spdx ghcr.io/org/app:${SHA}
+
+# verify em admission controller (Kyverno/Cosign policy controller)
+cosign verify ghcr.io/org/app:${SHA} \
+  --certificate-identity-regexp 'https://github\.com/org/.+' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+Keyless via Fulcio (sigstore) elimina key management — assinatura é amarrada à identidade OIDC do runner CI (GitHub Actions, GitLab, Buildkite). Sem KMS, sem rotação manual, sem chaves longplayed pra vazar.
+
+#### SLSA v1.0 build provenance
+
+SLSA v1.0 (stable Q4 2023) define níveis de garantia da supply chain. Provenance attestation (in-toto) linka **binary → source commit → builder identity**. BuildKit gera nativamente via `--provenance=true` (modo `max` inclui materials completos).
+
+```bash
+# inspect provenance
+cosign verify-attestation ghcr.io/org/app:${SHA} \
+  --type slsaprovenance \
+  --certificate-identity-regexp '...' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  | jq '.payload | @base64d | fromjson | .predicate'
+```
+
+Verificação em prod: admission controller (Kyverno, OPA Gatekeeper, Cosign policy-controller) bloqueia pods cujas imagens não tenham provenance assinada por builder confiável.
+
+#### Container scanning em CI — Trivy default, Grype alternativo
+
+**Trivy 0.55+** (Aqua, OSS) scanneia image + filesystem + IaC + K8s manifests + secrets, db atualizada de NVD + GHSA + vendor advisories. **Grype** (Anchore) é alternativa, integra bem com Syft (mesmo time). **Docker Scout** integrou ao Docker Desktop em 2024 — útil pra dev local, menos relevante em CI.
+
+```yaml
+# .github/workflows/scan.yml
+- name: Trivy image scan
+  uses: aquasecurity/trivy-action@0.28.0
+  with:
+    image-ref: ghcr.io/org/app:${{ github.sha }}
+    format: sarif
+    output: trivy.sarif
+    severity: CRITICAL,HIGH
+    exit-code: 1            # fail CI se HIGH/CRITICAL
+    ignore-unfixed: true    # ignora CVE sem patch upstream
+    vuln-type: os,library
+
+- name: Upload SARIF
+  uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: trivy.sarif
+```
+
+Cruza com VEX (Vulnerability Exploitability eXchange) — declarar CVE como `not_affected` quando não-explorável no contexto, sem suprimir alerta global. Trivy lê VEX OpenVEX format desde 0.50.
+
+#### Docker Buildx Bake — matrix multi-arch via HCL
+
+Bake (estável desde 2023) é o substituto moderno de `docker-compose build` pra pipelines complexos: matrix de targets, cache export pra registry, multi-arch. HCL > YAML pra lógica condicional + variables.
+
+```hcl
+# docker-bake.hcl
+variable "TAG" { default = "dev" }
+variable "REGISTRY" { default = "ghcr.io/org" }
+
+group "default" {
+  targets = ["api", "worker"]
+}
+
+target "_common" {
+  platforms  = ["linux/amd64", "linux/arm64"]
+  cache-from = ["type=registry,ref=${REGISTRY}/cache:buildcache"]
+  cache-to   = ["type=registry,ref=${REGISTRY}/cache:buildcache,mode=max"]
+  attest = [
+    "type=provenance,mode=max",
+    "type=sbom"
+  ]
+}
+
+target "api" {
+  inherits   = ["_common"]
+  context    = "./apps/api"
+  dockerfile = "Dockerfile"
+  tags       = ["${REGISTRY}/api:${TAG}"]
+  args       = { NODE_ENV = "production" }
+}
+
+target "worker" {
+  inherits   = ["_common"]
+  context    = "./apps/worker"
+  dockerfile = "Dockerfile"
+  tags       = ["${REGISTRY}/worker:${TAG}"]
+}
+```
+
+`docker buildx bake --push` builda os dois targets em paralelo, cada um amd64+arm64, com SBOM + provenance attestation, cache compartilhado. Cross-compile via frontend `tonistiigi/xx` quando precisa Go/Rust ARM em runner amd64.
+
+#### Podman 5 — alternativa rootless, daemonless
+
+**Podman 5.x** (Q1 2024) trouxe volume + secret handling reescritos, melhor compat com Docker API, suporte nativo a K8s YAML (`podman play kube`). Vantagens: daemonless (cada container = processo do user, sem privileged daemon), rootless por default, integra com systemd via `quadlet` (units `.container` declarativas). Trade-off: networking rootless via slirp4netns/pasta tem ~10-20% overhead vs bridge nativa; build via buildah (não BuildKit nativo) — features avançadas (cache mounts, secret mounts) ficaram pra trás até 2025.
+
+```bash
+# rootless run, sem daemon
+podman run --rm -p 8080:80 cgr.dev/chainguard/nginx:latest
+
+# K8s YAML direto (pod ou deployment)
+podman play kube ./deploy/pod.yaml
+
+# quadlet (systemd unit declarativa)
+cat > ~/.config/containers/systemd/api.container <<EOF
+[Container]
+Image=ghcr.io/org/api:v1.2.3
+PublishPort=3000:3000
+[Service]
+Restart=always
+[Install]
+WantedBy=default.target
+EOF
+systemctl --user daemon-reload && systemctl --user start api
+```
+
+Coexistência Podman + Docker no mesmo host gera conflitos de rede (CNI vs bridge docker0) — escolha um por host.
+
+#### Stack Logística aplicada
+
+Base: Wolfi Node 20 (`cgr.dev/chainguard/node:latest-dev` build, `:latest` runtime, ambos pinned por digest, renovados via Renovate weekly). Build: `docker buildx bake` com matrix `[api, worker, scheduler] × [amd64, arm64]`, cache export to GHCR, `--provenance=max --sbom=true`. CI: Trivy scan post-build, fail on HIGH/CRITICAL non-ignored, SARIF upload pro Security tab. Sign: cosign keyless via GitHub OIDC, attest SBOM (Syft-generated SPDX) + SLSA provenance como referrers OCI 1.1. Deploy: K8s admission via Kyverno verifica cosign signature + provenance issuer = `token.actions.githubusercontent.com` + repo regexp = `org/.+`. Resultado: imagem ~80MB, zero CVE HIGH known na build, supply chain auditável end-to-end.
+
+#### 10 anti-patterns do ecosystem
+
+1. SBOM gerada mas não attestada como OCI referrer — fica em S3/artifact, não-verificável em runtime.
+2. cosign com chave estática (KMS) ao invés de keyless OIDC — re-introduz key management que sigstore eliminou.
+3. Trivy scan local mas não em CI gate — regressões merged silenciosamente.
+4. distroless quando app precisa glibc + native deps (sharp, bcrypt, node-canvas) — Wolfi resolve sem Alpine musl quirks.
+5. Wolfi `cgr.dev/chainguard/node:latest` em prod sem digest pin — rebuild diário muda imagem, quebra reproducibility.
+6. Buildx sem `cache-from`/`cache-to` em registry — CI cold every run, build de 5min vira 30s+ com cache quente.
+7. Podman + Docker simultâneos no mesmo host — conflitos CNI vs docker0, troubleshooting hostil.
+8. apko sem `SOURCE_DATE_EPOCH` ou base sem timestamp pinned — drift entre builds, "reproducible" só no nome.
+9. Provenance gerada mas admission controller não verifica — defesa em profundidade fica em zero camadas.
+10. SLSA L3 claimed sem builder hardening (runner GitHub Actions default não é L3 — falta isolation + ephemeral identity sólida) — claim sem evidência.
+
+#### Cruza com
+
+§2.5 (distroless intro — Wolfi é evolução natural), §2.6 (BuildKit foundation — Bake é frontend dele), §2.21 (BuildKit cache mounts + multi-arch), §2.20 (Docker secrets — cosign keyless é mesma família de "no long-lived creds"), **03-08 §2.14** (supply chain security policies), **03-08 §2.20** (SBOM lifecycle + VEX), **03-04** (CI gate scanning + matrix bake), **03-03** (K8s admission controllers — Kyverno verifica cosign attestations), **04-08 §2.22** (edge runtimes — alternativa quando overhead de container é demais).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

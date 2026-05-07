@@ -794,6 +794,199 @@ Cruza com **03-03 §2.18** (operators pattern intro), **03-03 §2.21** (PDB/topo
 
 ---
 
+### 2.23 Kubernetes 1.32 stack 2026 — Gateway API GA, KEDA, Karpenter v1, cgroups v2, sidecar containers GA
+
+Kubernetes 1.32 (Q4 2024) estabilizou patterns que ficaram alpha por anos. Stack de produção 2026 não é mais Ingress + Cluster Autoscaler + HPA simples: é **Gateway API v1.2 GA** (Q3 2024) substituindo Ingress, **KEDA 2.16** para scaling event-driven (60+ scalers), **Karpenter v1.0 GA** (Q3 2024) como node autoprovisioner com consolidation contínua, **cgroups v2** (default desde 1.25) habilitando `memory.high` soft-limit + PSI metrics, e **sidecar containers GA** (1.29+) resolvendo race conditions de startup/shutdown que atormentavam Istio/Vault/Fluent Bit há anos. Quem está em 2026 ainda em Ingress + Cluster Autoscaler + HPA-only opera com stack de 2020.
+
+**Gateway API GA — vs Ingress.** Ingress era HTTP-only, anotações vendor-specific (`nginx.ingress.kubernetes.io/*`), sem typed policies. Gateway API é typed CRD-based, multi-protocolo (HTTPRoute, GRPCRoute, TLSRoute, TCPRoute), e split por **role**: infra team gerencia `GatewayClass` + `Gateway` (qual controller, IPs, certificados, listeners), app team gerencia `HTTPRoute` (rotas, backends, filters). GAMMA initiative (parte do Gateway API) padroniza service mesh sobre as mesmas APIs — Istio, Linkerd, Cilium implementam.
+
+```yaml
+# Infra team: GatewayClass + Gateway (cluster-scoped + namespace-scoped)
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: envoy-gateway
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: prod-gateway
+  namespace: gateway-system
+spec:
+  gatewayClassName: envoy-gateway
+  listeners:
+    - name: https
+      protocol: HTTPS
+      port: 443
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-tls  # cross-namespace via ReferenceGrant
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels: { gateway-access: prod }
+---
+# App team: HTTPRoute (orders) + GRPCRoute (couriers)
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: orders-route
+  namespace: orders
+  labels: { gateway-access: prod }
+spec:
+  parentRefs:
+    - name: prod-gateway
+      namespace: gateway-system
+  hostnames: ["api.logistica.com"]
+  rules:
+    - matches:
+        - path: { type: PathPrefix, value: /v1/orders }
+      backendRefs:
+        - name: orders-svc
+          port: 8080
+          weight: 90
+        - name: orders-svc-canary
+          port: 8080
+          weight: 10  # canary 10% nativo, sem Flagger/Argo Rollouts pra split simples
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            add: [{ name: X-Gateway, value: envoy }]
+```
+
+`parentRefs` = quais Gateways adotam essa rota; `backendRefs` = pesos para canary nativo. Status do HTTPRoute reporta `Accepted: True` quando o Gateway aceita — debug primeiro lugar quando rota não funciona.
+
+**KEDA — event-driven autoscaling (scale-to-zero).** HPA built-in escala por CPU/memory/custom metrics, mas não escala para zero e não conhece queues. KEDA é deployment + CRD `ScaledObject` que cria HPA por baixo dos panos com **External Metrics API**, e adiciona scale-to-zero. 60+ scalers oficiais: SQS, Kafka, RabbitMQ, NATS, Postgres (queries), Prometheus, Cron, Azure Service Bus, GCP PubSub.
+
+```yaml
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: courier-assigner
+  namespace: logistica
+spec:
+  scaleTargetRef:
+    name: courier-assigner-deploy
+  minReplicaCount: 0          # scale-to-zero quando queue vazia
+  maxReplicaCount: 50
+  pollingInterval: 15         # checa scaler a cada 15s (NÃO use 1s — rate-limit no SQS)
+  cooldownPeriod: 300         # espera 5min sem load antes de scale-down (evita flapping)
+  fallback:
+    failureThreshold: 3
+    replicas: 5               # se scaler falhar 3x, fixa em 5 (não desce a zero por bug)
+  triggers:
+    - type: aws-sqs-queue
+      metadata:
+        queueURL: https://sqs.us-east-1.amazonaws.com/123/courier-assignment
+        queueLength: "30"     # 1 replica por 30 mensagens visíveis
+        awsRegion: us-east-1
+        identityOwner: pod    # usa IRSA da pod, não credenciais do KEDA operator
+    - type: prometheus        # OR — escala se QUALQUER trigger pedir mais
+      metadata:
+        serverAddress: http://prometheus.monitoring:9090
+        threshold: "100"
+        query: sum(rate(http_requests_total{service="courier-assigner"}[2m]))
+```
+
+Scale-from-zero típico: ~30s (poll interval + pod startup). Para jobs batch que precisam terminar (não loop), use `ScaledJob` em vez de `ScaledObject` — cria Job por mensagem.
+
+**Karpenter v1 — node autoprovisioner.** Cluster Autoscaler escalava ASGs pré-definidos. Karpenter (GA Q3 2024 após 3 anos alpha) provisiona nodes diretamente via EC2 Fleet API olhando para pods Pending — escolhe instance type ótimo (CPU/memory/spot/zone) em ~30s, vs Cluster Autoscaler ~2-3min. **Consolidation** roda contínua: se workload cabe em nodes menores ou menos nodes, Karpenter dreina e termina automaticamente.
+
+```yaml
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata: { name: spot-batch }
+spec:
+  template:
+    metadata:
+      labels: { workload: batch, capacity: spot }
+    spec:
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: default
+      requirements:
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["spot"]
+        - key: karpenter.k8s.aws/instance-family
+          operator: In
+          values: ["c7i", "c7a", "m7i"]   # Karpenter escolhe a mais barata que cabe
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64", "arm64"]      # multi-arch pra Graviton
+      taints:
+        - key: workload
+          value: batch
+          effect: NoSchedule
+      expireAfter: 720h                    # rotaciona node a cada 30d (drift + AMI updates)
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 1m
+    budgets:
+      - nodes: "10%"                       # NUNCA dreina mais que 10% dos nodes simultâneos
+      - nodes: "0"
+        schedule: "0 9 * * mon-fri"        # zero disruption durante business hours
+        duration: 8h
+```
+
+Savings reais 2026: 30-60% no custo EC2 vs Cluster Autoscaler (mistura spot + right-sizing contínuo + bin-packing). Sem `disruption.budgets`, Karpenter faz mass-eviction durante consolidation — production outage garantido.
+
+**cgroups v2 + memory.high + PSI.** cgroups v2 é default desde K8s 1.25 (kernel 5.8+). Mudanças relevantes: `memory.max` é hard limit (OOMKill), mas agora há `memory.high` — soft limit que faz throttling de alocação antes do OOM. `requests.memory` em K8s 1.27+ vira `memory.low` (proteção contra reclaim sob pressure global), `limits.memory` vira `memory.max`. **PSI (Pressure Stall Information)** — `/proc/pressure/{cpu,memory,io}` — exposto via cAdvisor, pode ser scraped pelo Prometheus e usado como External Metric pra KEDA escalar antes do CPU% saturar. Verifique cgroup version no node:
+
+```bash
+stat -fc %T /sys/fs/cgroup/   # cgroup2fs = v2; tmpfs = v1 (migre)
+cat /sys/fs/cgroup/kubepods.slice/.../memory.pressure  # PSI metrics
+```
+
+Em clusters ainda em cgroups v1 (RHEL 7, Amazon Linux 2 antigo), perde memory.high + PSI — não há como ter soft-limit de memória, qualquer pico = OOMKill.
+
+**Sidecar containers GA (1.29+, stable 1.32).** Antes: sidecars eram containers regulares no `spec.containers` — sem ordering garantido (Istio proxy não estava pronto quando app fazia primeiro request), sem lifecycle separado (Job não terminava porque sidecar ficava rodando). Solução 2026: sidecar é **init container com `restartPolicy: Always`**. Ordering garantido (todos init containers até o sidecar precisam estar Ready), lifecycle separado (sidecar é terminado DEPOIS dos main containers), restart independente.
+
+```yaml
+spec:
+  initContainers:
+    - name: istio-proxy
+      image: docker.io/istio/proxyv2:1.24
+      restartPolicy: Always         # <-- isso faz dele sidecar
+      lifecycle:
+        postStart:
+          exec: { command: ["pilot-agent", "wait"] }   # bloqueia até proxy ready
+    - name: log-shipper
+      image: fluent/fluent-bit:3.1
+      restartPolicy: Always
+      volumeMounts: [{ name: logs, mountPath: /var/log/app }]
+  containers:
+    - name: app
+      image: logistica/orders:v2.4.1
+      # app só inicia depois que istio-proxy + log-shipper estão Ready
+```
+
+**Topology Aware Routing.** `service.kubernetes.io/topology-mode: Auto` na Service: kube-proxy roteia preferencialmente para endpoints na mesma AZ — reduz cross-AZ traffic costs (NAT $0.01/GB AWS) e latência. Combine com `internalTrafficPolicy: Local` para forçar same-node routing quando aplicável (DaemonSet log shippers).
+
+**Stack Logística aplicada.** Gateway API: `prod-gateway` único termina TLS para `api.logistica.com`, HTTPRoute para `/v1/orders` (REST), GRPCRoute para `couriers.v1.CourierService` (gRPC interno mas exposto). KEDA: `courier-assigner` escala 0→50 em SQS `courier-assignment`; `notification-worker` escala em Kafka topic `order.events` lag; `report-generator` ScaledJob escala em Postgres query (jobs pendentes). Karpenter: NodePool `default` (on-demand m7i para api/db) + `spot-batch` (spot c7a/Graviton para workers KEDA, tolerations match). cgroups v2 + PSI: HPA do `orders-svc` usa memory.pressure PSI como custom metric (escala antes do CPU saturar). Sidecar GA: Istio proxy + Vault agent injector + Fluent Bit todos como init `restartPolicy: Always` — Jobs de migration não pendem mais por sidecar leak.
+
+**10 anti-patterns 2026.**
+
+1. **Ingress + Gateway API coexistindo.** Mesma rota em ambos = comportamento indefinido (qual controller responde primeiro). Migre por namespace ou por hostname, nunca dual-stack na mesma rota.
+2. **KEDA `cooldownPeriod` baixo (< 60s).** Flapping: scale-up → load drena → scale-down → load volta → scale-up. Cada ciclo = pod startup + image pull. Mínimo 300s em workloads HTTP, 600s+ em batch.
+3. **Karpenter sem `disruption.budgets`.** Consolidation agressivo dreina 50% dos nodes em 1min — outage. Sempre limite a `10-20%` simultâneo + zero durante business hours.
+4. **cgroups v1 em K8s 1.30+.** Perde `memory.high` (sem soft-limit, só OOMKill), perde PSI metrics, perde memory QoS. Migre nodes para AL2023/Bottlerocket/Ubuntu 22.04+.
+5. **Sidecar como container regular sem `restartPolicy: Always`.** Race condition: app faz request antes do Istio proxy estar pronto → 503. Job nunca termina porque Fluent Bit fica rodando.
+6. **Gateway sem `GatewayClass` matching.** Gateway fica `Accepted: False` silenciosamente — sem rota funciona. Sempre verifique `kubectl get gateway -o jsonpath='{.status.conditions}'`.
+7. **KEDA scaler com `pollingInterval: 1`.** Rate-limit no SQS/Kafka API, custo de chamadas explode. 15-30s é o sweet spot para HTTP workloads, 60s para batch.
+8. **Karpenter `instance-family` muito restrito (1 família).** Fleet falha sob spot interruption mass — sem capacity. Permita 3-5 famílias compatíveis (`c7i, c7a, m7i, m7a`).
+9. **PDB `minAvailable: 100%` + Karpenter consolidation.** PDB bloqueia drain forever, Karpenter não consolida nada — paga node ocioso. Use `maxUnavailable: 1` ou `25%`.
+10. **Service Mesh + Gateway API duplicando policies.** Retry/timeout em ambos = comportamento composto inesperado (timeout 5s no Gateway × 3 retries no mesh = 15s real). Defina edge no Gateway, in-mesh no mesh — sem overlap.
+
+**Cruza com 03-03 §2.10** (Ingress — predecessor que Gateway API substitui), **03-03 §2.14** (HPA — KEDA cria HPA por baixo, mesma External Metrics API), **03-03 §2.18** (operators — KEDA, Karpenter, Istio são operators), **03-03 §2.21** (PDB + topology spread — interagem com Karpenter consolidation), **03-03 §2.15** (service mesh — GAMMA padroniza sobre Gateway API), **03-05 §2.x** (AWS — Karpenter é EKS-native, IRSA + EC2 Fleet API), **04-08 §2.11** (service mesh + platform engineering — split GatewayClass/HTTPRoute = role-based platform), **04-09 §2.x** (scaling — KEDA event-driven é categoria distinta de HPA/VPA), **03-15 §2.x** (incident response — disruption budgets + PDB controlam blast radius de consolidation).
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:
