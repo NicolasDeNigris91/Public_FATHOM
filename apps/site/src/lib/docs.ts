@@ -97,6 +97,22 @@ export const DOCS: DocEntry[] = [
     file: 'CODEBASE-TOURS.md',
   },
   {
+    slug: 'exemplars',
+    title: 'Exemplars',
+    eyebrow: 'Portões e logs preenchidos',
+    category: 'reference',
+    source: 'meta',
+    file: 'EXEMPLARS.md',
+  },
+  {
+    slug: 'cohort',
+    title: 'Cohort Operations',
+    eyebrow: 'First-mover & peer matching',
+    category: 'protocol',
+    source: 'meta',
+    file: 'COHORT.md',
+  },
+  {
     slug: 'stack-comparisons',
     title: 'Stack Comparisons',
     eyebrow: 'Cross-stack mapping',

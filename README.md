@@ -2,7 +2,10 @@
 
 [![validate framework](https://github.com/NicolasDeNigris91/Public_FATHOM/actions/workflows/validate.yml/badge.svg?branch=main)](https://github.com/NicolasDeNigris91/Public_FATHOM/actions/workflows/validate.yml)
 [![build site](https://github.com/NicolasDeNigris91/Public_FATHOM/actions/workflows/build-site.yml/badge.svg?branch=main)](https://github.com/NicolasDeNigris91/Public_FATHOM/actions/workflows/build-site.yml)
+[![a11y](https://github.com/NicolasDeNigris91/Public_FATHOM/actions/workflows/a11y.yml/badge.svg?branch=main)](https://github.com/NicolasDeNigris91/Public_FATHOM/actions/workflows/a11y.yml)
 [![CodeQL](https://github.com/NicolasDeNigris91/Public_FATHOM/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/NicolasDeNigris91/Public_FATHOM/actions/workflows/codeql.yml)
+[![gitleaks](https://github.com/NicolasDeNigris91/Public_FATHOM/actions/workflows/gitleaks.yml/badge.svg?branch=main)](https://github.com/NicolasDeNigris91/Public_FATHOM/actions/workflows/gitleaks.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/NicolasDeNigris91/Public_FATHOM/badge)](https://scorecard.dev/viewer/?uri=github.com/NicolasDeNigris91/Public_FATHOM)
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](./LICENSE)
 
 > Minhas notas de estudo de engenharia de software, organizadas por estágio.
