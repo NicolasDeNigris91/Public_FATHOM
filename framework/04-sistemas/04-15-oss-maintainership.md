@@ -514,6 +514,147 @@ Cruza com **03-08** §2.20 (SBOM lifecycle deep), **03-08** §2.14 (supply chain
 
 ---
 
+### 2.20 OSS sustainability 2026 post-XZ — funding, burnout, multi-maintainer, npm provenance
+
+**Post-XZ landscape (Mar 2024 → 2026).** CVE-2024-3094: Andres Freund (Microsoft engineer) descobriu backdoor em `xz-utils` 5.6.0/5.6.1 enquanto investigava 500ms de latência em SSH (Andres Freund email Mar 29 2024, oss-security list). Backdoor injetado via build tarball por persona "Jia Tan", após social-engineering campaign de ~2 anos contra Lasse Collin (sole maintainer queimado). Lessons: (1) **bus factor 1 = vulnerability**, não inconveniência; (2) **maintainer burnout é attack vector** — pressão coordenada por "fake helpful contributors" empurrou Lasse a delegar commit access; (3) "be nice to maintainers" não é defesa, é higiene mínima. Follow-up 2024-2026: OpenSSF Alpha-Omega scaling funding pra critical infra (Linux Foundation), Sovereign Tech Fund (DE) escalou €23.5M em 2024, German BSI funded 100+ projetos OSS via FOSSA program.
+
+**Maintainer burnout taxonomy 2026.** Tragedy of the commons em deps críticas: `is-promise` (npm, ~10M weekly downloads, 1 maintainer histórico), `core-js` (Denis Pushkarev solo, fund crisis pública 2020+ ainda relevante), `colors.js` / `faker.js` (Marak rage-quit Jan 2022 sabotou próprio projeto). Vetores:
+
+1. **Demanding users sem PR ou funding** — issues "este bug me afeta, prioriza" sem patch nem patrocínio.
+2. **Security pressure 24/7** — CVE responsibilities sem SLA pago; embargo windows colidem com vida pessoal.
+3. **Imposter contributors** (XZ pattern) — social engineering long-game pra commit access.
+4. **Hype cycles** — projeto vira trend, traffic 100x sem recursos pra absorver.
+
+Mitigations 2026: hard "no" defaults em scope; GitHub Sponsors visible no top do README; Code of Conduct enforced com ban-hammer; **multi-maintainer requirement** antes de OpenSSF declarar projeto "critical infra" (post-XZ policy 2024).
+
+**Funding models 2026 — números reais.**
+
+| Modelo | Fees | Tier típico | Realidade |
+|---|---|---|---|
+| GitHub Sponsors | 0% (GitHub absorve) | $5-50/mo individual | Visible se promovido; P50 income = $0 |
+| Open Collective | ~10% (fiscal host) | $50-500/mo corp | Bom pra transparência; corps preferem |
+| Tidelift | Subscription B2B | $5-50/maintainer/mês/projeto | ~$20M ARR 2024; B2B compliance-driven |
+| Polar.sh | Issue-bounty | Variável | Crowdsource de issues específicas |
+| "Fair Source" (Sentry FSL, BSL-style) | License-based | Revenue-tied | Não OSI-approved, mas funda devs |
+
+Tidelift maintainer report 2024: **median income from sponsorship = $0**; apenas top 10% > $1k/ano. OSS maintainership ≠ income unless top 1%. Plan accordingly.
+
+**Sovereign Tech Fund (DE 2022+, scaled 2024-2026).** €23.5M budget 2024 (Sovereign Tech Fund 2024 report). Funded: curl, OpenJDK, OpenSSL, GnuPG, Sequoia PGP, Bundler, Log4j, OpenBGPd. **Direct payments to maintainers**, no equity, no IP grab. Replicável: Netherlands (NL-funding), UK considerando 2026, EU Commission piloting Open Source Programme Office (OSPO) funding 2026.
+
+**EU CRA (Cyber Resilience Act, força ~2027).** Final text Dec 2023 (EU CRA final text Dec 2023). "Open-source software steward" amendment isenta non-commercial OSS — Eclipse Foundation, Apache, Linux Foundation lobbied successfully. **Commercial integrators carregam compliance**: SBOM obrigatório, vulnerability handling SLA, CVE coordination, security disclosure docs. 2026 readiness checklist:
+
+- `SECURITY.md` com disclosure path
+- SBOM gerada em release (CycloneDX ou SPDX)
+- CVE assignment process (GitHub Security Advisories ou MITRE direto)
+- Vulnerability handling SLA pública (mesmo que "best effort")
+
+**npm provenance impact (2025+).** npm provenance attestations GA Abr 2023, default workflow em GitHub Actions OIDC. Adoption 2026: ~15% top-1k npm packages publicam com provenance (npm registry stats 2026). Sigstore-backed (Rekor transparency log + Fulcio CA). Validação consumer-side:
+
+```bash
+npm audit signatures
+# valida assinaturas + provenance attestations dos deps
+```
+
+GitHub Actions OIDC publish (mata laptop-publishing → mitigates compromise):
+
+```yaml
+# .github/workflows/release.yml
+name: release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+  id-token: write   # OIDC pra Sigstore
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+```
+
+Trade-off: força CI publishing (ganho de supply chain), adds friction pra maintainer solo que fazia `npm publish` do laptop.
+
+**Sigstore beyond npm.** `cosign sign-blob` pra binários genéricos, `slsa-github-generator` pra SLSA L3 attestations, `gh attestation verify` (GitHub native, GA Out 2024), Reproducible Builds initiative (Debian, NixOS, Arch). PyPI **trusted publishers** GA Abr 2023+ (OIDC sem long-lived tokens). Maven Central plans 2026 pra publisher attestations. Real adopter: Kubernetes releases SLSA L3 attested desde 1.27 (Apr 2023).
+
+**Multi-maintainer escalation pattern.** 1 maintainer = bus factor 1 = attack vector (XZ proved). Critical projects (Linux Foundation Critical Infrastructure list, Top-1k npm/PyPI, anything em path crítico de build/runtime) deveriam target:
+
+- ≥3 active maintainers
+- 2-week PR review window mínimo pra changes não-trivial
+- Multi-party signoff em release (2 maintainers approve tag)
+- Commit access ladder explícita (issue triage → PR review → release manager → owner)
+
+Real adopters: kernel.org (subsystem maintainers + Linus), OpenSSL post-Heartbleed (governance reform 2014), curl (Daniel Stenberg + 4 co-maintainers ativos).
+
+**Saying no, scope boundaries.** Maintainer-as-default-yes leva a burnout. Defaults saudáveis:
+
+- `CONTRIBUTING.md` com explicit "we don't accept feature X, Y, Z"
+- Auto-close stale issues > 6 meses (`actions/stale`)
+- `first-interaction` action requer prior discussion antes de PR de non-collaborator
+- Templates de issue forçam reproducer mínimo
+
+Mental model: maintainers don't owe responses; consumers podem **fork**. Citação Daniel Stenberg (curl, multiple talks 2023-2024): "Open source ≠ free labor."
+
+**Career impact 2026.** Public OSS work é hiring signal forte (FAANG infra teams, Vercel/Stripe/Cloudflare, infra startups). Mas **visibility ≠ income**. Path realistic:
+
+1. Contribute to projeto que você usa daily (real bug fixes, não cosmetic).
+2. Sustain over 2+ anos (consistency > burst).
+3. Subir trust ladder: issue triage → PR review → release manager → owner.
+4. Avoid: starting library com zero users; chasing GitHub stars metric; "hello-world frameworks".
+
+**FUNDING.yml e SECURITY.md mínimos:**
+
+```yaml
+# .github/FUNDING.yml
+github: [maintainer-handle]
+open_collective: project-name
+tidelift: npm/package-name
+custom: ['https://example.com/sponsor']
+```
+
+```markdown
+<!-- SECURITY.md -->
+# Security Policy
+
+## Supported Versions
+| Version | Supported          |
+| ------- | ------------------ |
+| 2.x     | :white_check_mark: |
+| 1.x     | :x: (EOL 2025-12)  |
+
+## Reporting
+Report vulnerabilities via GitHub Security Advisories (private) or
+security@example.com. Initial response < 72h, fix SLA best-effort 30d
+for critical. Embargo coordination per CERT/CC norms.
+```
+
+**Logística applied.** Se Logística open-sources scheduling library (`@logistica/dispatch-core`): Apache 2.0 (patent grant explícito) + ≥3 maintainers internos + GitHub Actions OIDC publishing + npm provenance attestation + `SECURITY.md` com disclosure path + `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1) + `LICENSE` claro + funding link no README (mesmo que só GitHub Sponsors da empresa). Sem isso: lib morre em silêncio quando o engenheiro responsável sai, ou pior — vira vetor de attack se ganhar tração e ninguém mantém.
+
+**Cruza com.** §2.7 (security disclosure flow detalhado), §2.11 (bus factor estrutural), §2.12 (sustainability funding base teórica), §2.19 (supply chain Sigstore/SLSA deep), **03-08 §2.14** (supply chain security overview cross-stage), **04-12** (tech leadership, OSS strategy de empresa: open-source-first, OSPO setup).
+
+**Anti-patterns 2026:**
+
+1. Solo maintainer em dep usada por 1M+ apps — bus factor 1; XZ aconteceu por isso.
+2. GitHub Sponsors hidden em sub-tab do README — sem chance de funding visible; mover pro top.
+3. CRA (EU) ignorado — produto B2B EU vai exigir SBOM + vuln handling em 2027; preparar 2026.
+4. Laptop `npm publish` em projeto crítico — sem provenance, sem audit trail; mover pra OIDC CI.
+5. Aceitar PRs de "helpful new contributor" sem due diligence — XZ playbook; long-game social engineering existe.
+6. Sem `SECURITY.md` — disclosure vai pra issue público; CVE leak antes de patch.
+7. Issues abertos sem stale-bot — backlog vira graveyard; sinaliza projeto morto.
+8. CLA exigido em projeto pequeno — mata contribuição casual; DCO (sign-off) basta.
+9. Roadmap secreto — community não pode planejar; fork iminente quando alguém perde paciência.
+10. Tratar OSS maintainership como side hustle pago — P50 income = $0; maintain por leverage de carreira ou interesse técnico, não por renda esperada.
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

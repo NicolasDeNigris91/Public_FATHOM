@@ -455,6 +455,170 @@ Cruza com **02-16 §2.16** (Cypher patterns base), **02-09** (Postgres recursive
 
 ---
 
+### 2.18 Graph DB landscape 2026 — Neo4j 5 + Memgraph + AGE + GQL ISO standard
+
+#### Vendor landscape 2026
+
+Mercado consolidado em poucas opções viáveis. Decisão por workload, não por hype.
+
+- **Neo4j 5** (LTS 5.x active 2024-2026, default em enterprise). Property graph native, Cypher, graph algorithms via GDS library, cluster via Causal Cluster, federated query via Fabric. Community edition limitada a 4 cores; Enterprise paywall pra produção séria.
+- **Memgraph 2.x** (in-memory, C++, Cypher-compatible). Streaming-first via Kafka/Pulsar nativo, MAGE algorithms library (PageRank, Louvain, betweenness). Real-time graph analytics sub-100ms em 1B+ edges in-RAM.
+- **Apache AGE 1.5** (Postgres extension, GA Q4 2023). Hybrid graph + relational, openCypher subset sobre Postgres. JOIN entre graph e tabela relacional na mesma transaction. Trade-off: query planner fraco vs Neo4j; sem PageRank built-in.
+- **TigerGraph 4** (distributed, GSQL próprio). Petabyte-scale, parallel processing nativo. Curva de aprendizado de GSQL afasta times sem dedicação.
+- **Amazon Neptune** (managed AWS, suporta Property Graph + RDF). Lock-in AWS forte; útil pra times AWS-native sem capacity de operar Neo4j cluster.
+- **JanusGraph** (open-source, distribuído sobre Cassandra/HBase/BerkeleyDB). Flexibilidade de storage backend, mas ops pesada.
+
+Decision matrix:
+
+| Workload | Escolha |
+|----------|---------|
+| OLTP graph (recommendations, fraud, social) | Neo4j 5 |
+| Streaming + real-time analytics | Memgraph 2.x |
+| "Graph features sem novo DB" (Postgres já existe) | Apache AGE |
+| AWS-native managed | Neptune |
+| Petabyte-scale, time dedicado | TigerGraph |
+| Knowledge graph + RDF + reasoning | Neptune RDF / GraphDB / Stardog |
+
+#### GQL ISO standard (ISO/IEC 39075:2024)
+
+Publicado Abril 2024. Primeira **ISO graph query language standard**. Baseado em Cypher (Neo4j contribuiu material substancial). Objetivo: encerrar fragmentação SPARQL/Cypher/Gremlin/GSQL.
+
+Adoption 2026:
+
+- **Neo4j 5.13+**: GQL parcial (path patterns, novas keywords). Cypher continua suportado em paralelo.
+- **Memgraph**: openCypher-compatible, GQL roadmap pra 2.x.
+- **Apache AGE**: openCypher subset, GQL longe.
+
+Migration path Cypher → GQL é majoritariamente syntax-compat. Novas semantics relevantes: `MATCH ... PATH` com path mode (`WALK`, `TRAIL`, `ACYCLIC`, `SIMPLE`) explícito, evitando ambiguidade de cycle handling.
+
+```cypher
+-- GQL path mode explícito
+MATCH p = ANY SHORTEST (a:Courier)-[:DELIVERS*1..5]->(b:Region)
+WHERE a.id = $courierId
+RETURN p
+```
+
+#### Apache AGE deep
+
+Install + setup por session:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS age;
+LOAD 'age';
+SET search_path = ag_catalog, "$user", public;
+
+SELECT create_graph('logistics');
+```
+
+Query (Cypher embedded em SQL):
+
+```sql
+SELECT * FROM cypher('logistics', $$
+  MATCH (c:Courier)-[:ASSIGNED]->(o:Order)-[:IN]->(r:Region)
+  WHERE r.code = 'SP-CENTRO'
+  RETURN c.name, count(o) AS orders
+$$) AS (name agtype, orders agtype);
+```
+
+JOIN graph + relational (vantagem matadora vs Neo4j standalone):
+
+```sql
+SELECT g.name, o.total_brl, o.created_at
+FROM cypher('logistics', $$
+  MATCH (c:Courier {id: 'CR-007'})-[:ASSIGNED]->(o:Order)
+  RETURN o.id AS order_id, c.name AS name
+$$) AS g(order_id agtype, name agtype)
+JOIN orders o ON o.id = (g.order_id::text)::int;
+```
+
+Pros: connection Postgres existing, transaction unified, ops sem novo DB. Cons: planner não otimizado pra deep traversal, graph algorithms ausentes, agtype casting verbose. Adopters reais: Bitnine (criador), uso interno em telecom + finance.
+
+#### Memgraph 2.x
+
+In-memory native, C++, Cypher + MAGE library (PageRank, community detection Louvain, betweenness, similarity). Streaming integration nativa: stream Kafka topic vira evento graph sem ETL.
+
+```cypher
+CREATE KAFKA STREAM order_events
+  TOPICS 'orders.created'
+  TRANSFORM kafka_transform.order_to_graph
+  BOOTSTRAP_SERVERS 'kafka:9092';
+START STREAM order_events;
+```
+
+Use case canônico: real-time fraud detection (sub-100ms graph query em 1B+ edges in-memory). Custo: RAM-bound. Planejar **1.5-2x dataset size em RAM** (overhead de índices, snapshots, WAL). Dataset 100GB exige máquina 200GB RAM mínimo.
+
+#### Property graph vs RDF (2026 angle)
+
+| Eixo | Property Graph | RDF Triple Store |
+|------|----------------|------------------|
+| Modelo | nodes/edges com properties | (subject, predicate, object) triples |
+| Schema | flexible, label-based | ontology-driven (OWL, RDFS) |
+| Query | Cypher / GQL | SPARQL |
+| Sweet spot | OLTP, app data | knowledge graphs, reasoning, federation |
+| Vendors 2026 | Neo4j, Memgraph, AGE | GraphDB, Stardog, Neptune RDF |
+
+2026: **GraphRAG pra LLMs adopta property graph** (pragmatic) mais que RDF (semantic web ideology). Wikidata mantém RDF; Microsoft GraphRAG, Neo4j GenAI, LlamaIndex KG default em property graph.
+
+#### GraphRAG patterns 2026
+
+Microsoft GraphRAG (research blog Jul 2024, 70% improvement em "global questions" vs vector RAG puro):
+
+1. LLM extrai entities + relationships de chunks de documento.
+2. Constrói property graph; aplica community detection (Leiden algorithm).
+3. LLM gera summary por community (hierarchical).
+4. Query: vector search escolhe community summaries relevantes; graph traversal expande context; LLM responde.
+
+Stack típico 2026: Neo4j 5 + LangChain `GraphCypherQAChain` ou Neo4j GenAI integrations (vector index nativo desde 5.11, HNSW). Cross-ref: ver **04-10** (RAG patterns) e **04-13** (graph como input pra GNN).
+
+#### Performance tuning 2026
+
+- **Index-free adjacency** vence em deep traversal (5+ hops). Postgres recursive CTE bate em 1-2 hops com índices certos. Benchmark per-workload, não por dogma.
+- **Neo4j**: `dbms.memory.pagecache.size` ≈ dataset size; heap separado pra query (Xmx 16-32GB típico).
+- **Memgraph**: tudo em RAM; storage mode `IN_MEMORY_ANALYTICAL` desliga MVCC pra batch queries (5-10x faster, sem isolation).
+- **Sharding**: Neo4j Fabric (federated query, manual shard key); Neptune cluster auto-shard; TigerGraph distributed nativo.
+- **Indexes**: criar em property usado em `MATCH (:Label {prop: $val})`. Sem index, full label scan.
+
+#### Migration playbook
+
+Não migrar preventively. Graph DB é overhead operacional real (cluster, backup, monitoring, query language nova pro time). Sequência:
+
+1. **Postgres recursive CTE** até latência > 100ms em 4+ hops ou query ilegível.
+2. **Apache AGE** se Postgres já é stack — mantém ops, adiciona Cypher onde dói.
+3. **Neo4j / Memgraph standalone** quando workload graph-dominant (>30% das queries são path/traversal) ou algorithms (PageRank, community) viram requisito.
+
+#### Tooling 2026
+
+- **Neo4j Bloom**: visual exploration pra business users, perspective-based.
+- **Memgraph Lab**: query IDE, visualização, profiling.
+- **AGE Viewer**: visualização básica, ainda imatura.
+- **GraphFrames** (Spark): batch analytics em billion-edge graphs (PageRank distribuído).
+- **NetworkX** (Python): in-memory pra graphs <1M edges, prototyping e research.
+
+#### Logística applied
+
+Rotas multi-stop com restrições (vehicle capacity, time windows): **Memgraph in-memory** pra pathfinding + replay de eventos via Kafka stream. Knowledge graph "couriers ↔ regions ↔ orders" em **Apache AGE** (mantém Postgres já existente, JOIN direto com tabela `orders` sem ETL). GraphRAG sobre tickets de suporte ("by similar issue") via **Neo4j 5 + LangChain** com vector index nativo.
+
+#### Cruza com
+
+**02-16 §2.16** (Cypher patterns), **02-16 §2.17** (graph algorithms applied), **../02-09** (Postgres + recursive CTE alternative), **../../04-llms-ai/04-10** (GraphRAG context pra LLMs), **../../04-llms-ai/04-13** (graph como input pra GNN/streaming).
+
+#### 10 anti-patterns
+
+1. **AGE sem `LOAD 'age'` em cada session** — query falha com `function ag_catalog.cypher(...) does not exist`. Carregar via `session_preload_libraries` ou no início de cada connection.
+2. **Neo4j Community em produção com > 4 cores** — license restringe core count, processo cap silencioso ou recusa boot. Enterprise license obrigatória pra prod séria.
+3. **Memgraph dataset > RAM disponível** — sem swap policy, OOM crash em peak. Capacity plan 1.5-2x dataset size; alertar em 70% RAM.
+4. **Cypher `MATCH` sem index em property filtrada** — full label scan, latência cresce linear com nodes. `CREATE INDEX FOR (n:Order) ON (n.status)`.
+5. **Variable-length path sem upper bound** (`-[*]->`) — explosão combinatória, query nunca retorna. Sempre `[*1..5]` ou similar.
+6. **AGE assumindo planner Postgres é graph-aware** — não é. Queries com 4+ hops degradam. Pra deep traversal ir pra Neo4j ou Memgraph.
+7. **GraphRAG sem community summaries cacheados** — re-extrair entities/relationships por query custa $$$ em LLM tokens. Build offline, refresh incremental.
+8. **RDF onde property graph resolve** — adotar SPARQL + ontology porque "é mais correto" sem requisito de reasoning é overengineering. App OLTP padrão é property graph.
+9. **Mistura Cypher dialects sem awareness** — Neo4j Cypher tem features (`CALL { ... }` subqueries, `EXISTS` patterns) que Memgraph/AGE não suportam. Portabilidade quebra silenciosamente.
+10. **Migrar Postgres → Neo4j sem benchmark** — hops rasos (1-2) com índice certo Postgres compete. Migrar "porque grafo" sem profiling vira regret operacional em 6 meses.
+
+Fontes inline: ISO/IEC 39075:2024 (GQL standard, Abril 2024); Microsoft GraphRAG paper (research blog Jul 2024); Neo4j docs 5.x; Apache AGE docs 1.5; Memgraph docs 2.x; openCypher spec.
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:

@@ -573,6 +573,124 @@ Cruza com **02-04** (React 19, useTransition + concurrent rendering), **02-05** 
 
 ---
 
+### 2.21 Image optimization 2026 — AVIF + fetchpriority + LCP preload + dynamic OG + blurhash
+
+Imagens dominam payload web (Web Almanac 2024: median 1MB+ por page, 40-60% do total bytes) e LCP (Web.dev "Optimize LCP": ~70% das pages têm image como LCP element). Otimização de imagem 2026 não é mais "use WebP" — é stack: format negotiation com `<picture>`, fetchpriority hints, preload responsivo, OG generation dinâmica, blurhash placeholders. Decisões erradas (lazy em LCP, preload sem srcset) regridem performance vs ausência de otimização.
+
+**Format matrix 2026.** AVIF é default escolha — Safari 16+ (GA desde 2022), Chrome/Edge/Firefox GA, ~50% smaller que JPEG mesma quality (Cloudinary 2024 image study). WebP universal fallback (Safari 14+, IE morto), ~30% smaller que JPEG. JPEG XL ainda niche em 2026: Safari 17+ shipped, Chrome behind `--enable-features=JpegXl` flag, Firefox flag (Can I Use Q1 2026: <60% global support sem flag). Conclusão: pivot para AVIF + WebP fallback, JPEG XL ainda não vale build complexity. `<picture>` com type ordering deixa browser escolher:
+
+```html
+<picture>
+  <source type="image/avif" srcset="hero.avif" />
+  <source type="image/webp" srcset="hero.webp" />
+  <img src="hero.jpg" alt="Courier entregando pacote" width="1200" height="630" />
+</picture>
+```
+
+Browser pega o primeiro `<source>` que entende; `<img>` é fallback final. `width`/`height` evitam CLS (reserva space antes do load).
+
+**`fetchpriority` attribute (Baseline 2024).** All browsers 2026, suporta `high`/`low`/`auto`. Hero/LCP image = `fetchpriority="high"`, below-fold thumbnails = `low`. Cloudinary 2024 reports 25% LCP improvement em e-commerce hero images apenas adicionando `fetchpriority="high"`. Browser default deprioriza imagens fora do initial viewport; `fetchpriority="high"` força priority lane:
+
+```html
+<img
+  src="hero.avif"
+  alt="Hero"
+  fetchpriority="high"
+  decoding="async"
+  width="1200"
+  height="630"
+/>
+```
+
+**`loading="lazy"` + `decoding="async"` combo.** `loading="lazy"` é native (substitui IntersectionObserver code), browser lazy-loads quando próximo do viewport. `decoding="async"` faz decode off-main-thread, evita blocking de paint em images grandes. **Anti-pattern crítico:** `loading="lazy"` em LCP image — browser pula priority hints, LCP regride 1-3s (Web.dev "Optimize LCP" warning explícito). Aplique `lazy` apenas em non-LCP, abaixo do fold.
+
+**LCP image preload.** Quando LCP image é conhecida server-side (hero estático, product image route-driven), preload em `<head>` ganha 100-300ms vs descoberta via parser:
+
+```html
+<link
+  rel="preload"
+  as="image"
+  fetchpriority="high"
+  imagesrcset="hero-800.avif 800w, hero-1200.avif 1200w, hero-1600.avif 1600w"
+  imagesizes="(max-width: 768px) 100vw, 1200px"
+  type="image/avif"
+/>
+```
+
+`imagesrcset` + `imagesizes` fazem responsive preload — browser baixa só a variant correta para o DPR/viewport. **Risk:** preload errado (wrong format, no srcset) bloqueia outras requests críticas (CSS, JS) e regride LCP.
+
+**Responsive images deep.** `srcset` w-descriptors (`hero-800.avif 800w`) vs x-descriptors (`hero@2x.avif 2x`) — w-descriptors são mais flexíveis, browser combina com `sizes` + DPR. `sizes` query DEVE refletir o layout CSS real (`(max-width: 768px) 100vw, 50vw`); errado = browser baixa size errado. DPR awareness: 2x density mainstream em mobile 2026, 3x em iPhone Pro/Pixel Pro flagship. Art direction (crop diferente per breakpoint) requer `<picture>` com `media`, não `srcset`. Next.js 15 `<Image>` automatiza:
+
+```tsx
+import Image from "next/image";
+
+<Image
+  src="/hero.jpg"
+  alt="Courier"
+  width={1200}
+  height={630}
+  priority
+  sizes="(max-width: 768px) 100vw, 1200px"
+  placeholder="blur"
+  blurDataURL="data:image/jpeg;base64,..."
+/>;
+```
+
+`priority` injeta preload + `fetchpriority="high"` automático; `sizes` deve match CSS real.
+
+**OG image generation.** Vercel `@vercel/og` (Satori + Resvg, edge runtime) gera imagens dinâmicas per-request com cache headers. Cloudflare Workers `og` package equivalente para CF stack. Aspect ratio: 1200x630 (Twitter/X, Facebook, default OG), 1200x627 (LinkedIn — 3 pixels diferentes mas tolerante). Fonts em edge: subset Inter/Geist (~30KB woff2) carregado via fetch + cache. Vercel docs `@vercel/og`:
+
+```tsx
+// app/og/[orderId]/route.tsx (Next.js 15)
+import { ImageResponse } from "next/og";
+
+export async function GET(
+  req: Request,
+  { params }: { params: Promise<{ orderId: string }> },
+) {
+  const { orderId } = await params;
+  const order = await fetchOrder(orderId);
+
+  return new ImageResponse(
+    (
+      <div style={{ display: "flex", fontSize: 48 }}>
+        Pedido {orderId} — ETA {order.eta}min
+      </div>
+    ),
+    {
+      width: 1200,
+      height: 630,
+      headers: { "cache-control": "public, max-age=3600, s-maxage=86400" },
+    },
+  );
+}
+```
+
+**Blurhash placeholders.** Pré-compute hash em build (server-side, biblioteca `blurhash` Node), inline base64 ~20-30 bytes vs full thumbnail KB. Renderiza placeholder borrado enquanto image real carrega, percepção de speed +200-400ms. Alternativas: `thumbhash` (Wolt, mais smooth gradients, ~25 bytes), Next.js `placeholder="blur"` + `blurDataURL` automático em static imports, `plaiceholder` lib (gera SVG/CSS/blurhash). Pinterest, Wolt, Unsplash usam blurhash + dominant color em produção.
+
+**Image CDN comparison 2026.** Cloudflare Images $5/100k images stored + $1/100k delivered (cheap, integrado com Workers/Pages). Cloudinary mais features (AI crop, video, transformations complexas), mais caro ($89+/mo). imgix integrado bem com S3, pricing por volume. ROI: image CDN paga-se em LCP improvement em e-commerce (Web.dev case studies: 1s LCP improvement = +7-10% conversion). Self-hosted alternativa: `sharp` + Next.js Image Optimization API on-demand (free, mas requer compute + cache).
+
+**Image accessibility.** `alt` attribute obrigatório em todas images. Decorative images: `alt=""` explicit (vazio) é melhor que omit — screen reader pula explicitamente vs anuncia filename. `aria-hidden="true"` em decorative quando combinado com texto adjacente equivalente. `<figure>` + `<figcaption>` para semantic grouping (image + caption ligados programaticamente). Nunca use texto em imagem como único veículo de informação (i18n + a11y break).
+
+**Logística applied.** /tracking page tem hero map screenshot 1200x630 servida via Cloudflare Images como AVIF (primary) + WebP (fallback) + JPEG (legacy), `fetchpriority="high"` + `<link rel="preload">` no `<head>` server-rendered. Map screenshot do trajeto courier→destino tem blurhash placeholder (gerado em build a partir do dominant route color) enquanto tile real carrega. OG image dinâmica em `app/og/[orderId]/route.tsx` com courier ETA, distância restante e nome da loja — compartilhamento em WhatsApp/Twitter mostra preview rico, +30% click-through em testes A/B.
+
+**Cruza com.** **02-01** (HTML/CSS, `<picture>` element + `aspect-ratio` CSS para reservar space pré-load), **02-05** (Next.js 15 `<Image>` component + `next.config.js` remote patterns para Cloudflare Images), **03-09 §2.1** (LCP é image em 70%+ das web pages — image optimization é LCP optimization), **03-09 §2.8** (cobre imagens overview, esta seção é deep-dive 2026), **03-04** (CI/CD pipeline com image build optimization step: Sharp pre-process + blurhash gen + manifest).
+
+**Anti-patterns.**
+
+1. `loading="lazy"` em LCP image — browser deprioriza, LCP regride para 4s+ (Web.dev warning).
+2. Preload sem `imagesrcset`/`imagesizes` em responsive image — desktop variant baixada em mobile, waste 2-3x bandwidth.
+3. Cloudflare Images sem variants config — full-res 4000px entregue para mobile 360px, 10x bandwidth waste.
+4. `<img>` sem `width`/`height` — CLS regride, layout salta quando image carrega (CLS > 0.25 = poor).
+5. `sizes` query não match CSS layout real — browser baixa size errado, srcset desperdiçado.
+6. `fetchpriority="high"` em múltiplas imagens — anula priority signal, browser default-prioriza tudo.
+7. JPEG XL como primary format em 2026 — Chrome flag-only, Firefox flag, baixa adoção (Can I Use <60%), build complexity sem ROI.
+8. OG image estática em route dinâmica — perde contexto per-page (orderId, productId), CTR -20% em social.
+9. Blurhash inline >50 bytes — perde vantagem vs LQIP thumbnail, decode cost > paint benefit.
+10. `alt` ausente ou genérico ("image", "photo") — fail WCAG 2.2 1.1.1, screen readers anunciam filename inútil.
+
+---
+
 ## 3. Threshold de Maestria
 
 Você precisa, sem consultar:
