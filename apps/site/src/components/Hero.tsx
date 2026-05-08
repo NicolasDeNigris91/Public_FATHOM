@@ -112,7 +112,7 @@ export function Hero({ totalModules, activeModule }: HeroProps) {
         aria-hidden="true"
         className="absolute bottom-12 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
       >
-        <span className="font-mono text-caption text-mist tracking-luxury uppercase">Scroll</span>
+        <span className="font-mono text-caption text-fog tracking-luxury uppercase">Scroll</span>
         <motion.div
           animate={reduced ? undefined : { y: [0, 8, 0] }}
           transition={reduced ? undefined : { duration: 2, repeat: Infinity, ease: EASE_STANDARD }}

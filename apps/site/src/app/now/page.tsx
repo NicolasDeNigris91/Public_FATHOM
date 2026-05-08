@@ -247,7 +247,7 @@ export default async function NowPage() {
         </div>
 
         <div className="mt-20 pt-12 border-t border-mist/40">
-          <p className="font-mono text-caption text-chrome/70 tracking-wide leading-relaxed max-w-2xl">
+          <p className="font-mono text-caption text-fog tracking-wide leading-relaxed max-w-2xl">
             Esta página segue o{' '}
             <a
               href="https://nownownow.com/about"

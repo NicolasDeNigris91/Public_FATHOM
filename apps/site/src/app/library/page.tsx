@@ -115,7 +115,7 @@ export default function LibraryPage() {
                               Free
                             </span>
                           ) : (
-                            <span className="font-mono text-caption text-chrome/70 tracking-luxury uppercase border border-mist/40 px-2 py-0.5 inline-flex items-center gap-1">
+                            <span className="font-mono text-caption text-fog tracking-luxury uppercase border border-mist/40 px-2 py-0.5 inline-flex items-center gap-1">
                               <Lock size={10} strokeWidth={1} />
                               Paid
                             </span>

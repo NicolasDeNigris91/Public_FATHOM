@@ -235,7 +235,7 @@ export default async function ModulePage({ params }: { params: Promise<{ id: str
                                    hover:border-gold-leaf hover:text-gold-leaf transition-colors duration-200"
                       >
                         <span className="text-racing-green-lit">{d.rawId}</span>
-                        <span className="text-chrome/80">{d.title}</span>
+                        <span className="text-fog">{d.title}</span>
                       </Link>
                     </li>
                   ))}

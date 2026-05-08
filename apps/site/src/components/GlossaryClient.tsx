@@ -64,7 +64,7 @@ export function GlossaryClient({ terms, sections }: Props) {
           placeholder="Buscar termo ou definição…"
           aria-label="Buscar termo ou definição no glossário"
           className="flex-1 bg-transparent outline-none border-none
-                     font-sans text-body text-pearl placeholder:text-mist"
+                     font-sans text-body text-pearl placeholder:text-fog"
         />
         {query && (
           <button

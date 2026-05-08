@@ -28,7 +28,7 @@ export function TableOfContents({ items }: Props) {
               className={`block text-caption tracking-wide transition-colors duration-200 leading-snug
                           ${item.level === 2
                             ? 'font-mono text-chrome hover:text-pearl'
-                            : 'font-mono text-chrome/70 hover:text-chrome'}`}
+                            : 'font-mono text-fog hover:text-chrome'}`}
             >
               {item.text}
             </a>

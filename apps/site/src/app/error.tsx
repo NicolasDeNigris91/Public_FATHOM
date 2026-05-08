@@ -33,7 +33,7 @@ export default function Error({
         </p>
 
         {error.digest && (
-          <p className="font-mono text-caption text-chrome/60 tracking-wide mb-12">
+          <p className="font-mono text-caption text-fog tracking-wide mb-12">
             Digest: <span className="text-chrome">{error.digest}</span>
           </p>
         )}
@@ -59,7 +59,7 @@ export default function Error({
         </div>
 
         <div className="border-t border-mist/40 pt-10">
-          <p className="font-mono text-caption text-chrome/70 tracking-wide">
+          <p className="font-mono text-caption text-fog tracking-wide">
             Bugs &amp; reports:{' '}
             <a
               href="https://github.com/NicolasDeNigris91/FATHOM/issues"
