@@ -49,11 +49,10 @@ jobs:
           NEXT_PUBLIC_SITE_URL: https://fathom.nicolaspilegidenigris.dev
 
       - name: Run Lighthouse CI
-        # Repo-root cwd so lhci picks up `.lighthouserc.json`, whose
-        # `startServerCommand` is written relative to the repo root
-        # (`node apps/site/.next/standalone/apps/site/server.js`). Run
-        # via npx so the install resolves through the npm cache rather
-        # than an ad-hoc `npm install -g` (Scorecard PinnedDependenciesID).
+        working-directory: apps/site
+        # Run via npx so the install path goes through the npm cache
+        # against package-lock.json (Scorecard PinnedDependenciesID:
+        # ad-hoc `npm install -g <pkg>@<ver>` is not pinned by hash).
         run: npx --yes @lhci/cli@0.14.0 autorun
         env:
           LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
