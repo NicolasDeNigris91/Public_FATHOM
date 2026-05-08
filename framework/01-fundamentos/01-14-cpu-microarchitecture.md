@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que iterar um array ordenado é tipicamente muito mais rápido que iterar o mesmo array embaralhado num loop com `if a[i] > threshold`?"
+    options:
+      - "Porque o cache CPU é otimizado pra dados ordenados, sem relação com branches."
+      - "Porque com dados ordenados o branch predictor acerta quase 100% (todos verdadeiros depois todos falsos); embaralhado, mispredictions custam 10-20 ciclos cada via pipeline flush."
+      - "Porque ordenação reduz o número de instruções executadas pela metade."
+      - "Porque o compilador detecta dados ordenados e remove o branch."
+    correct: 1
+    explanation: "Branch prediction depende de regularidade. Array ordenado dá padrão consistente (true...true,false...false), trivial de prever. Random destrói o preditor (dynamic 2-bit, TAGE), pagando ~10-20 ciclos por miss. É o exemplo clássico do Hennessy/Stack Overflow."
+  - q: "Qual a estimativa de latência relativa entre L1 cache, L3 cache e DRAM em CPU x86 moderna?"
+    options:
+      - "L1 ~4 ciclos, L3 ~40 ciclos, DRAM ~200-400 ciclos."
+      - "Todos têm latência similar (~10 ciclos); diferença é só capacidade."
+      - "L1 ~1 ciclo, L3 ~5 ciclos, DRAM ~20 ciclos."
+      - "L1 ~100 ciclos, L3 ~500, DRAM ~10000."
+    correct: 0
+    explanation: "Ordens de grandeza importam: cache miss em L1 que vai a L3 custa ~10x mais; miss até DRAM custa ~50-100x. Por isso cache locality (sequential access, packing hot data) frequentemente vale mais que reduzir count de instruções."
+  - q: "Por que false sharing degrada performance mesmo sem locks ou data races verdadeiras?"
+    options:
+      - "Porque o compilador insere locks invisíveis."
+      - "Duas variáveis independentes na mesma cache line (~64B) acessadas por cores diferentes geram tráfego de coherence (MESI invalidations) a cada escrita, mesmo as variáveis sendo logicamente independentes."
+      - "Porque o kernel força sincronização entre threads no mesmo NUMA node."
+      - "Porque a memória DRAM tem porta única."
+    correct: 1
+    explanation: "MESI exige que escrita em cache line invalide cópias em outros caches. Se thread A escreve var X e thread B escreve var Y na mesma linha, cada escrita chuta a linha do cache do outro core. Mitigação: padding (`alignas(64)` em C++, `@Contended` em Java)."
+  - q: "Que condição IMPEDE a auto-vetorização de um loop por compiladores como gcc/clang?"
+    options:
+      - "Loop com trip count fixo conhecido em tempo de compilação."
+      - "Loop-carried dependency tipo `x[i] = x[i-1] + 1` (cada iteração depende da anterior), ou aliasing ambíguo de pointers sem `restrict`."
+      - "Acesso sequencial contíguo a arrays alinhados."
+      - "Uso de tipos float em vez de int."
+    correct: 1
+    explanation: "SIMD precisa que iterações sejam INDEPENDENTES pra processar várias em paralelo. Dependência cruzada serializa o loop. Aliasing ambíguo (compilador não sabe se ponteiros overlap) também bloqueia: solução é `restrict`/`__restrict__` ou refatorar pra SoA."
+  - q: "Por que SoA (Structure of Arrays) costuma vencer AoS (Array of Structures) em hot loops numéricos?"
+    options:
+      - "SoA usa menos memória total."
+      - "Em SoA, fields acessados ficam contíguos: AVX2 carrega 8 floats consecutivos do mesmo field num registro vetorial, maximizando bandwidth útil; em AoS, cada cache line carrega 16B mas usa só 4B (waste de banda) e impede vetorização limpa."
+      - "AoS não funciona em ARM, só x86."
+      - "SoA elimina cache misses completamente."
+    correct: 1
+    explanation: "Loop somando só `x[i]` em AoS `{x,y,z,m}` desperdiça 75% de cada cache line e quebra vetorização (fields entrelaçados). SoA junta `x[]` contíguo, fully utilizado, vetorizável trivialmente. Por isso ECS, ClickHouse, Apache Arrow são SoA."
 ---
 
 # 01-14, CPU Microarchitecture

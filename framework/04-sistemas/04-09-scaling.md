@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que separar state do app (sessions, cache local) facilita scale horizontal?"
+    options:
+      - "Reduz uso de CPU em cada réplica"
+      - "Permite que load balancer mande requests para qualquer réplica sem perder contexto do usuário"
+      - "Aumenta o throughput do banco de dados primário"
+      - "Elimina a necessidade de TLS entre serviços"
+    correct: 1
+    explanation: "App stateless permite réplicas idênticas; com state em memória, LB roteando para outro pod faz a sessão sumir. Mover state para Redis/JWT/sticky sessions destrava scale horizontal."
+  - q: "Qual é o trade-off principal de uma shard key baseada em range (ex: timestamp)?"
+    options:
+      - "Distribuição perfeitamente uniforme entre shards"
+      - "Range queries ficam impossíveis de executar"
+      - "Hotspots em valores monotônicos como timestamps recentes que batem sempre no mesmo shard"
+      - "Aumenta automaticamente o número de réplicas de leitura"
+    correct: 2
+    explanation: "Range key preserva ordem (boas range queries) mas concentra writes recentes no mesmo shard, criando hotspot. Hash distribui melhor mas quebra range queries."
+  - q: "Em distributed rate limiting com Redis + Lua, por que o script garante atomicidade entre instâncias?"
+    options:
+      - "Porque Redis Cluster faz commit em duas fases"
+      - "Porque Lua roda single-threaded em Redis, executando ZREMRANGE + ZCARD + ZADD como transação implícita"
+      - "Porque o cliente Node.js serializa as chamadas via mutex local"
+      - "Porque Redis usa locks pessimistas em cada chave acessada"
+    correct: 1
+    explanation: "Redis executa scripts Lua single-threaded, garantindo que toda a sequência de comandos rode atomicamente sem race entre múltiplos clientes/instâncias chamando o mesmo limit."
+  - q: "Qual padrão de invalidação de cache distribuído evita race conditions sem coordenação entre instâncias?"
+    options:
+      - "Pub/sub broadcast direto via Redis"
+      - "TTL muito curta combinada com warmup periódico"
+      - "Versioned keys: cada update incrementa a version e a chave nova é consultada"
+      - "Sticky sessions no load balancer"
+    correct: 2
+    explanation: "Versioned keys mudam o key path em vez de invalidar; versões antigas vivem até TTL natural. Sem coordination cross-instance, é distributed-friendly e elimina invalidation race."
+  - q: "Quando faz sentido sair de single-region multi-AZ para multi-region active-active?"
+    options:
+      - "Sempre que o sistema atingir 1k requests por segundo"
+      - "Quando latência percebida pelos usuários globais ou compliance regulatório força, aceitando complexidade de consistência cross-region"
+      - "Logo após adotar Kubernetes em produção"
+      - "Para reduzir o custo total de infra mensal"
+    correct: 1
+    explanation: "Multi-region active-active multiplica complexidade (consistency, conflict resolution). Default é single-region multi-AZ; só migre quando user latency global ou compliance (data residency) justifiquem o custo."
 ---
 
 # 04-09, Scaling

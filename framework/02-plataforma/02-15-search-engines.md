@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual o papel dos parâmetros `k1` e `b` em BM25?"
+    options:
+      - "`k1` controla o número de documentos retornados; `b` controla o boost por field"
+      - "`k1` controla saturation de TF (term repetido 100x não vale 100x); `b` normaliza por document length para evitar que docs curtos vençam por densidade"
+      - "Ambos são apenas pesos arbitrários sem significado matemático"
+      - "`k1` é o IDF mínimo; `b` é o threshold de relevância"
+    correct: 1
+    explanation: "BM25 refina TF-IDF: `k1` (~1.2) faz TF saturar (10º match conta menos que o 1º); `b` (~0.75) normaliza pelo tamanho do doc relativo ao avgdl, evitando que docs muito curtos dominem por densidade espúria."
+  - q: "Em hybrid search BM25 + vector, por que Reciprocal Rank Fusion (RRF) com k=60 é o default empírico?"
+    options:
+      - "Porque k=60 maximiza precision em todos os domínios"
+      - "Porque RRF combina ranks (não scores brutos) sem precisar normalizar escalas distintas; k=60 (Cormack 2009) suaviza sem winner-takes-all (k=1) nem achatamento (k>>60)"
+      - "Porque é o valor exigido pelo Elasticsearch"
+      - "Porque k=60 minimiza latência da query"
+    correct: 1
+    explanation: "BM25 e cosine similarity têm escalas diferentes; normalizar é frágil. RRF (`Σ 1/(k + rank_i)`) usa só ranks. k=60 é empírico do paper Cormack et al; k=1 vira top-rank winner-takes-all, k>>60 achata a fusão."
+  - q: "Em HNSW, qual o trade-off do parâmetro `ef_search`?"
+    options:
+      - "`ef_search` define apenas a largura do build do índice"
+      - "`ef_search` é o knob runtime que troca latência por recall: maior = mais nós explorados, recall maior, latência maior"
+      - "`ef_search` controla o número de camadas da hierarquia"
+      - "`ef_search` define quantos vetores cabem em memória"
+    correct: 1
+    explanation: "`M` e `ef_construction` são build-time. `ef_search` é runtime: aumenta para subir recall (típico 100-500). Comece em 100 e ajuste até hit recall@10 ≥ 0.95 no golden set."
+  - q: "Por que aplicar synonyms apenas no `search_analyzer` (e não no `index_analyzer`) é o padrão correto em Elasticsearch?"
+    options:
+      - "Porque o index_analyzer não suporta synonym filters"
+      - "Porque indexar synonyms infla o índice e quebra phrase matching com positions desalinhadas; aplicar só no search expande a query mantendo o índice limpo"
+      - "Porque synonyms só funcionam na query, nunca no documento"
+      - "Para garantir compatibilidade com OpenSearch"
+    correct: 1
+    explanation: "Indexar synonyms duplica termos no índice (storage++, performance pior em phrase queries) e desalinha positions. Aplicar no search_analyzer expande só a query, mantendo precision em phrase matching e index size correto."
+  - q: "Por que aplicar cross-encoder rerank apenas no top-50 a 100 (e não em todo o corpus) é a regra prática em produção?"
+    options:
+      - "Porque cross-encoders só aceitam batches pequenos por limitação de API"
+      - "Porque cross-encoder é O(N) (avalia query+doc juntos por par) e custa 100-300ms para 50 docs; rerankear top-1000 explode latência sem ganho prático"
+      - "Porque o reranker perde precisão em conjuntos grandes"
+      - "Porque o índice HNSW não retorna mais que 100 candidatos"
+    correct: 1
+    explanation: "Cross-encoders rodam o modelo por par (query, doc) e são caros. Recall fica com retrieval (BM25 + vector + RRF top-50/100); rerank refina apenas o topo. Top-1000 cross-encoder = latency suicide sem ganho mensurável."
 ---
 
 # 02-15, Search Engines & Information Retrieval

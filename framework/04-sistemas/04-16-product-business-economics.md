@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual é a fórmula correta de LTV nível 1 (quick) e por que 'gross margin' é peça-chave?"
+    options:
+      - "LTV = ARPU × (1 / churn); margin é irrelevante"
+      - "LTV = ARPU × Gross Margin × (1 / Churn); sem gross margin você usa revenue bruto e infla LTV em 30-40%, e CFO vai catch"
+      - "LTV = MRR × 12 × NDR; margin entra apenas em valuation"
+      - "LTV = CAC × 3; é a régua canônica"
+    correct: 1
+    explanation: "LTV nível 1 = ARPU × Gross Margin × (1/churn). Sem gross margin (descontar COGS), o número é fantasia — investidor/CFO compara com benchmarks que assumem margin já aplicada."
+  - q: "Que LTV:CAC ratio é considerado saudável e qual é o sinal de alarme?"
+    options:
+      - "10:1 é o mínimo aceitável; abaixo disso é perda"
+      - "3:1 é saudável e sustentável; < 1:1 significa que você paga para adquirir e perde dinheiro em cada customer"
+      - "1:1 é break-even ideal e suficiente"
+      - "5:1 é perigoso porque indica overspend em produto"
+    correct: 1
+    explanation: "3:1 é a régua canônica saudável; 5:1+ excelente (pode investir mais em growth); < 1:1 é suicídio sem mudanças. Condição: LTV calculado com gross margin, senão você está enganando o ratio."
+  - q: "Para um marketplace como Logística, qual estratégia ataca corretamente o cold-start problem?"
+    options:
+      - "Lançar globalmente em 50 cidades simultâneas para ganhar economia de escala"
+      - "Focar single-side first, concentrar geo (1 cidade), subsidizar um lado e começar por wedge nicho (ex: entregas para farmácias)"
+      - "Setar take rate em 25% para maximizar revenue desde dia 1"
+      - "Esperar liquidity orgânica antes de qualquer marketing"
+    correct: 1
+    explanation: "Cold-start: marketplace vazio inutiliza ambos lados. Single-side first, concentrar geo, subsidize bootstrap, wedge nicho — Uber, DoorDash, todos seguiram esse playbook. Liquidity > GMV no início."
+  - q: "Quando engineering deve priorizar cost optimization vs investir em crescimento (regra do módulo)?"
+    options:
+      - "Sempre otimizar cost antes de qualquer feature, indiferente de revenue"
+      - "Se infra custa < 15% de revenue → foco crescimento; > 25% → cost optimization mandatório"
+      - "Nunca otimizar cost antes do IPO"
+      - "Otimizar apenas quando AWS bill ultrapassar $1M/mês"
+    correct: 1
+    explanation: "Heurística do módulo: infra < 15% revenue → ROI engineering hours melhor em features. > 25% → optimization sprint mandatório. $500k MRR com $40k infra (8%) = cresça; $200k MRR com $60k (30%) = otimize."
+  - q: "Em CAC payback period, qual é a fórmula e o threshold considerado 'vermelho'?"
+    options:
+      - "CAC × ARPU; > 6 meses é vermelho"
+      - "CAC / (ARPU × Gross Margin); > 18 meses é vermelho (queima cash até customer pagar de volta)"
+      - "ARPU / CAC; < 1 é vermelho"
+      - "CAC / Revenue; > 3 meses é vermelho"
+    correct: 1
+    explanation: "Payback months = CAC / (ARPU × Gross Margin). < 6 excelente, < 12 saudável SaaS B2B SMB, > 18 vermelho. CFO mais olha esse número que LTV — payback alto mata startup early-stage sem capital."
 ---
 
 # 04-16, Product, Business & Unit Economics

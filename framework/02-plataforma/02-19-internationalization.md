@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que `str.length` em JavaScript não conta corretamente caracteres como emoji ZWJ ou letras com acento?"
+    options:
+      - "Porque `length` ignora caracteres não-ASCII"
+      - "Porque `length` conta UTF-16 code units; um grapheme cluster pode ter múltiplos code points (família emoji, acento decomposto NFD), exigindo `Intl.Segmenter`"
+      - "Porque emojis sempre contam como zero"
+      - "Porque o V8 ainda usa UTF-32 internamente"
+    correct: 1
+    explanation: "Strings JS são UTF-16; `length` conta code units (2 bytes). Um grapheme como '👨‍👩‍👧' tem 5+ code points, e 'é' em NFD são 2 code points. Para contagem visual correta, use `Intl.Segmenter` com `granularity: 'grapheme'`."
+  - q: "Por que persistir timestamps em UTC + IANA tz id (`America/Sao_Paulo`), e não em offset fixo (`-03:00`)?"
+    options:
+      - "Porque UTC é o único formato suportado por bancos modernos"
+      - "Porque offsets mudam com DST e por decisões políticas (Brasil aboliu DST em 2019, Mexico em 2022); IANA tz id resolve o offset correto a cada momento via tzdata atualizada"
+      - "Porque IANA tz id ocupa menos bytes que offset"
+      - "Porque o Postgres rejeita offsets em colunas TIMESTAMPTZ"
+    correct: 1
+    explanation: "Offset fixo congela uma decisão política mutável. `America/Sao_Paulo` se traduz no offset correto na hora de render, considerando DST atual e mudanças futuras (via tzdata). Pin tzdata no container e atualize 2-4x/ano."
+  - q: "Por que `if (count === 1) return '1 item' else return count + ' items'` é um anti-pattern em i18n?"
+    options:
+      - "Porque é mais lento que ICU MessageFormat"
+      - "Porque assume regras de pluralização do inglês; russo, polonês e árabe têm 4-6 categorias (zero/one/two/few/many/other) e quebram silenciosamente"
+      - "Porque concatena strings em código"
+      - "Porque o linter não aceita comparações com triple-equals"
+    correct: 1
+    explanation: "Pluralização varia por locale (CLDR define): inglês tem 2 categorias (one/other); russo 4; árabe 6. Hardcode `count === 1` quebra ao adicionar russo. Use ICU MessageFormat com `Intl.PluralRules` e teste com snapshot por `[0,1,2,5,11,21,22,100]`."
+  - q: "Por que `padding-left: 12px` é um anti-pattern em UI cross-locale?"
+    options:
+      - "Porque pixels não são responsivos"
+      - "Porque quebra em locales RTL (árabe, hebraico): em RTL, o lado lógico de início é o direito; usar `padding-inline-start` faz o browser flip automaticamente"
+      - "Porque CSS Modules não suporta `padding-left`"
+      - "Porque o Tailwind CSS v4 removeu utilities de padding"
+    correct: 1
+    explanation: "Em RTL, leitura é direita-pra-esquerda. `padding-left` fica fixo no lado físico esquerdo, quebrando alinhamento. CSS Logical Properties (`padding-inline-start`, `text-align: start`) respeitam direção do documento."
+  - q: "Em FX e multi-currency, por que snapshotar a rate dentro da transação de pagamento é decisivo?"
+    options:
+      - "Para reduzir bandwidth com o provider de FX"
+      - "Porque sem snapshot, um refund 30 dias depois usa rate atual e gera divergência financeira; persistir `fx_rate_used`, `fx_provider`, `fx_at` no order garante reembolso na rate original"
+      - "Porque o ISO 4217 exige logging de FX por compliance"
+      - "Porque providers gratuitos só permitem 1 fetch por dia"
+    correct: 1
+    explanation: "Rate flutua diariamente (e CLF/UYI até por hora). Sem snapshot, refund/recálculo usa rate atual, criando arbitragem ou loss financeiro. Persiste a rate usada no momento do commit, junto com provider e timestamp; auditável e reproduzível."
 ---
 
 # 02-19, Internationalization & Localization (i18n / l10n)

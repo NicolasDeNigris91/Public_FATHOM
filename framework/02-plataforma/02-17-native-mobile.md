@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual o papel de `actor` em Swift Concurrency?"
+    options:
+      - "É um tipo que executa em background thread automaticamente"
+      - "É um tipo que serializa acesso a estado mutável via mailbox interno, eliminando data races; acesso externo precisa de `await`"
+      - "É uma alternativa a `class` que não permite herança"
+      - "É um wrapper sobre GCD que substitui DispatchQueue"
+    correct: 1
+    explanation: "Actors em Swift isolam estado mutável: chamadas externas são automaticamente serializadas e exigem `await`. Substituem locks/queues manuais. `MainActor` é o actor global de UI thread."
+  - q: "Por que `GlobalScope.launch` é anti-pattern em Kotlin Android?"
+    options:
+      - "Porque é mais lento que `viewModelScope`"
+      - "Porque não tem parent scope, não cancela com lifecycle e vaza coroutines quando ViewModel/Activity morre"
+      - "Porque só funciona em Dispatchers.IO"
+      - "Porque gera warnings de deprecation"
+    correct: 1
+    explanation: "GlobalScope é desligado da structured concurrency: a corrotina sobrevive ao ciclo de vida do componente, vazando memória e causando crashes ao tocar UI destruída. Use `viewModelScope` ou `lifecycleScope`."
+  - q: "Por que custom URI schemes (`myapp://`) são considerados inseguros vs Universal Links / App Links?"
+    options:
+      - "Porque o iOS removeu suporte em iOS 17"
+      - "Porque qualquer app pode reivindicar o mesmo scheme e fazer hijacking; Universal/App Links exigem prova de propriedade do domínio via .well-known JSON"
+      - "Porque schemes não passam pelo App Store Review"
+      - "Porque schemes não suportam parâmetros de query"
+    correct: 1
+    explanation: "Custom schemes não têm autoridade — múltiplos apps podem registrar o mesmo `myapp://`, e o sistema escolhe arbitrariamente. Universal/App Links validam via apple-app-site-association / assetlinks.json, comprovando ownership do domínio."
+  - q: "Por que ANR é disparado em Android quando a main thread fica > 5s ocupada?"
+    options:
+      - "Porque o kernel mata processos com CPU alta"
+      - "Porque o sistema entende que o app não está respondendo a input do usuário, oferecendo dialog de 'wait/close'; I/O em main é causa clássica"
+      - "Porque o garbage collector dispara automaticamente"
+      - "Porque o ART recompila a aplicação"
+    correct: 1
+    explanation: "Android monitora a UI thread; se ela não consome eventos por > 5s, dispara o dialog ANR. I/O síncrono, work pesado ou lock contention em main causam isso. Sempre I/O off-main via `Dispatchers.IO`."
+  - q: "Em Kotlin Multiplatform, qual o padrão arquitetural vencedor para reaproveitar código sem comprometer UX nativa?"
+    options:
+      - "Compartilhar UI inteira via Compose Multiplatform iOS em todos os apps"
+      - "Domain layer + Repositories + Use Cases em `commonMain`, mantendo UI nativa (SwiftUI iOS, Compose Android) para preservar look-and-feel da plataforma"
+      - "Compartilhar Models e UI; manter apenas networking nativo"
+      - "Usar KMP apenas para testes unitários, sem código de produção compartilhado"
+    correct: 1
+    explanation: "O padrão maduro KMP é shared logic + native UI: lógica de domínio é a parte reutilizável; UI nativa preserva o look platform. Empresas como Netflix, Cash App e McDonald's seguem esse modelo."
 ---
 
 # 02-17, Native Mobile (iOS / Android)

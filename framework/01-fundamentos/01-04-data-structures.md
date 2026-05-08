@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que iterar uma linked list de 1M elementos pode ser 10-50x mais lento que iterar um array contíguo de mesma cardinalidade, mesmo ambos sendo O(n)?"
+    options:
+      - "Linked list precisa alocar memória durante a iteração."
+      - "Cada next em linked list pode ser cache miss (~100 ciclos); arrays contíguos exploram cache lines de 64 bytes e o prefetcher."
+      - "JavaScript boxing de números primitivos só ocorre em linked list."
+      - "Linked list força garbage collection a cada nó."
+    correct: 1
+    explanation: "Big-O ignora constantes. Acesso a array é sequencial — uma cache line de 64 bytes carrega 8 inteiros de 8 bytes; o prefetcher acerta o próximo. Linked list espalha nós no heap; quase todo next é miss em L1 e frequentemente em L3 também."
+  - q: "Postgres usa B-Tree (variante B-link) com fan-out ~500 em índices. Quantos page reads em média pra encontrar uma chave em uma tabela com 1 bilhão de linhas?"
+    options:
+      - "Aproximadamente 30 (log₂ 10⁹)."
+      - "Aproximadamente 4 (log₅₀₀ 10⁹ ≈ 3.4)."
+      - "Aproximadamente 1 bilhão / fan-out = 2 milhões."
+      - "Sempre 1 — o índice cabe inteiro em RAM."
+    correct: 1
+    explanation: "É exatamente por isso que B-Trees substituíram BSTs binárias em storage. Fan-out alto faz a árvore ser rasa: log_500(10⁹) ≈ 3.4. Cada page read pode ser ~10ms em HDD, ~100µs em NVMe — minimizar altura é crítico."
+  - q: "RocksDB (LSM-Tree) tem write amplification baixa em hot path mas reads percorrem MemTable + N níveis de SSTables. Como ele mitiga o custo de read?"
+    options:
+      - "Cacheia toda a database em RAM."
+      - "Mantém Bloom filters por SSTable — antes de abrir um arquivo, o filtro responde 'definitely not here' em O(1) probabilístico."
+      - "Faz binary search sobre o disco inteiro em paralelo."
+      - "Compacta agressivamente até virar uma única SSTable."
+    correct: 1
+    explanation: "Bloom filter por SSTable é o que faz LSM-Tree viável em produção. Sem ele, cada read potencialmente abriria N arquivos. Com Bloom (FPR ~1%), 99% das SSTables são puladas sem I/O."
+  - q: "Você precisa de hash function pra um sharding de cache distribuído com 100k req/s. Qual escolha está alinhada com o conteúdo do módulo?"
+    options:
+      - "SHA-256 — máxima distribuição garantida."
+      - "MurmurHash3 ou xxHash — distribuição uniforme com 1-10 GB/s; SHA-256 é 50-500 MB/s e overkill (não precisa de pre-image resistance)."
+      - "Math.random() — uniforme por definição."
+      - "Object.hashCode() do JavaScript (que não existe; usar JSON.stringify)."
+    correct: 1
+    explanation: "Distinção clássica: cryptographic hashes (SHA-256, BLAKE3) garantem propriedades de segurança a custo de velocidade. Distribution hashes (Murmur, xxHash, FNV) são 5-100x mais rápidos com uniformidade adequada pra hash table/sharding. Use cada um pro propósito certo."
+  - q: "Bloom filter com m=96 milhões de bits, k=7 hash functions, n=10 milhões de elementos. O que significa 'false positive rate ~1%'?"
+    options:
+      - "1% das chaves inseridas serão perdidas."
+      - "Pra uma chave NÃO inserida, há 1% de chance do filter dizer 'probably in set'; pra chaves inseridas o filter SEMPRE responde 'in set' (zero falsos negativos)."
+      - "1% das queries retornam erro de I/O."
+      - "1% dos bits ficam corrompidos por colisão."
+    correct: 1
+    explanation: "Bloom filters têm zero falsos negativos (chave inserida sempre 'pinga') mas aceitam falsos positivos (chave não-inserida pode 'pingar' por colisão de bits). É exatamente esse trade-off que torna o filter útil: economiza I/O em 99% das queries, e os 1% restantes só pagam o custo do lookup real."
 ---
 
 # 01-04, Estruturas de Dados

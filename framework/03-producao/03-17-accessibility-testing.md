@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual o primeiro princípio do ARIA?"
+    options:
+      - "Sempre adicionar role explícito em todo elemento"
+      - "Não use ARIA: se existe HTML element nativo que faz, use HTML. ARIA wrong é pior que sem ARIA"
+      - "ARIA substitui semantic HTML em todos casos"
+      - "Use ARIA apenas em screen readers, não em outros AT"
+    correct: 1
+    explanation: "<button> > <div role='button'>. HTML nativo já carrega role + keyboard handling + state. ARIA é supplemental quando HTML não cobre (combobox custom, tabs). ARIA mal aplicado quebra mais do que ajuda."
+  - q: "Por que tooling automatizado (axe, Lighthouse) cobre só 30-57% das WCAG issues?"
+    options:
+      - "Tools não rodam em todos os browsers"
+      - "Não detectam: focus order semântico, alt text quality, ARIA contextual misuse, keyboard flow lógico, dynamic announcements"
+      - "Tools são lentos demais"
+      - "WCAG é deliberadamente vago"
+    correct: 1
+    explanation: "Tools detectam violações estruturais (alt missing, contrast ratio, label-input). Não validam: alt 'photo' vs descritivo, heading hierarchy lógica, focus management cross-state, keyboard navigation completa. Manual SR + keyboard cobrem o restante."
+  - q: "Qual o contrast ratio mínimo WCAG AA para texto normal?"
+    options:
+      - "3:1"
+      - "4.5:1 para normal text; 3:1 para large text (≥18pt ou ≥14pt bold)"
+      - "7:1"
+      - "2:1"
+    correct: 1
+    explanation: "AA exige 4.5:1 normal e 3:1 large. AAA é 7:1 / 4.5:1. Validar em todos states (default, hover, focus, disabled) e em both modes (light/dark). Tools: axe color-contrast rule, WebAIM checker."
+  - q: "Por que Lighthouse score 100 não garante WCAG conformance?"
+    options:
+      - "Lighthouse é desatualizado"
+      - "Lighthouse usa heurísticas limitadas, não testa keyboard navigation completa nem validates ARIA contextual; útil pra detectar regression, não pra certificar"
+      - "Lighthouse tem bugs"
+      - "Lighthouse só mede performance"
+    correct: 1
+    explanation: "Lighthouse a11y é subset de axe-core. Não testa keyboard fully, não valida user flows, não checa cognitive accessibility. Score 100 com keyboard nav quebrada é possível. Use como deploy gate (regression), não como certificação."
+  - q: "O que requer WCAG 2.2 SC 2.5.8 Target Size (Minimum, AA)?"
+    options:
+      - "Targets de 100x100 px"
+      - "Targets clicáveis mínimo 24x24 CSS px, exceto inline text, browser-default UA controls, ou alternative equivalente"
+      - "Apenas mobile precisa cumprir"
+      - "Não há requirement de tamanho"
+    correct: 1
+    explanation: "WCAG 2.2 (W3C Rec Sept 2023) adicionou Target Size 24x24 mínimo (AA), 44x44 (AAA). Mobile-first cap em 44x44. Crítico em map markers, swipe carousels, dense lists. EAA (28-Jun-2025) força conformance em B2C UE."
 ---
 
 # 03-17, Accessibility Testing & Automation

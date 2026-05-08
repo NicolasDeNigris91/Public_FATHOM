@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual a diferença chave entre Hono e Fastify em decisão de runtime?"
+    options:
+      - "Hono é mais lento que Fastify em todos os benchmarks"
+      - "Hono é Web-Standard-first (Request/Response nativos), roda em Node, Bun, Deno, Cloudflare Workers e Lambda; Fastify é Node-native otimizado para prod tradicional"
+      - "Fastify só funciona em Node 18+"
+      - "Hono não suporta validação de schema"
+    correct: 1
+    explanation: "Hono usa Web Standard APIs (Request/Response) e roda em qualquer runtime moderno, com bundle pequeno ideal para edge. Fastify é Node-otimizado com plugin ecosystem maduro e schema-driven."
+  - q: "Por que NestJS frequentemente é overhead injustificado em microservices simples?"
+    options:
+      - "NestJS é mais lento que outros frameworks em qualquer cenário"
+      - "Adiciona ~1k+ linhas de boilerplate (DI container, decorators, modules) que Fastify/Hono resolvem direto; vence apenas em equipes grandes vindas de Java/.NET com app complexo"
+      - "Não suporta TypeScript"
+      - "Apenas funciona com MongoDB"
+    correct: 1
+    explanation: "NestJS é opinionated com DI container, decorators, módulos. Em microservices simples, esse boilerplate é peso desnecessário. Vence em times grandes ou apps muito complexos onde estrutura forte vale a complexidade."
+  - q: "No modelo de encapsulation do Fastify, qual a diferença entre `fastify-plugin` (`fp(fn)`) e um plugin sem wrapper?"
+    options:
+      - "São equivalentes; é apenas estilo"
+      - "Plugin sem wrapper roda em contexto encapsulado (decorators/hooks ficam isolados); `fastify-plugin` desabilita encapsulation, expondo decorators ao parent scope"
+      - "`fastify-plugin` é deprecated em Fastify 5"
+      - "Sem wrapper, hooks executam em ordem aleatória"
+    correct: 1
+    explanation: "Por default, plugins Fastify rodam em own context. `fastify-plugin` (`fp`) desabilita encapsulation para que decorators (`fastify.db`) fiquem visíveis ao parent. Use `fp` para plugins de infraestrutura, sem wrapper para sub-routers."
+  - q: "Em RFC 9457 Problem Details, qual status HTTP corresponde a 'autenticado mas sem permissão'?"
+    options:
+      - "401 Unauthorized"
+      - "403 Forbidden"
+      - "404 Not Found"
+      - "422 Unprocessable Entity"
+    correct: 1
+    explanation: "401 é não-autenticado (sem credenciais válidas). 403 é autenticado mas sem permissão para o recurso. 404 é recurso não existe; 422 é entidade processável mas inválida (validation)."
+  - q: "Qual a pegadinha clássica de CORS com `Access-Control-Allow-Origin: *`?"
+    options:
+      - "Não funciona em browsers modernos"
+      - "Combinado com requests com `credentials: 'include'`, browser bloqueia; é necessário listar origin explícita para credentials"
+      - "Bloqueia automaticamente todos requests POST"
+      - "Causa erro 500 no servidor"
+    correct: 1
+    explanation: "Wildcard `*` em `Access-Control-Allow-Origin` é incompatível com requests credentialed. Para enviar cookies/auth headers, é obrigatório especificar origin explícita (`https://app.example.com`)."
 ---
 
 # 02-08, Backend Frameworks

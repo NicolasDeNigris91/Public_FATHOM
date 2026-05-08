@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que reuso de conexão TCP (HTTP keep-alive) tem impacto desproporcional em latência percebida pelo usuário?"
+    options:
+      - "Keep-alive reduz uso de memória do servidor."
+      - "Cada nova conexão paga 1 RTT pro three-way handshake + TCP slow start (que limita vazão inicial); reusar pula ambos."
+      - "Browsers limitam conexões paralelas; keep-alive evita o limite."
+      - "Sem keep-alive o servidor cobra mais CPU; com keep-alive ele cacheia."
+    correct: 1
+    explanation: "Cada conexão nova: 1 RTT no handshake (com TLS, +1 RTT extra em TLS 1.3 ou +2 em TLS 1.2). Slow start começa com cwnd pequena e cresce exponencialmente. Conexões curtas nunca atingem vazão máxima. Reusar elimina ambos os custos."
+  - q: "QUIC roda sobre UDP em vez de TCP. Qual destas NÃO é uma vantagem real?"
+    options:
+      - "Eliminação de TCP head-of-line blocking — perda em um stream não bloqueia outros."
+      - "Connection migration via Connection ID — mudança de IP (Wi-Fi → 4G) mantém conexão viva."
+      - "Evolução em userspace — bibliotecas atualizam por release de aplicação, não por kernel patch."
+      - "Custo de CPU significativamente menor que TCP+TLS, especialmente em hardware antigo."
+    correct: 3
+    explanation: "QUIC em primeira geração custava 2-3x MAIS CPU que TCP+TLS (criptografia em userspace, sem aceleração de NIC). Em 2026 está ~1.2-1.5x com GSO/GRO em UDP. Os outros 3 itens são vantagens reais e documentadas."
+  - q: "Você adiciona Cache-Control: no-cache esperando que o browser não armazene a resposta. O que de fato acontece?"
+    options:
+      - "Funciona como esperado — browser não guarda nada."
+      - "O browser ARMAZENA a resposta; em requests seguintes ele faz revalidação com If-None-Match/If-Modified-Since antes de usar."
+      - "Browser armazena mas só no disco, nunca em memória."
+      - "no-cache força fetch sempre via network, mas mantém em memória pra fallback offline."
+    correct: 1
+    explanation: "no-cache permite cache mas força revalidação a cada uso. Quem realmente bloqueia armazenamento é no-store. Confundir os dois é um dos bugs de cache mais comuns em produção."
+  - q: "Por que HTTP/2 ainda sofre head-of-line blocking apesar de fazer multiplexing de streams?"
+    options:
+      - "O parser HPACK é serial e bloqueia streams paralelos."
+      - "TCP entrega bytes em ordem; se um pacote se perde, todos os streams sobre aquela conexão TCP esperam a retransmissão — HOL no nível de transport, não de aplicação."
+      - "HTTP/2 só permite 100 streams concorrentes."
+      - "Browsers desabilitam multiplexing por padrão por compatibilidade."
+    correct: 1
+    explanation: "HTTP/2 resolveu HOL no nível de aplicação (vários streams numa conexão), mas TCP impõe ordering por byte stream. 1 pacote perdido = TODOS os streams pausam até retransmissão. QUIC resolve isso com streams independentes em UDP."
+  - q: "Sua API tem cookies de sessão e o frontend está em domínio diferente. Você seta Access-Control-Allow-Origin: * com credentials: 'include'. O que acontece?"
+    options:
+      - "Funciona — wildcard é permitido com credentials."
+      - "O browser BLOQUEIA a request — com credentials, Access-Control-Allow-Origin tem que ser uma origin explícita (e Allow-Credentials: true)."
+      - "Funciona, mas o cookie é enviado em texto plano por causa do *."
+      - "Funciona apenas se SameSite=None estiver configurado."
+    correct: 1
+    explanation: "Quando credentials: 'include' (envio de cookies/auth), o browser exige Origin explícito no Allow-Origin (não *) E Allow-Credentials: true. É proteção contra exfiltration: sem isso, um site malicioso poderia ler credenciais cross-origin."
 ---
 
 # 01-03, Redes

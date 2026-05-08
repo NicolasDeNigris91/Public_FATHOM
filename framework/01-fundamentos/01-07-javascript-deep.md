@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual a saída exata e por quê? console.log(1); setTimeout(() => console.log(2)); Promise.resolve().then(() => console.log(3)); console.log(4);"
+    options:
+      - "1, 2, 3, 4 — ordem de aparição."
+      - "1, 4, 3, 2 — sync primeiro (1, 4); stack vazia drena microtasks COMPLETAMENTE (3); depois pega 1 macrotask (2)."
+      - "1, 4, 2, 3 — setTimeout sempre roda antes de Promise."
+      - "1, 3, 4, 2 — Promise é síncrona quando já resolvida."
+    correct: 1
+    explanation: "Regra do event loop: sync executa até stack esvaziar; aí drena TODAS as microtasks (Promise.then, queueMicrotask) numa rodada; só depois pega 1 macrotask (setTimeout, setImmediate). Microtasks têm prioridade sobre macrotasks — daí 3 antes de 2."
+  - q: "Por que mudar a 'shape' de um objeto em runtime degrada performance no V8?"
+    options:
+      - "V8 não suporta objetos dinâmicos."
+      - "V8 cria hidden classes baseadas no layout (offsets das propriedades). Adicionar/remover/reordenar campos invalida hidden class, invalida inline caches, força deopt e queda pra slow path interpreted."
+      - "JavaScript revisa todos os tipos quando você adiciona propriedade."
+      - "TypeScript inverso — inferência tipo dinâmica é cara."
+    correct: 1
+    explanation: "V8 trata objetos com mesma sequência de keys como compartilhando 'shape' (struct-like). Inline caches gravam 'pra essa shape, prop X está no offset Y' e o acesso vira ~1 ciclo. Mudar shape vira polymorphic → megamorphic → slow path. Por isso é melhor inicializar TODOS os campos no construtor (mesmo com null/undefined)."
+  - q: "Qual o resultado deste código e como corrigir? for (var i = 0; i < 3; i++) setTimeout(() => console.log(i), 0);"
+    options:
+      - "Imprime 0, 1, 2. Sem bug."
+      - "Imprime 3, 3, 3. var é function-scoped — todas as 3 closures compartilham a MESMA variável i, que vale 3 ao final do loop. Conserto: trocar var por let (block-scoped, nova binding por iteração)."
+      - "Imprime undefined três vezes."
+      - "Imprime 0, 0, 0 — i é capturada antes do incremento."
+    correct: 1
+    explanation: "É o bug mais clássico do JS pré-ES6. var não cria novo binding por iteração; closures capturam REFERÊNCIA à mesma variável. Quando o setTimeout dispara, o loop já terminou e i = 3. let cria binding novo a cada iteração — cada closure captura sua própria cópia."
+  - q: "Em ES2025+, qual a diferença prática entre [...arr].map(...).filter(...).slice(0, 10) vs arr.values().map(...).filter(...).take(10).toArray() pra um array de 1M elementos?"
+    options:
+      - "Nenhuma — sintaxes equivalentes."
+      - "A primeira materializa 3 arrays intermediários de ~1M elementos (alocação + GC pressure). Iterator helpers são lazy — só processam elementos até o sink puxar 10 (early termination via take)."
+      - "A segunda é mais lenta porque iteradores são interpretados."
+      - "A primeira força paralelismo via SIMD."
+    correct: 1
+    explanation: "Iterator helpers (ES2025) trazem laziness à API nativa de coleções. Pra pipelines longos com sink limitado (take, find, some), o ganho de memória e CPU é massivo. Essencialmente trazem o que LINQ tem em C# desde 2007 ou Streams do Java 8."
+  - q: "Você passa o método de uma classe como callback: const f = c.m; f(); — TypeError em strict mode. Por quê?"
+    options:
+      - "Métodos privados não podem ser passados."
+      - "this em JS é determinado por COMO a função é chamada, não onde definida. Chamada standalone (f()) tem this = undefined em strict mode; this.n no método estoura. Soluções: bind(c), arrow function field, ou passar c.m.bind(c)."
+      - "Métodos só podem ser chamados via dot notation por design da spec."
+      - "TypeScript proíbe esse padrão estaticamente."
+    correct: 1
+    explanation: "this no JS é dinâmico (call-site binding) exceto em arrow functions (lexical binding). Quando você extrai m de c, perde a associação. É a fonte #1 de bugs em código que mistura classes com callbacks (event handlers, .map, .forEach com método). Arrow functions definidas como class fields evitam isso porque capturam this léxico."
 ---
 
 # 01-07, JavaScript Profundo

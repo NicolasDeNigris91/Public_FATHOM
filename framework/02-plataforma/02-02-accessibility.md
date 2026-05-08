@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual é a 'regra número 1 do ARIA' segundo o módulo?"
+    options:
+      - "Sempre adicionar `aria-label` em todos os elementos interativos"
+      - "Não usar ARIA; preferir o elemento HTML semântico nativo correto"
+      - "Usar `role='button'` em vez de `<button>` para melhor controle"
+      - "Aplicar `aria-hidden='true'` em elementos focáveis"
+    correct: 1
+    explanation: "A regra é: 'No ARIA is better than bad ARIA'. Use o elemento HTML semântico correto; ARIA só preenche buracos quando o HTML não tem o conceito necessário."
+  - q: "Em um botão composto apenas por um ícone SVG, qual padrão fornece o accessible name corretamente?"
+    options:
+      - "`<button><svg aria-label='Excluir'>...</svg></button>`"
+      - "`<button title='Excluir'><svg>...</svg></button>`"
+      - "`<button aria-label='Excluir pedido'><svg aria-hidden='true'>...</svg></button>`"
+      - "`<div role='button' onclick='...'>...</div>`"
+    correct: 2
+    explanation: "`aria-label` no botão fornece o nome acessível e `aria-hidden='true'` no SVG impede que o screen reader leia conteúdo duplicado ou ruído visual do ícone."
+  - q: "Qual a diferença correta entre `aria-live='polite'` e `aria-live='assertive'`?"
+    options:
+      - "`polite` anuncia quando o screen reader está idle; `assertive` interrompe a leitura corrente"
+      - "`polite` funciona só em mobile; `assertive` só em desktop"
+      - "`polite` lê apenas o diff; `assertive` lê tudo"
+      - "Não há diferença prática entre os dois"
+    correct: 0
+    explanation: "`polite` espera o screen reader ficar idle antes de anunciar, enquanto `assertive` interrompe a leitura. Use `assertive` apenas para informações críticas (ex: erros de submit)."
+  - q: "Por que `:focus-visible` é geralmente preferível a `:focus` para estilizar foco?"
+    options:
+      - "`:focus-visible` tem melhor performance"
+      - "`:focus-visible` mostra o ring apenas em navegação por teclado, evitando o ring indesejado em cliques"
+      - "`:focus-visible` é o único suportado em browsers modernos"
+      - "`:focus-visible` aceita pseudo-elementos, `:focus` não"
+    correct: 1
+    explanation: "`:focus-visible` aplica o estilo apenas quando o foco vem por teclado (heurística do browser), evitando o anel ao clicar com mouse, resolvendo a tensão antiga entre acessibilidade e estética."
+  - q: "Após fechar um modal, qual é o comportamento correto de focus management?"
+    options:
+      - "Mover o foco para o `<body>`"
+      - "Deixar o foco onde o browser decidir colocar"
+      - "Restaurar o foco para o elemento que originalmente disparou a abertura do modal"
+      - "Mover o foco para o primeiro elemento focável da página"
+    correct: 2
+    explanation: "Após fechar um modal, o foco deve voltar ao trigger original, permitindo que o usuário continue de onde estava. Sem isso, usuários de teclado e screen reader ficam perdidos no DOM."
 ---
 
 # 02-02, Acessibilidade

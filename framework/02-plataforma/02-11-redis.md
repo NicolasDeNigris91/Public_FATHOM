@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que `KEYS *` é considerado tóxico em produção no Redis?"
+    options:
+      - "Porque retorna mais dados do que o cliente consegue processar"
+      - "Porque Redis é single-thread e o comando bloqueia todos os outros até completar"
+      - "Porque consome memória extra ao construir a lista de chaves"
+      - "Porque requer privilégios de admin que clientes não devem ter"
+    correct: 1
+    explanation: "Redis executa comandos em uma única thread; `KEYS *` percorre todo o keyspace e bloqueia qualquer outro comando até terminar, derrubando latência. O substituto correto é `SCAN`, que itera em lotes."
+  - q: "Qual a diferença fundamental entre Redis Pub/Sub e Redis Streams?"
+    options:
+      - "Pub/Sub é mais rápido; Streams é mais lento porque persiste tudo"
+      - "Pub/Sub não persiste mensagens nem suporta replay; Streams é durável e tem consumer groups com PEL e XACK"
+      - "Streams só funciona em Redis Cluster; Pub/Sub funciona em qualquer setup"
+      - "Pub/Sub garante ordering global; Streams é best-effort"
+    correct: 1
+    explanation: "Pub/Sub é fire-and-forget: subscriber offline perde mensagens. Streams é log durável com consumer groups, Pending Entries List e XACK, permitindo replay e at-least-once delivery."
+  - q: "No padrão cache-aside, qual técnica resolve o problema de cache stampede de forma probabilística e sem precisar de lock distribuído?"
+    options:
+      - "Jittered TTL aplicado a cada chave individualmente"
+      - "Singleflight in-process (uma fetch por instância)"
+      - "XFetch / Probabilistic early refresh, que renova a chave antes do TTL expirar com probabilidade crescente"
+      - "Cache penetration negativa com TTL curto"
+    correct: 2
+    explanation: "XFetch (Vattani et al., 2015) usa `now − delta * beta * ln(random) >= expires_at` para renovar antecipadamente com probabilidade crescente conforme TTL se aproxima, espalhando renovações naturalmente. Jitter só desloca o problema."
+  - q: "Por que a crítica de Martin Kleppmann ao Redlock recomenda fencing tokens em sistemas onde correctness é vital?"
+    options:
+      - "Porque Redlock só funciona com 1 nó Redis e não tem redundância"
+      - "Porque locks distribuídos baseados em tempo são frágeis a clock drift e GC pauses, e fencing tokens (números monotônicos) deixam o recurso protegido validar quem detém o lock atual"
+      - "Porque Redlock é incompatível com Redis Cluster"
+      - "Porque o algoritmo não usa quorum suficiente entre nós"
+    correct: 1
+    explanation: "Kleppmann argumenta que locks time-based podem expirar sem o holder perceber (GC pause, clock skew). Fencing tokens permitem que o recurso protegido rejeite operações com token mais antigo que o último visto, garantindo correctness."
+  - q: "Em Redis 7+ rodando em Cluster, qual a vantagem de Sharded Pub/Sub (`SSUBSCRIBE`) sobre Pub/Sub clássico para presence em escala?"
+    options:
+      - "Sharded Pub/Sub é cluster-wide, fazendo broadcast em todos os nós"
+      - "Sharded Pub/Sub mantém a mensagem no hash slot do channel, evitando fan-out cross-node que destrói perf no clássico"
+      - "Sharded Pub/Sub adiciona persistence enquanto o clássico não persiste"
+      - "Sharded Pub/Sub usa TCP multiplexing diferente do clássico"
+    correct: 1
+    explanation: "Pub/Sub clássico em Cluster faz fan-out cross-node, saturando em ~50k subs. Sharded Pub/Sub respeita o hash slot do channel, escalando ~10x (~500k channels com p99 < 50ms)."
 ---
 
 # 02-11, Redis

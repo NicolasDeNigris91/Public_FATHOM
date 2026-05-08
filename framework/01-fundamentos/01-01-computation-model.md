@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que iterar um array contíguo costuma ser muito mais rápido que percorrer uma linked list com os mesmos elementos?"
+    options:
+      - "O array está alocado na stack e a linked list no heap, e stack é sempre mais rápida."
+      - "A CPU pré-busca cache lines de 64 bytes em ordem; arrays exploram spatial locality e o prefetcher, linked lists não."
+      - "Linked lists obrigam o garbage collector a rodar a cada acesso."
+      - "A CPU não consegue executar acessos a linked lists em paralelo."
+    correct: 1
+    explanation: "Arrays guardam elementos em endereços contíguos. Cada acesso traz 64 bytes pra L1 e o prefetcher antecipa os próximos. Linked lists espalham nodes pelo heap, então quase todo acesso é cache miss e o prefetcher fica perdido."
+  - q: "Você cria 10 milhões de objetos pequenos num programa Node e a memória cresce sem controle. Qual a explicação mais alinhada com o que o módulo discute?"
+    options:
+      - "A stack do Node tem limite de 1-8 MB, então transbordou."
+      - "Objects em JavaScript moram no heap, e alocação intensa fragmenta o heap antes do GC conseguir compactar."
+      - "Toda variável JavaScript fica em registradores, e registradores são finitos."
+      - "O TLB ficou cheio e o OS não consegue mais traduzir endereços."
+    correct: 1
+    explanation: "Em JS, objects/arrays/closures vivem no heap. Alocação intensa cria muitos blocos pequenos; o GC tem que rodar mais frequentemente e ainda assim a fragmentação cresce."
+  - q: "Comparando latências típicas, qual ordem de grandeza está correta?"
+    options:
+      - "L1 cache é cerca de 100x mais rápido que RAM."
+      - "RAM é cerca de 10x mais rápida que SSD NVMe."
+      - "SSD NVMe é cerca de 10x mais rápido que rede continental."
+      - "HDD é cerca de 2x mais lento que SSD SATA."
+    correct: 0
+    explanation: "L1 ~1 ns, RAM ~50-100 ns — diferença de ~100x. RAM vs SSD NVMe é ~100-1000x. SSD vs HDD é ~50x. Internalizar essas ordens muda a forma como você decide o que cachear."
+  - q: "O que acontece quando a CPU sofre um branch misprediction num pipeline moderno?"
+    options:
+      - "Nada perceptível: a CPU simplesmente espera 1 ciclo."
+      - "O pipeline parcialmente preenchido com o ramo errado é descartado, custando ~10-20 ciclos."
+      - "O OS dispara uma interrupção e o processo é pausado."
+      - "A page table precisa ser reconstruída pra refletir o caminho correto."
+    correct: 1
+    explanation: "Pipelines de 10-20 estágios começam a executar ramos especulativamente. Quando o predictor erra, todo o trabalho especulativo é jogado fora e o pipeline reinicia no ramo correto."
+  - q: "Por que um page fault é considerado caríssimo (~100x mais lento que cache miss)?"
+    options:
+      - "O OS precisa recompilar o código do processo."
+      - "A MMU descobre que a página não está na RAM, interrompe, e o OS lê do disco — latência de SSD/HDD entra no caminho crítico."
+      - "O compilador JIT precisa rebuildar o trace path."
+      - "Page fault sempre derruba o processo, gerando overhead de fork."
+    correct: 1
+    explanation: "Cache miss vai à RAM (~100 ns). Page fault vai ao disco (SSD ~10 µs, HDD ~5 ms). Daí o termo 'cair pra disco' ser sinônimo de aplicação lenta."
 ---
 
 # 01-01, Modelo de Computação

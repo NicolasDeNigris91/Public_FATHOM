@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual é o papel principal de um ADR (Architecture Decision Record)?"
+    options:
+      - "Substituir documentação de API e diagramas C4"
+      - "Registrar decisão arquitetônica com contexto, alternativas e consequências, criando memória de WHY que sobrevive 2+ anos"
+      - "Servir como ticket no backlog para tracking de progresso"
+      - "Formalizar contratos com fornecedores de cloud"
+    correct: 1
+    explanation: "ADR captura context + decision + consequences + alternatives. Sem ADR, time perde memória de why em 6 meses; com ADR, novo dev entende anos depois sem precisar reverter por ignorância."
+  - q: "Por que estimativa de mediana é, em média, ~2x baixa em projetos de software?"
+    options:
+      - "Por causa de bugs introduzidos por code review"
+      - "Você lembra do happy path; bugs e discovery são esquecidos até aparecerem (Hofstadter's Law)"
+      - "Story points são inerentemente subestimados pelo time"
+      - "Estimativas em horas convertem mal para sprints"
+    correct: 1
+    explanation: "Devs estimam o caminho feliz e ignoram o tail (bugs, discovery, integration). Calibrate multiplicando raw estimate por 1.5-2x antes de comprometer e tracking estimate vs actual por 3-6 meses."
+  - q: "Qual diferença separa Senior IC de Staff IC mais corretamente?"
+    options:
+      - "Apenas tempo de empresa"
+      - "Staff escreve mais código que Senior"
+      - "Staff multiplica o time/org via decisions, mentoria e technical leadership; escopo de impacto cross-team, não tempo investido"
+      - "Senior reporta a EM, Staff reporta a CTO direto"
+    correct: 2
+    explanation: "Senior delivers complex projects independently; Staff multiplica via RFCs, ADRs lideradas, mentoria, cross-team coordination. A diferença é escopo (multiplicação) — não tempo de casa nem volume de código."
+  - q: "Em uma calibration session quarterly, qual prática combate recency bias e single-EM ratings inflados?"
+    options:
+      - "Forced ranking distribution per team de 5 pessoas"
+      - "Permitir que cada EM finalize seus ratings sem cross-EM review"
+      - "Round-robin com peer EMs challenging + peer-comparison forçada (rank IC4s em impact) + distribution check no nível organizacional"
+      - "Eliminar pre-reads para que ratings sejam improvisados"
+    correct: 2
+    explanation: "Calibration efetiva: pre-read 48h, round-robin de 90s/IC com challenge, peer-comparison ranking forçada, anti-recency prompts ('considerou os primeiros 6 meses?'), distribution checked at org level (50+ ICs)."
+  - q: "Qual destes é anti-pattern explícito em programa de ADR?"
+    options:
+      - "Manter ADRs Rejected/Superseded no repo para evitar relitigation"
+      - "Numerar com 4 dígitos zero-padded e usar verbo forte no título (adopt, replace, defer)"
+      - "Escrever ADR DEPOIS da implementação, perdendo força crítica e pulando challenge real"
+      - "Linkar ADR para design docs externos em vez de duplicar conteúdo"
+    correct: 2
+    explanation: "ADR escrito post-hoc vira justificativa; ninguém challenge porque já está em prod. Escreva durante a decisão, não após — Decision Drivers + Considered Options seções obrigatórias."
 ---
 
 # 04-12, Tech Leadership

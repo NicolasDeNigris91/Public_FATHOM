@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual a implicação de Miller's Law (4-9 chunks de short-term memory) em form design?"
+    options:
+      - "Forms longos são melhores que multi-step"
+      - "Forms longas devem ser divididas em steps com ≤5 fields cada, com progress indicator e auto-save"
+      - "Miller's Law não se aplica a UI"
+      - "Forms devem ter exatamente 9 fields"
+    correct: 1
+    explanation: "Working memory limitada implica wizards multi-step (≤5 fields/step), persist partial input, summary screens em decision points. Reduce mental load entre interactions. Sticky breadcrumbs e 'you are here' ajudam re-orientation."
+  - q: "Por que redundância de canais (cor + ícone + texto) é princípio de cognitive a11y?"
+    options:
+      - "Para encher tela e parecer profissional"
+      - "Color-blind perde cor; aphasia perde texto; cognitive overload perde icon. Combinar canais protege todos os perfis"
+      - "Apenas para SEO"
+      - "Por convenção visual"
+    correct: 1
+    explanation: "Cada canal sozinho falha para alguém. Erros: vermelho + ícone X + 'Email inválido'. Loading: spinner + texto + aria-live announcement. Redundância é mais robusta e atende usuários que perdem 1 canal por contexto (ambiente, fadiga, disability)."
+  - q: "Qual o threshold de Flesch Reading Ease (FRE) razoável para UI copy de produto B2C?"
+    options:
+      - "FRE >= 30 (academic)"
+      - "FRE >= 70 (plain English, ~8th grade), permitindo audience diversa incluindo low-literacy e cognitive disabilities"
+      - "FRE >= 100, sempre"
+      - "FRE não é métrica relevante"
+    correct: 1
+    explanation: "FRE 60-70 = plain English; 90-100 elementary; 30-50 academic. UI copy deve mirar 70+ via Vale CI ou textstat. Reduzir reading level beneficia todos: low-literacy, ESL, cognitive fadiga, ADHD em context-switching, e SEO."
+  - q: "Qual é o anti-pattern crítico em error messages?"
+    options:
+      - "Mostrar mensagem em modal"
+      - "Generic vague: 'An error occurred', 'Validation failed' sem dizer qual campo, por que, ou o que fazer"
+      - "Usar cor vermelha"
+      - "Inline validation"
+    correct: 1
+    explanation: "Erros cognitivos devastam confidence. Pattern: o que falhou + por que + ação concreta. Ex: 'Email parece incompleto: faltou @' inline. Generic '422 Validation failed' força user a guess-and-check, hostil pra ADHD/anxiety/cognitive fatigue."
+  - q: "Por que WCAG 2.2 SC 3.3.8 Accessible Authentication (Min, AA) bane CAPTCHAs cognitivos sem alternative?"
+    options:
+      - "CAPTCHAs são deprecated"
+      - "Cognitive function tests (lembrar password, identificar imagens) excluem usuários com memory/dyslexia/aphasia; deve haver auxiliary mechanism (passkey, biometric, password manager paste, OAuth)"
+      - "CAPTCHAs são lentos"
+      - "Para reduzir compliance cost"
+    correct: 1
+    explanation: "Authentication baseado em cognitive recall é hostil pra wide spectrum de usuários. WCAG 2.2 exige alternativa: passkeys (FIDO2), biometric, magic link, OAuth, ou suportar password manager autofill. Inclusive by design."
 ---
 
 # 03-18, Cognitive Accessibility

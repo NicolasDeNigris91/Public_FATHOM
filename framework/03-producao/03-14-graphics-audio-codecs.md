@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual é o frame budget em milissegundos para target de 60fps?"
+    options:
+      - "33.33ms"
+      - "16.67ms para todo trabalho (JS + style + layout + paint + composite) por frame"
+      - "8ms"
+      - "100ms"
+    correct: 1
+    explanation: "60fps = 1000ms/60 = 16.67ms por frame. Browser deve completar JS, style recalc, layout, paint e composite dentro deste budget; long tasks (>50ms) causam frame drops visíveis."
+  - q: "Qual é a diferença chave entre WebGL e WebGPU?"
+    options:
+      - "WebGPU é mais lento que WebGL"
+      - "WebGPU adiciona compute shaders first-class, command buffers explícitos, async error handling e WGSL ao invés de GLSL"
+      - "WebGL não funciona em mobile, WebGPU sim"
+      - "São idênticos, apenas versões diferentes"
+    correct: 1
+    explanation: "WebGL é state-machine imperativa herdada de OpenGL ES. WebGPU é command-buffer + pipeline-state-objects estilo Vulkan/Metal/D3D12, com compute shaders nativos, validation em createPipeline, e WGSL type-safe substituindo GLSL."
+  - q: "Por que AudioWorklet substitui ScriptProcessorNode em audio processing?"
+    options:
+      - "AudioWorklet é mais novo e tem mais features visuais"
+      - "ScriptProcessorNode rodava no main thread; AudioWorklet roda em thread dedicada de audio sem bloquear UI"
+      - "ScriptProcessorNode não suporta MP3"
+      - "AudioWorklet é mais barato em CPU"
+    correct: 1
+    explanation: "ScriptProcessorNode rodava em main thread, sofrendo com qualquer long task de UI causando glitches. AudioWorklet roda em audio rendering thread dedicada, garantindo timing real-time deterministic."
+  - q: "Qual é o latency target apropriado para voz interativa (VoIP)?"
+    options:
+      - "10ms"
+      - "<150ms total, perceptual limit; >300ms causa overlap/awkwardness"
+      - "1-2 segundos"
+      - "10 segundos"
+    correct: 1
+    explanation: "Estudos psicoacústicos mostram que >150ms de latência fim-a-fim em voz interativa causa overlap conversacional. WebRTC mira <500ms; live HLS standard 6-30s não cabe em conversação."
+  - q: "Por que WebCodecs API é preferida sobre MediaRecorder + canvas para upload de vídeo?"
+    options:
+      - "WebCodecs tem suporte universal em todos browsers desde 2020"
+      - "WebCodecs dá controle fino sobre bitrate, keyframe interval, codec, com hardware acceleration via VideoToolbox/MediaCodec/NVENC"
+      - "MediaRecorder não suporta H.264"
+      - "WebCodecs reduz tamanho do binário"
+    correct: 1
+    explanation: "MediaRecorder tem latência variável e zero controle sobre bitrate/keyframe. WebCodecs (Baseline 2024) expõe VideoEncoder/VideoDecoder com hardware accel real e parâmetros granulares; permite streaming upload sem aguardar full processing."
 ---
 
 # 03-14, Graphics, Audio & Real-Time Codecs

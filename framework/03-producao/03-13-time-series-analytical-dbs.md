@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que column-store comprime mais que row-store?"
+    options:
+      - "Column-stores usam algoritmos secretos proprietários"
+      - "Valores similares ficam contíguos por coluna, permitindo dictionary, RLE, delta-of-delta com altas razões"
+      - "Column-stores armazenam dados em formato binário, row-stores em texto"
+      - "Não há diferença real, é marketing"
+    correct: 1
+    explanation: "Em column-store cada coluna armazena valores do mesmo tipo lado a lado. Isso permite dictionary encoding, RLE, delta de timestamps quase ordenados etc., chegando a 5-20x compression em time-series."
+  - q: "Qual é a função correta de uma sorting key (PRIMARY KEY) bem escolhida em ClickHouse?"
+    options:
+      - "Garantir uniqueness das rows como em Postgres"
+      - "Definir ordenação física dos dados; mais selective filter primeiro, secondary depois, time por último"
+      - "Acelerar UPDATE/DELETE de rows individuais"
+      - "Substituir o uso de skip indexes"
+    correct: 1
+    explanation: "Sorting key não enforces uniqueness em MergeTree. Define ordem física dos parts. Coluna mais selective primeiro (tenant_id), depois secondary (event_type), depois time (event_at) para range scans eficientes."
+  - q: "Quando faz sentido usar TimescaleDB ao invés de ClickHouse?"
+    options:
+      - "Sempre, TimescaleDB é estritamente superior"
+      - "Quando workload precisa JOIN com data relational + time-series mantendo compatibilidade Postgres total"
+      - "Apenas em datasets > 100B rows"
+      - "Quando você precisa de OLAP puro sem transações"
+    correct: 1
+    explanation: "TimescaleDB é extension Postgres: mesmo SQL, mesmo driver, mesma transação. Vence quando JOIN com tabelas relational + time-series é frequente. Acima de ~100M series ativos, columnar nativo (ClickHouse) escala melhor."
+  - q: "Por que batch insert (10k-1M rows) é crítico em ClickHouse?"
+    options:
+      - "Por convenção, sem efeito real"
+      - "Inserts pequenos criam parts pequenos forçando merges constantes; mata performance e compressão"
+      - "ClickHouse não aceita inserts < 10k rows"
+      - "Para reduzir custo de network"
+    correct: 1
+    explanation: "MergeTree cria parts imutáveis em cada insert. Inserts row-by-row criam milhares de small parts, forçando merge background pesado e prejudicando compressão. Batch grande = parts maiores, menos merge overhead."
+  - q: "Qual é a função de HyperLogLog (HLL) em queries OLAP?"
+    options:
+      - "Comprime strings com alto compression ratio"
+      - "Approximate count distinct com erro ~2% e memória logarítmica, ao invés de O(n) memory"
+      - "Aceleração de JOIN em fact tables"
+      - "Indexa rows por timestamp"
+    correct: 1
+    explanation: "COUNT(DISTINCT) em bilhões de rows é caro pois exige tracking exato. HLL usa hashing probabilístico: ~2% erro com memória log log. Indispensável em high-cardinality. ClickHouse expõe via uniqHLL12."
 ---
 
 # 03-13, Time-Series & Analytical Databases

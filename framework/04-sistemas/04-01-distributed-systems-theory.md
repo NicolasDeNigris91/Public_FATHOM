@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual é a diferença essencial entre o teorema CAP e PACELC?"
+    options:
+      - "PACELC apenas renomeia C como Latência"
+      - "PACELC adiciona o trade-off entre Latência e Consistência fora de partições"
+      - "CAP só se aplica a NoSQL; PACELC só a SQL"
+      - "PACELC remove a obrigatoriedade de Particionamento"
+    correct: 1
+    explanation: "CAP descreve a escolha entre Consistência e Disponibilidade durante uma partição. PACELC estende: Else (sem partição), também há trade-off entre Latência e Consistência."
+  - q: "Por que vector clocks capturam causalidade que Lamport timestamps perdem?"
+    options:
+      - "Vector clocks usam wall-clock time real"
+      - "Lamport sempre dá timestamps duplicados"
+      - "Vector clocks mantêm contador por nó, detectando eventos concorrentes"
+      - "Lamport não funciona em rede assíncrona"
+    correct: 2
+    explanation: "Vector clocks armazenam um contador por nó, permitindo detectar quando dois eventos são concorrentes (sem causalidade). Lamport produz ordem total mas não distingue causal de concorrente."
+  - q: "Em um cluster Raft de 5 nós, quantas falhas simultâneas o sistema tolera?"
+    options:
+      - "1 falha"
+      - "2 falhas"
+      - "3 falhas"
+      - "4 falhas"
+    correct: 1
+    explanation: "Raft requer maioria (N/2 + 1 = 3) para quorum. Com 5 nós, tolera até 2 falhas mantendo quorum de 3 vivos."
+  - q: "Por que 'exactly-once delivery' é considerado mito em sistemas distribuídos?"
+    options:
+      - "Brokers modernos já resolveram isso completamente"
+      - "FLP impossibility e Two Generals impedem garantia perfeita; só existe at-least-once + idempotência"
+      - "Apenas Kafka consegue exactly-once"
+      - "Requer 2PC em todas as operações"
+    correct: 1
+    explanation: "Two Generals e FLP provam que entrega exatamente-uma-vez é impossível em rede assíncrona. O que existe é 'exactly-once processing' = at-least-once delivery + consumidor idempotente."
+  - q: "Em quórum com R+W>N, qual é o efeito quando R+W=N exatamente?"
+    options:
+      - "Reads sempre veem o write mais recente"
+      - "Não há garantia de leitura ver o write mais recente; pode haver janela stale"
+      - "O sistema entra em modo CP automaticamente"
+      - "Replicação para de funcionar"
+    correct: 1
+    explanation: "R+W>N garante que conjuntos de leitura e escrita se interceptam, vendo o write mais recente. R+W=N permite que reads e writes não se intersectem, abrindo janela de leitura stale."
 ---
 
 # 04-01, Distributed Systems Theory

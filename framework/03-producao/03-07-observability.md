@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual a diferença essencial entre 'monitoring' e 'observability'?"
+    options:
+      - "Monitoring usa CloudWatch, observability usa Grafana"
+      - "Monitoring responde 'X está vermelho?'; observability responde 'por que X virou vermelho de jeitos que você não previu?'"
+      - "Monitoring é gratuito, observability é pago"
+      - "Monitoring é client-side, observability é server-side"
+    correct: 1
+    explanation: "Monitoring é dashboard de métricas pré-definidas. Observability exige que o sistema exponha contexto suficiente (logs estruturados, traces, alta cardinalidade) para responder perguntas que você ainda não fez."
+  - q: "Por que adicionar labels como `userId` ou `tenantId` (com 100k tenants) em métricas Prometheus é antipadrão?"
+    options:
+      - "Prometheus não suporta strings em labels"
+      - "Cardinalidade explode (cada combinação cria série única) causando memory blowup e custo desproporcional"
+      - "Labels com mais de 64 chars são truncadas"
+      - "Aumenta latência de scraping em 10x"
+    correct: 1
+    explanation: "Métricas são agregadas; alta cardinalidade quebra esse modelo. Use labels de baixa cardinalidade (status code, route, region). Para tracking per-user, vá pra logs/traces."
+  - q: "Qual a vantagem de tail-based sampling em traces sobre head-based?"
+    options:
+      - "Tail-based é mais rápido de processar"
+      - "Vê o trace completo antes de decidir, captura 100% dos errors + slow + sample do resto, signal/noise ordens de magnitude melhor"
+      - "Head-based não suporta OpenTelemetry"
+      - "Tail-based é o único método compliant com GDPR"
+    correct: 1
+    explanation: "Head-based (decide no início, random N%) perde 99% dos traces antes de saber se houve erro. Tail-based no Collector decide ao fim — guarda traces interessantes + 1-5% baseline."
+  - q: "Em SLO/burn rate alerting, por que 'burn rate alto' é mais acionável que 'latência subiu'?"
+    options:
+      - "Burn rate é traduzido pra português automaticamente"
+      - "Burn rate quantifica 'vai estourar SLO em 4h' dando timeline claro de ação, enquanto 'latência subiu' é vago"
+      - "Burn rate dispara em PagerDuty, latência só Slack"
+      - "Burn rate considera custo, latência não"
+    correct: 1
+    explanation: "Error budget define tolerância. Burn rate de 720x = budget 30 dias consumido em 1h — aciona resposta antes do SLO estourar. 'Latência subiu' não diz se importa pro user nem urgência."
+  - q: "Por que mockar instrumentation manual com OTel SDK exige que `tracing.ts` carregue ANTES do app code via `--require`?"
+    options:
+      - "Para preservar a ordem dos imports ESM"
+      - "Auto-instrumentation patcha módulos em load time; se SDK importa depois, módulos já foram carregados sem patches"
+      - "OTel exige que process.env esteja vazio na hora do init"
+      - "Para evitar conflitos com TypeScript decorators"
+    correct: 1
+    explanation: "`@opentelemetry/auto-instrumentations-node` monkey-patches módulos (http, pg, redis) ao serem `require()`-ados. Se o app já requireou eles, patches não aplicam — traces fragmentam silenciosamente."
 ---
 
 # 03-07, Observability

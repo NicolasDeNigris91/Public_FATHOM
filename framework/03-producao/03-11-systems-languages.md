@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que segurar um Mutex sync (não-async) através de um .await é antipattern crítico em Tokio?"
+    options:
+      - "O compilador Rust não permite essa construção"
+      - "A task suspende segurando o lock, bloqueando outras tasks que tentam adquirir o mesmo lock"
+      - "Mutexes não funcionam em código async"
+      - "Causa stack overflow imediato"
+    correct: 1
+    explanation: "Quando a task suspende em .await segurando lock sync, qualquer outra task que precise do lock fica bloqueada indefinidamente. Solução: drop antes do await ou usar tokio::sync::Mutex async-aware."
+  - q: "Qual a regra de ownership do Rust que elimina data races em compile time?"
+    options:
+      - "Sempre múltiplos &mut T simultâneos são permitidos"
+      - "Ou múltiplos &T (read-only), ou um único &mut T, nunca ambos vivos simultaneamente"
+      - "Apenas um &T pode existir por vez"
+      - "Ownership é checado em runtime via reference counting"
+    correct: 1
+    explanation: "O borrow checker garante exclusividade de mutable borrow: ou você tem múltiplos shared references ou exatamente um mutable reference. Isso elimina data races estaticamente."
+  - q: "Por que errgroup.SetLimit(N) é obrigatório em loops unbounded em Go?"
+    options:
+      - "Sem ele o código não compila"
+      - "Sem limit, processar 1M items dispara 1M goroutines = OOM"
+      - "errgroup só funciona com limit configurado"
+      - "Por convenção de estilo, sem efeito real"
+    correct: 1
+    explanation: "errgroup sem SetLimit lança goroutines unbounded. Em workloads com milhões de items, isso esgota memória rapidamente. SetLimit faz bounded concurrency com semáforo interno."
+  - q: "Qual cenário justifica escolher Zig ao invés de Rust em 2026?"
+    options:
+      - "Web service backend long-running com alta concorrência"
+      - "Embedded, kernel-adjacent, build tooling, allocator-conscious work com C interop trivial"
+      - "Greenfield CRUD com time grande"
+      - "Sistema bancário com requisitos de safety crítico"
+    correct: 1
+    explanation: "Zig é C replacement, não Rust replacement. Brilha em embedded, kernel modules, build tools (zig cc/zig build) e onde manual memory management com comptime é desejável. Para safety-critical long-running, Rust vence."
+  - q: "Por que tokio::select! exige cancellation safety nas branches?"
+    options:
+      - "Branches não selecionadas são canceladas, dropando futures no meio do trabalho"
+      - "Select é executado em ordem aleatória"
+      - "Select sempre executa todas branches paralelamente"
+      - "Select tem overhead de runtime alto"
+    correct: 0
+    explanation: "Quando uma branch vence o select, as outras são canceladas (futures dropped). Side effects parciais (escrita DB, send rede) ficam órfãos. O work em branches deve ser idempotente ou ter rollback explícito."
 ---
 
 # 03-11, Systems Languages

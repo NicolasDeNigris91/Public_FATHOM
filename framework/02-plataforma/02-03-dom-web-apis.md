@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Em uma tabela com 1000 linhas, qual padrão é mais eficiente para registrar handlers de click?"
+    options:
+      - "Adicionar `addEventListener('click')` em cada `<tr>`"
+      - "Usar event delegation, com 1 listener no `<table>` que checa `event.target.closest('tr')`"
+      - "Usar `onclick=...` inline em cada `<tr>`"
+      - "Criar 1 MutationObserver por linha"
+    correct: 1
+    explanation: "Event delegation usa um único listener no parent que captura eventos via bubble. Reduz memória e funciona automaticamente para linhas adicionadas dinamicamente."
+  - q: "Qual o problema crítico com `localStorage` em um hot path da aplicação?"
+    options:
+      - "Não é suportado em browsers modernos"
+      - "API é síncrona, bloqueando a main thread em cada acesso"
+      - "Limite de armazenamento é apenas 100KB"
+      - "Não persiste entre reloads de página"
+    correct: 1
+    explanation: "`localStorage` é síncrono. Lendo/gravando dentro de loops ou eventos frequentes bloqueia a main thread. Para dados estruturados maiores ou hot paths, prefira IndexedDB."
+  - q: "Sobre o comportamento de `fetch()` quando recebe status 404 ou 500, o que acontece?"
+    options:
+      - "A Promise é rejeitada automaticamente"
+      - "A Promise resolve normalmente; é necessário checar `res.ok` ou `res.status` manualmente"
+      - "O browser redireciona para uma página de erro"
+      - "O método precisa ser explicitamente `errorMode: true`"
+    correct: 1
+    explanation: "`fetch` só rejeita em erros de rede (offline, DNS). Códigos 4xx/5xx resolvem a Promise normalmente — você deve verificar `res.ok` ou `res.status` no código."
+  - q: "Qual a diferença fundamental entre Web Worker e Service Worker?"
+    options:
+      - "Web Worker tem acesso a DOM, Service Worker não"
+      - "Web Worker roda em outra thread para CPU-bound JS; Service Worker é proxy programável entre app e network, foundation de PWAs"
+      - "Service Worker é mais rápido que Web Worker"
+      - "São sinônimos para a mesma API"
+    correct: 1
+    explanation: "Web Worker é uma thread JS separada para offload de CPU-bound work. Service Worker fica entre app e rede, intercepta requests, gerencia cache offline, push, background sync."
+  - q: "Por que usar `view-transition-name` duplicado em diferentes elementos da página é problemático?"
+    options:
+      - "O CSS gera erro de validação"
+      - "O browser lança uma exceção em runtime"
+      - "O browser pula a transition silenciosamente, sem warning"
+      - "A transição executa em ordem aleatória"
+    correct: 2
+    explanation: "Quando dois elementos têm o mesmo `view-transition-name` na mesma página, o browser cancela a transition silenciosamente. É uma falha sem aviso — o spec exige unicidade do name."
 ---
 
 # 02-03, DOM e Web APIs
