@@ -10,8 +10,6 @@ on:
 
 permissions:
   contents: read
-  security-events: write
-  actions: read
 
 concurrency:
   group: codeql-${{ github.ref }}
@@ -22,6 +20,12 @@ jobs:
     name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      # Scoped to the analyze job only — Scorecard TokenPermissionsID
+      # flags top-level `security-events: write` as broader than needed.
+      contents: read
+      security-events: write
+      actions: read
     strategy:
       fail-fast: false
       matrix:
