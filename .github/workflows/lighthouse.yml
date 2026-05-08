@@ -48,11 +48,11 @@ jobs:
         env:
           NEXT_PUBLIC_SITE_URL: https://fathom.nicolaspilegidenigris.dev
 
+      - name: Install Lighthouse CI
+        run: npm install -g --ignore-scripts @lhci/cli@0.14.0
+
       - name: Run Lighthouse CI
         working-directory: apps/site
-        # Run via npx so the install path goes through the npm cache
-        # against package-lock.json (Scorecard PinnedDependenciesID:
-        # ad-hoc `npm install -g <pkg>@<ver>` is not pinned by hash).
-        run: npx --yes @lhci/cli@0.14.0 autorun
+        run: lhci autorun
         env:
           LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
