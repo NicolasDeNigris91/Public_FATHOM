@@ -18,9 +18,13 @@ import {
   buildTechArticleLd,
 } from '@/components/StructuredData';
 import { TableOfContents } from '@/components/TableOfContents';
-import { StatusBadge } from '@/components/StatusBadge';
 import { ReadingProgressBar } from '@/components/ReadingProgressBar';
 import { VisitTracker } from '@/components/VisitTracker';
+import { Quiz } from '@/components/Quiz';
+import { VisitorStatusBadge } from '@/components/VisitorStatusBadge';
+import { OverallProgressMeter } from '@/components/OverallProgressMeter';
+import { LockedModuleNotice } from '@/components/LockedModuleNotice';
+import { ManualCompleteButton } from '@/components/ManualCompleteButton';
 import { extractToc } from '@/lib/toc';
 
 export async function generateStaticParams() {
@@ -85,6 +89,15 @@ export default async function ModulePage({ params }: { params: Promise<{ id: str
 
   const dependents = await getDependents(mod.rawId);
 
+  const allModules = await getAllModules();
+  const moduleRefs = allModules.map((m) => ({ rawId: m.rawId, prereqs: m.prereqs }));
+
+  const prereqTitles = Object.fromEntries(
+    allModules
+      .filter((m) => mod.prereqs.some((p) => p.toLowerCase() === m.rawId.toLowerCase()))
+      .map((m) => [m.rawId, m.title]),
+  );
+
   const breadcrumbLd = buildBreadcrumbLd([
     { name: 'Home', href: '/' },
     { name: stage.title, href: `/stages/${stage.id}` },
@@ -113,11 +126,15 @@ export default async function ModulePage({ params }: { params: Promise<{ id: str
           ]}
         />
 
+        <div className="mb-8">
+          <OverallProgressMeter modules={moduleRefs} variant="banner" />
+        </div>
+
         <div className="flex items-center justify-between flex-wrap gap-4 mb-3">
           <p className="font-mono text-caption text-racing-green-lit tracking-luxury uppercase">
             Estágio {stageNumber} · {mod.rawId}
           </p>
-          <StatusBadge status={mod.frontmatter.status} />
+          <VisitorStatusBadge rawId={mod.rawId} prereqs={mod.prereqs} />
         </div>
         <h1 className="font-display text-display-xl text-pearl tracking-tight leading-tight mb-4">
           {mod.title}
@@ -169,7 +186,33 @@ export default async function ModulePage({ params }: { params: Promise<{ id: str
 
         <div className="xl:grid xl:grid-cols-[1fr_16rem] xl:gap-12">
           <div className="min-w-0">
+            {mod.prereqs.length > 0 && (
+              <LockedModuleNotice
+                rawId={mod.rawId}
+                prereqs={mod.prereqs}
+                prereqTitles={prereqTitles}
+              />
+            )}
+
             <MarkdownContent source={mod.content} />
+
+            {mod.frontmatter.quiz && mod.frontmatter.quiz.length > 0 ? (
+              <Quiz rawId={mod.rawId} questions={mod.frontmatter.quiz} />
+            ) : (
+              <section className="mt-16 pt-12 border-t border-mist/40">
+                <p className="font-mono text-caption text-racing-green-lit tracking-luxury uppercase mb-3">
+                  Threshold de Maestria
+                </p>
+                <h2 className="font-display text-display-lg text-pearl tracking-tight leading-tight mb-2">
+                  Conclusão deste módulo
+                </h2>
+                <p className="font-sans text-body text-chrome leading-relaxed mb-6 max-w-3xl">
+                  Esse módulo ainda não tem quiz publicado. Quando você terminar a leitura, marque
+                  manualmente — fica salvo no teu navegador.
+                </p>
+                <ManualCompleteButton rawId={mod.rawId} prereqs={mod.prereqs} primary />
+              </section>
+            )}
 
             {dependents.length > 0 && (
               <section

@@ -5,7 +5,7 @@ import { ModuleRow, ModuleRowHeader } from '@/components/ModuleRow';
 import { MarkdownContent } from '@/components/MarkdownContent';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { StructuredData, buildBreadcrumbLd } from '@/components/StructuredData';
-import { loadProgress } from '@/lib/progress';
+import { OverallProgressMeter } from '@/components/OverallProgressMeter';
 
 export async function generateStaticParams() {
   return STAGES.map((s) => ({ stage: s.id }));
@@ -36,11 +36,7 @@ export default async function StagePage({ params }: { params: Promise<{ stage: s
   const readme = await getStageReadme(stage);
   const number = String(stage.number).padStart(2, '0');
 
-  const snap = await loadProgress();
-  const stageRows = snap?.rows.filter((r) => r.stageNumber === stage.number) ?? [];
-  const done = stageRows.filter((r) => r.status === 'DONE').length;
-  const total = stageRows.length;
-  const percent = total > 0 ? Math.round((done / total) * 100) : null;
+  const moduleRefs = modules.map((m) => ({ rawId: m.rawId, prereqs: m.prereqs }));
 
   const breadcrumbLd = buildBreadcrumbLd([
     { name: 'Home', href: '/' },
@@ -74,24 +70,9 @@ export default async function StagePage({ params }: { params: Promise<{ stage: s
           {stage.tagline}
         </p>
 
-        {percent !== null && (
-          <div className="mb-16 max-w-md">
-            <div className="flex items-end justify-between mb-2">
-              <span className="font-mono text-caption text-chrome tracking-luxury uppercase">
-                Progresso
-              </span>
-              <span className="font-mono text-caption text-chrome tracking-wide">
-                {done}/{total} · {percent}%
-              </span>
-            </div>
-            <div className="h-px bg-mist/40 relative">
-              <div
-                className="absolute top-0 left-0 h-px bg-gold-leaf transition-all duration-500"
-                style={{ width: `${percent}%` }}
-              />
-            </div>
-          </div>
-        )}
+        <div className="mb-16 max-w-2xl">
+          <OverallProgressMeter modules={moduleRefs} variant="banner" />
+        </div>
 
         <div className="mb-20">
           <p className="font-mono text-caption text-racing-green-lit tracking-luxury uppercase mb-6">

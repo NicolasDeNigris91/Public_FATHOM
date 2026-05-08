@@ -6,6 +6,7 @@ import { CommandPaletteMount } from '@/components/CommandPaletteMount';
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import { BackToTop } from '@/components/BackToTop';
 import { Analytics } from '@/components/Analytics';
+import { getAllModules } from '@/lib/content';
 import './globals.css';
 
 const cormorant = Cormorant_Garamond({
@@ -86,6 +87,9 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const allModules = await getAllModules();
+  const moduleRefs = allModules.map((m) => ({ rawId: m.rawId, prereqs: m.prereqs }));
+
   return (
     <html
       lang="pt-BR"
@@ -100,7 +104,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         >
           Skip to content
         </a>
-        <Navbar />
+        <Navbar modules={moduleRefs} />
         <main id="main-content">{children}</main>
         <Footer />
         <CommandPaletteMount />
