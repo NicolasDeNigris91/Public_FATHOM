@@ -141,7 +141,7 @@ export default async function ProgressPage() {
                     <span className="flex justify-center"><GateIcon mark={row.pratico} /></span>
                     <span className="flex justify-center"><GateIcon mark={row.conexoes} /></span>
                     <span className={`font-mono text-caption tracking-wide text-right ${
-                      row.status === 'DONE' ? 'text-racing-green-lit' : 'text-chrome/70'
+                      row.status === 'DONE' ? 'text-racing-green-lit' : 'text-fog'
                     }`}>
                       {row.status}
                     </span>

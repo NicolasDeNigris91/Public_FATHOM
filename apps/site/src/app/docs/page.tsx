@@ -70,7 +70,7 @@ export default function DocsIndex() {
         </div>
 
         <div className="mt-20 pt-12 border-t border-mist/40">
-          <p className="font-mono text-caption text-chrome/70 tracking-wide max-w-2xl">
+          <p className="font-mono text-caption text-fog tracking-wide max-w-2xl">
             Glossary, Library, Module Index, e Progress têm páginas dedicadas:{' '}
             <Link href="/glossary" className="text-gold-leaf hover:text-pearl transition-colors duration-200 underline underline-offset-4">
               /glossary

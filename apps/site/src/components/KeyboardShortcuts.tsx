@@ -184,7 +184,7 @@ export function KeyboardShortcuts() {
           ))}
         </div>
 
-        <p className="font-mono text-caption text-chrome/70 tracking-wide mt-8">
+        <p className="font-mono text-caption text-fog tracking-wide mt-8">
           Pressione <kbd className="kbd">?</kbd> a qualquer momento pra reabrir.
         </p>
       </div>

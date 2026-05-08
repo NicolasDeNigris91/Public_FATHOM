@@ -63,7 +63,7 @@ export default function NotFound() {
               </Link>
             </li>
           </ul>
-          <p className="font-mono text-caption text-chrome/70 tracking-wide mt-6">
+          <p className="font-mono text-caption text-fog tracking-wide mt-6">
             Dica: <kbd className="kbd">⌘K</kbd> abre command palette com fuzzy search.
           </p>
         </div>

@@ -31,7 +31,7 @@ const CONFIG: Record<ModuleStatus, { label: string; tone: string; icon: typeof C
   },
   locked: {
     label: 'Locked',
-    tone: 'text-chrome/70 border-mist/40',
+    tone: 'text-fog border-mist/40',
     icon: Lock,
   },
   needs_refresh: {
@@ -41,7 +41,7 @@ const CONFIG: Record<ModuleStatus, { label: string; tone: string; icon: typeof C
   },
   skipped: {
     label: 'Skipped',
-    tone: 'text-chrome/60 border-mist/30',
+    tone: 'text-fog border-mist/30',
     icon: Circle,
   },
 };
