@@ -81,7 +81,7 @@ export function CommandPalette({ entries }: Props) {
               onValueChange={setQuery}
               placeholder="Buscar módulo, estágio, doc…"
               className="flex-1 bg-transparent outline-none border-none
-                         font-sans text-body text-pearl placeholder:text-mist
+                         font-sans text-body text-pearl placeholder:text-fog
                          focus:ring-0"
               // Command palette is opened on demand (Cmd/Ctrl+K); the
               // user explicitly asks for the search input, so autoFocus
@@ -89,7 +89,7 @@ export function CommandPalette({ entries }: Props) {
               // eslint-disable-next-line jsx-a11y/no-autofocus
               autoFocus
             />
-            <kbd className="font-mono text-caption text-mist tracking-wide border border-mist/60 px-2 py-0.5">
+            <kbd className="font-mono text-caption text-fog tracking-wide border border-mist/60 px-2 py-0.5">
               ESC
             </kbd>
           </div>
@@ -145,7 +145,7 @@ export function CommandPalette({ entries }: Props) {
             })}
           </Command.List>
 
-          <div className="flex items-center justify-between px-5 py-3 border-t border-mist/40 font-mono text-caption text-mist tracking-wide">
+          <div className="flex items-center justify-between px-5 py-3 border-t border-mist/40 font-mono text-caption text-fog tracking-wide">
             <span>{entries.length} entries</span>
             <span className="flex items-center gap-3">
               <kbd className="border border-mist/60 px-2 py-0.5">↑↓</kbd> navigate
