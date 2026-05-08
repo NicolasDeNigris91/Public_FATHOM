@@ -74,7 +74,9 @@ test.describe('visitor progress flow', () => {
     await page.goto('/modules/01-02');
     await page.waitForLoadState('domcontentloaded');
     await expect(page.getByText(/bloqueado pela trilha/i)).toHaveCount(0);
-    await expect(page.getByRole('button', { name: /marcar como concluído/i })).toBeVisible();
+    // 01-02 ships its own quiz, so the completion path is the quiz
+    // itself, not a manual button. Verify the quiz rendered.
+    await expect(page.getByRole('heading', { name: /quiz de conclusão/i })).toBeVisible();
   });
 
   test('the progress page shows zero completed for a fresh visitor', async ({ page }) => {
