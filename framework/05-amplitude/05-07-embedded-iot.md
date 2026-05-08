@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Quais restricoes governam uma ISR (Interrupt Service Routine) em RTOS?"
+    options:
+      - "Pode chamar funcoes blocking livremente"
+      - "Curto, reentrant ou disabled, sem chamadas blocking"
+      - "Requer alocacao dinamica de heap obrigatoriamente"
+      - "Deve durar minimo 100ms para estabilidade"
+    correct: 1
+    explanation: "ISR deve ser curta, reentrant (ou interrupts disabled), sem blocking calls, com volatile para comm com main. ISR + RTOS defere trabalho para task via queue/semaphore."
+  - q: "Qual rede e adequada para tracker de logistica outdoor com bateria de meses?"
+    options:
+      - "WiFi 802.11ac"
+      - "BLE classic"
+      - "NB-IoT (cellular IoT low power)"
+      - "USB tethering"
+    correct: 2
+    explanation: "NB-IoT/LTE-M e cellular IoT low-power, ideal outdoor. WiFi e indoor + alto poder. BLE tem range ~100m. Logistica trackers usam tipicamente cellular outdoor + BLE local."
+  - q: "Por que A/B partition e o padrao para OTA updates?"
+    options:
+      - "Para dobrar a capacidade de armazenamento"
+      - "Para escrever new image em B, reboot, verificar e rollback se falha"
+      - "Para suportar 2 firmwares de vendors diferentes simultaneamente"
+      - "Porque eh requisito FCC"
+    correct: 1
+    explanation: "A/B partition: write new image em B, reboot para B, verifica, commit; se falha, rollback automatico para A. Failures podem brick device, padrao essencial."
+  - q: "Em Rust embedded, qual e o papel do crate embedded-hal?"
+    options:
+      - "Substitui o linker para MCUs ARM"
+      - "Define HAL traits vendor-neutral para drivers portaveis"
+      - "Implementa garbage collection deterministico"
+      - "Provides cloud connectivity over MQTT"
+    correct: 1
+    explanation: "embedded-hal define traits vendor-neutral (I2c, OutputPin, etc). Driver de sensor escrito uma vez roda em STM32, ESP32, RP2040, nRF52 etc. Cada vendor implementa o trait."
+  - q: "Quando NAO investir em hardware custom para um produto B2B?"
+    options:
+      - "Quando precisa de sensor especifico nao disponivel em smartphone"
+      - "Quando custom certified e exigido (medical, automotive)"
+      - "Em 90% dos casos B2B SaaS, smartphone basta"
+      - "Quando battery deve durar anos"
+    correct: 2
+    explanation: "Default e usar smartphone como compute + sensors + network. Custom hardware so quando smartphone nao tem sensor, requer cert custom, scale massivo, ou power budget impossivel para phone."
 ---
 
 # 05-07, Embedded & IoT

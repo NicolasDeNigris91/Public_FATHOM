@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que `cmd >file 2>&1` produz resultado diferente de `cmd 2>&1 >file`?"
+    options:
+      - "Não há diferença; o shell normaliza ambas as formas internamente."
+      - "Redirecionamentos são processados left-to-right: na 1ª, fd2 é duplicado APÓS fd1 ir pro file (ambos vão pro file); na 2ª, fd2 duplica fd1 ainda apontando ao terminal e só depois fd1 vai pro file (stderr fica no terminal)."
+      - "A 2ª forma falha porque `2>&1` não pode preceder `>`."
+      - "A 1ª manda stderr pro terminal; a 2ª manda tudo pro file."
+    correct: 1
+    explanation: "Bash aplica redirecionamentos da esquerda pra direita. `>file 2>&1` joga stdout no file e depois faz stderr apontar pra mesma destination (file). `2>&1 >file` faz stderr copiar a destination atual de stdout (terminal) e só depois redireciona stdout, deixando stderr no terminal."
+  - q: "Qual a distinção fundamental entre hard link e symbolic link em filesystem Unix?"
+    options:
+      - "Hard link funciona só dentro do mesmo diretório; symlink atravessa diretórios."
+      - "Hard link é uma entrada de diretório adicional apontando ao mesmo inode (mesmos dados); symlink é um arquivo cujo conteúdo é um path string e quebra se o alvo for movido."
+      - "Symlinks são mais rápidos porque o kernel cacheia o inode."
+      - "Hard links só funcionam pra binários executáveis."
+    correct: 1
+    explanation: "Hard link cria nome adicional pro mesmo inode, então deletar o original não afeta o conteúdo (refcount > 0). Symlink armazena o path como dado; se o alvo se move/deleta, o symlink fica dangling."
+  - q: "Por que `set -euo pipefail` é considerado strict mode essencial em scripts Bash?"
+    options:
+      - "Aumenta performance ao desligar logging interno do shell."
+      - "Faz exit em erro (`-e`), trata variável não-set como erro (`-u`), e propaga falhas em qualquer comando do pipe (`-o pipefail`), evitando que scripts continuem silenciosamente após bugs."
+      - "Bloqueia uso de comandos externos não-listados em allowlist."
+      - "Desabilita word splitting completamente."
+    correct: 1
+    explanation: "Sem essas flags, scripts Bash continuam rodando após erros (mascarando falhas), tratam typos de variável como string vazia, e ignoram falha de qualquer comando exceto o último num pipe. `set -euo pipefail` torna falhas explícitas."
+  - q: "O que torna `find . | xargs grep pattern` problemático em arquivos com nomes contendo espaços ou newlines?"
+    options:
+      - "`xargs` quebra args por whitespace (incluindo espaços e \\n) por padrão, então um nome com espaço vira múltiplos args; use `find -print0 | xargs -0` ou `find -exec`."
+      - "`grep` não suporta múltiplos arquivos como input."
+      - "`find` não pode pipe pra outros comandos."
+      - "O shell não permite chaining acima de 100 arquivos."
+    correct: 0
+    explanation: "Por padrão xargs split por whitespace, quebrando paths com espaço/newline. A solução canônica é `find -print0` (separa por null byte) com `xargs -0`, ou usar `find -exec ... +` que entrega args sem reparse."
+  - q: "Qual o significado do bit setuid (`s` no execute do owner) em um binário como `/usr/bin/passwd`?"
+    options:
+      - "O binário só pode ser executado pelo owner."
+      - "Quando executado, o processo herda o UID do owner do arquivo (geralmente root), permitindo operações privilegiadas como editar `/etc/shadow`."
+      - "O binário é cacheado em memória pra acesso rápido."
+      - "Apenas o usuário `root` pode modificar o arquivo, mas qualquer um executa com seu próprio UID."
+    correct: 1
+    explanation: "Setuid faz o processo rodar com o UID do owner em vez do invoker. Por isso `passwd` (owned by root, setuid) consegue ler/escrever `/etc/shadow` mesmo quando chamado por usuário comum. É vetor clássico de privilege escalation se mal aplicado."
 ---
 
 # 01-10, Unix CLI & Bash

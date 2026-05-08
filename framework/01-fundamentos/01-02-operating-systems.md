@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que uma syscall não é grátis (custa ~100-1000 ns) e o que runtimes como Node fazem pra mitigar?"
+    options:
+      - "Cada syscall força um context switch entre cores; runtimes pinam threads pra evitar."
+      - "A CPU precisa transitar entre user mode e kernel mode (com salvamento de registradores e flush parcial de pipeline); runtimes batcham (writev em vez de várias write)."
+      - "Syscalls disparam page faults, e o OS precisa carregar páginas do disco; runtimes pré-carregam tudo na inicialização."
+      - "Cada syscall reescreve a page table; runtimes fazem mmap upfront."
+    correct: 1
+    explanation: "A transição user↔kernel mode salva registradores, troca a stack, invalida parte do pipeline. Por isso batch syscalls (writev, sendmmsg, io_uring) ganham tanto — uma transição amortiza N operações."
+  - q: "Qual destas NÃO é uma diferença real entre processo e thread no Linux?"
+    options:
+      - "Threads do mesmo processo compartilham heap; processos têm espaços de endereço separados."
+      - "Threads têm stacks independentes; processos têm stacks separadas por definição."
+      - "Threads são escalonadas pelo runtime do usuário, processos pelo kernel."
+      - "fork() cria processo (cópia do espaço de endereços via COW); pthread_create cria thread (compartilha tudo)."
+    correct: 2
+    explanation: "Em Linux, threads são escalonadas pelo MESMO scheduler do kernel que escalona processos — são 'lightweight processes'. Threads N:1 escalonadas em userspace existiram (green threads) mas não são o modelo padrão; pthreads são 1:1 com kernel threads."
+  - q: "O Linux 6.6 substituiu CFS por EEVDF como scheduler default não-realtime. Qual é a vantagem prática principal?"
+    options:
+      - "EEVDF é mais rápido em throughput puro (~50% melhor benchmark)."
+      - "EEVDF expressa slice/lag por entidade, reduzindo tail latency em workloads com bursts pequenos (web servers)."
+      - "EEVDF substitui SCHED_DEADLINE pra workloads real-time."
+      - "EEVDF elimina context switches usando hyperthreading."
+    correct: 1
+    explanation: "CFS minimizava unfairness médio mas dependia de heurísticas pra interatividade. EEVDF expõe slice e deadline virtuais explicitamente, reduzindo p99 latency em ~20% em web servers (Phoronix). Não muda throughput agregado significativamente."
+  - q: "Após fork() em Linux, o que acontece com os file descriptors do processo pai?"
+    options:
+      - "O filho começa com tabela de FDs vazia; precisa reabrir tudo."
+      - "O filho herda CÓPIA da tabela apontando pras MESMAS entries do kernel — pai e filho compartilham posição em arquivos abertos."
+      - "Os FDs do pai são fechados automaticamente; só o filho os mantém."
+      - "Cada FD é duplicado (file descriptions independentes); writes em um não afetam o outro."
+    correct: 1
+    explanation: "fork() duplica a fd-table mas as entries apontam pra mesma file description (offset, flags) no kernel. Por isso pai e filho podem 'corromper' arquivos compartilhados se ambos escreverem sem coordenação — clássico bug de log files compartilhados após fork sem reabrir."
+  - q: "Você tem um servidor de banco trusted que faz I/O massivo e batched. epoll vs io_uring — qual a decisão certa em 2026 e por quê?"
+    options:
+      - "epoll sempre, porque io_uring foi descontinuado por causa dos CVEs."
+      - "io_uring com SQPOLL pinned em CPU dedicada — ganho de 30-50% em random I/O e o threat model permite (ambiente trusted, não multi-tenant)."
+      - "io_uring sempre, mesmo em containers Docker default — ele é mais rápido."
+      - "Nenhum dos dois; usar AIO (POSIX aio_*) que é o padrão moderno."
+    correct: 1
+    explanation: "io_uring vence claramente em I/O massivo, mas teve CVEs de sandbox-escape (Docker default seccomp e Chrome OS desabilitaram). A decisão correta depende do threat model: backend dedicado/trusted = io_uring com SQPOLL pinned; container multi-tenant = epoll por segurança."
 ---
 
 # 01-02, Sistemas Operacionais

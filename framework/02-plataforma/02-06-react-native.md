@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual o papel do JSI (JavaScript Interface) na New Architecture do React Native?"
+    options:
+      - "Substitui o V8 como engine JS"
+      - "Gera componentes nativos automaticamente em build time"
+      - "Permite ao JS chamar funções nativas direto via referências C++ compartilhadas, sem serialização JSON"
+      - "É um novo bundler que substitui Metro"
+    correct: 2
+    explanation: "JSI é a API C++ que elimina a bridge JSON. JS pode segurar host objects nativos e chamar métodos sincronamente, base de TurboModules e Fabric."
+  - q: "Por que worklets do Reanimated rodam em UI thread mesmo se a JS thread está bloqueada?"
+    options:
+      - "Worklets são compilados para WebAssembly"
+      - "Worklets rodam em runtime separado na UI thread via JSI, dirigidos por shared values"
+      - "Reanimated usa Web Workers"
+      - "São executados pelo sistema operacional, não pelo runtime JS"
+    correct: 1
+    explanation: "Worklets ('worklet' directive) são extraídos pelo Reanimated e rodam em runtime separado direto na UI thread via JSI, mantendo 60fps mesmo se a JS thread está congestionada."
+  - q: "Em React Native moderno, por que MMKV é geralmente preferível a AsyncStorage para hot reads?"
+    options:
+      - "MMKV suporta criptografia, AsyncStorage não"
+      - "MMKV é síncrono via JSI (~30x mais rápido); AsyncStorage é async via bridge com round-trip por call"
+      - "AsyncStorage não persiste entre app restarts"
+      - "MMKV substitui completamente o SecureStore"
+    correct: 1
+    explanation: "MMKV (Tencent C++) usa JSI para acesso síncrono direto, ~30x mais rápido. AsyncStorage faz round-trip via bridge async para cada acesso. Para tokens, ainda use SecureStore/Keychain."
+  - q: "Por que `setNativeProps` deixou de funcionar em Fabric?"
+    options:
+      - "Foi removido do React Native em 2024"
+      - "Falha silenciosamente em Fabric pois o renderer concurrent não permite mutações imperativas; use Reanimated `useAnimatedStyle` ou ref imperativo novo"
+      - "Apenas funciona em iOS, não em Android"
+      - "Requer `'use native'` directive"
+    correct: 1
+    explanation: "Em Fabric (novo renderer C++ síncrono), `setNativeProps` falha silently. Substitua por `useAnimatedStyle` do Reanimated ou pelos refs imperativos da nova API."
+  - q: "O que pode ser distribuído via OTA update (EAS Update) sem republish na store?"
+    options:
+      - "Qualquer mudança incluindo libs nativas adicionadas"
+      - "Apenas mudanças de JS bundle e assets; mudanças nativas (novas libs com codegen, modificações em ios/android) exigem nova build"
+      - "Apenas correção de typos no UI"
+      - "Tudo, exceto o ícone do app"
+    correct: 1
+    explanation: "OTA atualiza JS bundle e assets. Mudanças nativas (novas dependencies com binding, mudanças em Info.plist/AndroidManifest, novas permissions) exigem nova build submetida à store."
 ---
 
 # 02-06, React Native

@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que TypeScript optou por parser recursive descent hand-written em vez de gerador LR(1) tipo yacc?"
+    options:
+      - "Porque LR(1) não suporta gramáticas context-free."
+      - "Porque hand-written dá flexibilidade pra erros customizados, recuperação de syntax errors, lookahead variável (JSX em meio de expressão) e melhor IDE experience; LR(1) é rígido e gera parsers difíceis de debugar."
+      - "Porque LR(1) é estritamente mais lento em qualquer caso."
+      - "Porque TS gramática não é context-free."
+    correct: 1
+    explanation: "Hand-written LL/recursive descent vence em ergonomia: error recovery preciso (essencial pro Language Service), lookahead arbitrário pra disambiguar JSX/generics, mensagens contextuais. LR(1) gerado é compacto mas opaco e rígido."
+  - q: "Por que SSA (Static Single Assignment) torna otimizações como dead code elimination triviais?"
+    options:
+      - "Porque SSA elimina branches do programa."
+      - "Em SSA cada variável é atribuída exatamente uma vez, então use-def chains são explícitas e únicas: detectar variável sem uses (dead) ou propagar constants vira lookup direto, sem alias analysis complexa."
+      - "Porque SSA converte tudo a 3-address code que o CPU executa nativamente."
+      - "Porque SSA garante que nenhum branch nunca é tomado em runtime."
+    correct: 1
+    explanation: "Em código não-SSA, uma variável reatribuída em loops/branches exige análise de fluxo pra saber qual definição alcança qual uso. SSA torna cada def única e φ-functions reconciliam joins de control flow, transformando análises em lookups locais."
+  - q: "O que dispara um deopt (bail out) em V8 e por que isso é caro?"
+    options:
+      - "Apenas exceptions JavaScript explícitas (`throw`)."
+      - "Quebra de uma assumption que TurboFan otimizou (ex: shape estável de objeto, tipo de argumento), forçando descarte do código nativo e volta pro Ignition; também marca o código como 'megamórfico', dificultando re-otimização."
+      - "Excesso de uso de memória heap."
+      - "Chamadas a funções nativas (C++)."
+    correct: 1
+    explanation: "JIT especula com base em runtime profile (ex: 'esse arg sempre é Smi'). Se assumption viola, código otimizado é inválido: V8 descarta, volta pro interpreter (Ignition), e às vezes marca o site como polymorphic, perdendo otimizações futuras. Por isso shape thrashing é veneno."
+  - q: "Qual a diferença prática entre erasure (Java/TS generics) e reified (C# generics)?"
+    options:
+      - "Erasure é mais rápido em runtime; reified é mais lento."
+      - "Em erasure, o type parameter desaparece após compilação (`List<String>` é só `List`), impossibilitando reflection do tipo em runtime; em reified, o tipo é preservado no metadata, permitindo `typeof(T)` e new `T()`."
+      - "Reified só funciona pra primitives; erasure pra qualquer tipo."
+      - "Em Java moderno, generics viraram reified como em C#."
+    correct: 1
+    explanation: "TS/Java apagam types em compilação por compatibilidade com runtimes não-tipados. Workaround: passar `Class<T>` ou factory `() => T`. C# preservou type info no IL, permitindo introspection completa, ao custo de bundle maior e generics não-compartilhados entre tipos value/reference."
+  - q: "Por que adicionar properties dinamicamente a um objeto JS prejudica performance no V8?"
+    options:
+      - "Porque JS é interpretado e não JIT-compilado."
+      - "Porque cada nova property muda a 'hidden class' (shape) do objeto, invalidando inline caches em call sites que assumiam shape estável e forçando lookups de propriedade lentos."
+      - "Porque V8 limita objetos a 16 properties."
+      - "Porque o garbage collector pausa a cada property nova."
+    correct: 1
+    explanation: "V8 atribui hidden class por shape de objeto. Inline caches em property access são especializados por hidden class. Adicionar props em ordens diferentes ou condicionalmente cria muitas hidden classes, tornando o site polymorphic/megamórfico, perdendo o fast path."
 ---
 
 # 01-13, Compilers & Interpreters

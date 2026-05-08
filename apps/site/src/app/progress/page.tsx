@@ -1,95 +1,54 @@
 import Link from 'next/link';
-import { Check, Circle, Lock, RotateCw, Clock } from 'lucide-react';
 import { EyebrowHeading } from '@/components/EyebrowHeading';
 import { Breadcrumb } from '@/components/Breadcrumb';
-import { loadProgress, summarize, type GateMark } from '@/lib/progress';
+import { OverallProgressMeter } from '@/components/OverallProgressMeter';
+import { ResetProgressButton } from '@/components/ResetProgressButton';
+import { VisitorStatusIcon } from '@/components/VisitorStatusIcon';
 import { STAGES } from '@/lib/stages';
+import { getStageModules } from '@/lib/content';
 
 export const metadata = {
   title: 'Progress',
-  description: 'Dashboard de portões, estado atual de cada módulo do framework.',
+  description: 'Teu progresso pelos módulos do Fathom — salvo no teu navegador.',
   alternates: { canonical: '/progress' },
 };
 
-function GateIcon({ mark }: { mark: GateMark }) {
-  if (mark === 'passed') return <Check size={14} strokeWidth={1.5} className="text-racing-green-lit" />;
-  if (mark === 'in_progress') return <Clock size={14} strokeWidth={1.5} className="text-gold-leaf" />;
-  if (mark === 'locked') return <Lock size={14} strokeWidth={1} className="text-mist" />;
-  if (mark === 'refresh') return <RotateCw size={14} strokeWidth={1.5} className="text-chrome" />;
-  return <Circle size={12} strokeWidth={1} className="text-mist" />;
-}
-
 export default async function ProgressPage() {
-  const snap = await loadProgress();
-  if (!snap) {
-    return (
-      <section className="px-8 md:px-16 lg:px-24 pt-32 pb-24">
-        <div className="max-w-5xl mx-auto">
-          <p className="font-sans text-body text-chrome">
-            PROGRESS.md não encontrado.
-          </p>
-        </div>
-      </section>
-    );
-  }
+  const stages = await Promise.all(
+    STAGES.map(async (stage) => ({
+      stage,
+      modules: await getStageModules(stage),
+    })),
+  );
 
-  const totals = summarize(snap.rows);
-  const percent = totals.total > 0 ? Math.round((totals.done / totals.total) * 100) : 0;
+  const allRefs = stages.flatMap(({ modules }) =>
+    modules.map((m) => ({ rawId: m.rawId, prereqs: m.prereqs })),
+  );
 
   return (
     <section className="px-8 md:px-16 lg:px-24 pt-32 pb-24">
       <div className="max-w-6xl mx-auto">
-        <Breadcrumb
-          items={[
-            { label: 'Home', href: '/' },
-            { label: 'Progress' },
-          ]}
-        />
+        <Breadcrumb items={[{ label: 'Home', href: '/' }, { label: 'Progress' }]} />
         <EyebrowHeading
-          eyebrow="Estado atual"
+          eyebrow="Teu caminho"
           title="Progress"
-          subtitle="Dashboard de portões. Atualizado a cada commit no PROGRESS.md do repo. Source of truth: o arquivo Markdown."
+          subtitle="Marcado conforme você passa o quiz de cada módulo. Salvo apenas no teu navegador, sem login. Limpe a qualquer momento."
         />
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mt-16 mb-16">
-          <Stat label="Estágio ativo" value={snap.activeStage || ', '} />
-          <Stat label="Módulo ativo" value={snap.activeModule || ', '} />
-          <Stat label="Próximo" value={snap.nextModule || ', '} />
-          <Stat label="Atualizado" value={snap.updatedAt || ', '} />
+        <div className="mt-16 mb-12">
+          <OverallProgressMeter modules={allRefs} variant="banner" />
         </div>
 
-        <div className="border border-mist/50 bg-graphite p-8 mb-12">
-          <div className="flex items-end justify-between mb-4">
-            <div>
-              <p className="font-mono text-caption text-racing-green-lit tracking-luxury uppercase mb-1">
-                Conclusão
-              </p>
-              <p className="font-display text-display-md text-pearl">
-                {totals.done} <span className="text-chrome text-base font-mono">/ {totals.total}</span>
-              </p>
-            </div>
-            <p className="font-mono text-caption text-chrome">{percent}%</p>
-          </div>
-          <div className="h-px bg-mist/40 relative">
-            <div
-              className="absolute top-0 left-0 h-px bg-gold-leaf"
-              style={{ width: `${percent}%` }}
-            />
-          </div>
-          <div className="flex flex-wrap gap-6 mt-6 font-mono text-caption text-chrome tracking-wide">
-            <span className="flex items-center gap-2"><GateIcon mark="passed" /> {totals.done} done</span>
-            <span className="flex items-center gap-2"><GateIcon mark="in_progress" /> {totals.inProgress} ativos</span>
-            <span className="flex items-center gap-2"><GateIcon mark="refresh" /> {totals.refresh} refresh</span>
-            <span className="flex items-center gap-2"><GateIcon mark="pending" /> {totals.pending} pendentes</span>
-          </div>
+        <div className="mb-20">
+          <ResetProgressButton />
         </div>
 
-        {STAGES.map((stage) => {
-          const stageRows = snap.rows.filter((r) => r.stageNumber === stage.number);
-          if (stageRows.length === 0) return null;
+        {stages.map(({ stage, modules }) => {
+          if (modules.length === 0) return null;
+          const refs = modules.map((m) => ({ rawId: m.rawId, prereqs: m.prereqs }));
           return (
             <div key={stage.id} className="mb-16">
-              <div className="flex items-end justify-between mb-6">
+              <div className="flex items-end justify-between mb-6 flex-wrap gap-4">
                 <div>
                   <p className="font-mono text-caption text-racing-green-lit tracking-luxury uppercase mb-1">
                     Estágio {String(stage.number).padStart(2, '0')}
@@ -100,50 +59,48 @@ export default async function ProgressPage() {
                   href={`/stages/${stage.id}`}
                   className="font-mono text-caption text-chrome tracking-luxury uppercase hover:text-pearl transition-colors duration-200"
                 >
-                  View Stage →
+                  Ver Estágio →
                 </Link>
               </div>
 
-              <div className="grid grid-cols-[1fr_auto_auto_auto_120px] md:grid-cols-[100px_1fr_60px_60px_60px_120px] items-center
-                              gap-3 md:gap-6 py-3 border-b border-mist
-                              px-4 -mx-4 font-mono text-caption text-chrome tracking-luxury uppercase">
-                <span className="hidden md:block">ID</span>
-                <span>Módulo</span>
-                <span className="text-center">Conc.</span>
-                <span className="text-center">Prát.</span>
-                <span className="text-center">Conx.</span>
-                <span className="text-right">Status</span>
+              <div className="mb-6 max-w-xl">
+                <OverallProgressMeter modules={refs} variant="compact" />
               </div>
 
-              {stageRows.map((row) => {
-                const linkId = row.rawId.toLowerCase();
-                const isCapstone = row.rawId.startsWith('CAPSTONE');
+              <div
+                className="grid grid-cols-[80px_1fr_auto] md:grid-cols-[100px_1fr_180px_60px] items-center
+                           gap-4 md:gap-8 py-3 border-b border-mist px-4 -mx-4
+                           font-mono text-caption text-chrome tracking-luxury uppercase"
+              >
+                <span>ID</span>
+                <span>Módulo</span>
+                <span className="hidden md:block text-right">Prereqs</span>
+                <span className="text-right">Estado</span>
+              </div>
+
+              {modules.map((m) => {
+                const isCapstone = m.rawId.startsWith('CAPSTONE');
                 return (
                   <div
-                    key={row.rawId}
-                    className="grid grid-cols-[1fr_auto_auto_auto_120px] md:grid-cols-[100px_1fr_60px_60px_60px_120px] items-center
-                               gap-3 md:gap-6 py-4 border-b border-mist/40 px-4 -mx-4
-                               hover:bg-carbon/50 transition-colors duration-200 group"
+                    key={m.fileName}
+                    className="group grid grid-cols-[80px_1fr_auto] md:grid-cols-[100px_1fr_180px_60px] items-center
+                               gap-4 md:gap-8 py-4 border-b border-mist/40
+                               hover:bg-carbon/50 transition-colors duration-200 px-4 -mx-4"
                   >
-                    <span className="hidden md:block font-mono text-caption text-racing-green-lit tracking-wide">
-                      {row.rawId}
+                    <span className="font-mono text-caption text-racing-green-lit tracking-luxury uppercase">
+                      {isCapstone ? 'Capstone' : m.rawId}
                     </span>
                     <Link
-                      href={`/modules/${linkId}`}
+                      href={`/modules/${m.id}`}
                       className="font-sans text-body text-pearl group-hover:text-gold-leaf transition-colors duration-200 truncate"
                     >
-                      <span className="md:hidden font-mono text-caption text-racing-green-lit tracking-wide mr-2">
-                        {isCapstone ? 'Capstone' : row.rawId}
-                      </span>
-                      {row.module}
+                      {m.title}
                     </Link>
-                    <span className="flex justify-center"><GateIcon mark={row.conceitual} /></span>
-                    <span className="flex justify-center"><GateIcon mark={row.pratico} /></span>
-                    <span className="flex justify-center"><GateIcon mark={row.conexoes} /></span>
-                    <span className={`font-mono text-caption tracking-wide text-right ${
-                      row.status === 'DONE' ? 'text-racing-green-lit' : 'text-chrome/70'
-                    }`}>
-                      {row.status}
+                    <span className="hidden md:block font-mono text-caption text-chrome tracking-wide text-right truncate">
+                      {m.prereqs.length > 0 ? m.prereqs.join(', ') : '—'}
+                    </span>
+                    <span className="flex items-center justify-end">
+                      <VisitorStatusIcon rawId={m.rawId} prereqs={m.prereqs} size={16} />
                     </span>
                   </div>
                 );
@@ -153,14 +110,5 @@ export default async function ProgressPage() {
         })}
       </div>
     </section>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="font-mono text-caption text-chrome tracking-luxury uppercase mb-2">{label}</p>
-      <p className="font-display text-xl text-pearl">{value}</p>
-    </div>
   );
 }

@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que Staff Engineer deve construir toy versions de sistemas que já existem?"
+    options:
+      - "Para lançar como produtos OSS competitivos com originais"
+      - "Para construir mental models concretos e ganhar autoridade em design review"
+      - "Para evitar dependencias de bibliotecas externas em produção"
+      - "Para substituir leitura de RFCs e documentação técnica"
+    correct: 1
+    explanation: "O modulo enfatiza mental models concretos, confidence em edge cases e authority em design review. Toys sao didaticos, nao substitutos de produtos OSS."
+  - q: "Qual e o anti-pattern mais perigoso ao escolher toys para construir?"
+    options:
+      - "Escolher toys que conectam com seu eixo de carreira"
+      - "Implementar em Rust ou Go em vez de C"
+      - "Escolher 5 toys e nao terminar nenhum"
+      - "Documentar non-goals explicitamente no README"
+    correct: 2
+    explanation: "O modulo recomenda escolher 2 dos 5 toys com profundidade. Tentar fazer tudo leva a abandonar todos."
+  - q: "Para o Toy GPT track 2026, qual e a referencia canonica recomendada?"
+    options:
+      - "Goodfellow Deep Learning textbook"
+      - "Karpathy nanoGPT + Lets reproduce GPT-2"
+      - "Hugging Face Transformers source code"
+      - "OpenAI GPT-4 technical report"
+    correct: 1
+    explanation: "O modulo cita explicitamente a serie de Karpathy (Lets build GPT, nanoGPT, GPT-2 reproduction) como reference path canonico."
+  - q: "Qual algoritmo de indexacao representa o gold standard graph-based para vector DBs?"
+    options:
+      - "IVF (Inverted File Index)"
+      - "Linear scan k-NN"
+      - "HNSW (Hierarchical Navigable Small World)"
+      - "Product Quantization"
+    correct: 2
+    explanation: "HNSW (Malkov & Yashunin 2018) e descrito como gold standard graph index, com recall@10 > 95% em parametros tipicos."
+  - q: "Qual e o criterio principal para decidir parar o desenvolvimento de um toy?"
+    options:
+      - "Quando o toy supera o produto canonical em benchmarks"
+      - "Quando ele esta pronto para ser lancado como produto OSS"
+      - "Quando licoes principais foram absorvidas alem de single-machine + happy path"
+      - "Quando atinge 100% de cobertura de features do original"
+    correct: 2
+    explanation: "Toys sao didaticos. Ir alem de single-machine + happy path + alguns edge cases custa muito retorno educacional."
 ---
 
 # 05-01, Build-from-Scratch Track

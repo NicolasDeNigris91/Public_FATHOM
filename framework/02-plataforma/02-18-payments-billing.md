@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que PaymentIntent vence o padrão antigo de chamar `charge` direto?"
+    options:
+      - "PaymentIntent suporta mais moedas que charge"
+      - "PaymentIntent é stateful e idempotente: representa intenção persistente com status (`requires_payment_method`, `requires_action`, `succeeded`); retries seguros, suporta 3DS e webhooks corretos"
+      - "PaymentIntent reduz o fee cobrado pela Stripe"
+      - "PaymentIntent permite skip de PCI-DSS"
+    correct: 1
+    explanation: "Charge direto era stateless e quebrava em retries (double charge). PaymentIntent é state machine no PSP: você cria, atualiza, recebe `requires_action` para 3DS/SCA, e o webhook `payment_intent.succeeded` é o ack confiável. Idempotency keys reforçam."
+  - q: "Em uma rota de webhook do Stripe, por que `req.json()` (parser de JSON) quebra a verificação de assinatura?"
+    options:
+      - "Porque o parser modifica os headers"
+      - "Porque a assinatura é HMAC do RAW body byte-a-byte; reparsear/reserializar JSON muda whitespace e quebra o HMAC; deve usar `req.text()` ou raw buffer"
+      - "Porque Stripe envia binary protobuf, não JSON"
+      - "Porque o middleware Express remove o header de assinatura"
+    correct: 1
+    explanation: "A signature `t=...,v1=...` é HMAC-SHA256 do `timestamp.payload` cru. Qualquer reformatação (parser JSON re-stringify) muda bytes e invalida o HMAC. Em Express, `express.raw({type: 'application/json'})` antes do route do webhook."
+  - q: "Por que double-entry ledger imutável é o padrão financeiro correto em vez de coluna `balance` mutável?"
+    options:
+      - "Porque é mais rápido em queries de saldo"
+      - "Porque cada transação cria entries que somam debits = credits, é append-only e dá audit trail completo; corrigir é via reversal entry (preserva histórico), não UPDATE"
+      - "Porque ORMs modernos exigem"
+      - "Porque o saldo nunca precisa ser calculado"
+    correct: 1
+    explanation: "Ledger double-entry tem invariant `Σ debits = Σ credits` por journal, é imutável (sem UPDATE/DELETE) e permite auditoria contábil. UPDATE em coluna `balance` perde histórico e impossibilita reconciliation. Saldo = soma das entries por account."
+  - q: "Por que armazenar dinheiro em `float`/`double` é um bug crítico?"
+    options:
+      - "Porque float é mais lento que int em CPUs modernas"
+      - "Porque IEEE-754 não representa decimais exatos (0.1 + 0.2 != 0.3); arredondamento drift acumula em transações reais; o padrão correto é `bigint cents` ou `DECIMAL(19,4)`"
+      - "Porque float não suporta valores negativos"
+      - "Porque PostgreSQL não indexa float"
+    correct: 1
+    explanation: "Float em base 2 não representa 0.10 (R$ exato), gerando drift de arredondamento que aparece em soma de milhares de transações. Use bigint em centavos (zero-decimal: yen=1; two-decimal: BRL=cents; three-decimal: KWD=fils) ou DECIMAL fixo."
+  - q: "Em Stripe Connect, qual o trade-off de escolher Express em vez de Custom para marketplace?"
+    options:
+      - "Express tem fees maiores, mas oferece UX premium customizada"
+      - "Express delega KYC/onboarding para Stripe-hosted (lower compliance burden, ~80% dos marketplaces); Custom dá UX premium mas Logística owns full KYC + dispute handling (~10x overhead)"
+      - "Custom é o único modelo que suporta múltiplos países"
+      - "Express não permite split payments"
+    correct: 1
+    explanation: "Express é o sweet spot da maioria dos marketplaces: Stripe hospeda onboarding/KYC, Logística mantém UX em volta, fees previsíveis. Custom oferece controle total mas obriga assumir KYC, AML, dispute UX — overhead 10x sem ROI claro em launch."
 ---
 
 # 02-18, Payments & Billing

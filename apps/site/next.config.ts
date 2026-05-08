@@ -47,6 +47,11 @@ const config: NextConfig = {
   output: 'standalone',
   reactStrictMode: true,
   poweredByHeader: false,
+  // Playwright + curl probes hit 127.0.0.1 while `next dev` resolves itself as
+  // `localhost`. Without this allowlist, Next blocks dev-resource cross-origin
+  // requests (RSC stream, HMR), which silently breaks client-component
+  // hydration in test runs.
+  allowedDevOrigins: ['127.0.0.1', 'localhost'],
   outputFileTracingRoot: path.join(__dirname, '..', '..'),
   outputFileTracingIncludes: {
     '/**/*': [

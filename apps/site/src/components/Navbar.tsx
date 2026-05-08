@@ -6,6 +6,8 @@ import { usePathname } from 'next/navigation';
 import { motion, type Variants } from 'framer-motion';
 import { Menu, Search, X } from 'lucide-react';
 import { EASE_STANDARD } from '@/lib/motion';
+import { NavbarProgressChip } from '@/components/NavbarProgressChip';
+import type { ModuleRef } from '@/components/OverallProgressMeter';
 
 function subscribePlatform() {
   return () => {};
@@ -33,7 +35,7 @@ const navLinks = [
   { label: 'Now', href: '/now' },
 ];
 
-export function Navbar() {
+export function Navbar({ modules }: { modules?: ReadonlyArray<ModuleRef> } = {}) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
@@ -106,6 +108,7 @@ export function Navbar() {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
+          {modules && modules.length > 0 && <NavbarProgressChip modules={modules} />}
           <button
             type="button"
             onClick={openPalette}

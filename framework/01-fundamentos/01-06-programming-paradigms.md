@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual destas NÃO é uma propriedade de uma função pura?"
+    options:
+      - "Mesma entrada sempre produz mesma saída."
+      - "Não tem efeitos colaterais (não muta variáveis externas, não faz I/O)."
+      - "É memoizável e paralelizável sem race condition."
+      - "Sempre retorna um valor primitivo (number, string, boolean)."
+    correct: 3
+    explanation: "Função pura pode retornar qualquer coisa — objetos, arrays, funções, etc. O que importa é a relação entrada-saída ser determinística e não haver efeito observável fora da função. As outras 3 propriedades são exatamente o que torna funções puras valiosas."
+  - q: "Você modela 'pássaro' como class Bird extends Animal e depois precisa adicionar Penguin (que é Animal mas não voa) e Bat (que voa mas é Mammal). Qual é o problema e a solução idiomática?"
+    options:
+      - "O problema é que JS não tem multiple inheritance. Use mixins."
+      - "Herança rígida força hierarquia que não bate com realidade (Liskov violation: Penguin como Bird que voa quebra). Use composição: class Bird { constructor(private fly: FlyBehavior, private swim: SwimBehavior) {} }."
+      - "Use herança em diamante com decorators TypeScript."
+      - "Crie uma classe abstrata Voador e herde dela; o resto fica em interfaces."
+    correct: 1
+    explanation: "É o exemplo clássico do livro Design Patterns. 'Composition over inheritance' não é dogma — é reconhecimento de que comportamentos (voar, nadar) são propriedades INDEPENDENTES de identidade taxonômica. Strategy pattern injeta comportamento em vez de herdá-lo."
+  - q: "Qual é o uso REAL e idiomático de closure neste código? function counter() { let count = 0; return { inc: () => ++count, get: () => count }; }"
+    options:
+      - "Performance — closures são mais rápidas que classes."
+      - "Encapsulamento de estado privado: 'count' não é acessível de fora; só inc/get podem mexer. É module pattern via closure, padrão pré-class em JS."
+      - "Type safety — closure preserva tipos."
+      - "Garbage collection — closure permite cleanup automático."
+    correct: 1
+    explanation: "Antes de classes ES6 (e ainda hoje em estilo FP), closures forneciam o ÚNICO mecanismo de encapsulamento real em JS. private fields (#field) e classes vieram depois; closures continuam sendo a base de hooks (useState do React captura state em closure)."
+  - q: "Em TypeScript, o tipo type Shape = { kind: 'circle'; radius: number } | { kind: 'square'; side: number } usa qual conceito de paradigmas funcionais e qual sua vantagem prática?"
+    options:
+      - "Subtype polymorphism — TS verifica os subtipos em runtime."
+      - "Sum type (Algebraic Data Type) com discriminated union; permite exhaustiveness checking — switch (s.kind) sem default falha em compile time se você adicionar 'triangle' depois e esquecer um case."
+      - "Mixin — combina propriedades de circle e square."
+      - "Generic type — pode ser instanciado com qualquer kind."
+    correct: 1
+    explanation: "Sum types (também chamados ADT, tagged union) modelam 'um de N tipos disjuntos'. Combinados com discriminated union em TS, dão exhaustiveness checking gratuito. É o motivo de Result<T,E>, Maybe<T>, todas as estruturas funcionais clássicas serem expressáveis em TS sem sintaxe extra."
+  - q: "Por que Promise pode ser considerada uma mônada e o que isso te diz sobre como compor operações async?"
+    options:
+      - "Porque Promise é singleton — só existe uma instância por valor."
+      - "Promise tem unit (Promise.resolve lifa valor pra Promise) e bind (.then com callback que retorna Promise compõe sem aninhar). Por isso await x ; await y é equivalente a fluxo monádico — sem callback hell."
+      - "Porque Promise é imutável após settle."
+      - "Porque Promise.all combina arrays."
+    correct: 1
+    explanation: ".then(f) onde f retorna Promise<U> retorna Promise<U> (não Promise<Promise<U>>). Esse 'auto-flattening' é o operador bind/flatMap monádico. async/await é açúcar sintático sobre o mesmo padrão — garante composição sem nesting infinito."
 ---
 
 # 01-06, Paradigmas de Programação

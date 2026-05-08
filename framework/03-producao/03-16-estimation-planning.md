@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual a fórmula de PERT three-point estimation para valor esperado?"
+    options:
+      - "(O + M + P) / 3"
+      - "(O + 4M + P) / 6, ponderando most-likely 4x para reduzir bias dos extremos"
+      - "(O + P) / 2"
+      - "M apenas, ignorando O e P"
+    correct: 1
+    explanation: "PERT pondera most-likely 4x porque a distribuição típica de tarefas tem cauda longa pessimista. Fórmula vem de aproximação de beta distribution. Variance: ((P-O)/6)²."
+  - q: "Por que buffer global é melhor que buffer por task?"
+    options:
+      - "Buffer por task é proibido pelo SCRUM oficial"
+      - "Cada dev infla própria estimativa pra garantir; buffers escondidos somam-se em quantidade absurda. Global declarado (~20-30%) é honesto e visível"
+      - "Buffer por task é mais preciso matematicamente"
+      - "Buffer global elimina necessidade de re-estimar"
+    correct: 1
+    explanation: "Buffers ocultos por task multiplicam por inflated. Tasks P50 com buffer agregado no fim cobre cauda estatística do projeto, mantém estimativas individuais honestas e viabiliza tracking de slip real."
+  - q: "Qual é o critério INVEST para boas user stories?"
+    options:
+      - "Independent, New, Verifiable, Estimable, Specific, Tested"
+      - "Independent, Negotiable, Valuable, Estimable, Small, Testable"
+      - "Iterative, Notable, Valuable, Easy, Specific, Tracked"
+      - "Indexed, Numbered, Valid, Essential, Small, Tagged"
+    correct: 1
+    explanation: "INVEST popularizado por Bill Wake. Independent (sem deadlock), Negotiable (escopo flex), Valuable (user value), Estimable (suficiente clareza), Small (cabe em sprint), Testable (AC objetivo)."
+  - q: "Em Monte Carlo forecasting, por que usar percentile p85 ao invés de p50 para commitments?"
+    options:
+      - "p85 é mais preciso matematicamente"
+      - "p50 é coin flip (50% chance de slip); p85+ representa commitment confiável que stakeholders podem usar"
+      - "p85 é convenção da indústria sem razão concreta"
+      - "Para reduzir cost de simulation"
+    correct: 1
+    explanation: "p50 significa 50% probabilidade de cumprir, ou seja, slip metade das vezes. p85 indica 85% confidence, valor defensável para stakeholders. Reportar p50 a stakeholders viola intuição estatística."
+  - q: "Qual a aplicação correta de Little's Law (WIP = Throughput × Cycle Time)?"
+    options:
+      - "Aumentar WIP sempre aumenta throughput"
+      - "Com throughput fixo, reduzir WIP reduz cycle time linearmente; é fundação do Kanban"
+      - "Cycle time é independente de WIP"
+      - "Throughput é determinado apenas por team size"
+    correct: 1
+    explanation: "Lei matemática válida em qualquer sistema steady-state. Limitar WIP é mecânica core do Kanban: menos coisas em paralelo, mais entregas rápidas. Time multitasking serializado tem cycle time inflado."
 ---
 
 # 03-16, Estimation & Technical Planning

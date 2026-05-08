@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "O que estabelece o Inverse Conway Maneuver?"
+    options:
+      - "Reorgs sao intrinsecamente ruins e devem ser evitados"
+      - "Mude o time para mudar o codigo, nao o contrario"
+      - "Conway e invertida em times remote-first"
+      - "Microservices forcam teams independentes automaticamente"
+    correct: 1
+    explanation: "O Inverse Conway Maneuver inverte a logica: voce muda a estrutura de comunicacao do time para alterar a arquitetura, nao apenas declara nova arquitetura."
+  - q: "Em Team Topologies, qual e o papel principal de um Platform team?"
+    options:
+      - "Substituir stream-aligned teams em deploys de produto"
+      - "Reduzir extraneous cognitive load oferecendo internal product"
+      - "Coordenar reorgs e mediar disputas entre teams"
+      - "Manter sistemas legacy fora do roadmap principal"
+    correct: 1
+    explanation: "Platform team produz internal product (deploy, observability, auth) que reduz a carga cognitiva extraneous dos stream-aligned teams."
+  - q: "Qual e o problema de ter 1 bounded context distribuido em N teams?"
+    options:
+      - "Reduz cognitive load excessivamente"
+      - "Forca uso obrigatorio de microservices"
+      - "Cria spaghetti governance sem ownership claro"
+      - "Impede o uso de gRPC entre contextos"
+    correct: 2
+    explanation: "Bounded context em N teams resulta em ninguem owning, governance fragmentada, e decisoes inconsistentes, classico anti-pattern DDD-meets-Conway."
+  - q: "Qual archetype Staff (Tanya Reilly) atua como par tecnico de manager senior?"
+    options:
+      - "Tech Lead"
+      - "Architect"
+      - "Solver"
+      - "Right Hand"
+    correct: 3
+    explanation: "Right Hand e o archetype que decide em escala como par tecnico de manager senior. Tech Lead lidera projeto, Architect faz cross-team design, Solver resolve bugs nasty."
+  - q: "Por que glue work e armadilha estrutural para ICs underrepresented?"
+    options:
+      - "Porque gera fadiga fisica desproporcional"
+      - "Porque e critico mas invisivel em perf review, atrasando promo"
+      - "Porque manager track exige glue work mas IC track nao"
+      - "Porque viola politicas de DEI corporativas"
+    correct: 1
+    explanation: "Glue work (coordenar, mentor, doc, organizar) e critico mas invisivel em perf review. ICs underrepresented frequentemente recebem mais glue, com less promo."
 ---
 
 # 05-03, Conway's Law & Org Architecture

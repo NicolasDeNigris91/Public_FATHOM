@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual e a funcao do decoupling capacitor proximo a cada IC?"
+    options:
+      - "Aumentar voltage de operacao do chip"
+      - "Absorver transients e estabilizar power local"
+      - "Filtrar sinais de comunicacao I2C"
+      - "Reduzir custo do BOM"
+    correct: 1
+    explanation: "Decoupling caps (100nF + 1uF + 10uF) proximos ao chip absorvem transients de corrente. Sem decoupling, system reboots aleatoriamente sob carga."
+  - q: "Qual e o trade-off principal entre LDO e switching regulator (buck/boost)?"
+    options:
+      - "LDO e digital; switching e analogico"
+      - "LDO e linear (simples, dissipa calor); switching e eficiente mas complexo"
+      - "LDO suporta corrente maior universalmente"
+      - "Switching nao funciona em baixas voltagens"
+    correct: 1
+    explanation: "LDO (Low-Dropout) e linear: simples, mas dissipa calor (eficiencia baixa). Switching (buck/boost) e eficiente mas complexo (ripple, noise, components extras)."
+  - q: "Em PCB high-speed (>50 MHz), qual regra rege spacing entre traces para evitar crosstalk?"
+    options:
+      - "1W rule (1x trace width)"
+      - "3W rule (3x trace width)"
+      - "10W rule (10x trace width)"
+      - "Sem rule; spacing nao afeta crosstalk"
+    correct: 1
+    explanation: "3W rule recomenda spacing de 3x trace width entre traces para minimizar crosstalk em high-speed. Outras: impedance matching 50/100ohm, length matching para differential pairs."
+  - q: "Qual e o primeiro passo no bring-up day playbook ANTES de ligar o PCB?"
+    options:
+      - "Programar firmware via JTAG"
+      - "Visual + multimetro continuidade VCC<->GND deve ser circuito aberto"
+      - "Conectar todas antenas para teste RF"
+      - "Aplicar rated voltage direto da bench supply"
+    correct: 1
+    explanation: "Pre-power inspection: visual (solder bridges, missing components, wrong orientation) + multimetro continuidade VCC<->GND (>10kohm). Ligar com short queima MCU em segundos."
+  - q: "Qual estrategia de cost reduction tipicamente NAO funciona sem analise cuidadosa?"
+    options:
+      - "Sole source elimination"
+      - "Layer reduction (4 -> 2 layers)"
+      - "Volume discount via PCBA partner"
+      - "Eliminar todos os decoupling caps para economizar"
+    correct: 3
+    explanation: "Eliminar decoupling caps causa instability sob carga. Patterns validos: DFM desde inicio, sole source elimination, cheaper alternatives, layer reduction, volume discount, panelization."
 ---
 
 # 05-08, Hardware Design Fundamentals (Optional)

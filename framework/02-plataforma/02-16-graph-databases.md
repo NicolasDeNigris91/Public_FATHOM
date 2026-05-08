@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual cenário é o ponto mais forte para graph database dedicado em vez de Postgres + JOIN?"
+    options:
+      - "CRUD simples 1-N com 1-2 hops"
+      - "Multi-hop traversal (4+ hops), pathfinding e pattern matching, onde adjacency direta vence JOINs cúbicos"
+      - "Análises OLAP em colunas com window functions"
+      - "Time series com retention longa"
+    correct: 1
+    explanation: "Native graph storage usa adjacency direta (index-free adjacency), tornando deep traversals O(N) em hops. Postgres com recursive CTE bate na parede em 4+ hops. Em rasos (1-2), JOIN com índice é igual ou melhor."
+  - q: "Por que `MATCH (n)-[*]->(m)` (variable length sem cap) é um anti-pattern crítico?"
+    options:
+      - "Porque a sintaxe está deprecated em GQL"
+      - "Porque em grafos densos causa explosão combinatória, query roda por horas e pode OOM; sempre use cap explícito como `[*1..5]`"
+      - "Porque retorna apenas paths simples e perde ciclos"
+      - "Porque o Neo4j não tem suporte para asterisco unbounded"
+    correct: 1
+    explanation: "Sem upper bound, em grafo conectado o engine explora todas as combinações possíveis até qualquer profundidade. Em hub com fan-out alto vira combinatorial blowup, lock e OOM. Sempre use `[*1..5]` ou similar."
+  - q: "Qual a vantagem matadora de Apache AGE (graph extension do Postgres) sobre Neo4j standalone em SaaS multi-tenant?"
+    options:
+      - "AGE tem mais algoritmos prontos que Neo4j GDS"
+      - "AGE roda dentro do Postgres, então JOIN entre graph e tabelas relacionais ocorre na mesma transação e Postgres RLS aplica para tenant isolation; sem novo DB pra operar"
+      - "AGE é mais rápido em deep traversals"
+      - "AGE elimina a necessidade de Cypher"
+    correct: 1
+    explanation: "AGE permite JOIN entre Cypher MATCH e tabelas SQL na mesma query/transação, e herda Row-Level Security do Postgres para isolar tenants. Em B2B com 100+ tenants, ROI operacional é brutal vs Neo4j multi-database."
+  - q: "Em PageRank, para que serve o damping factor (~0.85)?"
+    options:
+      - "Define o número máximo de iterações"
+      - "Modela a probabilidade do random walker continuar seguindo links; (1 - damping) é a probabilidade de pular para um nó aleatório, evitando spider traps e dead ends"
+      - "Controla a normalização final dos scores"
+      - "Define o threshold de convergência entre iterações"
+    correct: 1
+    explanation: "Damping (~0.85) é a probabilidade do random walker seguir um outlink; 0.15 é restart aleatório. Sem isso, o walker fica preso em ciclos (spider traps) ou termina em sinks. Tunar por domínio em casos específicos."
+  - q: "Por que GraphRAG sem entity disambiguation produz respostas incorretas?"
+    options:
+      - "Porque o algoritmo de community detection requer IDs únicos"
+      - "Porque entidades distintas com mesmo nome (ex: dois 'João Silva') colapsam em um único node, misturando contextos e relações de pessoas diferentes"
+      - "Porque GraphRAG não suporta strings"
+      - "Porque LLM precisa de IDs em formato UUID v4"
+    correct: 1
+    explanation: "Em GraphRAG, o LLM extrai entidades de chunks e cria nodes. Sem deterministic IDs + embedding similarity threshold, 'João Silva (lojista)' e 'João Silva (courier)' viram um node único, contaminando relações e gerando respostas erradas."
 ---
 
 # 02-16, Graph Databases

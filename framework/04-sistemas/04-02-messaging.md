@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual é a relação entre partições Kafka e o paralelismo máximo de um consumer group?"
+    options:
+      - "Consumer group pode ter ilimitados consumers ativos por partição"
+      - "Número máximo de consumers ativos no group = número de partições do topic"
+      - "Partições são apenas para storage, não afetam consumers"
+      - "Cada consumer lê todas as partições simultaneamente"
+    correct: 1
+    explanation: "Em um consumer group, cada partição é atribuída a no máximo 1 consumer. Mais consumers que partições deixa os excedentes ociosos. Para escalar, é preciso aumentar partições."
+  - q: "Por que o outbox pattern é necessário ao publicar eventos após escrita no DB?"
+    options:
+      - "Para reduzir latência de publicação"
+      - "Garante atomicidade entre escrita no DB e emissão do evento via mesma transação"
+      - "Substitui completamente o broker"
+      - "Permite eventos exactly-once nativos no Postgres"
+    correct: 1
+    explanation: "Sem outbox, falha entre commit do DB e publish causa inconsistência (evento perdido ou fantasma). Outbox escreve evento na mesma transação; worker separado publica depois com at-least-once."
+  - q: "Qual a diferença essencial entre Kafka share groups (KIP-932) e consumer groups tradicionais?"
+    options:
+      - "Share groups oferecem ordering global; consumer groups não"
+      - "Share groups fazem round-robin per-message com ack individual, sem ordering por partição"
+      - "Share groups são exclusivos do Confluent Cloud"
+      - "Consumer groups são deprecated em Kafka 4.0"
+    correct: 1
+    explanation: "Share groups (Kafka 4.0) entregam semântica queue-like: round-robin por mensagem com ack individual, sem ordering por partição. Consumer groups mantêm ordering por partição mas escalam apenas via repartição."
+  - q: "Quando RabbitMQ tende a vencer Kafka como escolha de broker?"
+    options:
+      - "Para event sourcing com retenção de meses e replay massivo"
+      - "Para roteamento rico via exchanges (direct/topic/headers) e tasks com prioridade"
+      - "Para throughput sustentado acima de 1M msg/s"
+      - "Para pipelines analíticos com Kafka Streams"
+    correct: 1
+    explanation: "RabbitMQ brilha em roteamento AMQP (direct/topic/headers/fanout), prioridade de filas e workflows de tasks. Kafka domina em event log persistente, alto throughput e replay/event sourcing."
+  - q: "Por que ack ANTES do processamento é considerado anti-pattern em consumer idempotente?"
+    options:
+      - "Aumenta latência do broker"
+      - "Crash entre ack e processamento perde a mensagem; ack deve vir após commit do side effect"
+      - "Quebra o ordering por partição"
+      - "Força uso obrigatório de DLQ"
+    correct: 1
+    explanation: "Ack antes do processamento descarta a mensagem do broker; se o consumer crasha antes de completar o trabalho, a mensagem é perdida. Ack deve ocorrer apenas após o commit transacional do efeito desejado."
 ---
 
 # 04-02, Messaging

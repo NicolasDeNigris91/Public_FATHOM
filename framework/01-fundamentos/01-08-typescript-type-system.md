@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que TypeScript é classificado como structurally typed em vez de nominally typed?"
+    options:
+      - "Porque TS verifica apenas a presença de campos em runtime, ignorando tipos compile-time."
+      - "Porque dois tipos com a mesma forma estrutural são compatíveis, mesmo quando declarados de origens diferentes."
+      - "Porque TS usa heurísticas estatísticas pra decidir compatibilidade entre interfaces."
+      - "Porque toda interface em TS é internamente convertida a uma classe nominal pelo compilador."
+    correct: 1
+    explanation: "Structural typing significa que compatibilidade depende da forma (campos e tipos), não da origem da declaração. Dois tipos diferentes com mesmos campos são intercambiáveis, ao contrário de Java (nominal)."
+  - q: "Qual a diferença prática fundamental entre `unknown` e `any` ao consumir JSON externo?"
+    options:
+      - "`unknown` é mais rápido em runtime; `any` faz checks adicionais."
+      - "`unknown` exige narrowing antes de uso, mantendo type safety; `any` desliga o type checker no valor."
+      - "`any` impede operações inseguras em runtime; `unknown` permite tudo."
+      - "Eles são sinônimos no compilador moderno; só muda a sintaxe."
+    correct: 1
+    explanation: "`unknown` é o top type seguro: você não pode usá-lo até estreitar via type guard. `any` aceita qualquer operação silenciosamente, escondendo bugs e propagando inseguranças por todo o pipeline."
+  - q: "Por que `enum` é desencorajado em código TypeScript novo escrito em 2026?"
+    options:
+      - "Porque enums geram bugs de escopo lexical em closures."
+      - "Porque enums fazem TS gerar código JS (codegen), quebrando flags como `--erasableSyntaxOnly` e `--isolatedDeclarations`."
+      - "Porque enums não suportam union narrowing em discriminated unions."
+      - "Porque o compilador remove enums silenciosamente em modo `strict`."
+    correct: 1
+    explanation: "Enums não são apenas types apagáveis: TS emite JS pra eles. Isso quebra strip-types tooling (Node 22+, Bun) e flags modernas. A alternativa idiomática é `as const` literal unions."
+  - q: "Em distributive conditional types, como evitar a distribuição sobre uma union?"
+    options:
+      - "Adicionar a flag `--noDistributive` no `tsconfig.json`."
+      - "Envolver tanto o tipo testado quanto o lado direito em tuple: `[T] extends [U]`."
+      - "Usar `keyof` em vez de `extends` na condição."
+      - "Trocar a union por intersection antes do conditional."
+    correct: 1
+    explanation: "TS distribui conditional types automaticamente quando o tipo testado é uma union nua (`T extends U ? ... : ...`). Envolver em tuple `[T] extends [U]` desliga distribuição, tratando a union como um único tipo."
+  - q: "Qual a diferença prática entre `as const` e o operator `satisfies` (TS 4.9+)?"
+    options:
+      - "`as const` valida o valor contra um tipo sem widening; `satisfies` torna tudo readonly."
+      - "São equivalentes em todos os casos; `satisfies` é apenas sintaxe alternativa."
+      - "`as const` torna o valor literal/readonly e remove widening; `satisfies` valida contra um tipo mas mantém a inferência literal mais específica do valor."
+      - "`satisfies` só funciona em primitives; `as const` em qualquer tipo."
+    correct: 2
+    explanation: "`as const` muda o tipo do valor pra ser literal/readonly. `satisfies` apenas verifica que o valor cabe num tipo declarado sem alterar a inferência do valor original. Em config objects, `satisfies` evita widening preservando keys literais."
 ---
 
 # 01-08, TypeScript Type System

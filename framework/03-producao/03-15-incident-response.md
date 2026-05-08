@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Em incidente ativo, qual é a prioridade correta entre mitigation e investigation?"
+    options:
+      - "Sempre find root cause primeiro, mitigation só após entender tudo"
+      - "Stop the bleeding (rollback, FF off, traffic shift) primeiro; root cause investigation depois"
+      - "Mitigation e investigation simultaneamente, sempre"
+      - "Apenas investigation; mitigation é responsabilidade de outro time"
+    correct: 1
+    explanation: "Senior resiste ao impulso de investigar primeiro. Mitigar (rollback, feature flag, traffic shift) preserva customer enquanto investigation continua. Confundir mitigated com resolved esconde fragilidade."
+  - q: "Por que o Incident Commander (IC) não deve fazer hands-on debug?"
+    options:
+      - "Porque IC não tem skill técnico"
+      - "Porque IC debugando = ninguém coordenando; coordenação, decisões e comms são tempo full"
+      - "Porque é regra ITIL formal"
+      - "Porque debug é menos importante que comms"
+    correct: 1
+    explanation: "IC sem hands-on é regra dura. IC pergunta 'qual a próxima ação?', autoriza decisões, mantém timeline e comms. Quando IC mergulha em logs, ninguém coordena, e estrutura de incident colapsa."
+  - q: "Qual é a tabela canônica Google SRE para multi-window multi-burn-rate alerts em SLO 99.9%?"
+    options:
+      - "1 alert único quando error rate > 1%"
+      - "4 alerts: 14.4x burn (1h/5m), 6x (6h/30m), 3x (24h/2h), 1x (72h/6h), com short window pra precisão e long window contra flap"
+      - "Alert apenas quando budget mensal < 10%"
+      - "1 alert por hora baseado em moving average"
+    correct: 1
+    explanation: "MWMBR pega fast-burn (page now em 14.4x = budget exhaust em 2h) e slow-burn (ticket em 1x = 30d). Alert só dispara quando AMBAS janelas excedem; long evita flap, short garante precisão temporal."
+  - q: "Por que 'human error' nunca é root cause aceitável em postmortem blameless?"
+    options:
+      - "Porque humanos nunca erram"
+      - "Porque a pergunta correta é 'por que o sistema/processo permitiu o humano falhar?' — falta guardrail, CI gap, runbook ambíguo"
+      - "Porque seria bullying"
+      - "Porque postmortems devem ser tecnicamente puros"
+    correct: 1
+    explanation: "Just Culture (Sidney Dekker): pessoa fez aquilo dado contexto que tinha; o sistema permitiu. Tracing pra system gap (missing guardrail, CI miss, ambiguous process) gera action items acionáveis. 'Take more care' nunca é action item."
+  - q: "Qual é a diferença entre RPO e RTO em DR strategy?"
+    options:
+      - "RPO e RTO são sinônimos"
+      - "RPO = quanto dado podemos perder (define backup frequency); RTO = tempo até estar de volta (define standby quente vs frio)"
+      - "RPO é para region failover; RTO é para single-instance"
+      - "RPO mede performance; RTO mede recovery"
+    correct: 1
+    explanation: "RPO 1h significa backup hourly aceitável. RTO 30min exige standby quase quente. São dimensões ortogonais que dirigem decisões custo/complexidade diferentes em DR architecture."
 ---
 
 # 03-15, Incident Response & On-Call

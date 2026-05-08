@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual é o custo típico de uma chamada cross-boundary entre JS e Wasm?"
+    options:
+      - "Nenhum, é zero-cost por design"
+      - "~10-50µs de overhead de marshaling por chamada, antipattern em loop apertado"
+      - "Custo equivalente a uma chamada de função JS normal"
+      - "Sempre aloca 1MB de memória por call"
+    correct: 1
+    explanation: "Cada call cross-boundary custa entre 10-50µs de marshaling. Por isso evita-se chamar Wasm em loop apertado; o pattern correto é passar batches grandes de dados por linear memory."
+  - q: "Qual é a diferença fundamental entre Core Wasm e Component Model?"
+    options:
+      - "Component Model não suporta Rust"
+      - "Core Wasm expõe apenas escalares + linear memory; Component Model adiciona tipos high-level (string, list, record, variant) cross-linguagem"
+      - "São idênticos, apenas nomes diferentes"
+      - "Component Model só funciona em browser"
+    correct: 1
+    explanation: "Core Wasm requer ABI shimming manual para passar strings (ptr+len). Component Model adiciona camada de tipos com WIT como IDL, gerando bindings type-safe automaticamente em múltiplas linguagens."
+  - q: "Por que WASI é considerado capability-based?"
+    options:
+      - "Porque suporta features específicas de diferentes arquiteturas"
+      - "Componente recebe handles explícitos (file descriptors, sockets) do host, não acessa filesystem ou rede sem permission grant"
+      - "Porque define níveis de capacity para diferentes runtimes"
+      - "Porque limita CPU usage por padrão"
+    correct: 1
+    explanation: "Em WASI capability-based, código sem fs grant não consegue ler arquivos mesmo sob exploit. O host explicitly grants capabilities; sem ambient authority. Isso provê sandbox forte para multi-tenant."
+  - q: "Quando usar WAMR ao invés de Wasmtime em produção?"
+    options:
+      - "Sempre, WAMR é estritamente melhor"
+      - "Em RTOS, IoT, MCUs constrained com footprint <50KB onde JIT é proibido"
+      - "Para servidores web general-purpose"
+      - "Para AI inference em K8s"
+    correct: 1
+    explanation: "WAMR foi desenhado para embedded/IoT com footprint mínimo. Sem JIT, throughput é fração de Wasmtime. Em servidor general-purpose, Wasmtime ganha por larga margem."
+  - q: "Qual é a estratégia correta para reduzir tamanho de binário Wasm em produção?"
+    options:
+      - "Compilar com debug symbols enabled para inspeção"
+      - "LTO + opt-level=z + wasm-opt -Oz + strip debug + panic=abort"
+      - "Usar #[no_std] sempre, em qualquer projeto"
+      - "Wasm sempre tem tamanho fixo, não há como reduzir"
+    correct: 1
+    explanation: "A combinação LTO (link-time optimization), opt-level=z (size first), wasm-opt -Oz pós-process via binaryen, strip debug e panic=abort tipicamente reduz binário 30-50%."
 ---
 
 # 03-12, WebAssembly

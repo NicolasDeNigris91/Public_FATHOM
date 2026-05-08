@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que lab metrics (Lighthouse) não devem ser a única fonte de decisão sobre performance?"
+    options:
+      - "Lighthouse é deprecated em 2026"
+      - "Roda em 1 device/network simulado; field data (RUM) reflete realidade dos users reais com Android low-end + 3G"
+      - "Lighthouse não mede INP corretamente"
+      - "Lab metrics não funcionam para SPAs"
+    correct: 1
+    explanation: "Lab pega regressões em PR, mas users reais em low-end com 3G podem ter LCP 12s enquanto dashboard 'verde'. Field data (RUM) sempre prevalece para decisão; lab para gate de regressão."
+  - q: "Por que `loading=\"lazy\"` em LCP image é antipadrão crítico?"
+    options:
+      - "Browsers não suportam mais lazy loading nativo"
+      - "Browser deprioriza, ignora `fetchpriority` hints, e LCP regride 1-3s — Web.dev tem warning explícito"
+      - "Lazy loading só funciona com IntersectionObserver"
+      - "Causa CLS automaticamente"
+    correct: 1
+    explanation: "lazy loading é para below-fold. Em LCP image, sinal lazy faz browser tratar como baixa prioridade. Use `fetchpriority=\"high\"` + `decoding=\"async\"` (sem lazy) e idealmente `<link rel=\"preload\">` no head."
+  - q: "Quando edge functions (V8 isolates) ganham claramente sobre Lambda Node?"
+    options:
+      - "Heavy DB queries com transactions complexas"
+      - "Workloads que precisam de Node APIs como fs e child_process"
+      - "Auth/JWT verify, rate limit, A/B routing, header manipulation perto do user (TTFB crítico geo-distribuído)"
+      - "Workloads com cold start tolerante (>500ms)"
+    correct: 2
+    explanation: "Edge brilha em path leve geo-distribuído: V8 isolate cold ~5-50ms vs Lambda ~200-1000ms, 200+ POPs vence latência para users distantes do origin region. Heavy DB ainda vai pra origin."
+  - q: "Qual a diferença fundamental entre INP e o antigo FID que ele substituiu em 2024?"
+    options:
+      - "INP só mede em mobile, FID em desktop também"
+      - "INP captura WORST interaction (98º percentil) durante toda a sessão; FID só a primeira"
+      - "INP é coletado server-side, FID client-side"
+      - "INP exige Service Worker"
+    correct: 1
+    explanation: "FID só mostrava primeiro input delay. INP é mais brutal — captura a interação mais lenta durante a sessão inteira, refletindo melhor a sensação de 'site travado' no uso prolongado."
+  - q: "Por que `scheduler.yield()` é importante para INP em handlers longos?"
+    options:
+      - "Acelera execução sincronicamente"
+      - "Pausa execução cedendo controle ao event loop, permitindo input handlers rodarem antes da continuação — quebra long task em chunks"
+      - "Move a execução para Web Worker automaticamente"
+      - "Compila JS para WASM em runtime"
+    correct: 1
+    explanation: "Long task >50ms bloqueia main thread, prejudicando INP. `await scheduler.yield()` em loops permite browser priorizar input/render entre iterações, mantendo responsividade sem refatorar para Worker."
 ---
 
 # 03-09, Frontend Performance

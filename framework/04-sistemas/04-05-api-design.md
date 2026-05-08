@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que cursor-based pagination supera offset/limit em tabelas grandes?"
+    options:
+      - "Cursor usa menos bytes na URL"
+      - "Offset força DB a skip-N rows (lento) e fica instável em mudanças; cursor é estável e fast via PK+sort"
+      - "Cursor é o único que suporta filtragem"
+      - "Offset não funciona em Postgres"
+    correct: 1
+    explanation: "OFFSET 100000 LIMIT 10 força o DB a percorrer 100k rows. Insert/delete durante a paginação faz items duplicarem ou serem pulados. Cursor (PK + sort key encoded) navega via index e é estável."
+  - q: "Qual a justificativa principal para usar Idempotency-Key em endpoints POST?"
+    options:
+      - "Reduzir tamanho do payload"
+      - "Permitir que retries (network, timeout) não dupliquem efeitos como cobranças ou criações"
+      - "Substituir autenticação"
+      - "Cumprir o requisito de OpenAPI 3.2"
+    correct: 1
+    explanation: "POST não é naturalmente idempotente. Retry sem idempotency-key duplica o efeito (2 cobranças, 2 pedidos). O servidor armazena {key, response, ttl} e retorna o mesmo response em retries com mesma key."
+  - q: "Quando GraphQL geralmente perde para REST?"
+    options:
+      - "Quando há clientes heterogêneos (web + mobile + parceiros)"
+      - "Quando 1 client + 1 server, API pública com cache HTTP, e time pequeno sem expertise"
+      - "Em federation entre microserviços"
+      - "Sempre que houver subscriptions"
+    correct: 1
+    explanation: "GraphQL brilha em clientes heterogêneos e federation. Para API pública 1:1 com necessidade de cache HTTP forte e time sem expertise, REST + OpenAPI tem ergonomia e tooling superior."
+  - q: "Qual é a vantagem do RFC 9457 (Problem Details) sobre erros JSON ad-hoc?"
+    options:
+      - "É mais rápido de serializar"
+      - "Schema consistente com campo 'type' como URI semântica que clients podem programar contra"
+      - "Substitui status codes HTTP"
+      - "É exigido pela ISO 27001"
+    correct: 1
+    explanation: "Problem Details padroniza shape de erro (type, title, status, detail, instance). O campo type como URI permite clients fazerem lógica programática (não regex em string), e tools (OpenAPI generators) reconhecem o formato."
+  - q: "Por que tRPC é considerado má escolha para API pública?"
+    options:
+      - "Não suporta TypeScript"
+      - "Não tem schema externo legível; clients não-TS não consomem; acoplamento monorepo"
+      - "Não suporta autenticação"
+      - "Funciona apenas com GraphQL"
+    correct: 1
+    explanation: "tRPC depende de inferência de tipos TS via import do AppRouter — funciona em monorepo TS controlado. Para API pública multi-language ou cross-repo, falta schema externo (OpenAPI/Proto) que clients de outras linguagens consumam."
 ---
 
 # 04-05, API Design Avançado

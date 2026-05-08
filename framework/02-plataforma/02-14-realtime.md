@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Quando SSE (Server-Sent Events) é a escolha mais adequada em vez de WebSocket?"
+    options:
+      - "Quando há tráfego frequente bidirecional entre cliente e servidor"
+      - "Quando o push é unidirecional (server → client), atravessa CDN/proxy HTTP normais e queremos reconnect automático com Last-Event-ID"
+      - "Quando precisamos de baixa latência P2P entre browsers"
+      - "Quando o protocolo precisa transportar dados binários eficientes"
+    correct: 1
+    explanation: "SSE brilha em push unidirecional (notificações, dashboards live, streaming de tokens LLM): trafega como HTTP normal, atravessa CDN, e tem reconnect built-in via Last-Event-ID. WS faz sentido quando há tráfego cliente→server frequente."
+  - q: "Por que sticky session é necessária quando rodamos múltiplas instâncias de servidor WebSocket?"
+    options:
+      - "Para reduzir o uso de CPU em cada instância"
+      - "Porque o estado da conexão (lista de sockets) é local; sem sticky, reconnects vão para outra instância e quebram presence/history/recovery local"
+      - "Porque o protocolo WebSocket exige por especificação"
+      - "Para evitar que o cliente envie payload duplicado"
+    correct: 1
+    explanation: "Cada instância mantém sockets em memória local. Sem sticky (cookie/IP hash), reconexões vão para outra instância e perdem state local. Em ALB, lembre de aumentar `idle_timeout` para conexões long-lived."
+  - q: "Em uma sala com 1000 usuários, por que enviar um diff de presence em vez de full snapshot a cada join/leave é decisivo?"
+    options:
+      - "Diffs eliminam a necessidade de Redis"
+      - "Bandwidth é ~600x menor (50 bytes vs 30KB) e CPU dos clientes não recalcula tudo a cada evento"
+      - "Diff garante ordering total cross-region por padrão"
+      - "Diffs reduzem latência apenas em redes Wi-Fi 6"
+    correct: 1
+    explanation: "Snapshot completo de 1000 users ~30KB; diff (`{op:'join', userId}`) ~50 bytes. Em sala viral com churn alto, broadcasts saturam NIC. Mantenha set canônico no Redis e emita só diffs."
+  - q: "Por que Cloudflare Durable Objects com WebSocket Hibernation é vantajoso em workload >50K concurrent vs API Gateway WebSocket?"
+    options:
+      - "DO suporta mais regiões geográficas que API Gateway"
+      - "Hibernation faz DOs idle custarem ~zero, com 1 leader por room (ordering trivial), enquanto API Gateway cobra $1/M msg + $0.25/M conn-min e tem hard limit 100K"
+      - "API Gateway só funciona com Lambda na região us-east-1"
+      - "Durable Objects suportam WebRTC nativamente; API Gateway não"
+    correct: 1
+    explanation: "Em 100K msg/s broadcast, API Gateway custa centenas de milhares por mês. DO Hibernation evicta CPU enquanto WS está idle (cliente conectado mas sem mensagens), 1 DO por room dá ordering local sem Pub/Sub e SQLite local substitui Redis."
+  - q: "Por que ordering total global é evitado em chat-like cross-region, sendo per-conversation ordering preferido?"
+    options:
+      - "Porque o protocolo WebSocket não suporta timestamps cross-region"
+      - "Porque ordering total exige broker centralizado, gerando latência cross-region 100-300ms inaceitável; per-conversation via consistent hash em conversation_id resolve 99% dos casos"
+      - "Porque CDNs bloqueiam mensagens fora de ordem"
+      - "Porque clientes mobile não conseguem reordenar mensagens localmente"
+    correct: 1
+    explanation: "Total ordering global requer broker mono-region (Kafka), penalizando todo write cross-region. Per-conversation ordering via consistent hash em conversation_id permite home region por conversa; HLCs resolvem ordering local pra UI."
 ---
 
 # 02-14, Real-time

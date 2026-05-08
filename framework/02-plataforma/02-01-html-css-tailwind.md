@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que animar com `transform: translateX()` é preferível a animar `left` em hot paths?"
+    options:
+      - "`transform` aceita unidades em px, enquanto `left` exige %"
+      - "`transform` pula as fases de layout e paint, ficando apenas no compositor (GPU)"
+      - "`left` não é animável via CSS transitions"
+      - "`transform` é processado pelo Service Worker em vez do main thread"
+    correct: 1
+    explanation: "Mudanças em `transform` e `opacity` são manipuladas pelo compositor (com aceleração de GPU), pulando layout e paint, o que sustenta 60fps facilmente."
+  - q: "Em que situação ocorre margin collapsing entre dois parágrafos verticais?"
+    options:
+      - "Sempre que ambos têm margens verticais, em qualquer contexto"
+      - "Apenas quando o pai tem `display: flex` ou `display: grid`"
+      - "Em block formatting context normal; flex/grid/inline-block bloqueiam o collapsing"
+      - "Apenas quando ambas margens são iguais"
+    correct: 2
+    explanation: "Margin collapsing só ocorre em block formatting context normal e adota a maior das duas margens; flex, grid e inline-block desabilitam esse comportamento."
+  - q: "Por que `z-index: 9999` em um modal pode falhar em sobrepor outro elemento?"
+    options:
+      - "Browsers limitam o valor máximo de z-index a 1000"
+      - "Os elementos podem estar em stacking contexts diferentes, criados por `transform`, `opacity < 1` ou `filter`"
+      - "z-index só funciona dentro de `display: grid`"
+      - "z-index requer `position: static` para ser respeitado"
+    correct: 1
+    explanation: "Stacking contexts são criados por propriedades como `transform`, `opacity < 1`, `filter`, `position: fixed/sticky`. Dois elementos em contextos diferentes não comparam z-index entre si."
+  - q: "Em uma arquitetura com Cascade Layers, qual fator decide a precedência entre regras?"
+    options:
+      - "A especificidade do seletor sempre vence"
+      - "A ordem de declaração da listagem `@layer name1, name2;` define a prioridade entre layers, independente de especificidade"
+      - "A ordem em que os blocos `@layer { }` aparecem no arquivo"
+      - "Apenas `!important` consegue mudar a ordem"
+    correct: 1
+    explanation: "Em `@layer`, a ordem da listagem inicial define a precedência: layers posteriores vencem as anteriores, ignorando a especificidade dentro daquele cascade."
+  - q: "Por que usar `oklch()` para cores em design systems modernos é uma decisão melhor que usar `hsl()`?"
+    options:
+      - "`oklch()` consome menos bytes no CSS"
+      - "`oklch()` é perceptualmente uniforme, mantendo luminosidade equivalente entre matizes diferentes"
+      - "`hsl()` não funciona em browsers modernos"
+      - "`oklch()` permite animar cores via `transition`, enquanto `hsl()` não"
+    correct: 1
+    explanation: "`oklch()` é perceptualmente uniforme: cores com mesma luminosidade L parecem igualmente claras independentemente do matiz, enquanto `hsl()` distorce isso (amarelo parece muito mais claro que azul com mesmos valores)."
 ---
 
 # 02-01, HTML, CSS, Tailwind

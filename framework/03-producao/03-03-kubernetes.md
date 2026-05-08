@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual o problema principal de não definir um PodDisruptionBudget em Deployment com múltiplas réplicas?"
+    options:
+      - "Pods não conseguem se comunicar entre si"
+      - "Drain de node ou cluster autoscaler scale-down pode evictar todas as réplicas simultaneamente, causando downtime"
+      - "HPA não funciona corretamente sem PDB"
+      - "Service mesh não consegue rotear tráfego"
+    correct: 1
+    explanation: "PDB protege contra voluntary disruption (drain, upgrade, autoscaler). Sem ele, manutenção pode tirar 100% das réplicas. Note que PDB não protege contra involuntary (hardware fail) — para isso use multiple replicas + topology spread."
+  - q: "Por que Topology Spread Constraints com `topologyKey: topology.kubernetes.io/zone` é importante em produção?"
+    options:
+      - "Distribui pods por zone garantindo que falha de uma AZ não derruba todas as réplicas"
+      - "Acelera o scheduling em clusters grandes"
+      - "Reduz custo de cross-AZ traffic em 90%"
+      - "Permite rolling updates mais rápidos"
+    correct: 0
+    explanation: "Sem spread, 6 réplicas podem cair todas em 1 zone — AZ failure = 100% downtime. `maxSkew: 1` + zone topology garante distribuição equilibrada e tolerância a falha de zona inteira."
+  - q: "No Gateway API GA (1.2), qual a justificativa principal para split entre `Gateway` e `HTTPRoute`?"
+    options:
+      - "HTTPRoute é faster que Ingress de processar"
+      - "Permite role-based platform: infra team gerencia Gateway/listeners/TLS, app team gerencia HTTPRoute/rotas"
+      - "Gateway suporta apenas HTTPS, HTTPRoute suporta gRPC"
+      - "Reduz latência ao bypass kube-proxy"
+    correct: 1
+    explanation: "Gateway API resolve role separation que Ingress não tinha: infra controla GatewayClass/Gateway (controllers, certs, IPs) enquanto app teams gerenciam HTTPRoute em seus namespaces, sem permissions cruzadas."
+  - q: "Quando KEDA é claramente superior a HPA built-in?"
+    options:
+      - "Quando você precisa de scale-to-zero ou escala por queue depth/event lag em vez de CPU/memory"
+      - "Quando o cluster tem mais de 100 nodes"
+      - "Quando você usa Istio service mesh"
+      - "Quando precisa de scaling vertical (VPA)"
+    correct: 0
+    explanation: "HPA built-in não escala para zero e não conhece queues. KEDA (60+ scalers: SQS, Kafka, Redis, Prometheus) cria HPA por baixo dos panos com External Metrics API, com scale-to-zero e scaling event-driven."
+  - q: "Por que sidecar containers GA (1.29+) com `restartPolicy: Always` em initContainer resolve problemas de Istio/Vault/Fluent Bit?"
+    options:
+      - "Diminuem cold start em 50%"
+      - "Garantem ordering (sidecar pronto antes do main) e lifecycle separado (sidecar terminado depois dos main containers)"
+      - "Reduzem consumo de memória em 30%"
+      - "Eliminam necessidade de ServiceAccount próprio"
+    correct: 1
+    explanation: "Antes, sidecars regulares causavam race (Istio proxy não estava pronto quando app fazia primeiro request) e Jobs nunca terminavam (Fluent Bit ficava rodando). InitContainer restartPolicy=Always resolve ambos."
 ---
 
 # 03-03, Kubernetes

@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que prompt caching (Anthropic ephemeral cache) é uma das primeiras otimizações de custo a aplicar?"
+    options:
+      - "Reduz a latência de output mas não afeta o preço"
+      - "Cobra ~10% do preço de input em cache hits, gerando economia de 80-90% em system prompts longos reutilizados"
+      - "Permite gerar mais tokens de output sem cobrança adicional"
+      - "Substitui RAG eliminando a necessidade de vector DB"
+    correct: 1
+    explanation: "Cache hit cobra ~10% do input. Em SaaS com system prompt de 5k tokens e 90% hit rate, a economia chega a dezenas de milhares de dólares por mês — primeira otimização antes de qualquer outra."
+  - q: "Qual é o principal modo de falha do pattern critic loop quando se usa o mesmo modelo + mesmo prompt do planner?"
+    options:
+      - "O critic se torna mais caro que o planner em produção"
+      - "Critic concorda com os mesmos erros (motivated reasoning), perdendo a função de detecção"
+      - "A latência do loop dobra desnecessariamente"
+      - "O critic perde acesso ao contexto original do usuário"
+    correct: 1
+    explanation: "Mesmo modelo + mesmo prompt produz vieses idênticos: o critic vai validar os mesmos erros que o planner cometeu. Use modelo diferente ou prompt deliberadamente adversarial para ganhar signal real."
+  - q: "Quando vale escolher pgvector em vez de Pinecone/Qdrant para um projeto?"
+    options:
+      - "Sempre que o projeto exigir mais de 100M vectors com QPS sustained > 1k"
+      - "Quando se tem menos de 1M vectors e Postgres já existe na stack, evitando nova ferramenta"
+      - "Para hybrid search nativo com BM25 + reranker built-in"
+      - "Quando multimodal (imagem + texto + áudio) é requisito central"
+    correct: 1
+    explanation: "Default 2026: < 1M vectors + Postgres já presente → pgvector. Cobre 80% dos casos com transações, joins e zero ops adicional. Pinecone/Qdrant entram quando filter-heavy ou volume sobe."
+  - q: "Por que o pattern planner-executor split é superior a deixar o LLM 'raciocinar e agir' no mesmo step?"
+    options:
+      - "É mais barato porque usa apenas 1 chamada de modelo"
+      - "Produz plano declarativo validável (JSON/Zod), permite replay determinístico, audit step-a-step e abort early; sem ele, runaway custa $1000+ rapidamente"
+      - "Elimina a necessidade de tools externas"
+      - "Garante exactly-once semantics automaticamente"
+    correct: 1
+    explanation: "Sem split, agent entra em loops opacos com custo explosivo. Plano declarativo dá schema validation, observability normal, abort early em step inválido e replay — separa demo de produção."
+  - q: "Em qual situação NÃO usar LLM como decision-maker é a recomendação correta?"
+    options:
+      - "Classificação fuzzy de mensagens de suporte"
+      - "Sumarização de logs e eventos"
+      - "Lógica determinística com regras de negócio claras (auth checks, money math) onde correctness é absoluto"
+      - "Geração de copy de marketing"
+    correct: 2
+    explanation: "Em domínios sensíveis (auth, dinheiro, regras determinísticas com rubric exata), LLM introduz não-determinismo inaceitável. Default: LLM como augment, não core decision-maker quando correctness importa."
 ---
 
 # 04-10, AI/LLM em Sistemas
