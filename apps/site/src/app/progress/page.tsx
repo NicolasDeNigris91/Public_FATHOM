@@ -96,13 +96,11 @@ export default async function ProgressPage() {
                     >
                       {m.title}
                     </Link>
-                    <span className="flex justify-center"><GateIcon mark={row.conceitual} /></span>
-                    <span className="flex justify-center"><GateIcon mark={row.pratico} /></span>
-                    <span className="flex justify-center"><GateIcon mark={row.conexoes} /></span>
-                    <span className={`font-mono text-caption tracking-wide text-right ${
-                      row.status === 'DONE' ? 'text-racing-green-lit' : 'text-fog'
-                    }`}>
-                      {row.status}
+                    <span className="hidden md:block font-mono text-caption text-chrome tracking-wide text-right truncate">
+                      {m.prereqs.length > 0 ? m.prereqs.join(', ') : '—'}
+                    </span>
+                    <span className="flex items-center justify-end">
+                      <VisitorStatusIcon rawId={m.rawId} prereqs={m.prereqs} size={16} />
                     </span>
                   </div>
                 );
