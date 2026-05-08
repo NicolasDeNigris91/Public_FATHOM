@@ -89,7 +89,7 @@ export function Quiz({ rawId, questions }: Props) {
                 </span>
                 {question.q}
               </p>
-              <ul role="radiogroup" aria-label={`Opções da pergunta ${qIdx + 1}`} className="space-y-2">
+              <div role="radiogroup" aria-label={`Opções da pergunta ${qIdx + 1}`} className="space-y-2">
                 {question.options.map((opt, optIdx) => {
                   const checked = selected === optIdx;
                   const isThisCorrect = showResult && optIdx === question.correct;
@@ -105,33 +105,32 @@ export function Quiz({ rawId, questions }: Props) {
                   }
 
                   return (
-                    <li key={optIdx}>
-                      <label
-                        className={`flex items-start gap-3 px-4 py-3 border cursor-pointer transition-colors duration-200 ${tone} ${
-                          showResult ? 'cursor-default' : ''
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name={`q-${qIdx}-${rawId}`}
-                          value={optIdx}
-                          checked={checked}
-                          onChange={() => handleSelect(qIdx, optIdx)}
-                          disabled={showResult}
-                          className="mt-1 accent-gold-leaf"
-                        />
-                        <span className="font-sans text-body leading-relaxed flex-1">{opt}</span>
-                        {showResult && isThisCorrect && (
-                          <Check size={16} strokeWidth={1.5} aria-label="Resposta correta" />
-                        )}
-                        {isThisWrongPick && (
-                          <X size={16} strokeWidth={1.5} aria-label="Sua escolha estava errada" />
-                        )}
-                      </label>
-                    </li>
+                    <label
+                      key={optIdx}
+                      className={`flex items-start gap-3 px-4 py-3 border cursor-pointer transition-colors duration-200 ${tone} ${
+                        showResult ? 'cursor-default' : ''
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name={`q-${qIdx}-${rawId}`}
+                        value={optIdx}
+                        checked={checked}
+                        onChange={() => handleSelect(qIdx, optIdx)}
+                        disabled={showResult}
+                        className="mt-1 accent-gold-leaf"
+                      />
+                      <span className="font-sans text-body leading-relaxed flex-1">{opt}</span>
+                      {showResult && isThisCorrect && (
+                        <Check size={16} strokeWidth={1.5} aria-label="Resposta correta" />
+                      )}
+                      {isThisWrongPick && (
+                        <X size={16} strokeWidth={1.5} aria-label="Sua escolha estava errada" />
+                      )}
+                    </label>
                   );
                 })}
-              </ul>
+              </div>
               {showResult && question.explanation && (
                 <p
                   className={`font-sans text-body text-chrome leading-relaxed pl-4 border-l-2 ${
