@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que IAM Roles são preferidas a IAM Users para serviços/aplicações em produção?"
+    options:
+      - "Roles têm permissions mais granulares que Users"
+      - "Roles são identidades assumíveis, eliminando access keys long-lived embedded em código"
+      - "Roles têm limite maior de policies anexadas"
+      - "Users não suportam MFA, Roles suportam"
+    correct: 1
+    explanation: "Apps em EC2/ECS/Lambda assumem IAM role e recebem credenciais temporárias rotacionadas automaticamente. Sem access keys hardcoded ou em env vars que vazam em git/logs."
+  - q: "Por que NAT Gateway é considerado uma 'armadilha invisível' de custo?"
+    options:
+      - "Cobra $32/mês fixo + $0.045/GB processed; workload com 10TB egress = $450/mês só de NAT"
+      - "Tem latência inferior a 100ms cross-AZ"
+      - "Conta dupla CPU em horários de pico"
+      - "Não pode ser desligado sem destruir a VPC"
+    correct: 0
+    explanation: "Mitigação: VPC Endpoints (Gateway tipo S3/DynamoDB são FREE; Interface tipo ECR/Secrets são $0.01/h + $0.01/GB) substituem NAT pra serviços AWS, cortando 90% do custo."
+  - q: "Em que cenário Lambda perde claramente para ECS Fargate?"
+    options:
+      - "Workloads com burst irregular pequeno"
+      - "Workloads com throughput steady alto e long-running connections (WebSockets persistentes)"
+      - "APIs REST simples"
+      - "Processamento event-driven via SQS"
+    correct: 1
+    explanation: "Lambda tem 15min execution limit e é stateless (sem long-lived connections). Em volume alto e steady, custo Lambda supera Fargate. WebSockets exigem API Gateway WebSocket por cima, complicando."
+  - q: "Qual o trade-off principal de S3 Express One Zone vs S3 Standard?"
+    options:
+      - "Express é mais lento porém mais barato em armazenamento"
+      - "Sub-ms latência consistente e 50% menor custo de request, mas single-AZ (não durável cross-AZ) e 5x mais caro por GB-month"
+      - "Express só funciona com KMS encryption obrigatória"
+      - "Standard suporta versioning, Express não"
+    correct: 1
+    explanation: "S3 Express é single-AZ — perde dados em AZ outage. Use SÓ para data reconstruível: ML training shuffle, hot temp scratch, cache. Não para data durável."
+  - q: "Por que `Compute Savings Plan 1-year no-upfront` é o default 2026 sobre Reserved Instances Standard?"
+    options:
+      - "Tem savings idêntico mas cobre EC2/Fargate/Lambda em qualquer região, com flexibilidade máxima"
+      - "Funciona apenas para Graviton ARM"
+      - "É grátis, RI custa upfront"
+      - "Reserved só existe em us-east-1"
+    correct: 0
+    explanation: "Compute SP 1-year dá ~50-60% savings com flex pra trocar entre EC2/Fargate/Lambda. Standard RI 3-year só vale para workload comprovadamente steady por 3+ anos — raro em startup."
 ---
 
 # 03-05, AWS Core

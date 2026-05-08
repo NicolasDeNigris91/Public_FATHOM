@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Em Next.js 15, o que acontece ao chamar `cookies()` ou `headers()` síncrono (sem `await`)?"
+    options:
+      - "Funciona normalmente, mas com warning de deprecation"
+      - "Lança `TypeError` em runtime; APIs viraram `Promise<>`"
+      - "Retorna valores `undefined` silenciosamente"
+      - "Apenas warning no console, sem efeito"
+    correct: 1
+    explanation: "Em Next.js 15, `cookies()`, `headers()`, `params` e `searchParams` viraram Promises. Chamada síncrona resulta em TypeError. Codemod `next-async-request-api` migra automaticamente."
+  - q: "Por que Client Components devem ficar nas folhas da árvore de componentes em App Router?"
+    options:
+      - "É um requisito sintático do TypeScript"
+      - "Para minimizar o JS enviado ao cliente; tudo o que importa um Client Component vira parte do bundle"
+      - "Server Components não podem ter estado interno"
+      - "Para evitar hydration mismatch automaticamente"
+    correct: 1
+    explanation: "Em App Router, qualquer Client Component e tudo que ele importa vai pro bundle do cliente. Empurrar 'use client' o mais para baixo na árvore reduz o JS shipping."
+  - q: "Qual a diferença entre `revalidate: 0` e `cache: 'no-store'` em fetch do Next.js?"
+    options:
+      - "São sinônimos, sem diferença prática"
+      - "`revalidate: 0` ainda cacheia mas re-valida cada request; `cache: 'no-store'` skipa totalmente o Data Cache"
+      - "`cache: 'no-store'` apenas funciona em Edge runtime"
+      - "`revalidate: 0` desabilita o ISR; `cache: 'no-store'` apenas o Router Cache"
+    correct: 1
+    explanation: "`revalidate: 0` mantém entrada no Data Cache mas re-valida sempre. `cache: 'no-store'` pula o cache totalmente. Use o segundo quando quer skip total do Data Cache."
+  - q: "Por que `pg` driver TCP nativo não funciona em rotas com Edge runtime?"
+    options:
+      - "Edge runtime tem limite de bundle de 1MB"
+      - "Edge runtime usa V8 isolates sem APIs de Node nem TCP raw; é necessário driver HTTP-based como `@neondatabase/serverless`"
+      - "Edge runtime não permite conexões a Postgres"
+      - "Apenas em modo development"
+    correct: 1
+    explanation: "Edge runtime é subset Web Standard sem Node APIs nem TCP raw. Drivers nativos como `pg` não funcionam — use HTTP-based (Neon serverless, @vercel/postgres) ou Hyperdrive da Cloudflare."
+  - q: "Qual a diferença correta entre Router Cache e Data Cache em App Router?"
+    options:
+      - "Router Cache é server-side (RAM por request); Data Cache é client-side (browser memory)"
+      - "Router Cache é client-side (browser memory por session, sobrevive a `router.push`); Data Cache é server-side persistente cross-request com revalidação por tag/path"
+      - "São o mesmo cache com nomes diferentes"
+      - "Apenas Data Cache é invalidado por `revalidateTag`"
+    correct: 1
+    explanation: "Router Cache fica em memória no browser e cacheia segmentos de rota visitados. Data Cache é server-side, persistente, controlado por `revalidate`/`tags`. Após mutation, `router.refresh()` invalida o Router Cache."
 ---
 
 # 02-05, Next.js

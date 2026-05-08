@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "O que caracteriza o anti-pattern 'distributed monolith'?"
+    options:
+      - "Monolito hospedado em mais de uma região"
+      - "Serviços que compartilham DB e precisam ser deployados juntos; pior dos dois mundos"
+      - "Microserviços sem service mesh"
+      - "Modular monolith escalado horizontalmente"
+    correct: 1
+    explanation: "Distributed monolith tem custo operacional de microservices (N CI/CD, network hops, distributed debugging) sem o benefício de deploy independente. Acontece quando boundaries são ruins ou DB/state são compartilhados implicitamente."
+  - q: "Qual é o raciocínio principal por trás de 'monolith first' (Sam Newman)?"
+    options:
+      - "Monolitos são sempre superiores tecnicamente"
+      - "Bounded contexts ainda não estão claros early; errar fronteiras gera service hell e refactor é mais barato em monolith"
+      - "Microservices só funcionam em Java"
+      - "Cloud é mais cara do que VPS"
+    correct: 1
+    explanation: "Em greenfield, BCs estão em flux. Extrair serviço com fronteira errada vira coupling cross-service permanente — pior que monolith. Monolith first permite evolução de fronteiras barata até o domínio estabilizar."
+  - q: "Em multi-tenancy pool com Row-Level Security, qual é o demônio operacional principal?"
+    options:
+      - "Backups são impossíveis"
+      - "Noisy neighbor: 1 tenant gigante consome pool/locks degradando todos os outros"
+      - "RLS quebra com mais de 100 tenants"
+      - "Postgres não suporta tenant_id"
+    correct: 1
+    explanation: "RLS isola dados, mas recursos compartilhados (connection pool, locks, IO) são vulneráveis a noisy neighbor. Mitigação: pool partitioning por tier, rate limit per-tenant, bulkheads, e shard hot tenant pra silo dedicado."
+  - q: "Por que Durable Objects (Cloudflare) não devem ser usados como DB geral (1 DO por entidade)?"
+    options:
+      - "DO é só para WebSockets"
+      - "DO é single-instance global por ID; criar 1M DOs idle gera custo CPU-time/memory; throughput single-object é ~100-1000 ops/s"
+      - "DO não persiste dados"
+      - "DO requer subscription Enterprise"
+    correct: 1
+    explanation: "DO é otimizado para coordenação stateful (chat room, cursor colaborativo, leader election, rate-limit global). Cada DO é single-instance — não escala como DB. Para storage de massa use D1/Postgres; DO só pra estado coordenado real-time."
+  - q: "No Strangler Fig pattern, qual é a função correta da Façade na fase 1?"
+    options:
+      - "Conter business logic complexa para reduzir latência"
+      - "Routing puro entre client e legacy/new service; zero business logic; permite rollback instantâneo"
+      - "Substituir o database imediatamente"
+      - "Implementar autenticação cross-service"
+    correct: 1
+    explanation: "Façade (nginx, Caddy, API Gateway) deve ser routing-only. Business logic na façade defeats purpose, vira middleware extra na latência e impede rollback fácil. A função é redirecionar tráfego para legacy ou novo serviço gradualmente."
 ---
 
 # 04-08, Services vs Monolith vs Serverless

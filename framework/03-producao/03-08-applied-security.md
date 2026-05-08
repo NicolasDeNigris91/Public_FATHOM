@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que JWT em `localStorage` é antipadrão crítico em SPA?"
+    options:
+      - "localStorage tem limite de 5KB"
+      - "Qualquer 3rd party script (analytics, tag manager) lê via XSS, expondo o token; use httpOnly cookie"
+      - "localStorage é sincronizado entre tabs e quebra session isolation"
+      - "Browsers modernos descontinuaram localStorage para auth"
+    correct: 1
+    explanation: "JS code (incluindo bibliotecas de analytics que você incluiu) tem acesso total a localStorage. XSS = roubo de token. HttpOnly cookie é inacessível por JS, mitigando essa categoria inteira."
+  - q: "Em CSP 2026, por que `strict-dynamic` + nonces é superior a domain whitelist tradicional?"
+    options:
+      - "Nonces são mais rápidos de validar"
+      - "Whitelist de domains é sempre incompleta e bypassável via JSONP/redirect; strict-dynamic com nonce válido permite carregamento transitivo seguro"
+      - "Domain whitelist não funciona em HTTP/3"
+      - "Nonces são gerados pelo browser automaticamente"
+    correct: 1
+    explanation: "Whitelist domain (Google CDN, etc.) frequentemente hospeda JSONP endpoints exploráveis. `strict-dynamic` + nonce-per-request elimina lista estática — script com nonce válido carrega filhos transitivamente sem precisar listar todos domains."
+  - q: "Qual o papel de VEX (Vulnerability Exploitability eXchange) statements em SBOM consumption?"
+    options:
+      - "Substitui scanner de CVE"
+      - "Distingue 'CVE presente no SBOM' de 'CVE explorável no contexto', suprimindo falsos positivos como `not_affected, justification: code_not_reachable`"
+      - "Compila SBOM em formato binário para auditoria"
+      - "Encripta SBOM antes de publicar"
+    correct: 1
+    explanation: "Scanner reporta lodash CVE; mas se você só usa `_.get` e a CVE é em `_.merge`, é não-explorável. VEX permite declarar isso formalmente, evitando alert fatigue (200 alerts/dia → time ignora real critical)."
+  - q: "Em SLSA framework, qual a diferença entre L1 e L3?"
+    options:
+      - "L3 exige código aberto, L1 não"
+      - "L1 = build process documentado; L3 = hosted build platform isolada + provenance autenticada (não pode ser influenciada por outros builds)"
+      - "L1 é para libs, L3 é para containers"
+      - "L3 exige SBOM, L1 não"
+    correct: 1
+    explanation: "L1 documenta build (script versionado). L2 adiciona provenance assinada. L3 exige builder hardenizado (isolated runner, tamper-resistant). L4 (draft) exige hermetic + reproducible builds."
+  - q: "Por que SSRF é particularmente perigoso em AWS sem IMDSv2?"
+    options:
+      - "AWS bloqueia tráfego IPv6 para SSRF mitigation"
+      - "Server pode ser feito a request `http://169.254.169.254/...` (IMDS metadata) e roubar credentials da role da instância"
+      - "AWS Lambda tem proteção SSRF nativa"
+      - "SSRF causa cobrança extra de cross-AZ traffic"
+    correct: 1
+    explanation: "IMDSv1 (legacy) responde a qualquer request HTTP local com credentials temporárias. App vulnerável a SSRF que aceita URL do user pode ser usado para fetch de IMDS e exfiltração de IAM credentials. IMDSv2 exige token PUT, mitigando."
 ---
 
 # 03-08, Applied Security

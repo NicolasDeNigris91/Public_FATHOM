@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual é a diferença essencial entre arquiteturas Lambda e Kappa para data processing?"
+    options:
+      - "Lambda só funciona em AWS; Kappa em qualquer cloud"
+      - "Lambda mantém dois caminhos (batch + streaming) com codebases separados; Kappa usa só streaming e re-processa via re-read do log histórico"
+      - "Kappa exige Spark, Lambda exige Flink"
+      - "Lambda processa em real-time, Kappa apenas em batch overnight"
+    correct: 1
+    explanation: "Lambda (Marz) mantém batch layer + speed layer reunidos no serving — complexidade alta com dois codebases. Kappa (Kreps) só streaming, re-processing via re-read do log; simplifica com Kafka log retention longa."
+  - q: "Por que watermark é necessário em streaming com event-time semantics?"
+    options:
+      - "Permite rate limiting de produtores rápidos"
+      - "É heurística 'vi todos os eventos com event_time ≤ T' que permite fechar windows lidando com late events e out-of-order"
+      - "Substitui checkpointing em Flink"
+      - "Garante exactly-once delivery automaticamente"
+    correct: 1
+    explanation: "Late events chegam (mobile offline, network). Watermark balanceia trade-off entre latência de fechar window e completude — sem ele, agregações nunca fechariam ou perderiam dados out-of-order."
+  - q: "Em dbt incremental model, por que 'append' strategy é traiçoeira?"
+    options:
+      - "É lenta em qualquer warehouse moderno"
+      - "Não funciona em Postgres 15+"
+      - "Se source tem retry semantics, registros duplicam silenciosamente; precisa dedupe downstream com dbt_utils.deduplicate"
+      - "Exige unique_key obrigatório, dificultando setup"
+    correct: 2
+    explanation: "Append é o mais simples e mais traiçoeiro: bom para events append-only sem retry, mas qualquer source com retries duplica. Sempre adicione dedupe downstream e use cushion (>=) com lookback window para late-arriving data."
+  - q: "Qual é o trade-off de incremental_strategy='delete+insert' em produção?"
+    options:
+      - "Mais barato que merge em Snowflake"
+      - "Atomic per partition automaticamente"
+      - "Window entre DELETE e INSERT pode renderizar 0 rows em isolation levels frouxos; rodar em horário de pico causa dashboards com '0' transitório"
+      - "Não funciona em tabelas com mais de 1M rows"
+    correct: 2
+    explanation: "Mesmo em transação, downstream readers em isolation level frouxo podem ver zero rows entre DELETE e INSERT. Mitigação: rodar em low-traffic windows ou usar materialized view sobre snapshot."
+  - q: "Quando vale streaming SQL incremental (Materialize/RisingWave) em vez de Flink?"
+    options:
+      - "Throughput extremo > 10M events/s sustained"
+      - "Custom processing complexo com ML inference inline"
+      - "Time não tem expertise JVM/Flink, queries são predominantemente agregação+join+filter, latência sub-segundo basta e quer interactivity (psql)"
+      - "Workload exige savepoints + state migration entre versões custom"
+    correct: 2
+    explanation: "Streaming SQL incremental brilha quando SQL é universal no time, queries são agregações típicas e latência sub-segundo (não ms) basta. Flink ainda vence em custom processing complexo e throughput extremo."
 ---
 
 # 04-13, Streaming & Batch Data Processing

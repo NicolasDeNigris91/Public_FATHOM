@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Em que ordem o Node.js drena callbacks após o código síncrono terminar?"
+    options:
+      - "microtasks → nextTick → próxima fase do event loop"
+      - "nextTick queue → microtasks (Promise) → próxima fase do event loop"
+      - "fase de timers → microtasks → nextTick"
+      - "Tudo executa em ordem aleatória"
+    correct: 1
+    explanation: "A fila de `process.nextTick` é drenada primeiro, depois microtasks (Promise.then, queueMicrotask), e então o loop avança para a próxima fase. Por isso `nextTick` em loop bloqueia o event loop inteiro."
+  - q: "Quais APIs do Node usam o thread pool da libuv (default 4 threads)?"
+    options:
+      - "TCP/UDP networking via epoll/kqueue"
+      - "`fs.*`, `dns.lookup`, `crypto.pbkdf2/scrypt`, `zlib`"
+      - "Apenas `setTimeout` e `setInterval`"
+      - "Todas as operações async indistintamente"
+    correct: 1
+    explanation: "Thread pool da libuv (`UV_THREADPOOL_SIZE`) atende fs (mais), dns.lookup, crypto pesado e zlib. I/O de rede usa kernel async (epoll/kqueue/IOCP) sem thread pool."
+  - q: "Quando você deve usar `worker_threads` em vez de `cluster`?"
+    options:
+      - "Sempre — `cluster` é deprecated"
+      - "Para CPU-bound JS (parsing, criptografia, cálculo); `cluster` é multi-processo, melhor para escalar I/O sem K8s"
+      - "Apenas para acessar `fs` em paralelo"
+      - "Para criar processos isolados com PID separado"
+    correct: 1
+    explanation: "`worker_threads` são threads no mesmo processo, ideal para CPU-bound. `cluster` cria processos separados com round-robin de porta, útil para escalar I/O em VMs (em K8s, o orquestrador faz isso melhor)."
+  - q: "Por que `cluster` é geralmente desnecessário (e até prejudicial) em deploy Kubernetes?"
+    options:
+      - "K8s não suporta múltiplos processos por pod"
+      - "K8s já é o orquestrador (1 processo por pod, escala via HPA); `cluster` duplica RAM por pod inutilmente"
+      - "O cluster module foi removido em Node 22"
+      - "Pods K8s têm 1 vCPU sempre, não há ganho"
+    correct: 1
+    explanation: "Em K8s o HPA (Horizontal Pod Autoscaler) já cria múltiplos pods. Usar cluster dentro de pod duplica memória sem ganho orquestracional. cluster faz sentido em VM tradicional, não em K8s."
+  - q: "O que o Permission Model GA do Node 24 entrega como defesa-em-profundidade?"
+    options:
+      - "Sandbox completo equivalente a containers"
+      - "Granular sandbox runtime via flags `--allow-fs-read`, `--allow-net`, etc., bloqueando addons nativos por default"
+      - "Bloqueio automático de qualquer chamada async"
+      - "Encryption transparent de variáveis de ambiente"
+    correct: 1
+    explanation: "Permission Model (GA Node 24) provê granular sandboxing in-runtime. Útil contra supply-chain attacks: lib maliciosa em node_modules tentando ler `~/.aws/credentials` ou conectar a C2 falha com `ERR_ACCESS_DENIED`."
 ---
 
 # 02-07, Node.js Internals

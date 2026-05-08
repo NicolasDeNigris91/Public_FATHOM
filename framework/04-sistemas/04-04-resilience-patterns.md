@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que slow failure costuma ser mais perigoso que hard failure?"
+    options:
+      - "Slow failure consome menos CPU"
+      - "Hard failure é detectado rapidamente (connection refused); slow failure consome recursos via timeouts e cascateia"
+      - "Slow failure só ocorre em redes WiFi"
+      - "Hard failure é impossível de detectar"
+    correct: 1
+    explanation: "Hard failure produz erro imediato. Slow failure faz consumers esperarem timeout, esgotar pools de conexão e cascatear para outros serviços antes da detecção, multiplicando o blast radius."
+  - q: "Em retry com exponential backoff, qual o problema de não usar jitter?"
+    options:
+      - "Aumenta latência média"
+      - "N clientes sincronizam retries no mesmo instante (thundering herd) sobrecarregando o downstream"
+      - "Quebra idempotência"
+      - "Impede uso de circuit breaker"
+    correct: 1
+    explanation: "Sem jitter, todos os clientes que falham em t=0 retentam simultaneamente em 2^n*base. O thundering herd amplifica a carga sobre o downstream já degradado. Jitter (full ou decorrelated) dispersa as tentativas."
+  - q: "No padrão circuit breaker, qual o papel do estado half-open?"
+    options:
+      - "É equivalente a closed mas com logging"
+      - "Após cooldown, libera N requests de teste; se OK volta a closed, se falha reabre"
+      - "Permite bypass do limite de timeout"
+      - "Aceita apenas requests internos"
+    correct: 1
+    explanation: "Half-open é o estado de probing: depois do cooldown, o breaker permite tentativas limitadas. Sucesso reseta para closed (recuperação), falha retorna a open evitando bombardear o dep instável."
+  - q: "Por que readiness probe verificando todas as deps externas é anti-pattern?"
+    options:
+      - "Aumenta custo de cloud"
+      - "Cascade failure: dep down → cluster inteiro unready → zero tráfego, impossibilitando recovery"
+      - "Quebra observabilidade do K8s"
+      - "Readiness é deprecated em K8s 1.30+"
+    correct: 1
+    explanation: "Se readiness depende de cada dep externa, uma falha de dep marca todos os pods unready, removendo-os do load balancer. Sem tráfego o cluster não consegue se autorrecuperar. Best practice: shallow liveness, readiness com deps próprias críticas."
+  - q: "Qual a função da deadline propagation em arquitetura distribuída?"
+    options:
+      - "Sincronizar relógios entre serviços"
+      - "Cada hop conhece tempo restante até o cliente desistir e recusa work se inviável, evitando trabalho perdido"
+      - "Substitui timeouts locais"
+      - "Garante exactly-once delivery"
+    correct: 1
+    explanation: "Sem deadline propagation, hops downstream continuam executando após o cliente desistir, consumindo recursos sem entregar valor. Propagar X-Request-Deadline (gRPC, OTel baggage) permite fail-fast quando o orçamento esgota."
 ---
 
 # 04-04, Resilience Patterns

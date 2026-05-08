@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Quando faz mais sentido modelar uma relação como embed (sub-documento) em vez de reference no MongoDB?"
+    options:
+      - "Quando o sub-documento é compartilhado por muitas entidades diferentes"
+      - "Quando os dados são quase sempre lidos juntos, têm cardinalidade limitada (< ~1000) e cabem em < 16MB"
+      - "Quando precisamos de transações ACID multi-coleção"
+      - "Quando há crescimento unbounded e múltiplos consumers do mesmo array"
+    correct: 1
+    explanation: "Embed brilha em 1-to-few, leitura conjunta e atomicity (single-doc atomic). Em unbounded ou compartilhado vira anti-pattern: bate o limite de 16MB ou requer N atualizações duplicadas."
+  - q: "Por que executar `$match` no início do pipeline de aggregation é uma decisão de performance crítica?"
+    options:
+      - "Porque é o único stage que aceita filtros complexos"
+      - "Porque permite usar indexes para reduzir input antes de stages caros (`$group`, `$lookup`, `$sort`)"
+      - "Porque garante consistência transacional do pipeline"
+      - "Porque o MongoDB rejeita pipelines sem `$match` no topo"
+    correct: 1
+    explanation: "Indexes só são usados em `$match`/`$sort` no início do pipeline. Após `$project`/`$group`, o planner perde acesso ao índice e o stage seguinte vira full scan."
+  - q: "O que é um anti-pattern claro ao usar MongoDB?"
+    options:
+      - "Definir validator `$jsonSchema` na collection"
+      - "Usar TTL index com `expireAfterSeconds` para purgar dados temporais"
+      - "Tratar o Mongo como Postgres: muitos `$lookup` em hot path, transações multi-doc onipresentes e normalização excessiva"
+      - "Versionar schema com `schemaVersion` e migrar lazy"
+    correct: 2
+    explanation: "Mongo não foi feito para joins complexos. Se `$lookup` virou o padrão do fluxo crítico, ou a modelagem está errada (denormalize via embed/snapshot) ou o storage está errado (use Postgres)."
+  - q: "Em Atlas Vector Search, por que `numCandidates` deve ser 10-20x o `limit` desejado?"
+    options:
+      - "Para garantir distribuição uniforme dos shards"
+      - "Porque HNSW é um algoritmo aproximado: explorar mais nós aumenta recall, valores próximos ao limit causam recall < 70%"
+      - "Para forçar cache warming antes da query principal"
+      - "Porque o índice cobra por número de candidatos avaliados"
+    correct: 1
+    explanation: "HNSW é Approximate Nearest Neighbor; `numCandidates` controla quantos nós o grafo explora. Próximo do `limit` o recall colapsa. A regra de bolso é 10-20x para manter recall@K decente."
+  - q: "Em Change Streams, por que persistir o resume token é crítico?"
+    options:
+      - "Porque o token contém os credentials de auth do consumer"
+      - "Porque, se restart ocorrer durante downtime maior que a retenção do oplog, o consumer perde eventos sem possibilidade de recuperação"
+      - "Porque o token comprime o payload do evento reduzindo bandwidth"
+      - "Porque o MongoDB exige resume token em todas as queries"
+    correct: 1
+    explanation: "Change Streams usam o oplog do replica set; sem persistir o resume token, restart força `$` (tail) ou retroceder além da retenção, causando perda silenciosa de eventos. Configure oplog retention 24-48h em consumers críticos."
 ---
 
 # 02-12, MongoDB

@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual é a distinção fundamental entre event sourcing e CQRS?"
+    options:
+      - "São sinônimos; sempre andam juntos"
+      - "ES tem o log de eventos como fonte de verdade; CQRS separa modelos de leitura e escrita"
+      - "CQRS é versão moderna de ES"
+      - "ES requer GraphQL; CQRS requer REST"
+    correct: 1
+    explanation: "Event sourcing usa o log de eventos como source of truth (estado é fold dos eventos). CQRS separa modelos de comando (write) e query (read), e pode existir sem ES."
+  - q: "Em saga choreography vs orchestration, qual o principal trade-off em sistemas com 5+ serviços?"
+    options:
+      - "Choreography é mais fácil de debugar"
+      - "Orchestration centraliza visibilidade do flow mas adiciona ponto de complexidade no coordinator"
+      - "Choreography elimina necessidade de compensações"
+      - "Orchestration funciona apenas via Kafka"
+    correct: 1
+    explanation: "Choreography é loosely coupled mas dispersa o fluxo (debug forense). Orchestration centraliza o workflow num coordinator (Temporal, Camunda) facilitando observabilidade, mas vira ponto único de complexidade."
+  - q: "Por que snapshots em event sourcing devem incluir um campo schema_version?"
+    options:
+      - "Para acelerar serialização JSON"
+      - "Para invalidar snapshots quando o schema do aggregate evolui, forçando rehydrate via upcast"
+      - "É exigência da spec OpenAPI"
+      - "Permite snapshots concorrentes"
+    correct: 1
+    explanation: "Sem schema_version, um snapshot V1 carregado em código V2 produz silent corruption (V2 events aplicados sobre estado V1). Versionar invalida snapshots stale e força reload via upcast on read."
+  - q: "Por que ON CONFLICT DO NOTHING em append de event store exige retry loop?"
+    options:
+      - "Postgres não suporta concorrência sem retry"
+      - "Conflito indica versão duplicada (concurrent write); precisa recarregar e tentar novamente sem perder o command"
+      - "É boa prática de logging"
+      - "Reduz consumo de CPU do banco"
+    correct: 1
+    explanation: "Optimistic concurrency via PRIMARY KEY (stream_id, version) faz INSERT conflitante retornar 0 rows. Sem retry com reload do aggregate + recompute, o command é silenciosamente perdido."
+  - q: "Qual evidência indica que outbox CDC com replication slot está mal monitorado?"
+    options:
+      - "Latência de eventos abaixo de 100ms"
+      - "Replication slot acumula WAL sem confirmed_flush_lsn avançar; disco enche e Postgres trava"
+      - "Debezium publica em vários topics simultaneamente"
+      - "Schema Registry rejeita events V1"
+    correct: 1
+    explanation: "Replication slot abandonado retém WAL indefinidamente. Sem alerta em pg_replication_slots.confirmed_flush_lsn lag, o disco enche e o DB trava em writes — falha catastrófica clássica de CDC."
 ---
 
 # 04-03, Event-Driven Patterns

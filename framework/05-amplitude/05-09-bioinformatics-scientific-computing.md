@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual diferenca define scientific computing vs SaaS engineering?"
+    options:
+      - "Scientific computing usa apenas Python; SaaS usa qualquer linguagem"
+      - "Correctness numerica e reprodutibilidade > velocidade de delivery"
+      - "Scientific computing nao usa containers"
+      - "SaaS nao tem regulamentacao"
+    correct: 1
+    explanation: "Scientific computing prioriza correctness numerica, determinism, reprodutibilidade obrigatoria, long-running jobs (dias-semanas), data-heavy. Paper claim deve ser reproducible por third party."
+  - q: "Qual e a diferenca entre MPI e OpenMP em HPC?"
+    options:
+      - "MPI e proprietario; OpenMP e open-source"
+      - "MPI e paralelismo distribuido entre nodes; OpenMP e shared-memory dentro de node"
+      - "Ambos sao identicos com APIs diferentes"
+      - "OpenMP e exclusivo de GPUs"
+    correct: 1
+    explanation: "MPI (Message Passing Interface) faz paralelismo distribuido entre nodes via mensagens. OpenMP faz shared-memory dentro de node via pragmas. Programa hibrido usa ambos."
+  - q: "Por que Singularity/Apptainer e preferido a Docker em HPC?"
+    options:
+      - "Docker nao roda em Linux"
+      - "Singularity roda como user (sem root), integra com cluster filesystem e suporta MPI"
+      - "Singularity e 10x mais rapido"
+      - "Docker nao suporta GPU passthrough"
+    correct: 1
+    explanation: "Docker em HPC tem security issues (root). Singularity/Apptainer roda containers como user, integra com filesystem do cluster (Lustre/GPFS), suporta MPI dentro do container."
+  - q: "Em 2026, por que uv (Astral) substitui pip+pip-tools+venv stack?"
+    options: 
+      - "uv e proprietario com licenca enterprise"
+      - "uv e Rust-based e 10-100x faster em dependency resolution"
+      - "uv elimina necessidade de virtualenvs"
+      - "uv suporta apenas Python 2.7"
+    correct: 1
+    explanation: "uv (Astral, GA Set 2024) e Rust-based, 10-100x faster que pip em resolution e install. Substitui pip/pipx/poetry stack inteiro em projetos novos. PEP 723 inline scripts suportado."
+  - q: "Qual e a contribuicao chave do AlphaFold 3 (Mai 2024) sobre AF2?"
+    options:
+      - "Open weights libertados para uso comercial"
+      - "Prediz proteinas + DNA + RNA + ligands + ions, todo complexo biomolecular"
+      - "Substitui completamente experimentos de cryo-EM"
+      - "Roda em smartphone via inference local"
+    correct: 1
+    explanation: "AF3 expande para predicao de complexos biomoleculares completos (proteinas + DNA + RNA + ligands + ions), com ~50% improvement em interaction prediction vs AF2. Weights restricted (server only)."
 ---
 
 # 05-09, Bioinformatics & Scientific Computing (Optional)

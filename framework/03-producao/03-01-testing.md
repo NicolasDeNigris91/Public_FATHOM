@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que o módulo argumenta que mockar Prisma/Drizzle em integration tests é antipadrão?"
+    options:
+      - "Porque mocks são mais lentos que conexões reais ao DB"
+      - "Porque você prova que o mock se comporta como você imagina, não que o DB se comporta"
+      - "Porque ORMs modernos não suportam mocking adequado"
+      - "Porque mocks consomem mais memória que Testcontainers"
+    correct: 1
+    explanation: "Mockar o ORM testa apenas se o mock obedece ao mock; bugs de migration, tipos de coluna, constraints e race conditions só aparecem com DB real via Testcontainers."
+  - q: "Qual é a diferença fundamental entre mutation score e code coverage?"
+    options:
+      - "Mutation score mede linhas executadas; coverage mede branches"
+      - "Coverage mede linhas executadas; mutation score mede quantas regressões os testes capturariam"
+      - "Mutation score é mais rápido que coverage de calcular"
+      - "Coverage é client-side; mutation score é server-side"
+    correct: 1
+    explanation: "Coverage só conta linhas que rodam. Mutation testing muta o código de produção e verifica se os testes falham, medindo qualidade real das assertions, não apenas execução."
+  - q: "No contract testing com Pact, qual é o papel do `can-i-deploy` no pipeline?"
+    options:
+      - "Gerar contracts automaticamente a partir do código consumer"
+      - "Bloquear deploy quando provider não cumpre contracts publicados pelos consumers"
+      - "Validar schema OpenAPI contra implementação"
+      - "Executar testes E2E entre serviços antes do release"
+    correct: 1
+    explanation: "`can-i-deploy` consulta o Pact Broker e retorna exit 1 se o provider quebra contratos publicados, bloqueando o pipeline antes que a regressão chegue em produção."
+  - q: "Por que o módulo recomenda Vitest browser mode em vez de JSDOM para certos hooks?"
+    options:
+      - "Vitest browser mode é sempre mais rápido que JSDOM"
+      - "JSDOM não suporta TypeScript moderno"
+      - "Hooks que tocam IntersectionObserver, ResizeObserver e layout real precisam de browser real, não polyfills JSDOM"
+      - "Browser mode permite snapshot testing e JSDOM não"
+    correct: 2
+    explanation: "JSDOM não implementa layout real nem APIs como ResizeObserver corretamente. Browser mode roda Chromium/Firefox/WebKit via Playwright provider para hooks que dependem dessas APIs."
+  - q: "O texto recomenda mutation score na faixa de 60-80% em código de domínio. Por que NÃO perseguir 95%?"
+    options:
+      - "Porque Stryker tem bugs acima de 90%"
+      - "Porque diminishing returns brutais e indicador de testes acoplados a detalhes de implementação"
+      - "Porque mutation testing não consegue tecnicamente passar de 80%"
+      - "Porque o JIT do Node interfere em scores altos"
+    correct: 1
+    explanation: "80% custa horas, 95% custa semanas. Score muito alto também sinaliza testes acoplados a detalhes — refactor quebra testes sem haver bug real, perdendo o valor do mutation testing."
 ---
 
 # 03-01, Testing

@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que SHA-256 puro é inadequado pra armazenar senhas, mesmo com sal aleatório?"
+    options:
+      - "Porque SHA-256 tem colisões conhecidas exploráveis."
+      - "Porque SHA-256 é projetado pra ser RÁPIDO, permitindo brute-force de bilhões de hashes/segundo em GPU; senhas exigem KDFs lentas e memory-hard como Argon2id."
+      - "Porque SHA-256 produz output muito curto pra ser seguro."
+      - "Porque SHA-256 não suporta sais maiores que 8 bytes."
+    correct: 1
+    explanation: "Hash criptográfico é otimizado pra throughput. Argon2id (e bcrypt/scrypt) são deliberadamente lentos e memory-hard, neutralizando ASICs/GPUs. Sal evita rainbow tables mas não diminui a velocidade de tentativa por senha."
+  - q: "Qual a consequência catastrófica de reutilizar o mesmo nonce em duas mensagens cifradas com AES-GCM e a mesma chave?"
+    options:
+      - "Apenas tag de autenticação fica inválida; confidencialidade preserva."
+      - "O atacante recupera o XOR dos dois plaintexts (quebrando confidencialidade) e consegue forjar mensagens (quebrando integridade), pois GCM degenera a um stream cipher reusado."
+      - "Nada acontece; GCM tolera nonce reuse por design."
+      - "A chave AES vaza imediatamente em ambos os ciphertexts."
+    correct: 1
+    explanation: "GCM = CTR + GMAC. Reuse de nonce em CTR significa keystream idêntico, então `C1 XOR C2 = P1 XOR P2`, expondo plaintexts. Adicionalmente, a auth key é recuperada, permitindo forja arbitrária. Por isso XChaCha20-Poly1305 com nonce 192-bit é mais seguro pra random nonces."
+  - q: "Por que comparar HMAC tags com `==` (byte-a-byte com early return) é inseguro?"
+    options:
+      - "Porque `==` não funciona pra Buffers em Node, sempre retorna false."
+      - "Porque o tempo de comparação varia com o número de bytes iguais antes do mismatch, permitindo ao atacante recuperar a tag byte a byte via timing attack remoto."
+      - "Porque `==` faz coerção de tipo e pode aceitar string vazia."
+      - "Porque Node hasheia automaticamente strings antes de comparar."
+    correct: 1
+    explanation: "Comparação naive faz early return ao primeiro byte diferente. Atacante mede latência: tag começando com byte correto demora ligeiramente mais. Iterando, recupera tag completa. `crypto.timingSafeEqual` (Node) compara em tempo constante."
+  - q: "Qual a diferença essencial entre o ataque `alg:none` e `alg confusion` (RS256→HS256) em JWT?"
+    options:
+      - "São o mesmo ataque com nomes diferentes."
+      - "`alg:none` engana parser a aceitar token sem assinatura; `alg confusion` força o verifier a usar a chave pública RSA como secret HMAC, permitindo forjar tokens já que a pubkey é conhecida."
+      - "`alg:none` só funciona em tokens expirados; `alg confusion` em qualquer token."
+      - "`alg confusion` exige acesso à privkey do servidor."
+    correct: 1
+    explanation: "`alg:none`: lib aceita header `alg:none` e pula verificação. `alg confusion`: atacante muda `alg` de RS256 pra HS256, forçando o verifier a interpretar a public key (assumida secret) como chave HMAC; com a pubkey publicamente conhecida, forja qualquer assinatura. Ambos exploram libs mal-feitas; mitigação: whitelist explícito de algoritmos."
+  - q: "Por que TLS 1.3 exige ECDHE ephemeral em vez de permitir RSA key transport como em TLS 1.2?"
+    options:
+      - "ECDHE é simplesmente mais rápido em hardware moderno."
+      - "Pra garantir forward secrecy: chaves de sessão são geradas por handshake e descartadas; se a chave de longo prazo do servidor for comprometida no futuro, sessões antigas gravadas continuam ininteligíveis."
+      - "RSA foi banido por ser pós-quântico vulnerável."
+      - "ECDHE evita certificate validation, simplificando o handshake."
+    correct: 1
+    explanation: "Em RSA key transport, comprometer a privkey do servidor permite decrypt de tráfego antigo gravado. ECDHE gera par efêmero por sessão, descartado após; mesmo com pubkey de longo prazo vazada, atacante não recupera o shared secret efêmero. Crítico contra 'harvest now, decrypt later'."
 ---
 
 # 01-12, Cryptography Fundamentals

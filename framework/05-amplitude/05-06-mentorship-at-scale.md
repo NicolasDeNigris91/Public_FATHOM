@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual e a diferenca fundamental entre mentoring, coaching e sponsoring?"
+    options:
+      - "Sao sinonimos com formalidade diferente"
+      - "Mentoring passa conhecimento; coaching facilita descoberta; sponsoring poe peso politico"
+      - "Mentoring e pago; coaching e free; sponsoring e formal"
+      - "Mentoring e cross-team; coaching e intra-team; sponsoring e externo"
+    correct: 1
+    explanation: "Mentoring passa conhecimento (senior->junior). Coaching facilita descoberta (pessoa cresce sozinha). Sponsoring poe peso politico em pessoa para oportunidade, com risco do sponsor."
+  - q: "No framework SBI de feedback, o que cada letra representa?"
+    options:
+      - "Skill, Behavior, Improvement"
+      - "Situation, Behavior, Impact"
+      - "Status, Behavior, Iteration"
+      - "Strategy, Boundary, Insight"
+    correct: 1
+    explanation: "SBI: Situation (contexto especifico) + Behavior (acao observada) + Impact (efeito). Especifico, nao personal. Ex: em retro Q3 [S], voce disse X [B], 2 juniores ficaram desencorajados [I]."
+  - q: "No modelo de Radical Candor de Kim Scott, o que e ruinous empathy?"
+    options:
+      - "High care + high challenge"
+      - "Low care + high challenge"
+      - "High care + low challenge"
+      - "Low care + low challenge"
+    correct: 2
+    explanation: "Ruinous empathy = high care, low challenge (gentil demais para criticar). Radical Candor combina high care + high challenge. Obnoxious aggression e low care + high challenge."
+  - q: "Qual e o time budget realista de mentoring para um Staff IC?"
+    options:
+      - "20h/semana ou 50% da capacidade"
+      - "5h/semana ou 15-20% da capacidade"
+      - "1h/mes ou 1% da capacidade"
+      - "0h, mentoria e responsabilidade do manager"
+    correct: 1
+    explanation: "Realistic Staff IC: 5h/semana mentoring (3 mentees x 1h + ad hoc + group office hour) = 15-20% capacity. Manager jobs podem ser 50%+; Staff IC fica abaixo."
+  - q: "Qual e o failure mode em que o mentor 'tries to be the answer'?"
+    options:
+      - "Absent mentor"
+      - "Buddy mentor"
+      - "Hero mentor"
+      - "Vampire mentor"
+    correct: 2
+    explanation: "Hero mentor tenta ser a resposta para tudo; mentee nao cresce porque depende. Coach over solve. Os outros: absent (no follow-up), buddy (friendship dilui feedback), vampire mentee (drena energia)."
 ---
 
 # 05-06, Mentorship at Scale

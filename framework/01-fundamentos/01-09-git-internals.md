@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que dois arquivos com conteúdo idêntico em repositórios Git diferentes têm exatamente o mesmo SHA-1?"
+    options:
+      - "Porque Git mantém um índice global compartilhado de hashes entre repos."
+      - "Porque Git é content-addressable: o hash é função pura do conteúdo (header + bytes), não do path ou repositório."
+      - "Porque o SHA-1 inclui o timestamp do filesystem, que coincide entre clones."
+      - "Porque arquivos iguais sempre são deduplicados por hard links no sistema."
+    correct: 1
+    explanation: "Git é content-addressable storage: cada blob é hashado a partir de `blob <size>\\0<content>`. Mesmo conteúdo produz o mesmo hash determinístico em qualquer repo, o que viabiliza deduplicação e transferência eficiente."
+  - q: "Qual a diferença essencial entre `git revert` e `git reset --hard` num branch público?"
+    options:
+      - "Ambos reescrevem histórico, mas `revert` é mais seguro porque preserva timestamps."
+      - "`revert` cria um novo commit que desfaz mudanças sem reescrever histórico; `reset --hard` move o ponteiro do branch e descarta commits, sendo destrutivo em branches compartilhados."
+      - "`revert` apaga commits do reflog; `reset --hard` os preserva."
+      - "São sinônimos; o nome diferente é legado pré-Git 1.7."
+    correct: 1
+    explanation: "`revert` é aditivo: gera um commit novo invertendo o diff, mantendo histórico linear e seguro pra branches compartilhados. `reset --hard` muda onde o branch aponta e perde commits do alcance público, causando divergência pra colaboradores."
+  - q: "Por que `git push --force-with-lease` é preferível a `git push --force` mesmo em feature branch privado?"
+    options:
+      - "Porque `--force-with-lease` é mais rápido em redes lentas."
+      - "Porque `--force-with-lease` rejeita o push se o remote avançou desde seu último fetch, evitando sobrescrever silenciosamente o trabalho de outro."
+      - "Porque `--force` foi deprecated em Git 2.40+."
+      - "Porque `--force-with-lease` cria um backup automático do branch antes de sobrescrever."
+    correct: 1
+    explanation: "`--force-with-lease` checa se o ref remoto ainda está onde você esperava (snapshot via fetch). Se alguém pushou no meio, o push falha. `--force` cego sobrescreve mesmo trabalho recém-pushado por outro dev."
+  - q: "Em rebase, o que acontece com os commits originais do branch que foi rebasado?"
+    options:
+      - "São automaticamente deletados durante a operação de rebase."
+      - "Continuam existindo como objetos órfãos no repo, alcançáveis via reflog até o garbage collection (~30-90 dias) coletá-los."
+      - "São sobrescritos in-place; mesmos hashes ganham novos parents."
+      - "Migram pra um branch oculto chamado `refs/rebased/`."
+    correct: 1
+    explanation: "Rebase cria commits NOVOS (hashes diferentes) com mesmos diffs em cima da nova base. Os commits antigos viram unreachable, mas continuam no `.git/objects` e ficam recuperáveis via reflog até gc rodar (tipicamente após 30-90 dias)."
+  - q: "Por que merge conflicts em Jujutsu (jj) não aparecem como markers `<<<<<<<` no arquivo, diferente de Git?"
+    options:
+      - "Porque jj usa três-way merge e Git só dois-way."
+      - "Porque jj armazena conflitos como metadata estruturada por change e propaga a resolução pelas changes subsequentes; o working state mantém o arquivo limpo."
+      - "Porque jj resolve conflitos automaticamente via heurísticas ML."
+      - "Porque jj não suporta arquivos texto, apenas binários."
+    correct: 1
+    explanation: "jj modela conflito como first-class metadata num change ID estável. Você resolve no working state e jj propaga a resolução pelas changes filhas. Git embute markers no próprio arquivo, exigindo edit manual sempre que o conflict reaparece."
 ---
 
 # 01-09, Git Interno

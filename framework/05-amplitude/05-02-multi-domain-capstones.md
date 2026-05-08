@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que 3 capstones broad sao preferiveis a 1 capstone deep no nivel Staff?"
+    options:
+      - "Porque 1 deep gera burnout enquanto 3 broad sao relaxantes"
+      - "Porque Staff precisa mais de breadth e transferencia entre dominios"
+      - "Porque 3 capstones impressionam mais recrutadores"
+      - "Porque deep dives sao reservados para Principal Engineer"
+    correct: 1
+    explanation: "No nivel Staff, vocabulario em N dominios + ability to spot common patterns vence depth em 1 dominio. Trade-off intencional."
+  - q: "Qual padrao canonico Fintech NAO e mencionado no modulo?"
+    options:
+      - "Idempotency em ingestion de transactions"
+      - "Reconciliation entre balance do aggregator e ledger"
+      - "Sharding horizontal por geo-regiao"
+      - "Currency math com bigint e FX"
+    correct: 2
+    explanation: "Os patterns canonicos Fintech listados sao idempotency, reconciliation, time-series, encryption field-level, audit, currency math. Sharding nao aparece."
+  - q: "No capstone Real-Time (whiteboard), por que CRDT vence OT em distribuido?"
+    options:
+      - "CRDT e mais rapido em todos os benchmarks"
+      - "CRDT permite eventual consistency conflict-free sem central coordinator"
+      - "OT exige hardware especializado para sync"
+      - "CRDT nao requer persistence, simplificando arquitetura"
+    correct: 1
+    explanation: "CRDTs sao conflict-free e nao bloqueiam edits, permitindo eventual consistency robusta. OT precisa transformar operacoes coordenadamente."
+  - q: "No Capstone A (MCP agentic), o que MCP substitui?"
+    options:
+      - "Servidores REST por GraphQL universal"
+      - "Per-vendor function-calling APIs com layer agnostico LLM-tool"
+      - "Bibliotecas de prompt engineering como LangChain"
+      - "Sistemas de embedding como pgvector"
+    correct: 1
+    explanation: "MCP (Model Context Protocol, Anthropic Nov 2024) e JSON-RPC standard que substitui APIs proprietarias de function-calling com layer agnostico."
+  - q: "Qual e o anti-pattern mais grave em tool-use orchestrator production?"
+    options:
+      - "Usar Anthropic SDK direto em vez de LangChain"
+      - "ReAct loop sem max steps levando a infinite reasoning"
+      - "Logar custos por conversa em dashboard"
+      - "Suportar multiplos LLM providers simultaneamente"
+    correct: 1
+    explanation: "ReAct sem max steps trava o agent em loop infinito de reasoning. Anti-pattern explicito no modulo, junto com timeout ausente em tool calls."
 ---
 
 # 05-02, Multi-Domain Capstones

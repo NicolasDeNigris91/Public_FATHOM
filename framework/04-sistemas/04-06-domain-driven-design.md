@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual a diferença essencial entre DDD strategic e tactical?"
+    options:
+      - "Tactical é mais importante; strategic é teórico"
+      - "Strategic = bounded contexts, ubiquitous language, context map; tactical = aggregates, VOs, repositories"
+      - "São sinônimos em Evans 2003"
+      - "Strategic só se aplica a microserviços"
+    correct: 1
+    explanation: "Strategic DDD é modelagem de alto nível (contexts, language, distillation de core). Tactical é implementação dentro de um BC (aggregates, value objects). Tactical-only é cargo cult; strategic é o que mais importa."
+  - q: "Por que aggregate gigante é anti-pattern?"
+    options:
+      - "Viola spec OpenAPI"
+      - "Carrega muitas entities em memória, causa lock contention e latência alta em transações"
+      - "Aggregate só pode ter 1 entity por definição"
+      - "Não funciona com event sourcing"
+    correct: 1
+    explanation: "Aggregate inteiro é carregado em memória e travado em transação. Aggregate gigante (com sub-coleções unbounded como tracking pings) causa lock contention enorme e latência. Heurística: <50 entities; lifecycle alinhado; invariants transacionais."
+  - q: "Qual a distinção entre domain event e integration event?"
+    options:
+      - "Domain event é JSON; integration event é Protobuf"
+      - "Domain event é dentro do bounded context (in-process bus); integration event é cross-context (broker)"
+      - "Integration event é deprecated"
+      - "Domain event não pode ser persistido"
+    correct: 1
+    explanation: "Domain events são raised/handled dentro do BC, geralmente via in-process bus mesma transação. Integration events atravessam BCs via broker (Kafka), com schema versionado e contrato Published Language."
+  - q: "Quando o pattern Anti-Corruption Layer (ACL) é o default correto?"
+    options:
+      - "Sempre que há dois microserviços"
+      - "Ao integrar com legacy ou modelo externo cuja semântica contaminaria o domínio interno"
+      - "Em CRUD trivial"
+      - "Apenas em event sourcing"
+    correct: 1
+    explanation: "ACL é translator dedicado (adapter) que isola modelo externo tóxico/legado. Integração com Stripe, ERP legacy, ou parceiro com modelo ruim deve passar por ACL bidirecional para preservar pureza do domínio interno."
+  - q: "Por que Specification pattern com toSqlClause() vence implementação só in-memory?"
+    options:
+      - "Reduz lines of code"
+      - "Mesma regra roda como WHERE em query batch (índice usado) e como predicate in-memory; evita drift e OOM"
+      - "É exigido pelo Postgres 16"
+      - "Permite eliminar repositories"
+    correct: 1
+    explanation: "Specification só in-memory força carregar 50k rows e filtrar em JS (OOM em produção). toSqlClause() traduz a mesma spec em SQL aproveitando índice, mantendo single source of truth e paridade entre validação e query."
 ---
 
 # 04-06, Domain-Driven Design

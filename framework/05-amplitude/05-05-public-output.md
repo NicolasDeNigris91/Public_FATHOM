@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual e o argumento principal a favor do write-to-think?"
+    options:
+      - "Escrever gera renda passiva via SEO"
+      - "Escrever expoe gaps; verbalizing oral e fraco, writing forces precision"
+      - "Escrever substitui necessidade de mentoria"
+      - "Escrever e exigido formalmente para promocao Staff"
+    correct: 1
+    explanation: "Write-to-think: voce acha que entende algo ate tentar explicar. Writing forces precision; clarity primary, audience secondary."
+  - q: "Por que YouTube/podcast escala melhor que blog em 2025-2026?"
+    options:
+      - "Porque texto saiu de moda completamente"
+      - "Porque algoritmos distribuem sem precisar SEO ou Hacker News luck"
+      - "Porque blog requer dominio proprio caro"
+      - "Porque newsletter nao tem mais audiencia"
+    correct: 1
+    explanation: "YouTube/Spotify algoritmos distribuem para audiencia sem SEO. Blog precisa Google ranking ou HN luck. Voz e cara criam conexao pessoal mais forte."
+  - q: "Por que proprio dominio vence Medium/Substack como plataforma?"
+    options:
+      - "Porque tem melhor monetizacao automatica"
+      - "Porque oferece mais templates visuais"
+      - "Porque owns content, audience, sem walls e SEO juice consolidado"
+      - "Porque Medium foi descontinuado"
+    correct: 2
+    explanation: "Proprio dominio owns content e audience, custom design, sem paywalls, SEO consolidado. Cross-post a outros com canonical link e alternativa."
+  - q: "Qual e o pattern correto de repurposing de uma talk gravada?"
+    options:
+      - "Talk e descartavel, nao gera artefatos secundarios"
+      - "1 talk = 1 blog post + 5 social posts + 1 newsletter feature"
+      - "Talk so vale se monetizada via curso pago"
+      - "Talk substitui necessidade de blog post"
+    correct: 1
+    explanation: "Repurposing deliberado maximiza leverage: 1 talk gera blog post, 5 social posts, 1 newsletter feature. Vale tambem inverso (post deep -> talk -> book chapter)."
+  - q: "Qual e a metrica REAL de audience building (vs vanity)?"
+    options:
+      - "Numero total de followers"
+      - "Likes acumulados em posts virais"
+      - "Depth de connections, opportunities geradas, conversations qualidade"
+      - "Frequencia de posts por semana"
+    correct: 2
+    explanation: "Followers count e vanity. Real metrics: depth de connections, opportunities geradas, conversations de qualidade. Slow + organic > fast + manipulated."
 ---
 
 # 05-05, Public Output

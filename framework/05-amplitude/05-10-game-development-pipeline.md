@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual e o frame budget tipico para 60fps em game loop?"
+    options:
+      - "33.33ms"
+      - "16.67ms"
+      - "8.33ms"
+      - "100ms"
+    correct: 1
+    explanation: "60fps = 16.67ms por frame. Subdivisao tipica: input+sim 2-4ms, render 8-12ms, GPU wait resto. Para 120fps mobile/VR, budget cai para ~8.33ms."
+  - q: "Por que ECS (Entity-Component-System) vence OOP classico em high-perf games?"
+    options:
+      - "ECS usa heap dinamico permitindo objetos maiores"
+      - "ECS e cache-friendly (arrays of components), parallelizavel e composable"
+      - "ECS suporta heranca multipla nativamente"
+      - "ECS elimina necessidade de garbage collection"
+    correct: 1
+    explanation: "ECS armazena components como arrays contiguos (cache-friendly), permite parallelizacao por sistema, e composicao em vez de heranca. Mental model diferente de OOP."
+  - q: "Qual modelo de networking e tipico de fighting games (Street Fighter)?"
+    options:
+      - "Lockstep (todos clientes simulam mesmos inputs)"
+      - "Client-server authoritative com prediction"
+      - "Rollback netcode (predict + on misprediction rewind+replay)"
+      - "Pure peer-to-peer sem reconciliation"
+    correct: 2
+    explanation: "Rollback netcode (GGPO origem) prediz inputs do oponente, e em misprediction faz rewind+replay rapido. Padrao em fighting games. Lockstep e RTS classico, client-server e FPS."
+  - q: "Qual licao principal o Unity Runtime Fee fallout (Set 2023) ensinou?"
+    options:
+      - "Engines proprietarios sao sempre mais caros"
+      - "Vendor lock-in em ferramenta core de producao e risco operacional"
+      - "Open-source engines sao tecnicamente inferiores"
+      - "Mobile games nao deveriam usar Unity"
+    correct: 1
+    explanation: "Unity tentou cobrar per-install fee retroativo Set 2023 -> backlash + Riccitiello forced out. Trust em engine vendor virou critical concern. Devs single-engine ficaram exposed."
+  - q: "Qual e o anti-pattern critico ao usar NPC LLM em jogos?"
+    options:
+      - "Usar Llama 3.2 1B em vez de GPT-4"
+      - "LLM em hot path sem cache + fallback rules-based"
+      - "Implementar dialogue system em GDScript"
+      - "Suportar mais de 5 personagens NPC"
+    correct: 1
+    explanation: "LLM em hot path sem cache + fallback rules-based torna latencia unplayable e cost catastrofico em scale. Solucao: cache + fallback rules-based, target < 200ms TTFB."
 ---
 
 # 05-10, Game Development Pipeline (Optional)

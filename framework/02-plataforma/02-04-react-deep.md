@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que React Fiber usa uma linked tree em vez de recursão pura para reconciliação?"
+    options:
+      - "Reduz o uso de memória em ~50%"
+      - "Permite interromper e retomar trabalho em meio ao render, base do Concurrent Mode"
+      - "É um requisito do TypeScript estrito"
+      - "Permite paralelizar renders em múltiplas threads"
+    correct: 1
+    explanation: "A linked tree permite ao React pausar a render phase quando algo mais prioritário chega (input do usuário) e retomar depois. Isso é a fundação do Concurrent Mode e Suspense."
+  - q: "Em uma lista mutável com reorder, qual o problema de usar o índice como `key`?"
+    options:
+      - "Causa erro de runtime"
+      - "Reduz a performance pela metade"
+      - "React assume 'mesmo elemento na mesma posição', fazendo state interno (input value, focus) acompanhar o índice em vez do item lógico"
+      - "Apenas funciona em listas estáticas"
+    correct: 2
+    explanation: "Com index como key em listas reordenáveis, ao mover items, React mantém o state (focus, input) na mesma posição em vez de seguir a entidade. Use uma key estável de domínio (ex: `order.id`)."
+  - q: "Qual a regra principal sobre Server Components e Client Components em RSC?"
+    options:
+      - "Server Components podem importar Client Components, mas Client Components só recebem Server Components via `children` ou props serializáveis"
+      - "Client Components podem importar livremente Server Components"
+      - "Não é possível misturar os dois em uma mesma árvore"
+      - "Server Components têm acesso a hooks como `useState`"
+    correct: 0
+    explanation: "Server Components podem importar Client Components diretamente. O inverso só funciona via `children` ou props serializáveis. Server Components não podem usar hooks de state, refs ou eventos."
+  - q: "Quando ainda vale escrever `useMemo` manualmente após adoção do React Compiler?"
+    options:
+      - "Sempre, em todos componentes — compiler é apenas auxiliar"
+      - "Quase nunca; o compiler memoiza shallow-equal-prop automaticamente. Use manualmente apenas em computações muito caras ou para identidade referencial em deps de hook downstream que não está sendo compilado"
+      - "Apenas em componentes server-side"
+      - "Apenas dentro de loops"
+    correct: 1
+    explanation: "O React Compiler detecta dependências e memoiza automaticamente. `useMemo` manual fica reservado para casos específicos (parsing caro, identidade exigida por libs externas). Evite memos defensivos."
+  - q: "Sobre `useOptimistic` em Server Actions: o que acontece se a action falhar?"
+    options:
+      - "O estado optimistic permanece e é necessário rollback manual via try/catch"
+      - "React reverte automaticamente o estado optimistic; combine com toast para feedback de erro"
+      - "A action é retentada infinitamente"
+      - "O componente é desmontado"
+    correct: 1
+    explanation: "`useOptimistic` reverte automaticamente quando a action throws. Não use try/catch para reverter manualmente — apenas combine com mecanismo de feedback (toast) para o erro."
 ---
 
 # 02-04, React Profundo

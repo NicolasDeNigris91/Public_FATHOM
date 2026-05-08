@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual é a Dependency Rule fundamental em Clean Architecture?"
+    options:
+      - "Toda dependência deve ser injetada via container"
+      - "Dependências apontam para dentro: inner layer (entities) nunca importa outer (frameworks/DB/UI)"
+      - "Domain pode importar infrastructure se necessário"
+      - "Use cases dependem diretamente do framework HTTP"
+    correct: 1
+    explanation: "Dependency Rule: deps fluem do exterior pro interior. Entities (núcleo) e Use Cases não conhecem DB/HTTP. Inversão via interfaces (ports) permite testes sem infra e troca de adapters."
+  - q: "Quando vertical slices vencem horizontal layers?"
+    options:
+      - "Em CRUD trivial sem regras de negócio"
+      - "Quando mudanças por feature são frequentes e atravessam várias camadas; cada slice é coeso e isolado"
+      - "Apenas em projetos .NET com MediatR"
+      - "Sempre que há mais de 3 desenvolvedores"
+    correct: 1
+    explanation: "Vertical slices organizam por feature (CreateOrder/, AssignCourier/), evitando shared model que pune evolução. Mudança por feature toca 1 pasta. CQRS encaixa naturalmente. Trade-off: leve duplicação entre slices similares."
+  - q: "Qual sintoma indica que um modular monolith está pronto para ser dividido em serviços?"
+    options:
+      - "O time decidiu seguir tendência da indústria"
+      - "Build > 10min, conflitos de PR semanais, deploy assustador, time evita refactor por medo"
+      - "O codebase passou de 10k linhas"
+      - "Há mais de uma função em src/"
+    correct: 1
+    explanation: "Sinais reais: cycle time alto, conflitos crônicos, medo de deploy, refactor evitado. Sem esses sinais, modular monolith ainda é ROI superior. Microservices prematuro impõe overhead distribuído sem ganho."
+  - q: "Por que adicionar 7 camadas em um endpoint GET /products é considerado anti-pattern?"
+    options:
+      - "Lentidão em runtime"
+      - "Overhead de mapping em CRUD trivial sem regras complexas; over-engineering pragmático"
+      - "Clean Architecture proíbe explicitamente"
+      - "Quebra dependency inversion"
+    correct: 1
+    explanation: "Hexagonal/Clean valem quando há domain core complexo. CRUD simples (`SELECT *` + JSON) com 7 layers (DTO → Controller → UseCase → Entity → Repository → ORM → DB) é puro overhead. Pragmatic: short-circuit em casos simples."
+  - q: "Em modular monolith production, qual o papel das ferramentas de boundary enforcement (eslint-plugin-boundaries, dep-cruiser, ts-arch)?"
+    options:
+      - "Documentação opcional do projeto"
+      - "Bloquear PR em CI quando módulos importam internals de outros, prevenindo drift e habilitando split futuro"
+      - "Substituir testes unitários"
+      - "Gerar OpenAPI automaticamente"
+    correct: 1
+    explanation: "Boundary enforcement automatizado em CI gate impede que módulos vazem internals (compila mas drifta). Sem isso, modular monolith degrada lentamente em ball of mud, e split futuro em microservices vira impossível."
 ---
 
 # 04-07, Architectures

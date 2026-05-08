@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que no exemplo de store buffering (`x=1; r1=y` em A vs `y=1; r2=x` em B), x86 permite observar `r1=0 && r2=0`?"
+    options:
+      - "Porque x86 tem memory model totalmente relaxado, comparável a ARM."
+      - "Porque cada CPU vê suas próprias escritas no store buffer antes que cheguem ao cache visível pra outros cores; StoreLoad reordering é permitido em TSO."
+      - "Porque o compilador C++ sempre reordena stores em loops."
+      - "Porque a coerência de cache MESI invalida ambos os valores simultaneamente."
+    correct: 1
+    explanation: "x86 TSO permite só StoreLoad reordering: o store de A vai pro store buffer local antes de propagar; quando A lê y, ainda não viu o store de B (e vice-versa). MFENCE ou seq_cst atomics resolvem ao drenar o buffer."
+  - q: "Qual o trade-off prático entre spinlock e mutex parking (futex) em Linux?"
+    options:
+      - "Spinlock é sempre mais rápido; mutex é legacy."
+      - "Spinlock queima CPU enquanto espera (ótimo pra hold curto, sem syscall); mutex parqueia a thread via syscall (caro em context switch, mas libera CPU em hold longo ou alta contenção)."
+      - "Mutex usa hardware atomics, spinlock não."
+      - "Spinlock só funciona em single-core; mutex em multi-core."
+    correct: 1
+    explanation: "Hold curto + baixa contenção: spin no atomic é nanosegundos. Hold longo + contenção: spin queima ciclos sem progresso e mutex (futex) parqueia a thread, pagando context switch (microsegundos) mas liberando o core."
+  - q: "O que é o problema ABA em algoritmos lock-free baseados em CAS?"
+    options:
+      - "CAS pode falhar arbitrariamente em hardware ARM."
+      - "O valor pode mudar de A → B → A entre o load e o CAS; o CAS tem sucesso porque vê A, mas estado intermediário (memória reusada, pointers liberados) corrompe a estrutura."
+      - "Dois threads escrevem o mesmo valor simultaneamente."
+      - "CAS só funciona com tipos de 32 bits."
+    correct: 1
+    explanation: "Em stack lock-free com pointer, um node A pode ser removido, B inserido e removido, A reinserido com lixo. Seu CAS aceita porque vê A. Solução: tagged pointer com counter de versão (DWCAS) ou hazard pointers."
+  - q: "Por que release-acquire ordering basta pra publicar dados via flag `ready`?"
+    options:
+      - "Não basta; sempre precisa seq_cst."
+      - "Stores antes de `ready.store(true, release)` não podem ser reordenados pra depois; loads após `ready.load(acquire)==true` veem todos esses stores. Forma um happens-before edge sem custo de barrier global."
+      - "Porque release-acquire é só uma otimização cosmética sem garantia formal."
+      - "Porque o compilador sempre emite MFENCE pra ambos."
+    correct: 1
+    explanation: "Release impede reordering de stores anteriores pra depois do release; acquire impede reordering de loads posteriores pra antes do acquire. Quando o consumer observa o valor publicado, todos os efeitos do publisher são visíveis. seq_cst é mais caro e desnecessário pra publish-subscribe simples."
+  - q: "Qual diferença conceitual entre lock-free e wait-free?"
+    options:
+      - "Wait-free não usa atomics; lock-free sim."
+      - "Lock-free garante que ALGUM thread sempre progride globalmente (outros podem starvar em retry storms); wait-free garante que TODO thread progride em número limitado de passos."
+      - "São sinônimos; nomenclatura difere por linguagem."
+      - "Wait-free é menos seguro porque permite spinning indefinido."
+    correct: 1
+    explanation: "Lock-free permite que um thread fique em retry loop infinito enquanto outros progridem (sem deadlock global). Wait-free é mais forte: cada operação completa em ≤ N passos independentemente do resto, exigido em sistemas hard real-time."
 ---
 
 # 01-11, Concurrency Theory

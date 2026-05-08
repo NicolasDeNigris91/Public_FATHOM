@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual é a diferença prática entre CLA e DCO para um projeto que pode virar dual-licensing?"
+    options:
+      - "CLA é gratuito e DCO custa; ambos transferem copyright"
+      - "Default GitHub é DCO, que NÃO transfere copyright; para relicenciar (dual-licensing) você precisa de CLA explícito assinado por cada contribuidor"
+      - "DCO substitui CLA em todos os casos modernos"
+      - "CLA e DCO são equivalentes para fins legais"
+    correct: 1
+    explanation: "DCO atesta autoria; não transfere copyright. Sem CLA, contribuição vem sob a licença OSS atual e você não pode relicenciar comercialmente sem permissão de cada contribuidor — bloqueia dual-licensing."
+  - q: "Qual lição emerge dos casos Hashicorp BSL (2023), MongoDB SSPL (2018) e Redis SSPL (2024)?"
+    options:
+      - "Mudanças de licença em projetos OSS estabelecidos passam sem atrito quando bem comunicadas"
+      - "Mudar licença em projeto consolidado quase sempre dispara fork credível (OpenTofu, Valkey) que captura share enterprise"
+      - "AGPL é estritamente superior a SSPL para evitar cloud competitors"
+      - "OSI sempre aprova Business Source Licenses após review"
+    correct: 1
+    explanation: "Hashicorp→OpenTofu, MongoDB→DocumentDB fork, Redis→Valkey: o pattern repete. License switch dispara fork OSS credível em semanas; goodwill se perde irreversivelmente. Comunicar early e justificar não previne, mas mitiga."
+  - q: "Qual é a calibração realista para alguém subir de external contributor a committer em projeto bem-mantido?"
+    options:
+      - "1-3 PRs em 1 mês"
+      - "12-24 meses, 30+ PRs significantes e 100+ reviews — trust ladder é earned, não pleitado"
+      - "Apenas o pagamento de Tidelift é necessário"
+      - "Solicitar diretamente aos maintainers via DM em Discord"
+    correct: 1
+    explanation: "Trust ladder real (Node.js, React, Postgres, Linux): caminho médio external→committer é 12-24 meses com 30+ PRs e 100+ reviews. Fast-track existe mas é exceção (corp sponsor, expertise rara, RFC adoptado)."
+  - q: "Qual destes é anti-pattern crítico para um maintainer que precisa pausar atividade?"
+    options:
+      - "Anunciar hiatus com tempo e delegar commit access a co-maintainer"
+      - "Promover co-maintainer e fazer last release de polish"
+      - "Inatividade silenciosa > 6 meses em repo crítico sem handoff — vira attack vector para hostile takeover via 'helpful contributor' (XZ playbook)"
+      - "Arquivar o repo se transition for impossível"
+    correct: 2
+    explanation: "Silent abandonment é o anti-pattern pior. xz-utils 2024 mostrou: 3 anos de social engineering plantando backdoor. Anuncie hiatus, delegue commit access ou archive — nunca deixe repo crítico sem maintainer ativo silenciosamente."
+  - q: "Por que Sigstore (Cosign + Fulcio + Rekor) substitui long-lived signing keys?"
+    options:
+      - "É mais rápido para assinar artifacts grandes"
+      - "Usa identidade-baseado via OIDC tokens (cert short-lived ~10 min) em vez de chaves long-lived que viram liability quando vazam (3CX 2023, SolarWinds 2020)"
+      - "É mandatório por regulamentação SOC 2"
+      - "Elimina a necessidade de provenance attestations"
+    correct: 1
+    explanation: "Long-lived keys são liability (3CX usou stolen code-signing certs). Sigstore emite cert curto via OIDC validado por Fulcio; Rekor é transparent log auditável. Sem chave persistente para vazar = supply chain mais resiliente."
 ---
 
 # 04-15, Open Source Maintainership

@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual a diferença fundamental entre namespaces e cgroups no Linux do ponto de vista de containers?"
+    options:
+      - "Namespaces limitam recursos; cgroups isolam processos"
+      - "Namespaces isolam recursos visíveis (PID, network, mount); cgroups limitam consumo (CPU, mem, IO)"
+      - "Ambos isolam recursos, mas cgroups operam em user space"
+      - "Namespaces são apenas para Docker; cgroups para Kubernetes"
+    correct: 1
+    explanation: "Namespaces fazem isolamento de visibilidade (o que o processo vê), enquanto cgroups limitam consumo. Container = processo Linux com namespaces aplicados + cgroups controlando recursos."
+  - q: "Por que `ENV API_KEY=...` em Dockerfile é antipadrão crítico?"
+    options:
+      - "Porque variáveis ENV não funcionam em multi-stage builds"
+      - "Porque o secret persiste em image layer e fica visível em `docker history` e registries"
+      - "Porque ENV é mais lento que ARG em build time"
+      - "Porque BuildKit não suporta ENV em 2026"
+    correct: 1
+    explanation: "ENV grava o valor em image layer permanentemente. `docker history` revela, registries indexam, e qualquer um que faz pull obtém o secret. Use BuildKit `--mount=type=secret` ou runtime injection."
+  - q: "Qual a vantagem do BuildKit `--mount=type=cache,target=/root/.npm` em build CI?"
+    options:
+      - "Reduz tamanho da imagem final em 30%"
+      - "Cache do package manager preservado entre builds sem entrar nos layers da imagem final"
+      - "Permite paralelizar instalação de pacotes entre containers"
+      - "Substitui o lockfile validation"
+    correct: 1
+    explanation: "Cache mount preserva ~/.npm entre builds (cold ~3min vs warm ~30s) e crucialmente NÃO entra na image final, evitando bloat. Sem cache mount, npm baixa tudo a cada build."
+  - q: "Por que escolher distroless ou Wolfi como runtime em vez de Ubuntu/Debian completo?"
+    options:
+      - "São mais rápidos no boot por terem kernel próprio"
+      - "Têm melhor suporte a glibc do que Alpine"
+      - "Reduzem CVE surface drasticamente (~5 CVEs vs ~100+) e eliminam shell/package manager para post-RCE pivoting"
+      - "São obrigatórios para Kubernetes admission controllers"
+    correct: 2
+    explanation: "Distroless/Wolfi minimizam superfície: sem shell impede `kubectl exec -- sh` post-compromise, sem package manager bloqueia `apt install nmap`, e CVE count cai de centenas para unidades."
+  - q: "O que `cosign sign` keyless via OIDC resolve que assinatura com chave estática (KMS) NÃO resolve?"
+    options:
+      - "Performance: keyless é 10x mais rápido"
+      - "Elimina key management persistente; assinatura é vinculada à identidade OIDC efêmera do runner CI"
+      - "Suporta multi-arch builds"
+      - "Permite assinar imagens maiores que 4GB"
+    correct: 1
+    explanation: "Keyless via Fulcio + GitHub OIDC elimina chaves long-lived que vazam ou precisam rotation. Cert tem ~10min lifetime e é vinculado ao workflow path, registrado em Rekor transparency log."
 ---
 
 # 03-02, Docker

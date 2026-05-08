@@ -7,6 +7,13 @@ import { STAGES, type StageId, type StageMeta } from './stages';
 const FRAMEWORK_ROOT = path.resolve(process.cwd(), '..', '..', 'framework');
 const REPO_ROOT = path.resolve(process.cwd(), '..', '..');
 
+export interface ModuleQuizQuestion {
+  q: string;
+  options: string[];
+  correct: number;
+  explanation?: string;
+}
+
 export interface ModuleFrontmatter {
   module?: string;
   title?: string;
@@ -18,6 +25,7 @@ export interface ModuleFrontmatter {
     pratico?: GateState;
     conexoes?: GateState;
   };
+  quiz?: ModuleQuizQuestion[];
 }
 
 export interface GateState {

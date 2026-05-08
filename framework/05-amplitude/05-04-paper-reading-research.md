@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "No three-pass approach de Keshav, qual e o objetivo do Pass 1?"
+    options:
+      - "Reimplementar mentalmente todo o paper"
+      - "Decidir se vale prosseguir lendo, em 5-10 minutos"
+      - "Identificar todas as falhas metodologicas"
+      - "Escrever summary completo de 500 palavras"
+    correct: 1
+    explanation: "Pass 1 (5-10 min) le titulo, abstract, intro, conclusion, headings e refs apenas para decidir se prosseguir. Pass 2 e leitura cuidadosa, Pass 3 e re-implement mental."
+  - q: "Qual e o anti-pattern de citar pre-print em decisao de producao?"
+    options:
+      - "Pre-prints sao sempre invalidos cientificamente"
+      - "Citar arXiv recente sem caveats e sem replicacao independente"
+      - "Pre-prints requerem pagamento para acesso"
+      - "Pre-prints nao podem ser citados em ADRs"
+    correct: 1
+    explanation: "Pre-prints nao sao peer-reviewed; benchmarks podem ser cherry-picked. ADR deve marcar pre-print, unverified ou aguardar replicacao independente."
+  - q: "Qual paper introduziu Mixture of Experts esparso open-source SOTA?"
+    options:
+      - "LLaMA (Touvron et al, 2023)"
+      - "Mistral 7B (Jiang et al, 2023)"
+      - "Mixtral of Experts (Jiang et al, 2024)"
+      - "Mamba (Gu & Dao, 2023)"
+    correct: 2
+    explanation: "Mixtral of Experts (Mistral AI, Jan 2024, arXiv 2401.04088) foi o primeiro open-source SOTA MoE com sparse 8x7B. Mistral 7B usa SWA + GQA mas nao e MoE."
+  - q: "Por que paper club acelera retencao 3-5x vs solo reading?"
+    options:
+      - "Porque divide o tempo de leitura entre membros"
+      - "Porque adiciona accountability + diversas perspectivas + discussao"
+      - "Porque reduz numero de papers por ano"
+      - "Porque elimina necessidade de Q&A notes"
+    correct: 1
+    explanation: "Paper club gera accountability, multiplas perspectivas e discussao que amplifica retencao. Sozinho funciona, junto e melhor."
+  - q: "Qual e a recomendacao de cadencia 2026 para LLM era reading?"
+    options:
+      - "100% LLM papers para acompanhar pace"
+      - "Mix 2 LLM/ML : 1 systems : 1 classic em rotacao"
+      - "1 paper por dia agressivamente"
+      - "Apenas papers com codigo Papers With Code disponivel"
+    correct: 1
+    explanation: "Mix 2 LLM/ML : 1 systems : 1 classic em rotacao de 4 semanas evita debt conceitual em data structures, scheduling, consistency."
 ---
 
 # 05-04, Paper Reading & Research Protocol

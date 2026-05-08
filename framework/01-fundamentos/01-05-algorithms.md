@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Você precisa do 'top-10 mais frequentes' em um dataset de 1 milhão de itens. Qual abordagem dá O(n log 10) em vez de O(n log n)?"
+    options:
+      - "Ordenar tudo com sort() e pegar os 10 últimos."
+      - "Manter um min-heap de tamanho 10: pra cada elemento, push se heap < 10, senão se elemento > heap.peek() faça pop+push. Big-O = O(n log 10) ≈ O(n)."
+      - "Usar um Set — naturalmente mantém os top-K."
+      - "Fazer count em Map e ordenar o Map.entries() — sempre O(n)."
+    correct: 1
+    explanation: "Min-heap de tamanho fixo K é o padrão clássico de top-K. push/pop em heap de 10 = log 10 ≈ 3 operações constantes. Total: ~3n vs n log n com sort completo. Ganho real importante quando K << n."
+  - q: "Você tem um grafo com pesos negativos (mas sem ciclos negativos) representando custos compostos. Por que Dijkstra não serve e o que usar?"
+    options:
+      - "Dijkstra serve sim — pesos negativos não importam."
+      - "Dijkstra greedy assume que adicionar uma aresta nunca diminui distância acumulada; com pesos negativos a invariante quebra (nó 'fechado' pode ter caminho menor depois). Use Bellman-Ford O(V·E)."
+      - "Use BFS — funciona em qualquer grafo."
+      - "Floyd-Warshall O(V³) é a única opção."
+    correct: 1
+    explanation: "Dijkstra fecha um nó quando o tira do heap, assumindo que sua distância é final. Com pesos negativos, um nó fechado pode ter caminho menor descoberto depois. Bellman-Ford itera V-1 vezes pra propagar todas as distâncias, lidando com pesos negativos."
+  - q: "Memoization (top-down DP) e tabulação (bottom-up DP) resolvem os mesmos problemas. Qual diferença prática mais relevante?"
+    options:
+      - "Memoization é sempre mais rápida."
+      - "Tabulação evita stack overflow em problemas com profundidade alta e permite otimização de espaço (ex: Fibonacci O(1) em vez de O(n)) descartando estados antigos."
+      - "Memoization não funciona em linguagens com TCO."
+      - "Tabulação só funciona em problemas 1D."
+    correct: 1
+    explanation: "Memoization recursiva é mais natural mas paga custo de stack frames; pode estourar em DP com profundidade ~10⁵+. Tabulação é iterativa, e quando você só precisa dos K últimos estados (Fibonacci precisa de 2), pode descartar o resto e ir pra O(1) espaço."
+  - q: "Qual destes problemas é NP-hard e portanto exige heurística/aproximação em escala de produção?"
+    options:
+      - "Encontrar o caminho mais curto em rede de estradas (Dijkstra/A*)."
+      - "Otimizar a rota de UM caminhão por uma cidade (TSP — Traveling Salesman, NP-hard) ou alocar entregas entre N caminhões (VRP — Vehicle Routing, NP-hard)."
+      - "Ordenar 10⁹ registros em disco (external merge sort, O(n log n))."
+      - "Buscar uma chave em índice B-Tree (O(log n))."
+    correct: 1
+    explanation: "TSP e VRP são NP-hard clássicos. Em escala real (logística), você usa heurísticas (Lin-Kernighan, simulated annealing, Clarke-Wright pra VRP) ou solvers comerciais (OR-Tools, Gurobi). Os outros 3 têm algoritmos polinomiais conhecidos."
+  - q: "Em A*, o que acontece se a heurística NÃO for admissível (i.e., superestima o custo restante)?"
+    options:
+      - "A* fica mais rápido — heurística agressiva poda mais."
+      - "A* pode retornar caminho NÃO-ótimo. Admissibilidade (h(n) ≤ custo real) é a invariante que garante optimalidade."
+      - "A* entra em loop infinito."
+      - "A* degenera em BFS."
+    correct: 1
+    explanation: "A heurística h(n) precisa ser ≤ ao custo real do nó até o destino pra A* garantir optimalidade. Se superestima, A* pode 'fechar' um nó com f(n) = g(n) + h(n) inflado e não revisitar quando descobre caminho real menor. Trade-off explorado: heurística mais agressiva = busca mais rápida mas perde garantia."
 ---
 
 # 01-05, Algoritmos

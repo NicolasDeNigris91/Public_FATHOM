@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual fração do benefício de formal methods vem do ato de ESCREVER a spec, segundo o módulo?"
+    options:
+      - "20% — só rodar o model checker importa"
+      - "50% — meio a meio entre escrever e checar"
+      - "80% — escrever a spec força clarity e expõe a maior parte dos bugs antes de TLC rodar"
+      - "10% — a maior parte vem do counterexample do TLC"
+    correct: 2
+    explanation: "Lamport e praticantes citam que ~80% do ganho vem de especificar (você descobre o bug formalizando), apenas ~20% vem de rodar TLC. Por isso lightweight specs e spec-first thinking já agregam muito."
+  - q: "Diferença operacional entre safety invariants e liveness properties em TLA+?"
+    options:
+      - "Safety é sintática, liveness é semântica"
+      - "Safety afirma 'nunca acontece X' em todo estado reachable; liveness afirma 'eventualmente Y acontece' e exige fairness para fazer sentido"
+      - "Safety roda em TLC, liveness só em Apalache"
+      - "Liveness é mais barata de checar que safety"
+    correct: 1
+    explanation: "Safety = invariant em todos os estados (ex: 'nunca dois leaders'). Liveness = progresso eventual (ex: 'mensagem é entregue'). Sem fairness, nada precisa progredir e liveness vira trivialmente falso."
+  - q: "Qual é a diferença canônica entre TLA+ e P language para spec de protocolos?"
+    options:
+      - "TLA+ é só matemática, sem ferramenta executável; P só roda em Azure"
+      - "TLA+ é spec language puro com temporal logic forte; P é state-machine first, executável, e gera test harness em C#/Go/Java mantendo verified semantics"
+      - "P substitui TLA+ em todos os casos por ser mais novo"
+      - "TLA+ é open-source e P é proprietário pago"
+    correct: 1
+    explanation: "TLA+ (Lamport) é matemática elegante para invariants/temporal abstrato. P (Microsoft Research) é imperativo state-machine, gera código de teste real, brilha em distributed protocol design event-driven."
+  - q: "Antes de subir em TLA+ ou theorem provers, qual é o ponto de entrada saudável recomendado?"
+    options:
+      - "Coq com Software Foundations"
+      - "Lean 4 + mathlib4"
+      - "Property-based testing (Hypothesis, fast-check, PropEr) — cobre 30-50% do benefício com 5-10% do custo cognitivo"
+      - "Alloy 6 com temporal logic"
+    correct: 2
+    explanation: "PBT é o ponto de entrada: invariants em código, shrinker descobre minimal counterexample. Só depois disso escale para TLA+ em protocolos onde custo de bug justifique semanas escrevendo spec."
+  - q: "Qual técnica reduz state explosion mais agressivamente quando atores são indistinguíveis?"
+    options:
+      - "Aumentar workers em 'tlc -workers auto'"
+      - "Symmetry reduction: declarar SYMMETRY set (ex: Couriers indistinguíveis) colapsa estados isomorfos com até ~100x reduction"
+      - "Usar Liveness em vez de Safety properties"
+      - "Substituir TLA+ por Alloy"
+    correct: 1
+    explanation: "Symmetry reduction colapsa estados isomorfos quando elementos são indistinguíveis (ex: Couriers permutáveis). State constraints e bound model também ajudam, mas symmetry dá os maiores ganhos quando aplicável."
 ---
 
 # 04-14, Formal Methods (TLA+)

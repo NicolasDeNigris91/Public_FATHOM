@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que reportar média (`avg`) de latência em sistemas de alta concorrência é considerado prática ruim?"
+    options:
+      - "Porque média é matematicamente indefinida pra distribuições contínuas."
+      - "Porque distribuições de latência tipicamente são heavy-tail (power law/exponential): a média é dominada por outliers e mascara comportamento da cauda; P50/P95/P99 reportam a experiência real do usuário."
+      - "Porque cálculo de média exige guardar todas as samples em memória."
+      - "Porque média é impossível de calcular em streaming."
+    correct: 1
+    explanation: "Latency em sistemas reais segue heavy-tail: 1% das requests podem ser 100x mais lentas. A média mistura ruído com outliers e perde resolução. Percentis (P50/P95/P99/P999) descrevem experiência real; t-digest e HDR Histogram estimam em streaming."
+  - q: "Em SVD `A = UΣV^T`, por que truncar os menores singular values produz a melhor aproximação low-rank em norma de Frobenius?"
+    options:
+      - "Porque os menores valores são sempre zero numericamente."
+      - "Pelo teorema de Eckart-Young: top-k singular values retêm a maior energia espectral; truncar os demais minimiza ||A - A_k||_F entre todas as matrizes de rank ≤ k."
+      - "Porque a inversão da matriz preserva apenas os top-k."
+      - "Porque a operação SVD é não-única e qualquer escolha funciona."
+    correct: 1
+    explanation: "SVD ordena singular values em magnitude decrescente. Eckart-Young garante que zerar os menores produz a melhor aproximação rank-k em Frobenius (e norma 2). É a base matemática de PCA, image compression, latent semantic analysis e recomendação."
+  - q: "Por que cosine similarity é preferido a dot product puro em comparação de embeddings?"
+    options:
+      - "Porque cosine é sempre positivo, simplificando comparações."
+      - "Cosine similarity divide pelo produto das normas, normalizando magnitude e medindo apenas direção; vetores com magnitudes diferentes (frequência de palavra, escala) ficam comparáveis. Em vetores L2-normalized, cosine vira o próprio dot product."
+      - "Porque dot product não funciona em alta dimensão."
+      - "Porque cosine é definido como `1 - dot(u,v)`."
+    correct: 1
+    explanation: "Embeddings têm magnitude variável por construção (frequência, treinamento). Cosine extrai direção pura. Por isso pipelines comuns L2-normalizam vetores no preprocess, então `cos = u·v` direto, mantendo a velocidade do dot product."
+  - q: "O que é catastrophic cancellation em aritmética de ponto flutuante?"
+    options:
+      - "Overflow quando o resultado excede o range do tipo."
+      - "Subtração de dois valores muito próximos perde dígitos significativos: `1.0000001 - 1.0 = 1e-7` mantém só 1 dígito útil dos ~7 originais. Mitiga reformulando a fórmula ou usando precisão maior."
+      - "Erro determinístico do hardware FPU."
+      - "Falha do compilador em emitir instrução FMA."
+    correct: 1
+    explanation: "Float guarda ~7 (fp32) ou ~15 (fp64) dígitos significativos. Quando subtraímos quase-iguais, os high bits se cancelam, sobrando bits baixos com ruído de arredondamento. Mitigação clássica: identidades trigonométricas, Kahan summation, log-sum-exp shift por max."
+  - q: "Qual a probabilidade aproximada de colisão entre 23 hashes uniformemente aleatórios num espaço de 365 valores (analogia birthday paradox)?"
+    options:
+      - "~6% (23/365)."
+      - "~50% — não-intuitivo: o que importa são os C(23,2)=253 PARES, não comparações com um valor fixo. Por isso colisões em hashes acontecem em N≈√(espaço), não N≈espaço."
+      - "~99%, próximo da certeza."
+      - "~0.1%, praticamente zero."
+    correct: 1
+    explanation: "Birthday paradox: probabilidade de qualquer par coincidir com 23 elementos em 365 valores é ~50%. Implicação cripto: pra resistir a colisões em hash de N bits, espaço efetivo é 2^(N/2), não 2^N. Por isso SHA-256 dá segurança ~128 bits contra collision attacks."
 ---
 
 # 01-15, Math Foundations for Computing

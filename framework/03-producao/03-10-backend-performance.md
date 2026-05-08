@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Qual é a ordem correta do método de otimização de performance backend?"
+    options:
+      - "Profile, otimizar, medir baseline, definir SLO, identificar saturação"
+      - "Definir SLO, medir baseline, identificar saturação, profile, otimizar, re-medir"
+      - "Otimizar baseado em intuição e validar depois com métricas"
+      - "Identificar saturação, otimizar tudo paralelamente, depois definir SLO"
+    correct: 1
+    explanation: "Sem SLO definido, otimização é infinita. Sem baseline, você não sabe o que melhorou. Profile só faz sentido após identificar onde está o gargalo."
+  - q: "Por que usar `time.After(30 * time.Second)` dentro de um select em loop é antipattern em Go?"
+    options:
+      - "Time.After não funciona com cancelamento de context"
+      - "Cria um timer novo a cada call e em high-throughput vira leak garantido"
+      - "Time.After bloqueia o event loop principal"
+      - "Time.After tem precisão menor que time.NewTimer"
+    correct: 1
+    explanation: "Cada chamada de time.After aloca um novo timer que só é GC após o intervalo expirar. Em loop apertado isso vira memory leak; o pattern correto é time.NewTimer com defer Stop()."
+  - q: "Qual é a diferença chave entre `epoll` e `io_uring` no kernel Linux?"
+    options:
+      - "io_uring é readiness-based; epoll é completion-based"
+      - "epoll é readiness-based (kernel avisa fd pronto); io_uring é completion-based com batch via ring shared"
+      - "Ambos funcionam idênticamente; diferença é só nome"
+      - "io_uring só funciona em sistemas ARM"
+    correct: 1
+    explanation: "epoll requer N syscalls por op (avisa pronto, userspace lê). io_uring usa ring compartilhado: 1 syscall (io_uring_enter) processa batch, com buffer rings permitindo zero-copy real."
+  - q: "Em CDN, por que usar Vary: User-Agent é um anti-pattern?"
+    options:
+      - "User-Agent não é exposto pelo browser para CDN"
+      - "Explode cardinality do cache (cada UA vira uma key) e derruba hit ratio"
+      - "Vary header não é suportado em CDNs modernas"
+      - "User-Agent muda com cada deploy do browser"
+    correct: 1
+    explanation: "Cada User-Agent string distinta cria uma cache key separada. Com milhares de UAs no mundo real, hit ratio cai para abaixo de 5%, defeating o propósito do CDN."
+  - q: "Qual problema o pattern Probabilistic Early Expiration resolve em caching?"
+    options:
+      - "Reduzir custo de armazenamento do cache"
+      - "Evitar thundering herd quando múltiplos requests chegam ao expirar do TTL"
+      - "Prevenir cache poisoning"
+      - "Acelerar cache hits"
+    correct: 1
+    explanation: "Estende TTL com probabilidade crescente perto do fim, fazendo refresh background antes do expire real. Isso previne stampede onde N requests simultâneos disparam recompute caro ao mesmo tempo."
 ---
 
 # 03-10, Backend Performance

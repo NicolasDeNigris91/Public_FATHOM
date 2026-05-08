@@ -8,6 +8,47 @@ gates:
   pratico: { status: pending, date: null, attempts: 0, notes: null }
   conexoes: { status: pending, date: null, attempts: 0, notes: null }
 status: locked
+quiz:
+  - q: "Por que UPDATE em Postgres não atualiza in-place a row existente?"
+    options:
+      - "Limitação de hardware moderno"
+      - "MVCC: cria nova versão da tuple e marca antiga com xmax; vacuum depois libera espaço"
+      - "Apenas em tabelas com índices"
+      - "Para evitar fragmentação do disco"
+    correct: 1
+    explanation: "Postgres usa MVCC: UPDATE = DELETE+INSERT em termos de versão. Permite leitores não bloquearem escritores, mas gera bloat sem vacuum periódico. Autovacuum é essencial em workloads write-heavy."
+  - q: "Em um índice composto B-Tree em `(a, b, c)`, qual query pode usar o índice eficientemente?"
+    options:
+      - "Apenas `WHERE b = ? AND c = ?`"
+      - "`WHERE a = ?` ou `WHERE a = ? AND b = ?` ou `WHERE a = ? AND b = ? AND c = ?`"
+      - "Apenas `WHERE c = ?`"
+      - "Qualquer combinação independente de ordem"
+    correct: 1
+    explanation: "B-Tree composto ajuda queries que filtram pela esquerda da chave: a sozinho, a+b, ou a+b+c. Não ajuda b sozinho ou c sozinho — a chave precisa começar por `a`."
+  - q: "Em `EXPLAIN ANALYZE`, qual sinal indica que estatísticas estão desatualizadas?"
+    options:
+      - "Aparição de `Hash Join`"
+      - "`actual rows` muito diferente de `rows` (estimado)"
+      - "Presença de `Buffers: shared hit`"
+      - "Tempo de execução acima de 100ms"
+    correct: 1
+    explanation: "Quando o planner estima X rows mas na execução real aparecem 10-100x mais (ou menos), as estatísticas em `pg_stats` estão desatualizadas. Rode `ANALYZE <tabela>` ou ajuste `default_statistics_target`."
+  - q: "Por que `CREATE INDEX` (sem `CONCURRENTLY`) é perigoso em produção?"
+    options:
+      - "Consome muita CPU"
+      - "Adquire lock SHARE que bloqueia writes por minutos em large tables"
+      - "Cria índices duplicados sem aviso"
+      - "Apenas funciona em tabelas vazias"
+    correct: 1
+    explanation: "`CREATE INDEX` clássico bloqueia DML (INSERT/UPDATE/DELETE) durante todo o build. `CREATE INDEX CONCURRENTLY` é mais lento mas usa ShareUpdateExclusive lock — não bloqueia writes."
+  - q: "O que acontece se um subscriber de logical replication morre e ninguém percebe?"
+    options:
+      - "Postgres derruba a publicação automaticamente"
+      - "O replication slot mantém WAL retido no disco do publisher, enchendo `pg_wal/` e podendo crashar o primary"
+      - "Não há impacto, o slot é descartado após 1h"
+      - "O publisher faz fallback para streaming replication"
+    correct: 1
+    explanation: "Replication slots garantem WAL retention até o subscriber consumir. Subscriber morto + slot ativo = WAL acumula no disco do publisher, podendo encher disco. Sempre monitorar `pg_replication_slots.confirmed_flush_lsn`."
 ---
 
 # 02-09, Postgres Deep
