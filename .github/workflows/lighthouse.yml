@@ -48,11 +48,13 @@ jobs:
         env:
           NEXT_PUBLIC_SITE_URL: https://fathom.nicolaspilegidenigris.dev
 
-      - name: Install Lighthouse CI
-        run: npm install -g --ignore-scripts @lhci/cli@0.14.0
-
       - name: Run Lighthouse CI
-        working-directory: apps/site
-        run: lhci autorun
+        # Repo-root cwd so lhci picks up `.lighthouserc.json`, whose
+        # `startServerCommand` is written relative to the repo root
+        # (`node apps/site/.next/standalone/apps/site/server.js`).
+        # Without this the previous `working-directory: apps/site` made
+        # autorun fail with "Failed to determine staticDistDir" — which
+        # silently masked the assertions never running.
+        run: npx --yes @lhci/cli@0.14.0 autorun
         env:
           LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
