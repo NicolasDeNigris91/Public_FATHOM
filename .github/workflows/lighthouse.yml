@@ -48,13 +48,23 @@ jobs:
         env:
           NEXT_PUBLIC_SITE_URL: https://fathom.nicolaspilegidenigris.dev
 
+      - name: Stage standalone static assets
+        # `output: 'standalone'` (next.config.ts) does NOT copy
+        # `.next/static` or `public/` into the standalone tree — that
+        # is the user's responsibility per the Next.js docs. Without
+        # this step the standalone server boots but every page returns
+        # HTML referencing /_next/static/* chunks that 404, so the page
+        # renders unstyled and lhci's axe audit sees default-colored
+        # text on the inline-styled dark body — fails color-contrast
+        # on every element.
+        run: |
+          cp -r apps/site/.next/static apps/site/.next/standalone/apps/site/.next/static
+          cp -r apps/site/public apps/site/.next/standalone/apps/site/public
+
       - name: Run Lighthouse CI
         # Repo-root cwd so lhci picks up `.lighthouserc.json`, whose
         # `startServerCommand` is written relative to the repo root
         # (`node apps/site/.next/standalone/apps/site/server.js`).
-        # Without this the previous `working-directory: apps/site` made
-        # autorun fail with "Failed to determine staticDistDir" — which
-        # silently masked the assertions never running.
         run: npx --yes @lhci/cli@0.14.0 autorun
         env:
           LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
