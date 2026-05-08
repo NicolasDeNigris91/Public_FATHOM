@@ -65,7 +65,7 @@ export function StageCard({ stage, progress }: StageCardProps) {
           {stage.tagline}
         </p>
 
-        <p className="font-mono text-caption text-chrome/70 tracking-wide">
+        <p className="font-mono text-caption text-fog tracking-wide">
           {stage.moduleCount} módulos · 1 capstone
         </p>
 

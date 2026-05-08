@@ -59,7 +59,7 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
     <div>
       <p className="font-mono text-caption text-chrome tracking-luxury uppercase mb-2">{label}</p>
       <p className="font-display text-display-md text-pearl leading-none mb-1">{value}</p>
-      {sub && <p className="font-mono text-caption text-chrome/60 tracking-wide">{sub}</p>}
+      {sub && <p className="font-mono text-caption text-fog tracking-wide">{sub}</p>}
     </div>
   );
 }
