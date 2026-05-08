@@ -14,12 +14,9 @@
 
 ## Para quem é
 
-- Quem quer **realmente** dominar full stack do CPU à arquitetura distribuída.
-- Quem aceita ser examinado tecnicamente sem pano-de-fundo.
-- Quem topa estudar matemática quando precisa, ler RFCs, implementar do zero, escrever postmortem honesto, entrar em paper club.
-- Quem quer trajetória clara até Senior consolidado e, opcional, Staff/Principal.
+Trilha longa de estudo, do CPU à arquitetura distribuída, com um produto único (Logística) encadeado entre os 5 estágios. Cada módulo aponta pra fonte primária — livros canônicos, RFCs, papers — em vez de tutoriais.
 
-**Não é** pra quem busca atalho, certificado de boot camp, fast-track, ou "aprender Next.js em 30 dias".
+Útil se você quer um material de referência pra estudar fundo durante anos. Cada estágio leva o que precisar.
 
 ---
 
@@ -42,12 +39,12 @@ Fathom/
     │   └── reading-list.md            # livros canônicos por estágio
     ├── 01-fundamentos/         (15 módulos + capstone, fundamentos & CS)
     ├── 02-plataforma/     (19 módulos + capstone, aplicações)
-    ├── 03-producao/   (17 módulos + capstone, operações & qualidade)
+    ├── 03-producao/   (18 módulos + capstone, operações & qualidade)
     ├── 04-sistemas/         (16 módulos + capstone, distribuído & arquitetura)
-    └── 05-amplitude/          (7 módulos + capstone, specialization & influence)
+    └── 05-amplitude/          (10 módulos + capstone, specialization & influence)
 ```
 
-**Total**: 5 estágios, 66 módulos, 5 capstones, 8 metas, 3 raiz.
+**Total**: 5 estágios, 78 módulos, 5 capstones.
 
 Detalhe completo em [framework/00-meta/INDEX.md](framework/00-meta/INDEX.md).
 
