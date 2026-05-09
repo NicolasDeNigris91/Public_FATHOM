@@ -15,7 +15,7 @@ Aqui você aprende:
 - **Linguagens de sistema** (Go e Rust, só o que distingue de Node)
 - **WebAssembly** (quando JS não dá conta)
 
-**Promessa de saída:** você consegue colocar uma aplicação em produção com qualidade de empresa séria, testes confiáveis, deploy seguro, observabilidade real, segurança defensável, performance medida.
+**Promessa de saída:** você consegue colocar uma aplicação em produção com qualidade production-grade, testes confiáveis, deploy seguro, observabilidade real, segurança defensável, performance medida.
 
 ---
 

@@ -1,6 +1,6 @@
 # SELF-ASSESSMENT, Calibração Inicial
 
-> Questionário pra você decidir, com honestidade brutal, **onde realmente está**. Não pra pular módulos sem provar, você ainda passa portões. Mas pra **calibrar cadência** (módulos que você domina passam rápido; módulos novos demandam tempo) e **identificar gaps cegos**.
+> Questionário pra você decidir, com franqueza, **onde realmente está**. Não pra pular módulos sem provar, você ainda passa portões. Mas pra **calibrar cadência** (módulos que você domina passam rápido; módulos novos demandam tempo) e **identificar gaps cegos**.
 
 Regras:
 

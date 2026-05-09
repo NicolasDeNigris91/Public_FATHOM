@@ -12,8 +12,8 @@ Três modos de operação válidos. Escolha um (ou combine):
 Você é seu próprio examinador. Funciona se:
 - Disciplina alta confirmada (>3 meses de cadência sustentada).
 - Aplica STUDY-PROTOCOL §1-§16 sem cortar.
-- Faz portões com **rigor brutal contra si mesmo**: cada pergunta de Threshold respondida em folha em branco antes de marcar passou.
-- Mantém journal honesto de falhas.
+- Faz portões com **rigor contra si mesmo**: cada pergunta de Threshold respondida em folha em branco antes de marcar passou.
+- Mantém journal de falhas.
 
 Risco principal: auto-engano. Você passa portão por exhaustão ou orgulho. Detectável: se mês depois você não consegue reproduzir o que "passou", falhou. Audit retrospectivo.
 

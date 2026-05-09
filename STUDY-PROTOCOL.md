@@ -291,7 +291,7 @@ Spaced re-test transforma o framework de **certificado pontual** em **manutenç�
 
 ---
 
-## 17. Quarterly Review, audit honesto trimestral
+## 17. Quarterly Review, audit trimestral
 
 Sem revisão periódica, mastery-based vira drift. Quarter sem revisão = 3 meses sem calibração de rumo. Crio template fixo, repetível, durando 1-2h por trimestre.
 
@@ -312,7 +312,7 @@ Crie arquivo `quarterly-review-YYYY-Qn.md` no seu repo pessoal de estudos, com s
 - Anki cards adicionados: [count]
 - Journal entries: [count]
 
-## Score honesto (1-5) por dimensão
+## Score (1-5) por dimensão
 
 - **Disciplina cognitiva (Feynman/Active Recall)**: __
 - **Cadência sustentável**: __
@@ -365,7 +365,5 @@ Se 2+ vermelhos: pause 1-2 semanas mandatório.
 - Pular um trimestre porque "foi ruim", exatamente quando review é necessário.
 
 ---
-
-**Resumo brutal:** se você não está aplicando estas técnicas, **você não vai chegar em Senior**. Vai chegar em "li sobre arquitetura distribuída". Diferença é abismal em entrevista, em decisão técnica, em código sob pressão.
 
 Os protocolos de §12-§17 (spaced re-test, paper, public capstone, cohort, journal, quarterly review) são o que separa Senior consolidado de Staff/Principal real. Comece os aplicáveis cedo.

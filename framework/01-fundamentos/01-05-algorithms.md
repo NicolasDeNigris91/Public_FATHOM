@@ -364,4 +364,4 @@ Esse desafio é particularmente útil porque **alimenta o capstone de logística
 
 ---
 
-**Encerramento:** após 01-05, você consegue olhar pra um problema novo e raciocinar: "isso parece grafo / DP / sorting / hashing / etc". Esse mapeamento é o que diferencia engenheiro de programador.
+**Encerramento:** após 01-05, você consegue olhar pra um problema novo e raciocinar: "isso parece grafo / DP / sorting / hashing / etc".

@@ -14,7 +14,7 @@ status: locked
 
 ## 1. Problema de Engenharia
 
-Senior generalista entrega Logística v3 distribuído. Staff/Principal **escolhe um eixo de profundidade** e produz output que demonstra mastery suficiente pra título Staff em empresa séria. Não é mais um capstone uniforme, é o ponto onde a trajetória se ramifica.
+Senior generalista entrega Logística v3 distribuído. Staff/Principal **escolhe um eixo de profundidade** e produz output que demonstra mastery suficiente pra título Staff em ambiente production-grade. Não é mais um capstone uniforme, é o ponto onde a trajetória se ramifica.
 
 Você já fez:
 - 05-01: 2 toys de baixo nível (build-from-scratch).

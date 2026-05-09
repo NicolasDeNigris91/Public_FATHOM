@@ -12,7 +12,7 @@
 
 ---
 
-## Para quem é
+## Escopo
 
 Trilha longa de estudo, do CPU à arquitetura distribuída, com um produto único (Logística) encadeado entre os 5 estágios. Cada módulo aponta pra fonte primária — livros canônicos, RFCs, papers — em vez de tutoriais.
 
@@ -52,11 +52,11 @@ Detalhe completo em [framework/00-meta/INDEX.md](framework/00-meta/INDEX.md).
 
 ## Os 5 estágios em uma frase cada
 
-1. **Estágio 1: Fundamentos (Computer Science)**: quando perguntarem "por que esse loop é lento?", você raciocina sobre cache, alocação, syscalls, complexidade, branch prediction. Não chuta. [framework/01-fundamentos/](framework/01-fundamentos/README.md)
-2. **Estágio 2: Plataforma (Aplicações Full Stack)**: você constrói e opera aplicação full-stack monolítica em produção, defendendo cada escolha técnica. [framework/02-plataforma/](framework/02-plataforma/README.md)
-3. **Estágio 3: Produção (Ecossistema, Testes, Operações)**: você coloca em produção com qualidade de empresa séria, testes confiáveis, deploy seguro, observabilidade real, segurança defensável, performance medida, planning honesto. [framework/03-producao/](framework/03-producao/README.md)
-4. **Estágio 4: Sistemas (Arquitetura Distribuída)**: você desenha e justifica arquitetura distribuída pra problema novo, prevendo trade-offs, modos de falha, custos operacionais, com TLA+ pra o que importa. [framework/04-sistemas/](framework/04-sistemas/README.md)
-5. **Estágio 5: Amplitude (Specialization, Influence, Public Output)**: você publica, mentora, lê papers, constrói coisas do zero, e articula trade-offs em termos de negócio. [framework/05-amplitude/](framework/05-amplitude/README.md)
+1. **Estágio 1: Fundamentos (Computer Science)**: raciocínio sobre cache, alocação, syscalls, complexidade, branch prediction por trás de "por que esse loop é lento?". Sem chute. [framework/01-fundamentos/](framework/01-fundamentos/README.md)
+2. **Estágio 2: Plataforma (Aplicações Full Stack)**: aplicação full-stack monolítica em produção, com cada escolha técnica defensável. [framework/02-plataforma/](framework/02-plataforma/README.md)
+3. **Estágio 3: Produção (Ecossistema, Testes, Operações)**: qualidade production-grade — testes confiáveis, deploy seguro, observabilidade real, segurança defensável, performance medida, planning honesto. [framework/03-producao/](framework/03-producao/README.md)
+4. **Estágio 4: Sistemas (Arquitetura Distribuída)**: arquitetura distribuída justificada pra problema novo — trade-offs, modos de falha, custos operacionais, TLA+ pra o que importa. [framework/04-sistemas/](framework/04-sistemas/README.md)
+5. **Estágio 5: Amplitude (Specialization, Influence, Public Output)**: publicação, mentoria, leitura de papers, construção do zero, articulação de trade-offs em termos de negócio. [framework/05-amplitude/](framework/05-amplitude/README.md)
 
 Cada estágio tem um capstone que **evolui o mesmo produto** (Logística, um sistema de roteamento de entregas multi-tenant). Detalhe em [CAPSTONE-EVOLUTION.md](framework/00-meta/CAPSTONE-EVOLUTION.md).
 
@@ -143,7 +143,7 @@ Ao terminar o estágio 5:
 - 3+ mentees acompanhados.
 - Promo case (interno) e narrative (externo) prontos.
 
-Esse é o estado de domínio que o estágio 5 visa. Não garante título nem hire (nada garante). Mas **te coloca à altura**.
+Esse é o estado de domínio que o estágio 5 visa. Não garante título nem hire (nada garante).
 
 ---
 

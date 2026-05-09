@@ -48,10 +48,10 @@ O capstone só é liberado **após todos os 10 módulos estarem com status `done
 
 ## Postura recomendada para este estágio
 
-- **Vai parecer "afastado da realidade"**: você vai estudar binário, virtual memory, B-Trees enquanto outros devs estão fazendo Pokédex em React. **Confie no processo.** Esses fundamentos são o que diferencia Senior de Pleno daqui a 3 anos.
-- **Cada módulo tem subseções densas.** Não pule. A subseção que você pular é a que vai te prender em 04-04 (resilience patterns) lá na frente.
+- **Vai parecer "afastado da realidade"**: você vai estudar binário, virtual memory, B-Trees enquanto outros devs estão fazendo Pokédex em React.
+- **Cada módulo tem subseções densas.** Não pule.
 - **Tenha caderno físico ou tablet pra desenhar fluxos.** Vários portões conceituais exigem desenho, pratique antes de tentar.
-- **Faça o Anki religiosamente** desde 01-01. Os fatos do Fundamentos (ordem do event loop, isolation levels, comandos Unix, Big-O) são **vocabulário base** que você vai usar a vida toda.
+- **Faça o Anki** desde 01-01. Os fatos do Fundamentos (ordem do event loop, isolation levels, comandos Unix, Big-O) são **vocabulário base** que você vai usar a vida toda.
 
 ---
 
